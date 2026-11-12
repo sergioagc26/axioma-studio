@@ -26,6 +26,7 @@ export const P = {
   transcriptRaw: 'transcript.raw.json',
   analysis: 'analysis.json',
   faces: 'faces.json',
+  vision: 'vision.json',
   shots: 'shots.json',
   voiceover: path.join('media', 'voz-en-off.wav'),
   voiceoverWords: 'voiceover.json',

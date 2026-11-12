@@ -20,3 +20,4 @@ export * from './transitions.ts';
 export * from './assistant.ts';
 export * from './sfx.ts';
 export * from './brief.ts';
+export * from './vision.ts';

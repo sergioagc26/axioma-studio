@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { REPO_ROOT } from './paths.ts';
 
@@ -101,4 +103,47 @@ export function askClaude(projectId: string, request: string, onStep: (msg: stri
       resolve({ text, tools });
     });
   });
+}
+
+let cached: { at: number; ok: boolean } | null = null;
+
+/** ¿Claude tiene sesión iniciada en este computador? Se comprueba como mucho una vez por minuto. */
+export async function claudeReady(force = false): Promise<boolean> {
+  if (!force && cached && Date.now() - cached.at < 60_000) return cached.ok;
+  const bin = claudeBin();
+  if (!bin) return false;
+  const env = { ...process.env };
+  for (const k of Object.keys(env)) if (/^(CLAUDECODE|CLAUDE_CODE_|ANTHROPIC_API_KEY$)/.test(k)) delete env[k];
+  const isScript = /\.(c|m)?js$/.test(bin);
+  const ok = await new Promise<boolean>((resolve) => {
+    const args = ['-p', 'Responde solo: ok', '--output-format', 'json', '--max-turns', '1'];
+    const child = spawn(isScript ? process.execPath : bin, isScript ? [bin, ...args] : args, { cwd: REPO_ROOT, env, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    let out = '';
+    const timer = setTimeout(() => { child.kill(); resolve(false); }, 45_000);
+    child.stdout.on('data', (d) => (out += d));
+    child.on('error', () => { clearTimeout(timer); resolve(false); });
+    child.on('close', () => { clearTimeout(timer); resolve(!/not logged in|\/login/i.test(out) && /"is_error":\s*false/.test(out)); });
+  });
+  cached = { at: Date.now(), ok };
+  return ok;
+}
+
+/**
+ * Abre una terminal con Claude ya arrancado en la carpeta del programa, para
+ * que el usuario solo tenga que escribir /login. No inicia sesión por él.
+ */
+export async function openClaudeLogin(): Promise<void> {
+  const bin = claudeBin();
+  if (!bin) throw new AssistantError('no-instalado', 'Falta el programa de Claude. Corre: npm install');
+  cached = null;
+  const cmd = /\.(c|m)?js$/.test(bin) ? `"${process.execPath}" "${bin}"` : `"${bin}"`;
+  if (process.platform === 'darwin') {
+    const file = path.join(os.tmpdir(), 'conectar-claude.command');
+    await writeFile(file, `#!/bin/bash\ncd "${REPO_ROOT}"\nclear\necho "Escribe /login y pulsa Enter para conectar Claude. Luego cierra esta ventana."\necho\n${cmd}\n`, { mode: 0o755 });
+    spawn('open', [file], { stdio: 'ignore', detached: true }).unref();
+  } else if (process.platform === 'win32') {
+    spawn('cmd', ['/c', 'start', 'Conectar Claude', 'cmd', '/k', `cd /d "${REPO_ROOT}" && echo Escribe /login y pulsa Enter && ${cmd}`], { stdio: 'ignore', detached: true, windowsHide: false }).unref();
+  } else {
+    throw new AssistantError('fallo', `Abre una terminal en ${REPO_ROOT} y corre: npx claude  (luego escribe /login)`);
+  }
 }

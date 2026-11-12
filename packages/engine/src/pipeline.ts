@@ -11,6 +11,7 @@ export interface Analysis {
 import { kitCaptions, readKit } from './kit.ts';
 import { P } from './paths.ts';
 import { analyzeFaces } from './faces.ts';
+import { analyzeVision } from './vision.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { listPresets } from './presets.ts';
 import { setMusic, setVoiceover } from './ops.ts';
@@ -45,6 +46,13 @@ export async function prepareMedia(dir: string, log: Log = console.log) {
     log(faces.length ? `  cara detectada en ${faces.length} momentos` : '  no se detectó cara: el encuadre queda centrado');
   } catch (e) {
     log(`  no se pudo analizar la cara (${e instanceof Error ? e.message : e}); el encuadre queda centrado`);
+  }
+  try {
+    log('Mirando el video para saber de qué trata…');
+    const v = await analyzeVision(dir, info.duration, log);
+    log(`  se ve: ${v.scores.slice(0, 2).map((x) => `${x.label} (${Math.round(x.score * 100)} %)`).join(', ')}`);
+  } catch (e) {
+    log(`  no se pudo mirar el video (${e instanceof Error ? e.message : e}); las recomendaciones usarán solo lo que se dice`);
   }
   if (project.kind === 'hablado') {
     if (!info.hasAudio) throw new Error('El video no tiene audio. Para videos sin voz usa el modo montaje (se montaje).');

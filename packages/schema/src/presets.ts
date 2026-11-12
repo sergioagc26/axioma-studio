@@ -11,6 +11,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     description: 'Sin pausas, zoom de golpe frecuente, subtítulos palabra a palabra en mayúsculas.',
     pacing: { maxPause: 0.2, pad: 0.06, punchZoomEvery: 4 },
     captions: { wordsPerLine: 3, uppercase: true, effect: 'pop' },
+    style: { textStyle: 'resaltado', textAnim: 'pop', look: 'vivo', camera: 'pulso', transitions: true, sfxAuto: true },
   }),
   p({
     id: 'con-ritmo',
@@ -18,6 +19,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     description: 'Pausas cortas que respiran, zoom moderado.',
     pacing: { maxPause: 0.35, pad: 0.08, punchZoomEvery: 7 },
     captions: { wordsPerLine: 4 },
+    style: { textStyle: 'caja', textAnim: 'deslizar', look: 'normal', camera: 'ninguno', transitions: true, sfxAuto: false },
   }),
   p({
     id: 'sobrio',
@@ -25,6 +27,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     description: 'Ritmo natural, sin zooms, subtítulos por frase en minúsculas.',
     pacing: { maxPause: 0.6, pad: 0.12, punchZoomEvery: 0 },
     captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontWeight: 700, fontSize: 64, highlightColor: '#FFFFFF', fontFamily: 'Inter', effect: 'subrayado', emphasis: false },
+    style: { textStyle: 'etiqueta', textAnim: 'fundido', look: 'suave', camera: 'acercar', transitions: true, sfxAuto: false },
   }),
   p({
     id: 'testimonio',
@@ -32,6 +35,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     description: 'Deja respirar a la persona: frases completas, sin zooms.',
     pacing: { maxPause: 0.5, pad: 0.12, punchZoomEvery: 0, removeRetakes: true },
     captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontFamily: 'Inter', fontWeight: 700, fontSize: 62, highlightColor: '#FFFFFF', y: 0.72, emphasis: false },
+    style: { textStyle: 'subrayado', textAnim: 'desenfoque', look: 'calido', camera: 'acercar', transitions: true, sfxAuto: false },
   }),
   p({
     id: 'antes-despues',
@@ -39,6 +43,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     description: 'Cortes secos y zoom en cada cambio, resaltado cian.',
     pacing: { maxPause: 0.18, pad: 0.05, punchZoomEvery: 3 },
     captions: { wordsPerLine: 2, uppercase: true, fontFamily: 'Anton', fontWeight: 400, fontSize: 92, highlightColor: '#25F4EE', effect: 'caja' },
+    style: { textStyle: 'sello', textAnim: 'zoom', look: 'contraste', camera: 'temblor', transitions: true, flashes: true, sfxAuto: true },
   }),
   p({
     id: 'oferta-cta',
@@ -46,6 +51,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     description: 'Directo y grande, resaltado amarillo, pensado para historias.',
     pacing: { maxPause: 0.25, pad: 0.06, punchZoomEvery: 5 },
     captions: { wordsPerLine: 3, uppercase: true, fontFamily: 'Poppins', fontWeight: 800, fontSize: 80, highlightColor: '#FACC15', effect: 'caja' },
+    style: { textStyle: 'cinta', textAnim: 'rebote', look: 'vivo', camera: 'ninguno', transitions: true, sfxAuto: true },
   }),
   // --- Estilos profesionales completos: subtítulos, textos, imagen, transiciones y efectos.
   p({
@@ -100,14 +106,38 @@ const TOPICS: [string, string, RegExp][] = [
   ['clase-clara', 'explica paso a paso', /\b(paso\w*|aprend\w*|tip\w*|consejo\w*|error\w*|regla\w*|primero|segundo|tercero|clave\w*)\b/g],
 ];
 
+/** Lo que la app sabe reconocer en la imagen, y a qué sector y estilo lleva. */
+export const VISION_TOPICS = [
+  { id: 'ejercicio', label: 'gente entrenando', prompt: 'people exercising or working out', sector: 'gimnasio', preset: 'energia', look: 'dramatico' },
+  { id: 'comida', label: 'comida', prompt: 'food or cooking', sector: 'restaurante', preset: 'comida-calida', look: 'calido' },
+  { id: 'hablando', label: 'una persona hablando a cámara', prompt: 'a person talking to the camera', sector: null, preset: null, look: null },
+  { id: 'pantalla', label: 'una pantalla o un programa', prompt: 'a computer screen or software', sector: 'tecnologia', preset: 'tech-neon', look: 'frio' },
+  { id: 'producto', label: 'un producto de cerca', prompt: 'a product close-up', sector: 'negocios', preset: 'negocio-directo', look: 'vivo' },
+  { id: 'calle', label: 'la calle', prompt: 'a city street', sector: null, preset: 'energia', look: 'cine' },
+  { id: 'naturaleza', label: 'naturaleza', prompt: 'nature or landscape', sector: null, preset: 'elegante', look: 'cine' },
+  { id: 'moda', label: 'moda o belleza', prompt: 'fashion or beauty', sector: 'moda', preset: 'elegante', look: 'suave' },
+  { id: 'casa', label: 'una casa por dentro', prompt: 'a house or real estate interior', sector: 'inmobiliaria', preset: 'elegante', look: 'calido' },
+  { id: 'fiesta', label: 'una fiesta o un concierto', prompt: 'a party or concert', sector: 'entretenimiento', preset: 'energia', look: 'vivo' },
+] as const;
+
+/** Lo que se ve en el video: el tema principal (si es claro) y la puntuación de cada uno. */
+export type VisionReport = { topic: string | null; scores: { id: string; label: string; score: number }[] };
+
 /**
- * Estudia lo que se dice (y el tipo de video) y recomienda el estilo profesional
- * que mejor le va, con el motivo.
+ * Estudia el video y recomienda el estilo profesional que mejor le va, con el
+ * motivo. Usa tres fuentes: lo que se VE en la imagen, lo que se DICE y el tipo
+ * de video. Si la imagen y las palabras coinciden, mejor; si no, manda lo que
+ * más claro esté.
  */
-export function recommendPreset(project: { kind: string }, transcript: { words: { text: string; start: number; end: number }[] } | null): { id: string; reason: string } {
+export function recommendPreset(project: { kind: string }, transcript: { words: { text: string; start: number; end: number }[] } | null, vision?: VisionReport | null): { id: string; reason: string } {
   const text = (transcript?.words ?? []).map((w) => w.text).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const scored = TOPICS.map(([id, why, re]) => ({ id, why, n: (text.match(re) ?? []).length })).sort((a, b) => b.n - a.n);
-  if (scored[0].n >= 2) return { id: scored[0].id, reason: `El video ${scored[0].why} (${scored[0].n} menciones).` };
+  const seen = vision?.topic ? VISION_TOPICS.find((t) => t.id === vision.topic) : undefined;
+  const pct = seen ? Math.round((vision!.scores[0].score) * 100) : 0;
+  if (seen?.preset && (scored[0].n < 2 || scored[0].id === seen.preset)) {
+    return { id: seen.preset, reason: `En la imagen se ve ${seen.label} (${pct} %)${scored[0].n >= 2 ? ` y además ${scored[0].why}` : ''}.` };
+  }
+  if (scored[0].n >= 2) return { id: scored[0].id, reason: `El video ${scored[0].why} (${scored[0].n} menciones)${seen ? `; en la imagen se ve ${seen.label}` : ''}.` };
   if (project.kind === 'montaje' || !transcript?.words.length) return { id: 'energia', reason: 'Es un montaje sin voz: le va un estilo rápido y con fuerza.' };
   const words = transcript.words;
   const rate = words.length / Math.max(1, words[words.length - 1].end - words[0].start);
@@ -117,7 +147,15 @@ export function recommendPreset(project: { kind: string }, transcript: { words: 
 }
 
 /** Fuentes disponibles en el render (Google Fonts). */
-export const FONT_FAMILIES = ['Montserrat', 'Inter', 'Space Grotesk', 'Poppins', 'Anton', 'Bebas Neue', 'Oswald', 'Archivo Black', 'DM Sans'] as const;
+export const FONT_FAMILIES = ['Montserrat', 'Inter', 'Space Grotesk', 'Poppins', 'Anton', 'Bebas Neue', 'Oswald', 'Archivo Black', 'DM Sans', 'Rubik', 'Raleway', 'Nunito', 'Barlow Condensed', 'Roboto Condensed', 'League Spartan', 'Teko', 'Kanit', 'Sora', 'Bangers', 'Righteous', 'Permanent Marker', 'Pacifico', 'Lobster', 'Caveat', 'Playfair Display', 'Lora'] as const;
+/** Grupos para mostrar las tipografías ordenadas. */
+export const FONT_GROUPS: [string, string[]][] = [
+  ['Fuertes', ['Montserrat', 'Poppins', 'Archivo Black', 'League Spartan', 'Rubik', 'Kanit', 'Sora']],
+  ['Condensadas', ['Anton', 'Bebas Neue', 'Oswald', 'Barlow Condensed', 'Roboto Condensed', 'Teko']],
+  ['Limpias', ['Inter', 'DM Sans', 'Space Grotesk', 'Raleway', 'Nunito']],
+  ['Con carácter', ['Bangers', 'Righteous', 'Permanent Marker', 'Pacifico', 'Lobster', 'Caveat']],
+  ['Elegantes', ['Playfair Display', 'Lora']],
+];
 
 export function getPreset(id: string, extra: Preset[] = []): Preset {
   const found = [...extra, ...BUILTIN_PRESETS].find((x) => x.id === id);

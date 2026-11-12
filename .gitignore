@@ -11,3 +11,4 @@ packages/studio/dist/
 .claude/launch.json
 .env
 .sfx/
+.modelos/

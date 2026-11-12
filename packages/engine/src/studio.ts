@@ -11,13 +11,14 @@ import * as ops from './ops.ts';
 import { P, REPO_ROOT, WORKSPACE } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
 import { allPresets, savePreset } from './presets.ts';
-import { AssistantError, askClaude, claudeBin } from './assistant.ts';
+import { AssistantError, askClaude, claudeBin, claudeReady, openClaudeLogin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
 import { analyzeReference, listReferences, presetFromReference, referencesDir } from './reference.ts';
 import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
+import { readVision } from './vision.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -93,6 +94,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
 
   if (p === '/api/ping') return json(res, { app: APP_NAME });
+  if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1') });
+  if (p === '/api/claude' && method === 'POST') { await openClaudeLogin(); return json(res, { ok: true }); }
 
   if (p === '/api/projects' && method === 'GET') {
     const all = await ops.listProjects();
@@ -172,7 +175,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const project = await readProject(dir);
     const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
-    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()), kit: await readKit(project.client), sfx: Object.entries(SFX).map(([sid, d]) => ({ id: sid, name: d.name, description: d.description })), voices: await ttsProviders() });
+    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()), kit: await readKit(project.client), vision: await readVision(dir), sfx: Object.entries(SFX).map(([sid, d]) => ({ id: sid, name: d.name, description: d.description })), voices: await ttsProviders() });
   }
 
   if (p === '/api/project' && method === 'PUT') {
@@ -211,6 +214,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const preset = await savePreset(project.client, { ...base, captions: { ...base.captions, ...(b.captions ?? {}) }, style: { ...base.style, ...(b.style ?? {}) } });
       const applied = b.aplicar === false ? project : await ops.applyPreset(dir, preset.id);
       return json(res, { preset, project: applied, presets: await allPresets(project.client) });
+    }
+    if (b.op === 'guardar-estilo') {
+      const project = await readProject(dir);
+      const preset = await ops.saveCurrentStyle(dir, String(b.name ?? '').trim() || 'Mi estilo');
+      return json(res, { preset, presets: await allPresets(project.client) });
     }
     if (b.op === 'guardar-preset') {
       const project = await readProject(dir);

@@ -36,6 +36,21 @@ export const App: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [render, setRender] = useState<Job | null>(null);
   const [formato, setFormato] = useState('9:16');
+  // ¿Claude tiene sesión iniciada? null = todavía comprobando.
+  const [claude, setClaude] = useState<boolean | null>(null);
+  useEffect(() => { api('/api/claude').then((d) => setClaude(d.conectado)).catch(() => setClaude(false)); }, []);
+  const connect = async () => {
+    try {
+      await api('/api/claude', { method: 'POST' });
+      setToastMsg('Se abrió una terminal. Escribe /login, entra con tu cuenta y vuelve aquí. Lo compruebo solo en unos segundos.');
+      // Se vuelve a comprobar varias veces mientras el usuario inicia sesión.
+      for (let i = 0; i < 12; i++) {
+        await new Promise((r) => setTimeout(r, 15000));
+        const d = await api('/api/claude?revisar=1');
+        if (d.conectado) { setClaude(true); setToastMsg('Claude conectado. Ya puedes usar los botones de pedir a Claude.'); return; }
+      }
+    } catch (e: any) { setToastMsg(e.message); }
+  };
   const store = useProject(route.p);
   const { project } = store;
 
@@ -123,6 +138,10 @@ export const App: React.FC = () => {
               <button className="btn sq" aria-label="Rehacer" title="Rehacer (⇧⌘Z)" disabled={!store.canRedo} onClick={store.redo}>↷</button>
             </>
           )}
+          {claude === false && (
+            <button className="btn rect" title="Abre una terminal: escribe /login y vuelve aquí" onClick={connect}>Conectar Claude</button>
+          )}
+          {claude === true && <span className="pill">Claude conectado</span>}
           <button className="btn rect" onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
             Tema {theme === 'oscuro' ? 'claro' : 'oscuro'}
           </button>

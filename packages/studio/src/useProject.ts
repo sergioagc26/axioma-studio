@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sceneLength, speechOf } from '@snz/schema';
-import type { Brand, BrandKit, FacePoint, Preset, Project, Scene, Transcript, TransitionSpec } from '@snz/schema';
+import type { Brand, BrandKit, VisionReport, FacePoint, Preset, Project, Scene, Transcript, TransitionSpec } from '@snz/schema';
 
 export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; transitions: TransitionSpec[] }
 
@@ -49,6 +49,8 @@ export interface ProjectStore {
   catalog: { sfx: { id: string; name: string; description: string }[]; voices: string[] };
   /** Perfil de la marca del cliente (null si aún no tiene). */
   kit: BrandKit | null;
+  /** Lo que la app vio en el video. */
+  vision: VisionReport | null;
   setKit: (k: BrandKit | null) => void;
   presets: Preset[];
   setPresets: (p: Preset[]) => void;
@@ -73,6 +75,7 @@ export function useProject(id: string | null): ProjectStore {
   const [brand, setBrand] = useState<Brand | undefined>();
   const [extras, setExtras] = useState<Extras | undefined>();
   const [kit, setKit] = useState<BrandKit | null>(null);
+  const [vision, setVision] = useState<VisionReport | null>(null);
   const [catalog, setCatalog] = useState<ProjectStore['catalog']>({ sfx: [], voices: [] });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -95,7 +98,7 @@ export function useProject(id: string | null): ProjectStore {
     api(`/api/project?id=${encodeURIComponent(id)}`).then((d) => {
       if (!alive) return;
       lastSaved.current = d.project.updatedAt;
-      show(d.project); setTranscript(d.transcript); setPresets(d.presets); setBrand(d.brand); setExtras(d.extras); setCatalog({ sfx: d.sfx ?? [], voices: d.voices ?? [] }); setKit(d.kit ?? null);
+      show(d.project); setTranscript(d.transcript); setPresets(d.presets); setBrand(d.brand); setExtras(d.extras); setCatalog({ sfx: d.sfx ?? [], voices: d.voices ?? [] }); setKit(d.kit ?? null); setVision(d.vision ?? null);
     }).catch((e) => alive && setError(e.message));
     // Cambios hechos fuera del studio (Claude, CLI): llegan en vivo.
     const es = new EventSource(`/api/events?id=${encodeURIComponent(id)}`);
@@ -161,7 +164,7 @@ export function useProject(id: string | null): ProjectStore {
   const undo = useCallback(() => step(past.current, future.current), [save]);
   const redo = useCallback(() => step(future.current, past.current), [save]);
 
-  return { project, transcript, brand, extras, catalog, kit, setKit, reloadExtras, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
+  return { project, transcript, brand, extras, catalog, kit, vision, setKit, reloadExtras, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
 }
 
 /**

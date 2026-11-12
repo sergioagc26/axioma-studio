@@ -10,7 +10,7 @@ import { kitCaptions, readKit } from './kit.ts';
 import { P, WORKSPACE } from './paths.ts';
 import { readAnalysis } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
-import { listPresets } from './presets.ts';
+import { listPresets, savePreset } from './presets.ts';
 import { extractWav16k, mediaDuration, processVoice } from './media.ts';
 import { ensureProjectSfx } from './sfx.ts';
 import { transcribeWav } from './transcribe.ts';
@@ -453,4 +453,20 @@ export async function applyBrandStyle(dir: string): Promise<{ project: Project; 
   if (st.sfxAuto) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
   project.audio.sfxAuto = Boolean(st.sfxAuto);
   return { project: await writeProject(dir, project), why: brand.why };
+}
+
+/** Guarda el estilo actual del proyecto (ritmo, subtítulos y cómo están vestidas las escenas) como un estilo propio del cliente. */
+export async function saveCurrentStyle(dir: string, name: string) {
+  const project = await readProject(dir);
+  const most = <T>(list: T[]): T | undefined => [...new Set(list)].sort((a, b) => list.filter((x) => x === b).length - list.filter((x) => x === a).length)[0];
+  const sc = project.scenes;
+  return savePreset(project.client, {
+    name, description: `Tu estilo, guardado desde «${project.name}».`, base: project.presetId,
+    pacing: project.pacing, captions: project.captions,
+    style: {
+      textStyle: most(sc.map((s) => s.textStyle)), textFont: most(sc.map((s) => s.textFont).filter(Boolean) as string[]), textAnim: most(sc.map((s) => s.textAnim)),
+      look: most(sc.map((s) => s.look)), camera: most(sc.map((s) => s.camera)),
+      transitions: sc.some((s) => s.transition), sfxAuto: project.audio.sfxAuto,
+    },
+  });
 }

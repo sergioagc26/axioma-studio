@@ -65,6 +65,18 @@ describe('estilo recomendado según el video', () => {
     expect(m.reason.length).toBeGreaterThan(10);
     expect(BUILTIN_PRESETS.some((p) => p.id === recommendPreset({ kind: 'hablado' }, tr('hola que tal como estas')).id)).toBe(true);
   });
+  it('lo que se ve en la imagen pesa en la recomendación', () => {
+    const gym = { topic: 'ejercicio', scores: [{ id: 'ejercicio', label: 'gente entrenando', score: 0.97 }] };
+    const r = recommendPreset({ kind: 'montaje' }, null, gym);
+    expect(r.id).toBe('energia');
+    expect(r.reason).toContain('En la imagen se ve gente entrenando (97 %)');
+    // Imagen de comida con palabras de comida: coinciden.
+    const food = { topic: 'comida', scores: [{ id: 'comida', label: 'comida', score: 0.9 }] };
+    expect(recommendPreset({ kind: 'hablado' }, tr('Esta receta de pizza va al horno'), food).id).toBe('comida-calida');
+    // Alguien hablando a cámara no decide el estilo: mandan las palabras.
+    const talk = { topic: 'hablando', scores: [{ id: 'hablando', label: 'una persona hablando a cámara', score: 0.6 }] };
+    expect(recommendPreset({ kind: 'hablado' }, tr('Si tu negocio no consigue clientes pierdes ventas'), talk).id).toBe('negocio-directo');
+  });
   it('los estilos profesionales traen subtítulos, textos, imagen y transiciones', () => {
     for (const id of ['negocio-directo', 'energia', 'comida-calida', 'tech-neon', 'clase-clara', 'elegante']) {
       const p = getPreset(id);

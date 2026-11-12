@@ -1,17 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { applyVariant, motionGallery, suggestVariants, type SceneVariant } from '@snz/schema';
+import { applyVariant, motionGallery, suggestVariants, type SceneVariant, VISION_TOPICS } from '@snz/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL, VISUAL_LABEL } from '../SceneFrame.tsx';
 import { VariantPreview } from '../VariantPreview.tsx';
 import { api } from '../useProject.ts';
 import { askAssistant } from '../useProject.ts';
 
-const CATEGORY: Record<string, string> = { motion: 'Motion graphics', broll: 'B-roll', color: 'Color', tipografia: 'Tipografía' };
+const CATEGORY: Record<string, string> = { motion: 'Motion graphics', broll: 'B-roll', color: 'Color', tipografia: 'Tipografía', camara: 'Cámara' };
 const FILTERS = ['Todo', 'Texto', 'Color', 'Toma / b-roll', 'Motion graphics'];
 
 export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const { store } = ctx;
   const project = store.project!;
+  // Aspecto de imagen que va con lo que la app vio en el video.
+  const seenLook = VISION_TOPICS.find((t) => t.id === store.vision?.topic)?.look ?? null;
   const scene = project.scenes.find((s) => s.id === ctx.sceneId) ?? project.scenes[0];
   const [filter, setFilter] = useState('Todo');
   const [text, setText] = useState('');
@@ -23,7 +25,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   // Al seleccionar un clip hay siempre 3 variantes: las guardadas (de Claude o ya elegidas)
   // o, si no hay, 3 sugeridas al instante según lo que se dice y el estilo.
   const suggested = useMemo(
-    () => (scene && !scene.variants.length ? suggestVariants(project, scene, store.transcript, round) : []),
+    () => (scene && !scene.variants.length ? suggestVariants(project, scene, store.transcript, round, seenLook) : []),
     [project, scene, store.transcript, round],
   );
   // Todos los motion graphics que se pueden armar solos con lo que se dice en este clip.
@@ -75,7 +77,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <button className="btn rect" onClick={() => ctx.go('editor', { s: scene.id })}>‹ Volver al editor</button>
         <div className="col" style={{ gap: 0 }}>
           <strong style={{ font: "700 18px 'Space Grotesk', sans-serif" }}>Variantes · Escena {idx + 1} · {scene.title || ROLE_LABEL[scene.role]}</strong>
-          <span className="muted small">{saved ? 'Variantes guardadas de esta escena.' : 'Una de cada tipo: motion graphics, b-roll, color y tipografía. La miniatura es el fotograma real.'} Elige una y la escena se reemplaza.</span>
+          <span className="muted small">{saved ? 'Variantes guardadas de esta escena.' : 'Una de cada tipo: motion graphics, b-roll, color, tipografía y cámara. La miniatura es el fotograma real.'} Elige una y la escena se reemplaza.</span>
         </div>
         <div className="row spacer">
           <label className="field" style={{ flexDirection: 'row', alignItems: 'center' }}>Escena
@@ -83,7 +85,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               {project.scenes.map((s, i) => <option key={s.id} value={s.id}>{i + 1} · {s.title || ROLE_LABEL[s.role]}</option>)}
             </select>
           </label>
-          <button className="btn" onClick={others}>Otras 4</button>
+          <button className="btn" onClick={others}>Otras 5</button>
           <button className="btn primary" disabled={sending} onClick={askVariants}>{sending ? 'Claude trabajando…' : 'Pedir variantes a Claude'}</button>
         </div>
       </header>

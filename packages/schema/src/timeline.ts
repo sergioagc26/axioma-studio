@@ -56,7 +56,11 @@ export type TimelineClip = {
   focusX: number;
   focusY: number;
   look: Look;
+  /** Filtro CSS con los ajustes finos (brillo, contraste, saturación). */
+  adjust?: string;
+  vignette: number;
   camera: Camera;
+  cameraAmount: number;
   /** Posición de este tramo dentro de su escena (para el movimiento de cámara continuo). */
   sceneFrames: number;
   visual: Scene['visual'];
@@ -180,7 +184,10 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
           focusX: focus.x,
           focusY: focus.y,
           look: scene.look,
+          adjust: [scene.brightness !== 1 ? `brightness(${scene.brightness})` : '', scene.contrast !== 1 ? `contrast(${scene.contrast})` : '', scene.saturation !== 1 ? `saturate(${scene.saturation})` : ''].filter(Boolean).join(' ') || undefined,
+          vignette: scene.vignette,
           camera: scene.camera,
+          cameraAmount: scene.cameraAmount,
           sceneFrames: 0,
           sceneId: scene.id,
           fromFrame: from,

@@ -13,6 +13,22 @@ import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlac
 import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import { ease, isKeyword, keywordOf, layerStyle } from '@snz/schema';
 import { loadFont as loadPlayfair } from '@remotion/google-fonts/PlayfairDisplay';
+import { loadFont as loadRubik } from '@remotion/google-fonts/Rubik';
+import { loadFont as loadRaleway } from '@remotion/google-fonts/Raleway';
+import { loadFont as loadNunito } from '@remotion/google-fonts/Nunito';
+import { loadFont as loadBarlowCondensed } from '@remotion/google-fonts/BarlowCondensed';
+import { loadFont as loadRobotoCondensed } from '@remotion/google-fonts/RobotoCondensed';
+import { loadFont as loadLeagueSpartan } from '@remotion/google-fonts/LeagueSpartan';
+import { loadFont as loadTeko } from '@remotion/google-fonts/Teko';
+import { loadFont as loadKanit } from '@remotion/google-fonts/Kanit';
+import { loadFont as loadSora } from '@remotion/google-fonts/Sora';
+import { loadFont as loadBangers } from '@remotion/google-fonts/Bangers';
+import { loadFont as loadRighteous } from '@remotion/google-fonts/Righteous';
+import { loadFont as loadPermanentMarker } from '@remotion/google-fonts/PermanentMarker';
+import { loadFont as loadPacifico } from '@remotion/google-fonts/Pacifico';
+import { loadFont as loadLobster } from '@remotion/google-fonts/Lobster';
+import { loadFont as loadCaveat } from '@remotion/google-fonts/Caveat';
+import { loadFont as loadLora } from '@remotion/google-fonts/Lora';
 import type { Timeline, TimelineClip, TimelineOverlay } from '@snz/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
 import { MotionGraphic } from './Motion.tsx';
@@ -27,6 +43,22 @@ const FONTS: Record<string, () => { fontFamily: string }> = {
   Oswald: () => loadOswald('normal', { weights: ['600', '700'], subsets: ['latin', 'latin-ext'] }),
   'Archivo Black': () => loadArchivoBlack('normal', { weights: ['400'], subsets: ['latin', 'latin-ext'] }),
   'Playfair Display': () => loadPlayfair('italic', { weights: ['600', '700'], subsets: ['latin', 'latin-ext'] }),
+  'Rubik': () => loadRubik('normal', { subsets: ['latin'] }),
+  'Raleway': () => loadRaleway('normal', { subsets: ['latin'] }),
+  'Nunito': () => loadNunito('normal', { subsets: ['latin'] }),
+  'Barlow Condensed': () => loadBarlowCondensed('normal', { subsets: ['latin'] }),
+  'Roboto Condensed': () => loadRobotoCondensed('normal', { subsets: ['latin'] }),
+  'League Spartan': () => loadLeagueSpartan('normal', { subsets: ['latin'] }),
+  'Teko': () => loadTeko('normal', { subsets: ['latin'] }),
+  'Kanit': () => loadKanit('normal', { subsets: ['latin'] }),
+  'Sora': () => loadSora('normal', { subsets: ['latin'] }),
+  'Bangers': () => loadBangers('normal', { subsets: ['latin'] }),
+  'Righteous': () => loadRighteous('normal', { subsets: ['latin'] }),
+  'Permanent Marker': () => loadPermanentMarker('normal', { subsets: ['latin'] }),
+  'Pacifico': () => loadPacifico('normal', { subsets: ['latin'] }),
+  'Lobster': () => loadLobster('normal', { subsets: ['latin'] }),
+  'Caveat': () => loadCaveat('normal', { subsets: ['latin'] }),
+  'Lora': () => loadLora('normal', { subsets: ['latin'] }),
   'DM Sans': () => loadDMSans('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),
 };
 
@@ -74,10 +106,26 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const zoom = clip.punchZoom
     ? interpolate(spring({ frame, fps, config: { damping: 14, stiffness: 180 } }), [0, 1], [1.18, 1.08])
     : 1;
-  // Movimiento de cámara lento y continuo a lo largo de toda la escena.
+  // Movimiento de cámara continuo a lo largo de toda la escena.
   const at = Math.min(1, (clip.sceneOffsetFrames + frame) / Math.max(1, clip.sceneFrames));
-  const drift = clip.camera === 'acercar' ? 1 + 0.14 * at : clip.camera === 'alejar' ? 1.14 - 0.14 * at : 1;
-  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${zoom * drift})`, filter: LOOKS[clip.look] };
+  const amt = clip.cameraAmount;
+  const abs = clip.sceneOffsetFrames + frame;
+  let drift = 1, dx = 0, dy = 0;
+  switch (clip.camera) {
+    case 'acercar': drift = 1 + amt * at; break;
+    case 'alejar': drift = 1 + amt - amt * at; break;
+    // Paneos: se amplía un poco la imagen para tener margen y se desplaza.
+    case 'izquierda': drift = 1 + amt; dx = (0.5 - at) * amt * 100; break;
+    case 'derecha': drift = 1 + amt; dx = (at - 0.5) * amt * 100; break;
+    case 'arriba': drift = 1 + amt; dy = (0.5 - at) * amt * 100; break;
+    case 'abajo': drift = 1 + amt; dy = (at - 0.5) * amt * 100; break;
+    // Pulso: un pequeño golpe de zoom dos veces por segundo, como al ritmo de la música.
+    case 'pulso': drift = 1 + amt * 0.5 * Math.max(0, 1 - ((abs % Math.round(fps / 2)) / (fps / 6))); break;
+    // Temblor: cámara en mano.
+    case 'temblor': drift = 1 + amt * 0.5; dx = Math.sin(abs * 0.9) * amt * 9; dy = Math.cos(abs * 1.3) * amt * 9; break;
+  }
+  const filter = [LOOKS[clip.look], clip.adjust].filter(Boolean).join(' ') || undefined;
+  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift})`, filter };
   const pos = coverPosition(t, clip.focusX, clip.focusY);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   const voice = t.originalVolume <= 0 ? null
@@ -109,6 +157,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
           style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }}
         />
       )}
+        {clip.vignette > 0 ? <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${0.85 * clip.vignette}) 100%)`, pointerEvents: 'none' }} /> : null}
       </AbsoluteFill>
       {tr?.spec.destello ? (
         <AbsoluteFill style={{ backgroundColor: tr.spec.destello.color, opacity: tr.spec.destello.pico * Math.sin(Math.PI * Math.min(1, frame / tr.frames)) }} />
@@ -161,6 +210,12 @@ const LOOKS: Record<string, string | undefined> = {
   calido: 'sepia(0.25) saturate(1.25) contrast(1.05)',
   frio: 'hue-rotate(-12deg) saturate(0.9) contrast(1.08) brightness(1.02)',
   contraste: 'contrast(1.3) saturate(1.2)',
+  vivo: 'saturate(1.6) contrast(1.08)',
+  cine: 'contrast(1.15) saturate(0.85) sepia(0.18) hue-rotate(-8deg) brightness(0.96)',
+  vintage: 'sepia(0.45) contrast(0.92) saturate(0.8) brightness(1.05)',
+  suave: 'contrast(0.88) brightness(1.08) saturate(0.9)',
+  dramatico: 'contrast(1.4) brightness(0.85) saturate(0.9)',
+  sepia: 'sepia(0.9) contrast(1.05)',
 };
 
 /** ¿Se lee mejor texto negro o blanco sobre este color? */
@@ -255,7 +310,11 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
   const color = overlay.color ?? t.captions.highlightColor;
   const upper = t.captions.uppercase;
   const k = overlay.size;
-  const words = overlay.text.split(/\s+/).filter(Boolean);
+  // Texto visible en este momento: entero, palabra por palabra o letra por letra.
+  const shown = overlay.anim === 'palabra' ? overlay.text.split(/\s+/).filter(Boolean).slice(0, 1 + Math.floor(frame / 4)).join(' ')
+    : overlay.anim === 'maquina' ? overlay.text.slice(0, 1 + Math.floor(frame * 1.4))
+    : overlay.text;
+  const words = shown.split(/\s+/).filter(Boolean);
   const isKey = (w: string) => isKeyword(w, overlay.keyword);
   const gap = (i: number) => (i < words.length - 1 ? ' ' : '');
 
@@ -265,6 +324,12 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     : overlay.anim === 'deslizar' ? { opacity: enter, transform: `translate(calc(-50% + ${interpolate(enter, [0, 1], [-90, 0])}px), -50%)` }
     : overlay.anim === 'fundido' ? { opacity: interpolate(frame, [0, 12], [0, 1], { extrapolateRight: 'clamp' }), transform: 'translate(-50%, -50%)' }
     : overlay.anim === 'barrido' ? { transform: 'translate(-50%, -50%)', clipPath: `inset(-20% ${interpolate(frame, [0, 12], [100, -5], { extrapolateRight: 'clamp' })}% -20% -5%)` }
+    : overlay.anim === 'rebote' ? { opacity: Math.min(1, enter * 3), transform: `translate(-50%, calc(-50% + ${interpolate(spring({ frame, fps, config: { damping: 7, stiffness: 160 } }), [0, 1], [-260, 0])}px))` }
+    : overlay.anim === 'zoom' ? { opacity: Math.min(1, enter * 2), transform: `translate(-50%, -50%) scale(${interpolate(enter, [0, 1], [2.6, 1])})` }
+    : overlay.anim === 'girar' ? { opacity: enter, transform: `translate(-50%, -50%) rotate(${interpolate(enter, [0, 1], [-18, 0])}deg) scale(${interpolate(enter, [0, 1], [0.7, 1])})` }
+    : overlay.anim === 'desenfoque' ? { opacity: interpolate(frame, [0, 14], [0, 1], { extrapolateRight: 'clamp' }), filter: `blur(${interpolate(frame, [0, 14], [26, 0], { extrapolateRight: 'clamp' })}px)`, transform: 'translate(-50%, -50%)' }
+    // "palabra" y "maquina" revelan el texto poco a poco (ver `shown` más abajo).
+    : overlay.anim === 'palabra' || overlay.anim === 'maquina' ? { transform: 'translate(-50%, -50%)' }
     : { opacity: enter, transform: `translate(-50%, calc(-50% + ${interpolate(enter, [0, 1], [34, 0])}px))` };
 
   const wrap: React.CSSProperties = {

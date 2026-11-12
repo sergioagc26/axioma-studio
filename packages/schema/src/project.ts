@@ -57,14 +57,14 @@ export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'su
 /** Estilos de texto básicos; el resto son los llamativos. */
 export const BASIC_TEXT_STYLES = ['caja', 'resaltado', 'subrayado', 'banda', 'etiqueta', 'contorno'] as const;
 /** Cómo entra el texto en pantalla. */
-export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido']);
+export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido', 'rebote', 'zoom', 'girar', 'desenfoque', 'palabra', 'maquina']);
 export type TextAnim = z.infer<typeof TextAnim>;
 export type TextStyle = z.infer<typeof TextStyle>;
 /** Aspecto de color de la imagen. */
-export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
+export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia']);
 export type Look = z.infer<typeof Look>;
 /** Movimiento de cámara simulado durante la escena. */
-export const Camera = z.enum(['ninguno', 'acercar', 'alejar']);
+export const Camera = z.enum(['ninguno', 'acercar', 'alejar', 'izquierda', 'derecha', 'arriba', 'abajo', 'pulso', 'temblor']);
 export type Camera = z.infer<typeof Camera>;
 
 export const SceneRole = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
@@ -79,7 +79,9 @@ export const SceneVariant = z.object({
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
   /** Qué cambia esta variante: gráficos, b-roll, color, tipografía o una idea general. */
-  category: z.enum(['motion', 'broll', 'color', 'tipografia', 'idea']).optional(),
+  category: z.enum(['motion', 'broll', 'color', 'tipografia', 'camara', 'idea']).optional(),
+  vignette: z.number().optional(),
+  cameraAmount: z.number().optional(),
   textStyle: TextStyle.optional(),
   textKeyword: z.string().optional(),
   textPosition: z.enum(['arriba', 'centro']).optional(),
@@ -127,7 +129,14 @@ export const Scene = z.object({
   textFont: z.string().optional(),
   textAnim: TextAnim.default('subir'),
   look: Look.default('normal'),
+  /** Ajustes finos de la imagen (1 = sin cambio; viñeta 0 = sin viñeta). */
+  brightness: z.number().min(0.5).max(1.6).default(1),
+  contrast: z.number().min(0.5).max(1.8).default(1),
+  saturation: z.number().min(0).max(2).default(1),
+  vignette: z.number().min(0).max(1).default(0),
   camera: Camera.default('ninguno'),
+  /** Cuánto se mueve la cámara (0,05 sutil – 0,4 fuerte). */
+  cameraAmount: z.number().min(0.03).max(0.5).default(0.14),
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
   /** Datos de la plantilla de motion graphics (los pone el usuario; nunca inventados). */

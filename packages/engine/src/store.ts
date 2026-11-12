@@ -11,13 +11,26 @@ export async function readProject(dir: string): Promise<Project> {
   return Project.parse(raw);
 }
 
-/** Guarda validando y de forma atómica (escribe a temporal y renombra). */
+/** Guardados en curso por carpeta: se hacen en fila para que dos a la vez no choquen. */
+const queues = new Map<string, Promise<unknown>>();
+let seq = 0;
+
+/**
+ * Guarda validando y de forma atómica (escribe a un temporal propio y renombra).
+ * Los guardados de un mismo proyecto se encolan: antes, dos casi simultáneos
+ * compartían el temporal y uno fallaba.
+ */
 export async function writeProject(dir: string, project: Project) {
   const parsed = Project.parse({ ...project, updatedAt: new Date().toISOString() });
-  const tmp = path.join(dir, `${P.project}.tmp`);
-  await writeFile(tmp, JSON.stringify(parsed, null, 2));
-  await rename(tmp, path.join(dir, P.project));
-  return parsed;
+  const run = async () => {
+    const tmp = path.join(dir, `${P.project}.${process.pid}.${++seq}.tmp`);
+    await writeFile(tmp, JSON.stringify(parsed, null, 2));
+    await rename(tmp, path.join(dir, P.project));
+    return parsed;
+  };
+  const next = (queues.get(dir) ?? Promise.resolve()).then(run, run);
+  queues.set(dir, next.catch(() => {}));
+  return next;
 }
 
 export async function readTranscript(dir: string): Promise<Transcript | null> {

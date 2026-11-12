@@ -34,8 +34,8 @@ describe('variantes automáticas', () => {
     const said = words.map((w) => w.text).join(' ');
     for (const scene of project.scenes) {
       const v = suggestVariants(project, scene, transcript);
-      expect(v.map((x) => x.category)).toEqual(['motion', 'broll', 'color', 'tipografia']);
-      expect(v.map((x) => x.id)).toEqual(['a', 'b', 'c', 'd']);
+      expect(v.map((x) => x.category)).toEqual(['motion', 'broll', 'color', 'tipografia', 'camara']);
+      expect(v.map((x) => x.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
       // Los textos y los puntos de la lista salen de lo que se dijo.
       for (const x of v) if (x.onScreenText && !x.onScreenText.startsWith('[')) expect(said + ' Ahorra horas').toContain(x.onScreenText);
       for (const item of (v[0].motionData?.items as string[] | undefined) ?? []) expect(said).toContain(item);
@@ -64,7 +64,7 @@ describe('variantes automáticas', () => {
 
     // En un montaje sin voz también hay cuatro, y la primera escena no lleva transición.
     const montaje = base({ kind: 'montaje' });
-    expect(suggestVariants(montaje, montaje.scenes[0], null)).toHaveLength(4);
+    expect(suggestVariants(montaje, montaje.scenes[0], null)).toHaveLength(5);
     expect(suggestVariants(montaje, montaje.scenes[0], null).every((x) => !x.transition)).toBe(true);
   });
 

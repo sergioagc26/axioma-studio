@@ -38,7 +38,7 @@ export async function savePreset(
     name: input.name,
     description: input.description ?? '',
     pacing: Pacing.parse({ ...base.pacing, ...input.pacing }),
-    captions: CaptionStyle.parse({ ...base.captions, ...input.captions, ...fontWeightFor(input.captions?.fontFamily) }),
+    captions: CaptionStyle.parse({ ...base.captions, ...input.captions, ...(input.captions?.fontWeight ? {} : fontWeightFor(input.captions?.fontFamily)) }),
     palette: input.palette,
     reference: input.reference,
     style: input.style,

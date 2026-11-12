@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PERSONALITIES, SECTORS } from '@snz/schema';
+import { PERSONALITIES, SECTORS, VISION_TOPICS } from '@snz/schema';
 import type { Ctx } from '../App.tsx';
 import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -43,6 +43,11 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     const k = store.kit;
     if (k) setBrand({ name: k.name, sector: k.sector ?? '', personality: k.personality ?? '', primary: k.colors.primary, secondary: k.colors.secondary });
   }, [store.kit]);
+  // Si la marca aún no tiene sector, se propone el que corresponde a lo que se ve en el video.
+  const seenSector = VISION_TOPICS.find((t) => t.id === store.vision?.topic)?.sector ?? null;
+  useEffect(() => {
+    if (seenSector && !store.kit?.sector) setBrand((b) => (b.sector ? b : { ...b, sector: seenSector }));
+  }, [seenSector, store.kit]);
   /** Guarda el perfil de la marca y viste el reel con su estilo. */
   const saveBrand = async () => {
     try {
@@ -96,6 +101,12 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <summary>{store.kit?.sector ? `Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : 'Primero, tu marca'}</summary>
           <div className="col">
             <span className="small muted">Cada marca se ve distinta: un gimnasio no lleva los mismos subtítulos que una hamburguesería. Esto se pregunta una sola vez por cliente y decide subtítulos, títulos, letra, imagen y efectos.</span>
+            {store.vision && (
+              <span className="pill" style={{ alignSelf: 'flex-start', whiteSpace: 'normal' }}>
+                La app vio el video: {store.vision.scores.slice(0, 2).map((x) => `${x.label} (${Math.round(x.score * 100)} %)`).join(' y ')}.
+                {seenSector && !store.kit?.sector ? ` Te propongo: ${SECTORS.find(([id]) => id === seenSector)?.[1]}.` : ''}
+              </span>
+            )}
             <div className="row" style={{ alignItems: 'flex-end' }}>
               <label className="field" style={{ flex: '1 1 150px' }}>Nombre de la marca
                 <input value={brand.name} onChange={(e) => setBrand({ ...brand, name: e.target.value })} placeholder={project.client ?? 'Mi marca'} />

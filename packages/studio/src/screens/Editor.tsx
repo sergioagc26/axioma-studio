@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { BASIC_TEXT_STYLES, FONT_FAMILIES, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene } from '@snz/schema';
+import { BASIC_TEXT_STYLES, FONT_GROUPS, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@snz/schema';
 import { Reel } from '@snz/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -36,7 +36,20 @@ const DESIGNS: [string, string, string][] = [
   ['elegante', 'Elegante', 'Cursiva fina con subrayado. Sobrio.'],
 ];
 
-const TEXT_ANIMS: [Scene['textAnim'], string][] = [['subir', 'Sube'], ['pop', 'Salta'], ['deslizar', 'Desliza'], ['fundido', 'Aparece'], ['barrido', 'Se revela']];
+const TEXT_ANIMS: [Scene['textAnim'], string][] = [
+  ['subir', 'Sube'], ['pop', 'Salta'], ['rebote', 'Cae y rebota'], ['zoom', 'Llega desde cerca'], ['deslizar', 'Desliza'], ['girar', 'Entra girando'],
+  ['fundido', 'Aparece'], ['desenfoque', 'Se enfoca'], ['barrido', 'Se revela'], ['palabra', 'Palabra por palabra'], ['maquina', 'Se escribe'],
+];
+const LOOK_NAMES: [Scene['look'], string][] = [
+  ['normal', 'Normal'], ['vivo', 'Colores vivos'], ['calido', 'Cálido'], ['frio', 'Frío'], ['cine', 'Cine'], ['contraste', 'Alto contraste'],
+  ['dramatico', 'Dramático'], ['suave', 'Suave'], ['vintage', 'Vintage'], ['sepia', 'Sepia'], ['bn', 'Blanco y negro'],
+];
+const CAMERA_NAMES: [Scene['camera'], string][] = [
+  ['ninguno', 'Quieta'], ['acercar', 'Se acerca'], ['alejar', 'Se aleja'], ['izquierda', 'Paneo a la izquierda'], ['derecha', 'Paneo a la derecha'],
+  ['arriba', 'Paneo hacia arriba'], ['abajo', 'Paneo hacia abajo'], ['pulso', 'Pulso al ritmo'], ['temblor', 'Cámara en mano'],
+];
+/** Lista de tipografías agrupada. */
+const FontOptions: React.FC = () => <>{FONT_GROUPS.map(([g, fonts]) => <optgroup key={g} label={g}>{fonts.map((f) => <option key={f}>{f}</option>)}</optgroup>)}</>;
 /** Nueve posiciones rápidas para el texto (x, y de 0 a 1), dentro de las zonas seguras. */
 const GRID: [number, number][] = [0.22, 0.45, 0.62].flatMap((y) => [0.3, 0.5, 0.7].map((x) => [x, y] as [number, number]));
 
@@ -99,6 +112,8 @@ const ROLES = Object.keys(ROLE_LABEL) as Scene['role'][];
 export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const { store } = ctx;
   const project = store.project!;
+  // Aspecto de imagen que va con lo que la app vio en el video.
+  const seenLook = VISION_TOPICS.find((t) => t.id === store.vision?.topic)?.look ?? null;
   const player = useRef<PlayerRef>(null);
   const [frame, setFrame] = useState(0);
   const [safe, setSafe] = useState(true);
@@ -163,7 +178,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
   // Siempre hay 3 variantes para el clip seleccionado: las guardadas o, si no hay, sugeridas al instante.
   const quick = useMemo(
-    () => (!scene ? [] : scene.variants.length ? scene.variants.slice(0, 4) : suggestVariants(project, scene, store.transcript)),
+    () => (!scene ? [] : scene.variants.length ? scene.variants.slice(0, 4) : suggestVariants(project, scene, store.transcript, 0, seenLook)),
     [project, scene, store.transcript],
   );
 
@@ -223,7 +238,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   });
 
   // La app estudia lo que se dice y recomienda un estilo profesional.
-  const rec = useMemo(() => recommendPreset(project, store.transcript), [project.kind, store.transcript]);
+  const rec = useMemo(() => recommendPreset(project, store.transcript, store.vision), [project.kind, store.transcript, store.vision]);
   const transitions = store.extras?.transitions ?? [];
   /** Unión abierta: id de la escena que entra. */
   const [joint, setJoint] = useState<string | null>(null);
@@ -262,6 +277,17 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(`Claude no pudo hacerlo: ${e.message}`); } finally { setBusy(''); }
   };
 
+  /** Guarda cómo está vestido el reel ahora como un estilo propio, para reutilizarlo. */
+  const saveStyle = async () => {
+    const name = window.prompt('Nombre para tu estilo:', `Estilo ${project.client ?? 'propio'}`);
+    if (!name?.trim()) return;
+    try {
+      const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'guardar-estilo', name: name.trim() }) });
+      store.setPresets(d.presets);
+      ctx.toast(`Estilo «${d.preset.name}» guardado. Aparece en la lista para este cliente.`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+
   const applyPreset = async (presetId: string) => {
     try {
       const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'preset', presetId }) });
@@ -286,6 +312,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <details className="grp" open>
             <summary>Estilos</summary>
             <div className="col">
+              <span className="small muted">Cada estilo cambia subtítulos, títulos, entradas, imagen, cámara y transiciones. Después ajusta lo que quieras.</span>
+              <button className="btn rect" style={{ height: 34 }} onClick={saveStyle}>Guardar lo actual como mi estilo</button>
               {rec && rec.id !== project.presetId && (
                 <div className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--cyanSoft)', gap: 6 }}>
                   <strong className="small">Recomendado: {store.presets.find((p) => p.id === rec.id)?.name}</strong>
@@ -332,7 +360,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <ColorRow value={project.captions.color} label="Color de las letras de subtítulos" swatches={['#FFFFFF', '#FACC15', '#25F4EE', '#000000']} onPick={(c) => store.update((p) => { p.captions.color = c; })} />
           <label className="field">Tipografía
             <select value={project.captions.fontFamily} onChange={(e) => store.update((p) => { p.captions.fontFamily = e.target.value; p.captions.fontWeight = ['Anton', 'Bebas Neue', 'Archivo Black'].includes(e.target.value) ? 400 : e.target.value === 'Oswald' ? 700 : 800; })}>
-              {FONT_FAMILIES.map((f) => <option key={f}>{f}</option>)}
+              <FontOptions />
             </select>
           </label>
           <SizeSlider value={project.captions.fontSize} onCommit={(v) => store.update((p) => { p.captions.fontSize = v; })} />
@@ -441,7 +469,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <label className="field" style={{ flex: 1 }}>Tipografía
                 <select value={scene.textFont ?? ''} onChange={(e) => edit((s) => { s.textFont = e.target.value || undefined; })}>
                   <option value="">Igual que los subtítulos</option>
-                  {FONT_FAMILIES.map((f) => <option key={f}>{f}</option>)}
+                  <FontOptions />
                 </select>
               </label>
               <label className="field" style={{ flex: 1 }}>Entrada
@@ -468,16 +496,25 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </div>
             </div>
             <div className="row" style={{ flexWrap: 'nowrap' }}>
-              <label className="field" style={{ flex: 1 }}>Imagen
+              <label className="field" style={{ flex: 1 }}>Aspecto
                 <select value={scene.look} onChange={(e) => edit((s) => { s.look = e.target.value as Scene['look']; })}>
-                  <option value="normal">Normal</option><option value="bn">Blanco y negro</option><option value="calido">Cálido</option><option value="frio">Frío</option><option value="contraste">Alto contraste</option>
+                  {LOOK_NAMES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                 </select>
               </label>
               <label className="field" style={{ flex: 1 }}>Cámara
                 <select value={scene.camera} onChange={(e) => edit((s) => { s.camera = e.target.value as Scene['camera']; })}>
-                  <option value="ninguno">Quieta</option><option value="acercar">Se acerca</option><option value="alejar">Se aleja</option>
+                  {CAMERA_NAMES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                 </select>
               </label>
+            </div>
+            <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />
+            <Slider label="Brillo" value={scene.brightness} min={0.5} max={1.6} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.brightness = v; })} />
+            <Slider label="Contraste" value={scene.contrast} min={0.5} max={1.8} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.contrast = v; })} />
+            <Slider label="Color (saturación)" value={scene.saturation} min={0} max={2} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.saturation = v; })} />
+            <Slider label="Bordes oscuros (viñeta)" value={scene.vignette} min={0} max={1} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.vignette = v; })} />
+            <div className="row">
+              <button className="btn rect" style={{ height: 32 }} onClick={() => edit((s) => { s.brightness = 1; s.contrast = 1; s.saturation = 1; s.vignette = 0; s.look = 'normal'; })}>Imagen original</button>
+              <button className="btn rect" style={{ height: 32 }} title="Copia el aspecto, los ajustes y la cámara de este clip a todos" onClick={() => store.update((p) => { const o = p.scenes[idx]; for (const x of p.scenes) Object.assign(x, { look: o.look, brightness: o.brightness, contrast: o.contrast, saturation: o.saturation, vignette: o.vignette, camera: o.camera, cameraAmount: o.cameraAmount }); })}>Aplicar a todos los clips</button>
             </div>
             <label className="row"><input type="checkbox" checked={scene.punchZoom} onChange={(e) => edit((s) => { s.punchZoom = e.target.checked; })} /> Zoom de golpe al entrar</label>
               </div>

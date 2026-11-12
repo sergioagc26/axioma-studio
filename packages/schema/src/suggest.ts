@@ -65,17 +65,33 @@ export function keywords(speech: string, max = 4): string[] {
 
 type Draft = Omit<SceneVariant, 'id'>;
 
-const LOOKS: [NonNullable<SceneVariant['look']>, string][] = [['calido', 'tonos cálidos'], ['bn', 'blanco y negro'], ['contraste', 'alto contraste'], ['frio', 'tonos fríos']];
-const TEXT_COLORS = ['#FACC15', '#25F4EE', '#FFFFFF', '#A78BFA', '#34D399', '#FB923C'];
+const LOOKS: [NonNullable<SceneVariant['look']>, string][] = [
+  ['calido', 'tonos cálidos'], ['bn', 'blanco y negro'], ['cine', 'aspecto de cine'], ['vivo', 'colores vivos'], ['dramatico', 'dramático'],
+  ['frio', 'tonos fríos'], ['vintage', 'aire antiguo'], ['contraste', 'alto contraste'], ['suave', 'suave y luminoso'],
+];
+const TEXT_COLORS = ['#FACC15', '#25F4EE', '#FFFFFF', '#A78BFA', '#34D399', '#FB923C', '#F472B6'];
 const TYPO: [NonNullable<SceneVariant['textStyle']>, string, NonNullable<SceneVariant['textAnim']>, string][] = [
   ['gigante', 'Anton', 'pop', 'Palabra gigante'],
-  ['marcador', 'Poppins', 'subir', 'Marcador'],
+  ['cinta', 'Poppins', 'rebote', 'Tiras de color'],
   ['degradado', 'Archivo Black', 'barrido', 'Degradado'],
-  ['sombra', 'Bebas Neue', 'pop', 'Sombra retro'],
-  ['contorno', 'Montserrat', 'deslizar', 'Contorno'],
-  ['etiqueta', 'DM Sans', 'deslizar', 'Etiqueta'],
-  ['neon', 'Space Grotesk', 'fundido', 'Neón'],
-  ['subrayado', 'Oswald', 'barrido', 'Subrayado'],
+  ['sello', 'Bebas Neue', 'zoom', 'Sello'],
+  ['trazo', 'Caveat', 'palabra', 'Rodeado a mano'],
+  ['glitch', 'Teko', 'girar', 'Glitch'],
+  ['marcador', 'Permanent Marker', 'subir', 'Marcador a mano'],
+  ['apilado', 'League Spartan', 'deslizar', 'Palabras apiladas'],
+  ['sombra', 'Bangers', 'rebote', 'Sombra de cómic'],
+  ['neon', 'Righteous', 'desenfoque', 'Neón'],
+  ['subrayado', 'Playfair Display', 'fundido', 'Elegante subrayado'],
+  ['etiqueta', 'Sora', 'maquina', 'Etiqueta que se escribe'],
+  ['contorno', 'Barlow Condensed', 'zoom', 'Contorno'],
+];
+const CAMS: [NonNullable<SceneVariant['camera']>, number, number, string][] = [
+  ['acercar', 0.2, 0.35, 'La cámara se acerca despacio, con los bordes oscurecidos: foco en ti.'],
+  ['pulso', 0.16, 0, 'Golpes de zoom al ritmo: energía.'],
+  ['derecha', 0.14, 0, 'Paneo lento hacia la derecha: sensación de recorrido.'],
+  ['temblor', 0.12, 0.2, 'Cámara en mano con un leve temblor: se siente real.'],
+  ['alejar', 0.22, 0, 'La cámara se aleja y revela la escena.'],
+  ['arriba', 0.14, 0.3, 'Paneo hacia arriba con bordes oscuros: cinematográfico.'],
 ];
 
 const firstWords = (c: string, n: number) => clean(c.split(/\s+/).slice(0, n).join(' '));
@@ -130,13 +146,13 @@ export function motionGallery(project: Project, scene: Scene, transcript: Transc
 }
 
 /**
- * Cuatro variantes para una escena, una de cada tipo, para comparar de verdad:
- *   a) Motion graphics · b) B-roll · c) Color · d) Tipografía.
+ * Cinco variantes para una escena, una de cada tipo, para comparar de verdad:
+ *   a) Motion graphics · b) B-roll · c) Color · d) Tipografía · e) Cámara.
  * Todo sale de lo que hay: los gráficos usan las cifras y frases que se dijeron,
  * el b-roll usa los clips del proyecto (o pide uno), y los textos son frases reales.
  * `round` cambia el set (para "otras").
  */
-export function suggestVariants(project: Project, scene: Scene, transcript: Transcript | null, round = 0): SceneVariant[] {
+export function suggestVariants(project: Project, scene: Scene, transcript: Transcript | null, round = 0, seenLook?: string | null): SceneVariant[] {
   const speech = speechOf(scene, transcript);
   const phrases = shortPhrases(speech);
   const accent = project.captions.highlightColor;
@@ -158,13 +174,19 @@ export function suggestVariants(project: Project, scene: Scene, transcript: Tran
     : { label: 'B-roll', category: 'broll', visual: 'broll', brollFile: keys.join(' ') || 'toma de apoyo', onScreenText: scene.onScreenText ?? p0, textStyle: 'etiqueta', transition: tr('deslizar-arriba'), notes: `Falta el clip: sube uno${keys.length ? ` (ideas: ${keys.join(', ')})` : ''}.` });
 
   // c) Color: aspecto de la imagen y color del texto.
-  const [look, lookName] = LOOKS[round % LOOKS.length];
-  const tcolor = TEXT_COLORS.filter((c) => c.toUpperCase() !== accent.toUpperCase())[round % (TEXT_COLORS.length - 1)];
+  // Si la app vio de qué trata el video, el primer aspecto que propone es el que le va.
+  const order = seenLook ? [...LOOKS.filter(([id]) => id === seenLook), ...LOOKS.filter(([id]) => id !== seenLook)] : LOOKS;
+  const [look, lookName] = order[round % order.length];
+  const tcolor = TEXT_COLORS.filter((c) => c.toUpperCase() !== accent.toUpperCase())[round % 6];
   out.push({ label: `Color · ${lookName}`, category: 'color', visual: 'original', look, textColor: tcolor, onScreenText: scene.onScreenText ?? p0, textStyle: scene.textStyle === 'caja' ? 'resaltado' : scene.textStyle, camera: 'acercar', notes: `Imagen en ${lookName} y el texto en ${tcolor}.` });
 
   // d) Tipografía: forma, letra y entrada del texto.
   const [textStyle, textFont, textAnim, typoName] = TYPO[round % TYPO.length];
   out.push({ label: `Tipografía · ${typoName}`, category: 'tipografia', visual: 'original', onScreenText: text, textStyle, textFont, textAnim, textSize: textStyle === 'etiqueta' ? 1 : 1.15, textColor: accent, notes: `${typoName} con letra ${textFont}.` });
+
+  // e) Cámara: cómo se mueve la toma.
+  const [camera, cameraAmount, vignette, camWhy] = CAMS[round % CAMS.length];
+  out.push({ label: `Cámara · ${({ acercar: 'se acerca', alejar: 'se aleja', derecha: 'paneo', arriba: 'paneo vertical', pulso: 'pulso', temblor: 'en mano' } as Record<string, string>)[camera]}`, category: 'camara', visual: 'original', camera, cameraAmount, vignette, onScreenText: scene.onScreenText, notes: camWhy });
 
   return out.map((v, i) => ({ ...v, id: String.fromCharCode(97 + i) }));
 }
@@ -188,6 +210,8 @@ export function applyVariant(scene: Scene, v: SceneVariant | null) {
   // La imagen y la cámara son parte de la idea: lo que la variante no pide vuelve a lo normal.
   scene.look = v.look ?? 'normal';
   scene.camera = v.camera ?? 'ninguno';
+  scene.cameraAmount = v.cameraAmount ?? 0.14;
+  scene.vignette = v.vignette ?? 0;
   if (v.brollFile) scene.brollFile = v.brollFile;
   if (v.motionTemplate) scene.motionTemplate = v.motionTemplate;
   if (v.motionData) scene.motionData = v.motionData;
