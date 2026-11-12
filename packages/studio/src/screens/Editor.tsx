@@ -23,7 +23,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     music: project.audio.music ? media(project.audio.music) : undefined,
     asset: media,
     brand: store.brand,
-  }), [project, store.transcript, store.brand]);
+    voiceover: store.extras?.voiceover,
+    faces: store.extras?.faces,
+  }), [project, store.transcript, store.brand, store.extras]);
 
   /** Inicio y duración (en frames) de cada escena en la salida. */
   const spans = useMemo(() => project.scenes.map((s) => {
@@ -227,7 +229,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <div className="track">
           <span>Voz</span>
           <div className="lane" onClick={seekLane}>
-            <div className="clip" style={{ left: 0, width: '100%', background: 'var(--violet)', color: 'var(--onViolet)' }}>Voz limpia · {project.audio.targetLufs} LUFS</div>
+            <div className="clip" style={{ left: 0, width: '100%', background: 'var(--violet)', color: 'var(--onViolet)' }}>{project.audio.voiceover ? `Voz en off · ${project.audio.voiceover.provider}` : project.kind === 'montaje' ? `Sonido original · ${Math.round(project.audio.originalVolume * 100)}%` : `Voz limpia · ${project.audio.targetLufs} LUFS`}{project.audio.music ? ' · con música' : ''}</div>
             <div className="playhead" style={{ left: pct(frame) }} />
           </div>
         </div>

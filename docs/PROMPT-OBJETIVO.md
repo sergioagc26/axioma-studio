@@ -18,7 +18,7 @@ Las fases 0 a 6 ya están construidas y en commits (el último es `78b8ddd`). **
 2. **Editar un video real de punta a punta** con las herramientas MCP (pídeme la ruta de un video mío hablando a cámara de 30–90 s): brief → storyboard → studio → ajustes → render. Mide cuánto de mi tiempo toma y revisa el desfase de los subtítulos.
 3. **Recorrer el studio completo en el tema claro y el oscuro** y corregir lo que se vea mal frente a los mockups.
 4. **Pruebas que faltan**: render de punta a punta y las herramientas de la Fase 5 (música, b-roll, motion, formatos, versiones).
-5. **Funciones que faltan**: voz en off opcional (Piper local; ElevenLabs solo con clave) y encuadre automático que siga la cara en videos horizontales.
+5. **Funciones nuevas por probar con material real**: montaje para videos sin voz, voz en off (ElevenLabs y Piper están sin probar; solo se probó la voz del sistema) y encuadre que sigue la cara.
 6. **Pexels**: probar `buscar_broll` y `usar_broll` cuando yo ponga la clave en `.env`.
 7. **Windows**: dejar un script de prueba y decirme exactamente qué correr allí.
 

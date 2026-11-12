@@ -1,19 +1,16 @@
 import { createWriteStream, existsSync } from 'node:fs';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline as pipe } from 'node:stream/promises';
-import { REPO_ROOT } from './paths.ts';
+import { envValue } from './env.ts';
 
 export interface BrollResult { id: number; duration: number; width: number; height: number; author: string; url: string; download: string }
 
-/** Clave de Pexels: variable de entorno o archivo .env en la raíz (PEXELS_API_KEY=…). */
 async function pexelsKey(): Promise<string> {
-  if (process.env.PEXELS_API_KEY) return process.env.PEXELS_API_KEY;
-  const env = path.join(REPO_ROOT, '.env');
-  const m = existsSync(env) ? (await readFile(env, 'utf8')).match(/^PEXELS_API_KEY\s*=\s*(.+)$/m) : null;
-  if (!m) throw new Error('Falta la clave de Pexels. Crea una gratis en pexels.com/api y guárdala en el archivo .env como PEXELS_API_KEY=tu_clave. Sin clave, usa un archivo local con usar_broll.');
-  return m[1].trim().replace(/^["']|["']$/g, '');
+  const key = await envValue('PEXELS_API_KEY');
+  if (!key) throw new Error('Falta la clave de Pexels. Crea una gratis en pexels.com/api y guárdala en el archivo .env como PEXELS_API_KEY=tu_clave. Sin clave, usa un archivo local con usar_broll.');
+  return key;
 }
 
 /** Busca videos verticales en Pexels (licencia Pexels: uso comercial gratuito). */

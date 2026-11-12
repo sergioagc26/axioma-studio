@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Brand, Preset, Project, Scene, Transcript } from '@snz/schema';
+import type { Brand, FacePoint, Preset, Project, Scene, Transcript } from '@snz/schema';
+
+export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[] }
 
 export interface Job { id: string; status: 'running' | 'done' | 'error'; message: string; progress: number; result?: Record<string, any> }
 
@@ -46,6 +48,7 @@ export interface ProjectStore {
   project: Project | null;
   transcript: Transcript | null;
   brand: Brand | undefined;
+  extras: Extras | undefined;
   presets: Preset[];
   setPresets: (p: Preset[]) => void;
   error: string | null;
@@ -65,6 +68,7 @@ export function useProject(id: string | null): ProjectStore {
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [brand, setBrand] = useState<Brand | undefined>();
+  const [extras, setExtras] = useState<Extras | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [hist, setHist] = useState({ past: 0, future: 0 });
@@ -86,7 +90,7 @@ export function useProject(id: string | null): ProjectStore {
     api(`/api/project?id=${encodeURIComponent(id)}`).then((d) => {
       if (!alive) return;
       lastSaved.current = d.project.updatedAt;
-      show(d.project); setTranscript(d.transcript); setPresets(d.presets); setBrand(d.brand);
+      show(d.project); setTranscript(d.transcript); setPresets(d.presets); setBrand(d.brand); setExtras(d.extras);
     }).catch((e) => alive && setError(e.message));
     // Cambios hechos fuera del studio (Claude, CLI): llegan en vivo.
     const es = new EventSource(`/api/events?id=${encodeURIComponent(id)}`);
@@ -146,5 +150,5 @@ export function useProject(id: string | null): ProjectStore {
   const undo = useCallback(() => step(past.current, future.current), [save]);
   const redo = useCallback(() => step(future.current, past.current), [save]);
 
-  return { project, transcript, brand, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
+  return { project, transcript, brand, extras, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
 }

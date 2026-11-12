@@ -1,0 +1,228 @@
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Scene, getPreset } from '@snz/schema';
+import { applyPunchZooms } from './cuts.ts';
+import { ffmpeg } from './exec.ts';
+import { kitCaptions, readKit } from './kit.ts';
+import { probe } from './media.ts';
+import { P, projectDir, slugify } from './paths.ts';
+import { listPresets } from './presets.ts';
+import { detectBpm, detectCuts } from './reference.ts';
+import { readProject, writeProject } from './store.ts';
+
+const VIDEO = /\.(mp4|mov|m4v|webm|mkv)$/i;
+
+export interface Shot {
+  /** t01, t02… */
+  id: string;
+  start: number;
+  end: number;
+  /** Archivo original del que salió (si el montaje junta varios videos). */
+  file?: string;
+}
+
+/** Acepta archivos y carpetas; devuelve los videos en orden. */
+export async function expandInputs(inputs: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const i of inputs) {
+    const abs = path.resolve(i);
+    if (!existsSync(abs)) throw new Error(`No existe: ${abs}`);
+    if ((await stat(abs)).isDirectory()) {
+      out.push(...(await readdir(abs)).filter((f) => VIDEO.test(f)).sort().map((f) => path.join(abs, f)));
+    } else if (VIDEO.test(abs)) out.push(abs);
+  }
+  if (!out.length) throw new Error('No encontré videos (.mp4, .mov) en lo que indicaste.');
+  return out;
+}
+
+/** Deja un clip en 1080×1920, fps constante, color estándar y con pista de audio. */
+async function normalizeClip(input: string, out: string, fps: number) {
+  const info = await probe(input);
+  const vf = [
+    'scale=1080:1920:force_original_aspect_ratio=increase', 'crop=1080:1920', `fps=${fps}`,
+    info.hdr ? 'colorspace=all=bt709:iall=bt2020:itrc=bt2020-10:format=yuv420p' : 'format=yuv420p',
+  ].join(',');
+  const audioIn = info.hasAudio ? [] : ['-f', 'lavfi', '-t', info.duration.toFixed(3), '-i', 'anullsrc=r=48000:cl=stereo'];
+  await ffmpeg([
+    '-i', input, ...audioIn,
+    '-map', '0:v:0', '-map', info.hasAudio ? '0:a:0' : '1:a:0',
+    '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-g', String(Math.round(fps)),
+    '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-shortest',
+    out,
+  ]);
+  return (await probe(out)).duration;
+}
+
+/**
+ * Crea un proyecto de montaje (sin depender de la voz) con uno o varios videos.
+ * Varios videos se unen en un solo master vertical; se recuerda dónde empieza cada uno.
+ */
+export async function createMontage(opts: { inputs: string[]; name?: string; client?: string; presetId?: string; fps?: number }) {
+  const files = await expandInputs(opts.inputs);
+  const name = opts.name ?? (files.length === 1 ? path.basename(files[0], path.extname(files[0])) : `Montaje ${files.length} clips`);
+  const stamp = new Date().toISOString().slice(0, 10);
+  let slug = `${stamp}-${slugify(name)}`;
+  let dir = projectDir(opts.client, slug);
+  for (let i = 2; existsSync(dir); i++) dir = projectDir(opts.client, (slug = `${stamp}-${slugify(name)}-${i}`));
+  for (const sub of ['media', path.join('media', 'originales'), 'proxies', P.renders, P.versions]) await mkdir(path.join(dir, sub), { recursive: true });
+
+  const first = await probe(files[0]);
+  const fps = opts.fps ?? (first.fps > 45 ? 60 : 30);
+  const preset = getPreset(opts.presetId ?? 'rapido', await listPresets(opts.client));
+  const boundaries: { file: string; start: number; end: number }[] = [];
+  let source;
+
+  if (files.length === 1) {
+    // Un solo video: se conserva su encuadre original para que el recorte pueda seguir la cara.
+    const original = path.join('media', `original${path.extname(files[0]).toLowerCase()}`);
+    await copyFile(files[0], path.join(dir, original));
+    source = { file: original, duration: first.duration, width: first.width, height: first.height, fps: first.fps, rotation: first.rotation };
+    boundaries.push({ file: path.basename(files[0]), start: 0, end: first.duration });
+  } else {
+    const parts: string[] = [];
+    let t = 0;
+    for (const [i, f] of files.entries()) {
+      const part = path.join(dir, 'media', 'originales', `${String(i + 1).padStart(2, '0')}.mp4`);
+      const d = await normalizeClip(f, part, fps);
+      boundaries.push({ file: path.basename(f), start: t, end: t + d });
+      t += d;
+      parts.push(part);
+    }
+    const list = path.join(dir, 'media', 'originales', 'lista.txt');
+    await writeFile(list, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n'));
+    await ffmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', path.join(dir, P.master)]);
+    await rm(list, { force: true });
+    for (const p of parts) await rm(p, { force: true });
+    source = { file: P.master, duration: t, width: 1080, height: 1920, fps, rotation: 0 };
+  }
+
+  const now = new Date().toISOString();
+  const project = Project.parse({
+    version: SCHEMA_VERSION, id: slug, name, client: opts.client, kind: 'montaje', createdAt: now, updatedAt: now,
+    format: { width: 1080, height: 1920, fps },
+    source,
+    presetId: preset.id,
+    pacing: Pacing.parse(preset.pacing),
+    captions: CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(opts.client)) }),
+    // En un montaje el sonido original es ambiente: sin limpieza de voz y más bajo.
+    audio: { denoise: false, targetLufs: -16, musicVolume: 0.4, originalVolume: 0.6 },
+  });
+  await writeProject(dir, project);
+  await writeFile(path.join(dir, 'boundaries.json'), JSON.stringify(boundaries, null, 2));
+  return { dir, project };
+}
+
+/** Tomas del material: cambios de plano detectados más los límites entre archivos. */
+export async function detectShots(dir: string): Promise<Shot[]> {
+  const f = path.join(dir, P.shots);
+  if (existsSync(f)) return JSON.parse(await readFile(f, 'utf8'));
+  const project = await readProject(dir);
+  const bFile = path.join(dir, 'boundaries.json');
+  const boundaries: { file: string; start: number; end: number }[] = existsSync(bFile) ? JSON.parse(await readFile(bFile, 'utf8')) : [];
+  const cuts = await detectCuts(path.join(dir, P.proxy));
+  const marks = [...new Set([0, ...cuts, ...boundaries.map((b) => b.start), project.source.duration].map((t) => +t.toFixed(2)))].sort((a, b) => a - b);
+  const shots: Shot[] = [];
+  for (let i = 0; i + 1 < marks.length; i++) {
+    if (marks[i + 1] - marks[i] < 0.3) continue;
+    const mid = (marks[i] + marks[i + 1]) / 2;
+    shots.push({ id: `t${String(shots.length + 1).padStart(2, '0')}`, start: marks[i], end: marks[i + 1], file: boundaries.find((b) => mid >= b.start && mid < b.end)?.file });
+  }
+  await writeFile(f, JSON.stringify(shots, null, 2));
+  return shots;
+}
+
+/** Miniatura del centro de cada toma, para que Claude pueda mirarlas. */
+export async function shotThumbnails(dir: string, shots: Shot[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  await mkdir(path.join(dir, 'proxies', 'tomas'), { recursive: true });
+  for (const s of shots) {
+    const file = path.join(dir, 'proxies', 'tomas', `${s.id}.jpg`);
+    if (!existsSync(file)) {
+      await ffmpeg(['-ss', ((s.start + s.end) / 2).toFixed(2), '-i', path.join(dir, P.proxy), '-frames:v', '1', '-vf', 'scale=270:-2', '-q:v', '5', file]);
+    }
+    out[s.id] = file;
+  }
+  return out;
+}
+
+export function formatShots(shots: Shot[], thumbs?: Record<string, string>): string {
+  return shots.map((s) => `${s.id} ${s.start.toFixed(1)}-${s.end.toFixed(1)}s (${(s.end - s.start).toFixed(1)} s)${s.file ? ` · ${s.file}` : ''}${thumbs ? ` · ${thumbs[s.id]}` : ''}`).join('\n');
+}
+
+export interface MontagePick { toma: string; inicio?: number; duracion?: number }
+
+/**
+ * Arma el montaje: cortes cortos repartidos entre las tomas.
+ * - Con música, la duración de cada corte se ajusta al compás.
+ * - Con voz en off, el montaje dura lo que dura la voz.
+ * - `picks` permite elegir las tomas a mano (lo usa Claude después de mirarlas).
+ */
+export async function buildMontage(dir: string, opts: { duration?: number; clipLength?: number; picks?: MontagePick[] } = {}) {
+  const project = await readProject(dir);
+  const shots = await detectShots(dir);
+  if (!shots.length) throw new Error('No se detectaron tomas en el video.');
+  const byId = new Map(shots.map((s) => [s.id, s]));
+
+  let clip = opts.clipLength ?? (project.pacing.maxPause <= 0.2 ? 0.8 : project.pacing.maxPause <= 0.4 ? 1.2 : 2);
+  let beat: number | null = null;
+  if (project.audio.music && existsSync(path.join(dir, project.audio.music))) {
+    const bpm = await detectBpm(path.join(dir, project.audio.music), path.join(dir, 'proxies'));
+    if (bpm) {
+      beat = 60 / bpm;
+      clip = Math.max(1, Math.round(clip / beat)) * beat; // cortes al compás
+    }
+  }
+  const total = shots.reduce((a, s) => a + s.end - s.start, 0);
+  const target = Math.min(total, opts.duration ?? project.audio.voiceover?.duration ?? 15);
+
+  let ranges: { start: number; end: number; shot: Shot }[] = [];
+  if (opts.picks?.length) {
+    for (const p of opts.picks) {
+      const s = byId.get(p.toma);
+      if (!s) throw new Error(`No existe la toma ${p.toma}. Tomas: ${shots.map((x) => x.id).join(', ')}.`);
+      const dur = Math.min(p.duracion ?? clip, s.end - s.start);
+      const start = Math.min(Math.max(s.start, s.start + (p.inicio ?? (s.end - s.start - dur) / 2)), s.end - dur);
+      ranges.push({ start, end: start + dur, shot: s });
+    }
+  } else {
+    // Con voz en off el montaje debe cubrirla entera: se redondea hacia arriba.
+    const n = Math.max(1, project.audio.voiceover && !opts.duration ? Math.ceil(target / clip) : Math.round(target / clip));
+    // Cuántos cortes caben en cada toma sin repetir imagen.
+    const cap = shots.map((s) => Math.max(1, Math.floor((s.end - s.start - 0.1) / clip)));
+    const count = shots.map(() => 0);
+    if (shots.length >= n) {
+      for (let i = 0; i < n; i++) count[Math.min(shots.length - 1, Math.floor(((i + 0.5) * shots.length) / n))]++;
+    } else {
+      let left = n;
+      for (let round = 0; left > 0 && round < 50; round++) {
+        let placed = false;
+        for (let i = 0; i < shots.length && left > 0; i++) {
+          if (count[i] < cap[i]) { count[i]++; left--; placed = true; }
+        }
+        if (!placed) break;
+      }
+    }
+    shots.forEach((s, i) => {
+      const len = s.end - s.start;
+      const dur = Math.min(clip, len);
+      for (let k = 0; k < count[i]; k++) {
+        const center = s.start + ((k + 0.5) / count[i]) * len;
+        const start = Math.min(Math.max(s.start, center - dur / 2), s.end - dur);
+        ranges.push({ start, end: start + dur, shot: s });
+      }
+    });
+  }
+  ranges = ranges.filter((r) => r.end - r.start >= 0.2);
+  if (!ranges.length) throw new Error('No hay material suficiente para armar el montaje.');
+
+  project.scenes = ranges.map((r, i) => Scene.parse({
+    id: `s${String(i + 1).padStart(2, '0')}`,
+    role: i === 0 ? 'gancho' : 'otro',
+    title: `Toma ${r.shot.id.slice(1)}`,
+    ranges: [{ start: +r.start.toFixed(3), end: +r.end.toFixed(3) }],
+  }));
+  applyPunchZooms(project.scenes, project.pacing.punchZoomEvery);
+  const saved = await writeProject(dir, project);
+  return { project: saved, clip, beat, shots: shots.length, duration: ranges.reduce((a, r) => a + r.end - r.start, 0) };
+}

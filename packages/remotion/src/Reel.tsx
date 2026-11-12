@@ -54,6 +54,7 @@ export const Reel: React.FC<Timeline> = (t) => {
           <Caption chunk={ch} font={font} t={t} />
         </Sequence>
       ))}
+      {t.voiceoverSrc ? <Audio src={t.voiceoverSrc} /> : null}
       {t.musicSrc ? <Music t={t} /> : null}
     </AbsoluteFill>
   );
@@ -66,10 +67,11 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
     ? interpolate(spring({ frame, fps, config: { damping: 14, stiffness: 180 } }), [0, 1], [1.18, 1.08])
     : 1;
   const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${zoom})` };
+  const pos = coverPosition(t, clip.focusX, clip.focusY);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
-  const voice = t.voiceSrc
-    ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} />
-    : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} /> : null;
+  const voice = t.originalVolume <= 0 ? null
+    : t.voiceSrc ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} />
+    : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} /> : null;
   return (
     <AbsoluteFill>
       {clip.motion ? (
@@ -80,14 +82,27 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         <OffthreadVideo
           src={t.videoSrc}
           trimBefore={clip.sourceStartFrame}
-          muted={Boolean(t.voiceSrc)}
-          style={{ ...cover, objectPosition: `${t.focusX * 100}% 50%` }}
+          muted={Boolean(t.voiceSrc) || t.originalVolume <= 0}
+          volume={t.originalVolume}
+          style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }}
         />
       )}
       {voice}
     </AbsoluteFill>
   );
 };
+
+/**
+ * Posición del recorte para que el punto de interés (la cara) quede dentro
+ * del cuadro: centrado en horizontal y un poco arriba del centro en vertical.
+ */
+export function coverPosition(t: Pick<Timeline, 'width' | 'height' | 'sourceWidth' | 'sourceHeight'>, fx: number, fy: number) {
+  const src = t.sourceWidth / t.sourceHeight;
+  const box = t.width / t.height;
+  const solve = (focus: number, k: number, target: number) =>
+    k <= 1.001 ? 0.5 : Math.min(1, Math.max(0, (focus * k - target) / (k - 1)));
+  return { x: solve(fx, src / box, 0.5), y: solve(fy, box / src, 0.42) };
+}
 
 /**
  * Música con ducking: baja al volumen base mientras hay voz y sube (hasta 2,5×)
@@ -107,7 +122,7 @@ const Music: React.FC<{ t: Timeline }> = ({ t }) => {
     for (let k = 0; k <= ramp; k++) {
       if (speech[Math.min(t.durationInFrames, f + k)] || speech[Math.max(0, f - k)]) { dist = k; break; }
     }
-    const up = Math.min(0.6, t.musicVolume * 2.5);
+    const up = Math.min(1, t.musicVolume * 2.5);
     const fadeOut = interpolate(f, [t.durationInFrames - t.fps, t.durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
     return interpolate(dist, [0, ramp], [t.musicVolume, up]) * fadeOut;
   };

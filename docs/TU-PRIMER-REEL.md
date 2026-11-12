@@ -58,6 +58,20 @@ Ejemplos de lo que puedes escribirle a Claude:
 - «guarda este estilo como "CRE rápido"»
 - «vuelve a como estaba antes»
 
+## Videos sin voz (gimnasio, comida, producto)
+
+Si en el video nadie habla, pídele un montaje:
+
+> hazme un montaje de 15 segundos con estos videos: /ruta/carpeta
+
+Claude detecta las tomas, elige las mejores y arma cortes rápidos. Luego puedes pedirle:
+
+- «ponle esta música: /ruta/cancion.mp3, licencia de Artlist» (los cortes se ajustan al compás);
+- «ponle voz en off que diga: …» (se subtitula sola);
+- «empieza con la toma del plato terminado».
+
+En el studio, elige **Sin voz (montaje)** en la pantalla de proyectos y arrastra uno o varios videos.
+
 ## 6. Exportar
 
 Dile **«renderiza»**, o pulsa **Exportar MP4** en el studio. Puedes elegir 9:16, 4:5 o 1:1. El archivo queda en la carpeta `renders` del proyecto y Claude te da la ruta.

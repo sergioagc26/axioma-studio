@@ -120,3 +120,9 @@ export async function normalizeMix(input: string, out: string, targetLufs: numbe
   const second = `${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
   await ffmpeg(['-i', input, '-c:v', 'copy', '-af', `loudnorm=${second}`, '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', out]);
 }
+
+/** Duración (s) de cualquier archivo de audio o video. */
+export async function mediaDuration(file: string): Promise<number> {
+  const { stdout } = await ffprobe(['-show_entries', 'format=duration', '-of', 'csv=p=0', file]);
+  return Number(stdout.trim());
+}

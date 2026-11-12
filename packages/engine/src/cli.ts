@@ -6,7 +6,8 @@ import { installClaude } from './claude.ts';
 import { doctor } from './doctor.ts';
 import { REPO_ROOT } from './paths.ts';
 import { measureLufs, probe } from './media.ts';
-import { cutProject, editVideo, prepareMedia, transcribeProject } from './pipeline.ts';
+import { setVoiceover } from './ops.ts';
+import { cutProject, editMontage, editVideo, prepareMedia, transcribeProject } from './pipeline.ts';
 import { renderProject } from './render.ts';
 import { openBrowser, startStudio, studioUrl } from './studio.ts';
 import { ensureWhisper } from './transcribe.ts';
@@ -62,6 +63,34 @@ program
   .description('Flujo completo: transcribe, corta, subtitula y renderiza')
   .action(async (video, o) => {
     await editVideo(video, { name: o.name, client: o.client, preset: o.preset, render: o.render });
+  });
+
+program
+  .command('montaje')
+  .argument('<videos...>', 'uno o varios videos, o una carpeta')
+  .option('-n, --name <nombre>', 'nombre del proyecto')
+  .option('-c, --client <cliente>', 'cliente (carpeta)')
+  .option('-p, --preset <id>', 'preset (define el largo de los cortes)', 'rapido')
+  .option('-d, --duracion <segundos>', 'duración del montaje', (v) => Number(v))
+  .option('-m, --musica <archivo>', 'música de fondo (los cortes van al compás)')
+  .option('--licencia <texto>', 'licencia de la música')
+  .option('--voz <texto>', 'texto de la voz en off')
+  .option('--no-render', 'preparar y armar sin renderizar')
+  .description('Montaje de cortes rápidos para videos sin voz (gimnasio, comida, producto)')
+  .action(async (videos, o) => {
+    await editMontage(videos, { name: o.name, client: o.client, preset: o.preset, duration: o.duracion, music: o.musica, musicLicense: o.licencia, voiceover: o.voz, render: o.render });
+  });
+
+program
+  .command('voz')
+  .argument('<carpeta>', 'carpeta del proyecto')
+  .argument('<texto>', 'texto que dirá la voz en off')
+  .option('--proveedor <p>', 'elevenlabs, piper o sistema')
+  .option('--voz <nombre>', 'voz a usar')
+  .description('Pone voz en off a un proyecto (y la subtitula)')
+  .action(async (dir, texto, o) => {
+    const p = await setVoiceover(path.resolve(dir), texto, { provider: o.proveedor, voice: o.voz });
+    console.log(`Voz en off: ${p.audio.voiceover?.provider} · ${p.audio.voiceover?.duration.toFixed(1)} s`);
   });
 
 program

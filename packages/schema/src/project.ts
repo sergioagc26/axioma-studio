@@ -127,6 +127,8 @@ export const SourceMedia = z.object({
   rotation: z.number().default(0),
   /** Punto de interés horizontal (0 izquierda, 1 derecha) al recortar a vertical. */
   focusX: z.number().min(0).max(1).default(0.5),
+  /** El encuadre sigue la cara automáticamente. Si es false, manda focusX. */
+  autoFocus: z.boolean().default(true),
 });
 export type SourceMedia = z.infer<typeof SourceMedia>;
 
@@ -154,6 +156,8 @@ export const Project = z.object({
   id: z.string(),
   name: z.string(),
   client: z.string().optional(),
+  /** hablado: se corta según lo que se dice. montaje: cortes rápidos de tomas, sin depender de la voz. */
+  kind: z.enum(['hablado', 'montaje']).default('hablado'),
   createdAt: z.string(),
   updatedAt: z.string(),
   format: z.object({
@@ -174,7 +178,17 @@ export const Project = z.object({
     processedVoice: z.string().optional(),
     music: z.string().optional(),
     musicVolume: z.number().min(0).max(1).default(0.18),
-  }).default({ denoise: true, targetLufs: -16, musicVolume: 0.18 }),
+    /** Volumen del sonido original del video (0 = silenciado). */
+    originalVolume: z.number().min(0).max(1).default(1),
+    /** Voz en off generada: suena desde el inicio del reel, sobre el video. */
+    voiceover: z.object({
+      file: z.string(),
+      text: z.string(),
+      provider: z.string(),
+      voice: z.string().optional(),
+      duration: z.number(),
+    }).optional(),
+  }).default({ denoise: true, targetLufs: -16, musicVolume: 0.18, originalVolume: 1 }),
   assets: z.array(Asset).default([]),
   approval: z.enum(['borrador', 'en_revision', 'aprobado']).default('borrador'),
   requests: z.array(Request).default([]),

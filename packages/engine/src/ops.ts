@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir, stat } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -11,6 +11,9 @@ import { P, WORKSPACE } from './paths.ts';
 import { readAnalysis } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { listPresets } from './presets.ts';
+import { extractWav16k, mediaDuration } from './media.ts';
+import { transcribeWav } from './transcribe.ts';
+import { synthesize, type TtsProvider } from './tts.ts';
 
 /** Frases del proyecto (para que Claude arme el storyboard). */
 export async function getPhrases(dir: string): Promise<Phrase[]> {
@@ -188,7 +191,8 @@ export function summarize(project: Project, dir: string): string {
   const lines = [
     `Proyecto: ${project.name} (${project.id})`,
     `Carpeta: ${dir}`,
-    `Cliente: ${project.client ?? 'personal'} · Preset: ${project.presetId} · Estado: ${project.approval}`,
+    `Cliente: ${project.client ?? 'personal'} · Tipo: ${project.kind} · Preset: ${project.presetId} · Estado: ${project.approval}`,
+    `Audio: original ${project.audio.originalVolume}${project.audio.music ? ` · música ${project.audio.musicVolume}` : ''}${project.audio.voiceover ? ` · voz en off (${project.audio.voiceover.provider}, ${project.audio.voiceover.duration.toFixed(1)} s)` : ''} · encuadre ${project.source.autoFocus ? 'sigue la cara' : `fijo ${project.source.focusX}`}`,
     `Fuente: ${project.source.duration.toFixed(1)} s · Salida: ${outputDuration(project).toFixed(1)} s · ${project.format.width}×${project.format.height} @ ${project.format.fps} fps`,
   ];
   if (Object.keys(project.brief).length) lines.push(`Brief: ${Object.entries(project.brief).map(([k, v]) => `${k}=${v}`).join('; ')}`);
@@ -285,9 +289,47 @@ export async function setLogo(dir: string, file: string) {
   return writeProject(dir, project);
 }
 
-export async function setFocus(dir: string, focusX: number) {
+/** Encuadre: automático (sigue la cara) o fijo en un punto horizontal. */
+export async function setFocus(dir: string, focusX: number | 'auto') {
   const project = await readProject(dir);
-  project.source.focusX = Math.min(1, Math.max(0, focusX));
+  if (focusX === 'auto') {
+    project.source.autoFocus = true;
+  } else {
+    project.source.autoFocus = false;
+    project.source.focusX = Math.min(1, Math.max(0, focusX));
+  }
+  return writeProject(dir, project);
+}
+
+export async function setOriginalVolume(dir: string, volume: number) {
+  const project = await readProject(dir);
+  project.audio.originalVolume = Math.min(1, Math.max(0, volume));
+  return writeProject(dir, project);
+}
+
+/**
+ * Genera la voz en off, la transcribe (para subtitularla) y la pone en el reel.
+ * Suena desde el inicio. Por defecto silencia la voz original en un video
+ * hablado y deja el ambiente bajo en un montaje.
+ */
+export async function setVoiceover(dir: string, text: string, opts: { provider?: TtsProvider; voice?: string; originalVolume?: number } = {}) {
+  const project = await readProject(dir);
+  const out = path.join(dir, P.voiceover);
+  const used = await synthesize(text, out, opts);
+  const wav = path.join(dir, 'media', 'voz-en-off-16k.wav');
+  await extractWav16k(out, wav);
+  const transcript = await transcribeWav(wav);
+  await rm(wav, { force: true });
+  await writeFile(path.join(dir, P.voiceoverWords), JSON.stringify(transcript, null, 2));
+  project.audio.voiceover = { file: P.voiceover, text, provider: used.provider, voice: used.voice, duration: await mediaDuration(out) };
+  project.audio.originalVolume = opts.originalVolume ?? (project.kind === 'montaje' ? Math.min(project.audio.originalVolume, 0.25) : 0);
+  return writeProject(dir, project);
+}
+
+export async function removeVoiceover(dir: string) {
+  const project = await readProject(dir);
+  project.audio.voiceover = undefined;
+  project.audio.originalVolume = project.kind === 'montaje' ? 0.6 : 1;
   return writeProject(dir, project);
 }
 

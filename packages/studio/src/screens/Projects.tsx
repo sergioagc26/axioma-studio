@@ -8,11 +8,37 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [items, setItems] = useState<Item[] | null>(null);
   const [client, setClient] = useState('');
   const [preset, setPreset] = useState('rapido');
+  const [kind, setKind] = useState<'hablado' | 'montaje'>('hablado');
   const [job, setJob] = useState<Job | null>(null);
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => { api<Item[]>('/api/projects').then(setItems).catch((e) => ctx.toast(e.message)); }, []);
+
+  /** Montaje sin voz: se suben uno o varios videos y se arma con cortes rápidos. */
+  const uploadMontage = async (files: File[]) => {
+    const videos = files.filter((f) => /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name));
+    if (!videos.length) return ctx.toast('Sube uno o varios videos (.mp4 o .mov).');
+    try {
+      const tokens: string[] = [];
+      for (const [i, f] of videos.entries()) {
+        setJob({ id: '', status: 'running', message: `Subiendo video ${i + 1} de ${videos.length}…`, progress: (i / videos.length) * 0.2 });
+        tokens.push((await api<{ token: string }>(`/api/upload?filename=${encodeURIComponent(f.name)}`, { method: 'POST', body: f })).token);
+      }
+      const started = await api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset }) });
+      const done = await waitJob(started, setJob);
+      ctx.go('storyboard', { p: done.result?.id, s: null });
+    } catch (e: any) {
+      ctx.toast(`No se pudo crear: ${e.message}`);
+    } finally {
+      setJob(null);
+    }
+  };
+  const take = (list: FileList | null) => {
+    const files = [...(list ?? [])];
+    if (!files.length) return;
+    if (kind === 'montaje') uploadMontage(files); else upload(files[0]);
+  };
 
   const upload = async (file: File) => {
     if (!/\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name)) return ctx.toast('Sube un video (.mp4 o .mov).');
@@ -37,7 +63,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         className={`drop ${over ? 'over' : ''}`}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
         onDragLeave={() => setOver(false)}
-        onDrop={(e) => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files[0]; if (f) upload(f); }}
+        onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files); }}
       >
         {job ? (
           <>
@@ -47,8 +73,14 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </>
         ) : (
           <>
-            <strong style={{ fontSize: 16 }}>Arrastra aquí tu video hablando a cámara</strong>
-            <span className="muted">La app lo transcribe, quita silencios y tomas repetidas, y arma un primer corte.</span>
+            <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', width: '100%', maxWidth: 420 }}>
+              <button className={kind === 'hablado' ? 'on' : ''} aria-pressed={kind === 'hablado'} onClick={() => setKind('hablado')}>Hablando a cámara</button>
+              <button className={kind === 'montaje' ? 'on' : ''} aria-pressed={kind === 'montaje'} onClick={() => setKind('montaje')}>Sin voz (montaje)</button>
+            </div>
+            <strong style={{ fontSize: 16 }}>{kind === 'hablado' ? 'Arrastra aquí tu video hablando a cámara' : 'Arrastra aquí uno o varios videos'}</strong>
+            <span className="muted">{kind === 'hablado'
+              ? 'La app lo transcribe, quita silencios y tomas repetidas, y arma un primer corte.'
+              : 'Para gimnasio, comida o producto: la app detecta las tomas y arma cortes rápidos. Luego puedes ponerle música y voz en off.'}</span>
             <div className="row" style={{ justifyContent: 'center' }}>
               <label className="field">Cliente
                 <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="personal" />
@@ -59,8 +91,8 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 </select>
               </label>
             </div>
-            <button className="btn primary" onClick={() => input.current?.click()}>Elegir video</button>
-            <input ref={input} type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+            <button className="btn primary" onClick={() => input.current?.click()}>{kind === 'montaje' ? 'Elegir videos' : 'Elegir video'}</button>
+            <input ref={input} type="file" accept="video/*" multiple={kind === 'montaje'} hidden onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
           </>
         )}
       </div>

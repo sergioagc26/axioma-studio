@@ -12,6 +12,9 @@ export type TimelineClip = {
   /** Frames de la escena que ya pasaron antes de este tramo (para b-roll continuo). */
   sceneOffsetFrames: number;
   punchZoom: boolean;
+  /** Punto de interés del recorte (0–1), normalmente la cara. */
+  focusX: number;
+  focusY: number;
   visual: Scene['visual'];
   brollSrc?: string;
   motion?: MotionSpec;
@@ -34,9 +37,12 @@ export type Timeline = {
   voiceSrc?: string;
   musicSrc?: string;
   musicVolume: number;
+  /** Volumen del sonido original (voz grabada o ambiente). */
+  originalVolume: number;
+  /** Voz en off: suena desde el frame 0 de la salida. */
+  voiceoverSrc?: string;
   sourceWidth: number;
   sourceHeight: number;
-  focusX: number;
   clips: TimelineClip[];
   words: TimelineWord[];
   overlays: TimelineOverlay[];
@@ -53,6 +59,19 @@ export interface TimelineUrls {
   brand?: Brand;
   /** Formato de salida distinto al del proyecto (4:5, 1:1). */
   format?: { width: number; height: number };
+  /** Voz en off y sus palabras (en tiempo de salida) para los subtítulos. */
+  voiceover?: { src: string; words: Transcript['words'] };
+  /** Posición de la cara a lo largo del video fuente. */
+  faces?: FacePoint[];
+}
+
+export type FacePoint = { t: number; x: number; y: number };
+
+/** Posición media de la cara en un tramo del video fuente. */
+export function focusFor(faces: FacePoint[] | undefined, start: number, end: number, fallback: { x: number; y: number }) {
+  const hit = (faces ?? []).filter((f) => f.t >= start - 0.25 && f.t <= end + 0.25);
+  if (!hit.length) return fallback;
+  return { x: hit.reduce((a, f) => a + f.x, 0) / hit.length, y: hit.reduce((a, f) => a + f.y, 0) / hit.length };
 }
 
 export const FORMATS = { '9:16': { width: 1080, height: 1920 }, '4:5': { width: 1080, height: 1350 }, '1:1': { width: 1080, height: 1080 } } as const;
@@ -69,6 +88,10 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
   const toFrame = (s: number) => Math.round(s * fps);
 
   const clips: TimelineClip[] = [];
+  const auto = project.source.autoFocus;
+  const manual = { x: project.source.focusX, y: 0.5 };
+  // Con voz en off, los subtítulos salen de ella y no de lo que se dijo en el video.
+  const sourceWords = urls.voiceover ? null : transcript;
   const words: TimelineWord[] = [];
   const overlays: TimelineOverlay[] = [];
   let acc = 0;
@@ -91,7 +114,11 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
       const from = toFrame(acc);
       const to = toFrame(acc + dur);
       if (to > from) {
+        // Un encuadre fijo por tramo (media de la cara): sigue a la persona sin temblar.
+        const focus = auto ? focusFor(urls.faces, r.start, r.end, manual) : manual;
         clips.push({
+          focusX: focus.x,
+          focusY: focus.y,
           sceneId: scene.id,
           fromFrame: from,
           durationInFrames: to - from,
@@ -103,8 +130,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
           motion,
         });
       }
-      if (transcript) {
-        for (const w of transcript.words) {
+      if (sourceWords) {
+        for (const w of sourceWords.words) {
           const mid = (w.start + w.end) / 2;
           if (mid < r.start || mid >= r.end) continue;
           const s = acc + Math.max(0, w.start - r.start);
@@ -127,18 +154,26 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     }
   }
 
+  if (urls.voiceover) {
+    for (const w of urls.voiceover.words) {
+      if (w.start >= acc) break;
+      words.push({ text: w.text, startFrame: toFrame(w.start), endFrame: Math.max(toFrame(w.start) + 1, toFrame(Math.min(acc, w.end))) });
+    }
+  }
+
   return {
     width,
     height,
     fps,
     durationInFrames: Math.max(1, toFrame(acc)),
+    originalVolume: project.audio.originalVolume,
+    voiceoverSrc: urls.voiceover?.src,
     videoSrc: urls.video,
     voiceSrc: urls.voice,
     musicSrc: urls.music,
     musicVolume: project.audio.musicVolume,
     sourceWidth: project.source.width,
     sourceHeight: project.source.height,
-    focusX: project.source.focusX,
     clips,
     words,
     overlays,

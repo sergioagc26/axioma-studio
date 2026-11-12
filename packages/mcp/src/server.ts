@@ -377,11 +377,102 @@ export function createServer() {
     return 'Logo guardado.';
   });
 
-  tool('ajustar_encuadre', 'Mueve el punto de interés horizontal al recortar un video horizontal a vertical (0 izquierda, 0.5 centro, 1 derecha).', {
-    proyecto, foco_x: z.number().min(0).max(1),
-  }, async ({ proyecto, foco_x }) => {
-    await E.setFocus(await resolveProject(proyecto), foco_x);
-    return `Encuadre: ${foco_x}`;
+  tool('ajustar_encuadre', 'Encuadre del recorte. Por defecto es automático y sigue la cara. Con foco_x se fija a mano (0 izquierda, 0.5 centro, 1 derecha); con automatico=true vuelve a seguir la cara.', {
+    proyecto, foco_x: z.number().min(0).max(1).optional(), automatico: z.boolean().optional(),
+  }, async ({ proyecto, foco_x, automatico }) => {
+    const dir = await resolveProject(proyecto);
+    if (automatico || foco_x === undefined) {
+      await E.setFocus(dir, 'auto');
+      const n = (await E.readFaces(dir)).length;
+      return n ? `Encuadre automático: sigue la cara (detectada en ${n} momentos).` : 'Encuadre automático, pero no se detectó ninguna cara: queda centrado.';
+    }
+    await E.setFocus(dir, foco_x);
+    return `Encuadre fijo: ${foco_x}`;
+  });
+
+  tool(
+    'crear_montaje',
+    'Crea un proyecto de MONTAJE para videos sin voz (gimnasio, comida, producto, cortes rápidos): une uno o varios videos, detecta las tomas y arma cortes cortos repartidos entre ellas. Con música, los cortes van al compás. Tarda 1–5 minutos. Devuelve el resumen y las tomas con una miniatura de cada una para que las mires.',
+    {
+      videos: z.array(z.string()).min(1).describe('Rutas absolutas de videos o de una carpeta'),
+      cliente: z.string().optional(),
+      nombre: z.string().optional(),
+      preset: z.string().default('rapido').describe('rapido = cortes de ~0,8 s; con-ritmo = ~1,2 s; sobrio = ~2 s'),
+      duracion: z.number().min(3).max(180).optional().describe('Duración del montaje en segundos (por defecto 15)'),
+    },
+    async ({ videos, cliente, nombre, preset, duracion }) => {
+      const { dir } = await E.createMontage({ inputs: videos, name: nombre, client: cliente, presetId: preset });
+      await E.prepareMedia(dir, log);
+      const shots = await E.detectShots(dir);
+      const m = await E.buildMontage(dir, { duration: duracion });
+      return [
+        E.summarize(m.project, dir),
+        `Montaje: ${m.project.scenes.length} cortes de ~${m.clip.toFixed(2)} s · ${m.duration.toFixed(1)} s`,
+        '',
+        'Tomas (mira las miniaturas para elegir las mejores con armar_montaje):',
+        E.formatShots(shots, await E.shotThumbnails(dir, shots)),
+      ].join('\n');
+    },
+  );
+
+  tool('leer_tomas', 'Tomas detectadas en un montaje, con la ruta de una miniatura de cada una.', { proyecto }, async ({ proyecto }) => {
+    const dir = await resolveProject(proyecto);
+    const shots = await E.detectShots(dir);
+    return E.formatShots(shots, await E.shotThumbnails(dir, shots));
+  });
+
+  tool(
+    'armar_montaje',
+    'Rehace los cortes de un montaje. Sin "tomas", reparte cortes automáticamente (al compás si hay música; con voz en off dura lo que la voz). Con "tomas", usa exactamente las que elijas y en ese orden.',
+    {
+      proyecto,
+      duracion: z.number().min(2).max(180).optional(),
+      largo_corte: z.number().min(0.3).max(10).optional().describe('Segundos por corte'),
+      tomas: z.array(z.object({
+        toma: z.string().describe('Id de la toma, p. ej. t03'),
+        inicio: z.number().min(0).optional().describe('Segundos desde el inicio de la toma (por defecto, el centro)'),
+        duracion: z.number().min(0.2).optional(),
+      })).optional(),
+    },
+    async ({ proyecto, duracion, largo_corte, tomas }) => {
+      const dir = await resolveProject(proyecto);
+      const m = await E.buildMontage(dir, { duration: duracion, clipLength: largo_corte, picks: tomas });
+      return `${E.summarize(m.project, dir)}\nCortes de ~${m.clip.toFixed(2)} s${m.beat ? ' al compás de la música' : ''} · ${m.duration.toFixed(1)} s`;
+    },
+  );
+
+  tool(
+    'poner_voz_en_off',
+    'Genera una voz en off con el texto dado, la subtitula y la pone desde el inicio del reel. Proveedores: elevenlabs (mejor; necesita ELEVENLABS_API_KEY en .env), piper (local) y sistema (voz del computador, gratis, más robótica). Sin proveedor usa el mejor disponible. En un video hablado silencia la voz original; en un montaje deja el ambiente bajo. El texto lo escribe o lo aprueba el usuario.',
+    {
+      proyecto,
+      texto: z.string().min(2),
+      proveedor: z.enum(['elevenlabs', 'piper', 'sistema']).optional(),
+      voz: z.string().optional().describe('Nombre o id de la voz (p. ej. "Paulina" o "Mónica" en Mac)'),
+      volumen_original: z.number().min(0).max(1).optional(),
+    },
+    async ({ proyecto, texto, proveedor, voz, volumen_original }) => {
+      const dir = await resolveProject(proyecto);
+      const p = await E.setVoiceover(dir, texto, { provider: proveedor, voice: voz, originalVolume: volumen_original });
+      const v = p.audio.voiceover!;
+      const extra = p.kind === 'montaje' ? ' Vuelve a llamar armar_montaje para que el montaje dure lo que la voz.' : '';
+      return `Voz en off lista: ${v.provider}${v.voice ? ` (${v.voice})` : ''} · ${v.duration.toFixed(1)} s · sonido original a ${p.audio.originalVolume}.${extra}`;
+    },
+  );
+
+  tool('quitar_voz_en_off', 'Quita la voz en off y devuelve el sonido original.', { proyecto }, async ({ proyecto }) => {
+    await E.removeVoiceover(await resolveProject(proyecto));
+    return 'Voz en off quitada.';
+  });
+
+  tool('voces_disponibles', 'Proveedores de voz en off disponibles en este computador.', {}, async () => {
+    const list = await E.ttsProviders();
+    return list.length ? `Disponibles (del mejor al más básico): ${list.join(', ')}` : 'No hay ningún proveedor de voz disponible.';
+  });
+
+  tool('ajustar_sonido_original', 'Volumen del sonido original del video (0 = silenciado, 1 = normal).', { proyecto, volumen: z.number().min(0).max(1) }, async ({ proyecto, volumen }) => {
+    await E.setOriginalVolume(await resolveProject(proyecto), volumen);
+    return `Sonido original: ${volumen}`;
   });
 
   tool('listar_versiones', 'Versiones guardadas del proyecto, más recientes primero.', { proyecto }, async ({ proyecto }) => {

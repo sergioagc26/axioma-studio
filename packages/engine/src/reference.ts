@@ -28,13 +28,13 @@ export interface ReferenceReport {
 export const referencesDir = (client?: string) => path.join(WORKSPACE, 'clientes', slugify(client ?? 'personal'), 'referencias');
 
 /** Cambios de plano detectados por FFmpeg. */
-async function detectCuts(file: string): Promise<number[]> {
+export async function detectCuts(file: string): Promise<number[]> {
   const { stdout, stderr } = await ffmpeg(['-i', file, '-an', '-vf', "select='gt(scene,0.3)',metadata=print:file=-", '-f', 'null', '-']);
   return [...(stdout + stderr).matchAll(/pts_time:([\d.]+)/g)].map((m) => Number(m[1]));
 }
 
 /** Tempo por autocorrelación de los ataques de energía (60–180 BPM). */
-async function detectBpm(file: string, tmp: string): Promise<number | null> {
+export async function detectBpm(file: string, tmp: string): Promise<number | null> {
   const raw = path.join(tmp, 'audio.raw');
   try {
     await ffmpeg(['-i', file, '-vn', '-ac', '1', '-ar', '8000', '-f', 's16le', raw]);

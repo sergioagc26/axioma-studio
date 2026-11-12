@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs';
-import { rename, rm } from 'node:fs/promises';
+import { readFile, rename, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { FORMATS, buildTimeline, type Brand, type FormatId, type Project } from '@snz/schema';
+import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@snz/schema';
+import { readFaces } from './faces.ts';
 import { readKit } from './kit.ts';
 import { normalizeMix } from './media.ts';
 import { P, REMOTION_ENTRY } from './paths.ts';
@@ -31,6 +32,16 @@ export async function brandFor(project: Project, asset: (rel: string) => string,
   };
 }
 
+/** Voz en off (con sus palabras) y seguimiento de cara, para armar la línea de tiempo. */
+export async function timelineExtras(dir: string, project: Project, asset: (rel: string) => string) {
+  const vo = project.audio.voiceover;
+  const wordsFile = path.join(dir, P.voiceoverWords);
+  const voiceover = vo && existsSync(path.join(dir, vo.file))
+    ? { src: asset(vo.file), words: existsSync(wordsFile) ? (JSON.parse(await readFile(wordsFile, 'utf8')).words as Transcript['words']) : [] }
+    : undefined;
+  return { voiceover, faces: await readFaces(dir) };
+}
+
 export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; onProgress?: (p: number) => void } = {}) {
   const project = await readProject(dir);
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
@@ -45,6 +56,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       asset: (rel) => server.url(rel),
       brand: await brandFor(project, server.url, dir),
       format: opts.format ? FORMATS[opts.format] : undefined,
+      ...(await timelineExtras(dir, project, server.url)),
     });
     const serveUrl = await getBundle();
     // Con el computador muy ocupado, el navegador del render puede tardar en abrir: se reintenta.
@@ -67,7 +79,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
     }));
     // Con música la mezcla sube de volumen: se nivela el resultado final.
-    if (timeline.musicSrc) {
+    if (timeline.musicSrc || timeline.voiceoverSrc) {
       await normalizeMix(raw, out, project.audio.targetLufs);
       await rm(raw, { force: true });
     } else {

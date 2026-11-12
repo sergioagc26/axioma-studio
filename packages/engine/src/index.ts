@@ -13,3 +13,6 @@ export * from './studio.ts';
 export * from './reference.ts';
 export * from './kit.ts';
 export * from './pexels.ts';
+export * from './faces.ts';
+export * from './montage.ts';
+export * from './tts.ts';

@@ -10,33 +10,54 @@ export interface Analysis {
 }
 import { kitCaptions, readKit } from './kit.ts';
 import { P } from './paths.ts';
+import { analyzeFaces } from './faces.ts';
+import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { listPresets } from './presets.ts';
+import { setMusic, setVoiceover } from './ops.ts';
 import { renderProject } from './render.ts';
 import { createProject, readProject, readTranscript, writeProject, writeTranscript } from './store.ts';
 import { transcribeWav } from './transcribe.ts';
 
 type Log = (msg: string) => void;
 
-/** Master, proxy, WAV para Whisper y voz procesada. Salta lo que ya exista. */
+/**
+ * Prepara el material: master, proxy, seguimiento de cara y audio.
+ * - hablado: WAV para Whisper y voz limpia y nivelada.
+ * - montaje: se usa el sonido original tal cual (es ambiente, no voz).
+ * Salta lo que ya exista.
+ */
 export async function prepareMedia(dir: string, log: Log = console.log) {
   const project = await readProject(dir);
   const abs = (rel: string) => path.join(dir, rel);
+  const info = await probe(abs(project.source.file));
   if (!existsSync(abs(P.master))) {
     log('Creando master de edición (fps constante)…');
-    await makeMaster(abs(project.source.file), abs(P.master), project.format.fps, await probe(abs(project.source.file)));
+    await makeMaster(abs(project.source.file), abs(P.master), project.format.fps, info);
   }
   if (!existsSync(abs(P.proxy))) {
     log('Creando proxy para vista previa…');
     await makeProxy(abs(P.master), abs(P.proxy));
   }
-  if (!existsSync(abs(P.wav16k))) await extractWav16k(abs(P.master), abs(P.wav16k));
-  if (!existsSync(abs(P.voice))) {
-    log(`Limpiando y nivelando la voz a ${project.audio.targetLufs} LUFS…`);
-    await processVoice(abs(P.master), abs(P.voice), project.audio);
-  }
   project.source.proxy = P.proxy;
-  project.source.audio = P.wav16k;
-  project.audio.processedVoice = P.voice;
+  try {
+    log('Buscando la cara para el encuadre…');
+    const faces = await analyzeFaces(dir, project.source.width, project.source.height);
+    log(faces.length ? `  cara detectada en ${faces.length} momentos` : '  no se detectó cara: el encuadre queda centrado');
+  } catch (e) {
+    log(`  no se pudo analizar la cara (${e instanceof Error ? e.message : e}); el encuadre queda centrado`);
+  }
+  if (project.kind === 'hablado') {
+    if (!info.hasAudio) throw new Error('El video no tiene audio. Para videos sin voz usa el modo montaje (se montaje).');
+    if (!existsSync(abs(P.wav16k))) await extractWav16k(abs(P.master), abs(P.wav16k));
+    if (!existsSync(abs(P.voice))) {
+      log(`Limpiando y nivelando la voz a ${project.audio.targetLufs} LUFS…`);
+      await processVoice(abs(P.master), abs(P.voice), project.audio);
+    }
+    project.source.audio = P.wav16k;
+    project.audio.processedVoice = P.voice;
+  } else if (!info.hasAudio) {
+    project.audio.originalVolume = 0;
+  }
   return writeProject(dir, project);
 }
 
@@ -106,7 +127,7 @@ export async function editVideo(
   const t = await transcribeProject(dir, log);
   log(`  ${t.words.length} palabras`);
   if (!t.words.length) {
-    throw new Error('No se detectó voz en el video. Esta app edita videos donde una persona habla; para un video sin voz no hay nada que cortar ni subtitular.');
+    throw new Error('No se detectó voz en el video. Para videos sin voz (gimnasio, comida, cortes rápidos) usa el modo montaje: npm run se -- montaje "<video o carpeta>"');
   }
   const report = await cutProject(dir);
   log(
@@ -126,4 +147,37 @@ export async function editVideo(
     log(`Listo: ${out}`);
   }
   return { dir, report, out };
+}
+
+/** Flujo completo de un montaje sin voz: crear → preparar → detectar tomas → armar → renderizar. */
+export async function editMontage(
+  inputs: string[],
+  opts: { name?: string; client?: string; preset?: string; duration?: number; music?: string; musicLicense?: string; voiceover?: string; render?: boolean },
+  log: Log = console.log,
+) {
+  const { dir } = await createMontage({ inputs, name: opts.name, client: opts.client, presetId: opts.preset });
+  log(`Proyecto: ${dir}`);
+  await prepareMedia(dir, log);
+  const shots = await detectShots(dir);
+  log(`  ${shots.length} tomas detectadas`);
+  if (opts.music) await setMusic(dir, opts.music, { license: opts.musicLicense });
+  if (opts.voiceover) {
+    log('Generando la voz en off…');
+    await setVoiceover(dir, opts.voiceover);
+  }
+  const m = await buildMontage(dir, { duration: opts.duration });
+  log(`Montaje: ${m.project.scenes.length} cortes de ~${m.clip.toFixed(2)} s${m.beat ? ' (al compás de la música)' : ''} · ${m.duration.toFixed(1)} s`);
+  let out: string | undefined;
+  if (opts.render !== false) {
+    log('Renderizando…');
+    let last = -1;
+    ({ out } = await renderProject(dir, {
+      onProgress: (p) => {
+        const pct = Math.floor(p * 10) * 10;
+        if (pct !== last) log(`  render ${(last = pct)}%`);
+      },
+    }));
+    log(`Listo: ${out}`);
+  }
+  return { dir, out };
 }

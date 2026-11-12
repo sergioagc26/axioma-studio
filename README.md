@@ -50,8 +50,8 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
-- **Skills** (`plugin/skills/`): `editar-reel`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 36 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Skills** (`plugin/skills/`): `editar-reel`, `montaje`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
+- **Servidor MCP** (`packages/mcp`): 43 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -93,12 +93,43 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
   - Sin clave: `usar_broll` con un archivo local y su licencia.
 - **Motion graphics** (`poner_motion`): barras, contador, lista, logo y tarjeta de texto. Los datos los pones tú; lo que falte se ve como `[DATO]`.
 - **Formatos**: 9:16, 4:5 y 1:1, desde `renderizar`, el studio o `se render -f 4:5`.
-- **Encuadre**: `ajustar_encuadre` mueve el recorte de un video horizontal. Es manual: no hay seguimiento automático de la cara.
 - **Versiones**: guardar, listar, comparar y restaurar. Estados `borrador → en_revision → aprobado`.
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
-No incluido todavía: voz en off (Piper o ElevenLabs) y seguimiento automático de la cara.
+## Videos sin voz, voz en off y encuadre a la cara
+
+### Montaje (videos sin voz)
+
+Para gimnasio, comida, producto o cualquier material donde nadie habla a cámara.
+
+```bash
+npm run se -- montaje /ruta/carpeta-o-videos -d 15 -m /ruta/musica.mp3 --licencia "Artlist"
+```
+
+- Acepta un video, varios o una carpeta. Varios se unen en un master vertical.
+- Detecta las tomas (cambios de plano) y reparte cortes cortos entre ellas: ~0,8 s con el preset rápido, ~1,2 s con ritmo y ~2 s sobrio.
+- Con música, el largo de los cortes se ajusta al compás.
+- Desde Claude: `crear_montaje`, `leer_tomas` y `armar_montaje` (Claude mira una miniatura de cada toma y elige las mejores). En el studio: «Sin voz (montaje)» en la pantalla de proyectos.
+- El sonido original se trata como ambiente (`ajustar_sonido_original`).
+
+### Voz en off
+
+```bash
+npm run se -- voz <carpeta-del-proyecto> "Texto que dirá la voz"
+```
+
+La voz se genera, se nivela a -16 LUFS, se transcribe y se subtitula sola. Suena desde el inicio del reel. En un montaje, el montaje pasa a durar lo que dura la voz. Proveedores, del mejor al más básico:
+
+| Proveedor | Qué necesita | Costo |
+| --- | --- | --- |
+| `elevenlabs` | `ELEVENLABS_API_KEY` (y opcional `ELEVENLABS_VOICE_ID`) en `.env` | De pago |
+| `piper` | `piper` instalado y `SE_PIPER_MODEL` con la ruta del modelo | Gratis, local |
+| `sistema` | Nada: usa la voz de macOS (`say`) o de Windows | Gratis, suena más robótica |
+
+### Encuadre que sigue la cara
+
+Al preparar un video, la app busca la cara dos veces por segundo (TensorFlow en WebAssembly, igual en Mac y Windows) y guarda su posición en `faces.json`. Cada corte se encuadra hacia la cara: centrada en horizontal y un poco arriba del centro en vertical. Se nota al recortar un video horizontal a vertical, o uno vertical a 4:5 y 1:1. Si no hay cara, queda centrado. `ajustar_encuadre` lo fija a mano o lo devuelve a automático.
 
 ## Cómo funciona el corte automático
 

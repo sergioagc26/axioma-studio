@@ -12,7 +12,8 @@ import { P, REPO_ROOT } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
 import { allPresets, savePreset } from './presets.ts';
 import { analyzeReference, listReferences, referencesDir } from './reference.ts';
-import { brandFor, renderProject } from './render.ts';
+import { brandFor, renderProject, timelineExtras } from './render.ts';
+import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
 import { createProject, readProject, readTranscript, writeProject } from './store.ts';
 
@@ -28,6 +29,8 @@ interface Job {
   result?: Record<string, unknown>;
 }
 const jobs = new Map<string, Job>();
+/** Archivos subidos que esperan a convertirse en proyecto (ficha → carpeta temporal). */
+const uploads = new Map<string, string>();
 
 function startJob(kind: Job['kind'], fn: (job: Job) => Promise<Record<string, unknown>>): Job {
   const job: Job = { id: `j${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, kind, status: 'running', message: 'Empezando…', progress: 0 };
@@ -92,6 +95,38 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     })));
   }
 
+  if (p === '/api/upload' && method === 'POST') {
+    // Sube un archivo a una carpeta temporal; devuelve una ficha para usarlo después.
+    const token = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
+    const folder = path.join(os.tmpdir(), `snz-up-${token}`);
+    await mkdir(folder, { recursive: true });
+    await pipe(req, createWriteStream(path.join(folder, path.basename(url.searchParams.get('filename') ?? 'video.mp4'))));
+    uploads.set(token, folder);
+    return json(res, { token });
+  }
+
+  if (p === '/api/montajes' && method === 'POST') {
+    const b = await readBody(req);
+    const folders: string[] = (b.tokens ?? []).map((t: string) => uploads.get(t)).filter(Boolean);
+    if (!folders.length) return json(res, { error: 'Sube al menos un video.' }, 400);
+    const job = startJob('crear', async (j) => {
+      const log = (m: string) => { j.message = m.trim(); };
+      try {
+        const { dir, project } = await createMontage({ inputs: folders, name: b.name || undefined, client: b.client || undefined, presetId: b.preset || undefined });
+        j.progress = 0.2;
+        await prepareMedia(dir, log);
+        j.progress = 0.8;
+        j.message = 'Detectando tomas y armando el montaje…';
+        await detectShots(dir);
+        await buildMontage(dir, { duration: b.duration || undefined });
+        return { id: project.id };
+      } finally {
+        for (const [t, f] of uploads) if (folders.includes(f)) { uploads.delete(t); await rm(f, { recursive: true, force: true }); }
+      }
+    });
+    return json(res, job);
+  }
+
   if (p === '/api/projects' && method === 'POST') {
     // Subida de un video: el cuerpo es el archivo.
     const filename = path.basename(url.searchParams.get('filename') ?? 'video.mp4');
@@ -131,7 +166,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const project = await readProject(dir);
     const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
-    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir) });
+    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media) });
   }
 
   if (p === '/api/project' && method === 'PUT') {

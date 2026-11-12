@@ -13,6 +13,7 @@ Sigue también la skill `reglas-edicion`.
 
 - Si el usuario no dio la ruta del video, pídela. Debe ser una ruta absoluta; en Mac puede arrastrar el archivo a la ventana. Si quiere seguir con un proyecto existente, usa `listar_proyectos` y continúa en el paso 5.
 - Si es la primera vez en la sesión, llama `estado_sistema`. Si algo falla, explica el arreglo en una línea y para.
+- Si en el video nadie habla (gimnasio, comida, producto) o `crear_proyecto` dice que no detectó voz, usa la skill `montaje`.
 
 ## 2. Brief
 
@@ -63,7 +64,8 @@ Si el gancho no es claro, propone 3 opciones sacadas de frases que la persona s�
   - "también en 4:5" o "cuadrado" → `renderizar` con `formato`;
   - "ábrelo para verlo" → `abrir_studio`;
   - "vuelve a como estaba" → `listar_versiones`, `comparar_version` y `restaurar_version`.
-- Si el video es horizontal y la persona queda cortada, mueve el encuadre con `ajustar_encuadre`.
+- El encuadre sigue la cara automáticamente. Si aun así la persona queda mal encuadrada, fíjalo a mano con `ajustar_encuadre`.
+- "ponle voz en off" → `poner_voz_en_off` (ver la skill `montaje` para escribir el guion).
 - Después de cambios importantes, `guardar_version`.
 - Varios videos de una vez: dile al usuario que corra `npm run se -- lote <carpeta>` y luego afina cada proyecto contigo.
 - Si hay peticiones del studio (`leer_peticiones`), atiéndelas y márcalas con `responder_peticion`.
