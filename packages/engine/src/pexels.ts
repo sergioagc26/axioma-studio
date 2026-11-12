@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { pipeline as pipe } from 'node:stream/promises';
 import { envValue } from './env.ts';
 
-export interface BrollResult { id: number; duration: number; width: number; height: number; author: string; url: string; download: string }
+export interface BrollResult { image?: string; id: number; duration: number; width: number; height: number; author: string; url: string; download: string }
 
 async function pexelsKey(): Promise<string> {
   const key = await envValue('PEXELS_API_KEY');
@@ -23,7 +23,7 @@ export async function searchBroll(query: string, perPage = 6): Promise<BrollResu
   return data.videos.map((v) => {
     // El archivo más cercano a 1080 px de ancho, sin pasarse de pesado.
     const files = (v.video_files as any[]).filter((f) => f.file_type === 'video/mp4' && f.width).sort((a, b) => Math.abs(a.width - 1080) - Math.abs(b.width - 1080));
-    return { id: v.id, duration: v.duration, width: files[0]?.width, height: files[0]?.height, author: v.user?.name ?? 'Pexels', url: v.url, download: files[0]?.link };
+    return { image: v.image, id: v.id, duration: v.duration, width: files[0]?.width, height: files[0]?.height, author: v.user?.name ?? 'Pexels', url: v.url, download: files[0]?.link };
   }).filter((v) => v.download);
 }
 

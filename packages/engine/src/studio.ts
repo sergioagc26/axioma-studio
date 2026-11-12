@@ -22,6 +22,9 @@ import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
 import { autoEdit } from './auto.ts';
 import { buildCutout } from './matte.ts';
+import { addBankSound, searchSounds } from './sounds.ts';
+import { downloadBroll, searchBroll } from './pexels.ts';
+import { keyStatus, setEnvValue } from './env.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -97,6 +100,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
 
   if (p === '/api/ping') return json(res, { app: APP_NAME });
+  // Claves de los bancos gratuitos: se guardan en .env; aquí solo se dice si están puestas.
+  if (p === '/api/claves' && method === 'GET') return json(res, await keyStatus());
+  if (p === '/api/claves' && method === 'POST') {
+    const b = await readBody(req);
+    await setEnvValue(b.banco === 'pexels' ? 'PEXELS_API_KEY' : b.banco === 'freesound' ? 'FREESOUND_API_KEY' : '', String(b.clave ?? ''));
+    return json(res, await keyStatus());
+  }
+  if (p === '/api/pexels' && method === 'GET') return json(res, { results: await searchBroll(String(url.searchParams.get('q') ?? '').slice(0, 80), 9) });
+  if (p === '/api/sonidos' && method === 'GET') return json(res, { results: await searchSounds(String(url.searchParams.get('q') ?? '').slice(0, 80)) });
   if (p === '/api/elegir-carpeta' && method === 'POST') return json(res, { folder: await pickFolder() });
   if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
   if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1') });
@@ -301,6 +313,19 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         return {};
       });
       return json(res, job);
+    }
+    if (b.op === 'broll-pexels') {
+      // Descarga un video de Pexels (se vuelve a buscar para no confiar en una dirección de fuera) y lo pone en la escena.
+      const item = (await searchBroll(String(b.q ?? ''), 15)).find((v) => v.id === Number(b.pexelsId));
+      if (!item) return json(res, { error: 'Ese video ya no aparece en la búsqueda. Busca de nuevo.' }, 400);
+      const file = await downloadBroll(dir, item);
+      const info = { license: 'Pexels (uso comercial gratuito)', source: 'Pexels', author: item.author, url: item.url };
+      if (b.fondo) return json(res, { project: await ops.setBackdropFile(dir, String(b.sceneId ?? ''), file) });
+      return json(res, { project: await ops.setBroll(dir, String(b.sceneId ?? ''), file, info) });
+    }
+    if (b.op === 'efecto-banco') {
+      const { project } = await addBankSound(dir, String(b.sceneId ?? ''), Number(b.soundId), { offset: Number(b.offset) || 0, volume: Number(b.volume) || 0.6 });
+      return json(res, { project });
     }
     if (b.op === 'broll-idea') {
       const job = startJob('ia', async (j) => {

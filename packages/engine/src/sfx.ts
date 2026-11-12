@@ -62,6 +62,7 @@ export async function sfxFile(id: string): Promise<string> {
 export async function ensureProjectSfx(dir: string, ids: string[]) {
   await mkdir(path.join(dir, 'media', 'sfx'), { recursive: true });
   for (const id of new Set(ids)) {
+    if (id.startsWith('banco-')) continue; // sonidos del banco: ya están en el proyecto
     const dest = path.join(dir, 'media', 'sfx', `${id}.wav`);
     if (!existsSync(dest)) await copyFile(await sfxFile(id), dest);
   }

@@ -25,3 +25,5 @@ export * from './fonts.ts';
 export * from './imagegen.ts';
 export * from './auto.ts';
 export * from './matte.ts';
+export * from './sounds.ts';
+export * from './env.ts';

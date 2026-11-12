@@ -1,3 +1,4 @@
+import { BankKey, useBankKey } from '../Bank.tsx';
 import React, { useRef, useState } from 'react';
 import type { Project } from '@snz/schema';
 import type { Ctx } from '../App.tsx';
@@ -29,6 +30,19 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [voProvider, setVoProvider] = useState('');
   const [fx, setFx] = useState({ scene: project.scenes[0]?.id ?? '', id: 'whoosh', offset: 0, volume: 0.6 });
   const musicInput = useRef<HTMLInputElement>(null);
+  // Banco de sonidos (Freesound).
+  const [soundsOk, recheckSounds] = useBankKey('freesound');
+  const [sq, setSq] = useState('');
+  const [sounds, setSounds] = useState<{ id: number; name: string; duration: number; author: string; license: string; preview: string }[] | null>(null);
+  const [finding, setFinding] = useState(false);
+  const searchSounds = async () => {
+    setFinding(true);
+    try {
+      const d = await api<{ results: any[] }>(`/api/sonidos?q=${encodeURIComponent(sq.trim())}`);
+      setSounds(d.results);
+      if (!d.results.length) ctx.toast('No se encontraron sonidos. Prueba en inglés (por ejemplo: whoosh, cash register, applause).');
+    } catch (e: any) { ctx.toast(e.message); } finally { setFinding(false); }
+  };
 
   const op = async (body: object): Promise<any> => api(`/api/op?id=${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   /** Operación corta que devuelve el proyecto. */
@@ -217,6 +231,28 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <button className="btn primary" disabled={!fx.scene} onClick={() => run({ op: 'efecto', sceneId: fx.scene, id: fx.id, offset: fx.offset, volume: fx.volume }, 'Efecto añadido.')}>Añadir efecto</button>
           </div>
           <span className="small muted">{store.catalog.sfx.find((x) => x.id === fx.id)?.description} Úsalos con medida: uno en un cambio fuerte o en un texto clave.</span>
+          <strong className="small" style={{ marginTop: 6 }}>Más sonidos: banco Freesound (gratis)</strong>
+          {soundsOk === false ? <BankKey banco="freesound" name="Freesound" link="https://freesound.org/apiv2/apply" onSaved={recheckSounds} toast={ctx.toast} /> : (
+            <div className="row" style={{ flexWrap: 'wrap' }}>
+              <input className="input" style={{ flex: '1 1 300px' }} value={sq} onChange={(e) => setSq(e.target.value)} placeholder="Ej.: aplausos, caja registradora, risa, puerta, notificación"
+                onKeyDown={(e) => { if (e.key === 'Enter' && sq.trim().length > 1 && !finding) searchSounds(); }} />
+              <button className="btn rect" disabled={sq.trim().length < 2 || finding} onClick={searchSounds}>{finding ? 'Buscando…' : 'Buscar sonidos'}</button>
+            </div>
+          )}
+          {sounds && sounds.length > 0 && (
+            <div className="col list">
+              {sounds.map((x) => (
+                <div key={x.id} className="row" style={{ justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'var(--panel2)', flexWrap: 'wrap' }}>
+                  <span style={{ flex: '1 1 220px', minWidth: 0 }}>{x.name} <span className="small muted">· {x.duration} s · {x.author} · {x.license}</span></span>
+                  <span className="row">
+                    <button className="btn rect" style={{ height: 34 }} onClick={() => new window.Audio(x.preview).play()}>Escuchar</button>
+                    <button className="btn primary" style={{ height: 34 }} disabled={!fx.scene} onClick={() => run({ op: 'efecto-banco', sceneId: fx.scene, soundId: x.id, offset: fx.offset, volume: fx.volume }, `«${x.name}» añadido a la escena elegida arriba.`)}>Añadir</button>
+                  </span>
+                </div>
+              ))}
+              <span className="small muted">Solo aparecen sonidos que se pueden usar en contenido comercial. Los que dicen «pide dar crédito» quedan anotados con su autor en el proyecto.</span>
+            </div>
+          )}
           {allFx.length > 0 && (
             <div className="col list">
               {allFx.map(({ s, i, e, k }) => (

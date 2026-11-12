@@ -5,6 +5,7 @@ import { ROLE_LABEL, VISUAL_LABEL } from '../SceneFrame.tsx';
 import { VariantPreview } from '../VariantPreview.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 import { askAssistant } from '../useProject.ts';
+import { BankKey, useBankKey } from '../Bank.tsx';
 
 const CATEGORY: Record<string, string> = { motion: 'Motion graphics', broll: 'B-roll', color: 'Color', tipografia: 'Tipografía', camara: 'Cámara' };
 const FILTERS = ['Todo', 'Texto', 'Color', 'Toma / b-roll', 'Motion graphics'];
@@ -73,6 +74,28 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       store.replace(d.project);
       ctx.toast('B-roll puesto en la escena.');
     } catch (e: any) { ctx.toast(e.message); }
+  };
+
+  // Buscador de videos de Pexels.
+  const [pexelsOk, recheckPexels] = useBankKey('pexels');
+  const [pq, setPq] = useState('');
+  const [pexels, setPexels] = useState<{ q: string; items: { id: number; image?: string; duration: number; author: string }[] } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const searchPexels = async () => {
+    setSearching(true);
+    try {
+      const d = await api<{ results: any[] }>(`/api/pexels?q=${encodeURIComponent(pq.trim())}`);
+      setPexels({ q: pq.trim(), items: d.results });
+      if (!d.results.length) ctx.toast('Pexels no encontró videos verticales con esas palabras. Prueba en inglés o con otras palabras.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setSearching(false); }
+  };
+  const usePexels = async (pexelsId: number) => {
+    setMaking('Descargando el video…');
+    try {
+      const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'broll-pexels', sceneId: scene.id, q: pexels?.q, pexelsId }) });
+      store.replace(d.project);
+      ctx.toast('Video de Pexels puesto como b-roll de la escena.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setMaking(''); }
   };
 
   const others = () => {
@@ -173,6 +196,24 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </label>
           </div>
           <span className="muted small">La imagen la genera un servicio gratuito en internet (Pollinations): solo se le envía el texto de la idea.</span>
+          <strong className="small" style={{ marginTop: 6 }}>O busca un video en Pexels (gratis, uso comercial)</strong>
+          {pexelsOk === false ? <BankKey banco="pexels" name="Pexels" link="https://www.pexels.com/api/" onSaved={recheckPexels} toast={ctx.toast} /> : (
+            <div className="row" style={{ flexWrap: 'wrap' }}>
+              <input className="input" style={{ flex: '1 1 320px' }} value={pq} onChange={(e) => setPq(e.target.value)} placeholder="Ej.: oficina, café, gimnasio, ciudad de noche"
+                onKeyDown={(e) => { if (e.key === 'Enter' && pq.trim().length > 1 && !searching) searchPexels(); }} />
+              <button className="btn rect" disabled={pq.trim().length < 2 || searching} onClick={searchPexels}>{searching ? 'Buscando…' : 'Buscar en Pexels'}</button>
+            </div>
+          )}
+          {pexels && pexels.items.length > 0 && (
+            <div className="vgrid" style={{ flex: 'none', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
+              {pexels.items.map((v) => (
+                <button key={v.id} className="card col" style={{ padding: 6, gap: 4, textAlign: 'left', cursor: 'pointer' }} disabled={Boolean(making)} onClick={() => usePexels(v.id)} title="Usar este video en la escena">
+                  {v.image && <img src={v.image} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '9 / 16', objectFit: 'cover', borderRadius: 8 }} />}
+                  <span className="small muted">{v.duration} s · {v.author}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
