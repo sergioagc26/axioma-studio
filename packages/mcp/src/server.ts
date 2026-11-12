@@ -501,6 +501,26 @@ export function createServer() {
     return E.summarize(await E.setBroll(dir, a.escena, file, { license: 'Pexels License', source: 'Pexels', author: item.author, url: item.url }), dir);
   });
 
+  tool('buscar_material', 'Busca en el material propio del cliente (todos sus reels y b-rolls): lo que SE VE (modelo de visión local) y lo que SE DICE (transcripciones). Devuelve momentos numerados para usar con usar_material. Prefiere esto a Pexels cuando el cliente ya grabó algo parecido.', {
+    proyecto,
+    busqueda: z.string().describe('Lo que se quiere ver o una frase dicha, p. ej. "manos escribiendo en el portátil"'),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const { hits, english } = await E.searchLibrary({ query: a.busqueda, near: dir });
+    if (!hits.length) return `Nada parecido en el material (búsqueda visual: "${english}").`;
+    return hits.map((h, i) => `${i + 1}. ${h.kind === 'se-dice' ? `dice «${h.text}»` : 'se ve'} · proyecto ${h.projectId} · archivo ${h.file} · segundo ${h.t}${h.duration ? ` · dura ${h.duration.toFixed(1)} s` : ''}`).join('\n');
+  });
+
+  tool('usar_material', 'Pone un momento de buscar_material como b-roll de una escena (corta el tramo del video original, sin audio).', {
+    proyecto, escena: z.string(),
+    proyecto_origen: z.string(), archivo: z.string(), segundo: z.number(),
+    segundos: z.number().min(1).max(10).optional().describe('Duración del tramo; por defecto unos 3,5 s'),
+    fondo: z.boolean().optional().describe('Ponerlo detrás de la persona recortada en vez de en su lugar'),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
+  });
+
   tool('sugerir_motion', 'Lista todos los motion graphics que se pueden armar SOLOS con lo que se dice en una escena (pregunta, porcentaje, número, antes y después, pasos, lista con vistos, palabras en movimiento, frase destacada…), ya llenos con las cifras y frases reales. Aplica uno con `aplicar`.', {
     proyecto, escena: z.string(), aplicar: z.string().optional().describe('Id de la idea a aplicar, p. ej. m2'),
   }, async ({ proyecto, escena, aplicar }) => {

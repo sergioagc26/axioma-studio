@@ -158,6 +158,10 @@ En «Acabados del reel», «LUT de color» trae seis looks incluidos (Teal & Ora
 
 «Poner la frase más fuerte en el primer segundo» busca, entre lo que quedó en el corte, la frase corta que más atrapa (pregunta, cifra, palabras fuertes) y la pone al inicio con un zoom y un golpe de sonido; luego empieza el reel normal. Se puede cambiar o quitar.
 
+## Búsqueda en tu material
+
+En Variantes, «Busca en tu material» encuentra momentos en todos los reels del mismo cliente (sus videos y b-rolls) a partir de una descripción: lo que **se ve** («hombres entrenando en la calle», «manos en el portátil») con el modelo de visión local, y lo que **se dice**, en las transcripciones. Al elegir un resultado se corta ese tramo del video original (unos 3,5 s, sin audio) y entra como b-roll de la escena, con su origen anotado. La primera vez revisa todo el material (un fotograma por segundo) y guarda el índice en `indice-visual.json` de cada proyecto; después solo revisa lo nuevo. Si la IA local (Ollama) está abierta, la búsqueda se traduce al inglés porque el modelo de visión la entiende mejor. Claude tiene lo mismo con `buscar_material` y `usar_material`.
+
 ## Lo más reciente
 
 - **La app ve el video.** Un modelo de visión local (CLIP, en `.modelos/`, ~160 MB la primera vez) mira seis fotogramas y reconoce de qué trata: gente entrenando, comida, alguien hablando, una pantalla, un producto, etc. Eso pesa en el estilo recomendado, propone el sector de la marca y ordena los aspectos de imagen de las variantes. El video no sale del computador.

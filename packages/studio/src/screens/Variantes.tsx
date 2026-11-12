@@ -98,6 +98,33 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); } finally { setMaking(''); }
   };
 
+  // Búsqueda en tu propio material (todos los reels del cliente): lo que se ve y lo que se dice.
+  type Hit = { projectId: string; projectName: string; file: string; t: number; duration?: number; image: boolean; kind: 'se-ve' | 'se-dice'; text?: string };
+  const [mq, setMq] = useState('');
+  const [mine, setMine] = useState<{ q: string; hits: Hit[] } | null>(null);
+  const [looking, setLooking] = useState('');
+  const searchMine = async () => {
+    setLooking('Buscando…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'buscar-material', q: mq.trim() }) });
+      const done = await waitJob(job, (j) => setLooking(j.message || 'Buscando…'));
+      const hits = (done.result?.hits ?? []) as Hit[];
+      setMine({ q: mq.trim(), hits });
+      if (!hits.length) ctx.toast('No encontré nada parecido en tu material. Prueba con otras palabras o busca en Pexels.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setLooking(''); }
+  };
+  const useMine = async (h: Hit) => {
+    setMaking('Cortando el momento de tu material…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'usar-material', sceneId: scene.id, projectId: h.projectId, file: h.file, t: h.t, duracion: h.duration }) });
+      await waitJob(job, (j) => setMaking(j.message || 'Cortando…'));
+      const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
+      store.replace(d.project);
+      ctx.toast(`Puesto como b-roll: ${h.projectName}${h.image ? '' : `, segundo ${Math.round(h.t)}`}.`);
+    } catch (e: any) { ctx.toast(e.message); } finally { setMaking(''); }
+  };
+  const thumbOf = (h: Hit) => `/api/thumb?id=${encodeURIComponent(h.projectId)}&t=${h.image ? 0 : h.t.toFixed(2)}${h.file.startsWith('proxies/') ? '' : `&file=${encodeURIComponent(h.file)}`}`;
+
   const others = () => {
     if (saved) store.update((p) => { p.scenes[idx].variants = []; p.scenes[idx].chosenVariant = undefined; });
     setRound((r) => r + 1);
@@ -196,6 +223,25 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </label>
           </div>
           <span className="muted small">La imagen la genera un servicio gratuito en internet (Pollinations): solo se le envía el texto de la idea.</span>
+          <strong className="small" style={{ marginTop: 6 }}>Busca en tu material</strong>
+          <span className="muted small">Describe lo que quieres ver («gente en la calle», «manos en el portátil») o una frase que dijiste. Se busca en todos los reels de este cliente, aquí mismo en tu computador. La primera vez tarda más porque revisa todo.</span>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <input className="input" style={{ flex: '1 1 320px' }} value={mq} onChange={(e) => setMq(e.target.value)} placeholder="Ej.: hombres entrenando en la calle"
+              onKeyDown={(e) => { if (e.key === 'Enter' && mq.trim().length > 1 && !looking) searchMine(); }} />
+            <button className="btn rect" disabled={mq.trim().length < 2 || Boolean(looking)} onClick={searchMine}>{looking || 'Buscar en mi material'}</button>
+          </div>
+          {mine && mine.hits.length > 0 && (
+            <div className="vgrid" style={{ flex: 'none', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
+              {mine.hits.map((h) => (
+                <button key={`${h.projectId}${h.file}${h.t}`} className="card col" style={{ padding: 6, gap: 4, textAlign: 'left', cursor: 'pointer' }} disabled={Boolean(making)} onClick={() => useMine(h)} title="Usar este momento en la escena">
+                  <img src={thumbOf(h)} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '9 / 16', objectFit: 'cover', borderRadius: 8, background: 'var(--line)' }} />
+                  <span className="small" style={{ fontWeight: 600 }}>{h.kind === 'se-dice' ? 'Lo dices' : 'Se ve'}{h.image ? '' : ` · ${Math.floor(h.t / 60)}:${String(Math.floor(h.t % 60)).padStart(2, '0')}`}</span>
+                  <span className="small muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.projectName}</span>
+                  {h.text && <span className="small muted" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>«{h.text}»</span>}
+                </button>
+              ))}
+            </div>
+          )}
           <strong className="small" style={{ marginTop: 6 }}>O busca un video en Pexels (gratis, uso comercial)</strong>
           {pexelsOk === false ? <BankKey banco="pexels" name="Pexels" link="https://www.pexels.com/api/" onSaved={recheckPexels} toast={ctx.toast} /> : (
             <div className="row" style={{ flexWrap: 'wrap' }}>

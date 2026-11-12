@@ -28,6 +28,7 @@ import { createClipProject, projectClips } from './clips.ts';
 import { matchSceneColors } from './colormatch.ts';
 import { BUILTIN_LUTS, applyLut, removeLut } from './lut.ts';
 import { addTeaser, removeTeaser } from './teaser.ts';
+import { searchLibrary, useLibraryHit } from './library.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -300,6 +301,22 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'quitar-lut') return json(res, { project: await removeLut(dir) });
     if (b.op === 'adelanto') { const r = await addTeaser(dir); return json(res, { project: r.project, teaser: r.teaser }); }
+    if (b.op === 'buscar-material') {
+      // Busca en todo el material del mismo cliente (lo que se ve y lo que se dice).
+      const job = startJob('ia', async (j) => {
+        const r = await searchLibrary({ query: String(b.q ?? ''), near: dir, onProgress: (m) => { j.message = m; } });
+        return { hits: r.hits, english: r.english };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'usar-material') {
+      const job = startJob('ia', async (j) => {
+        j.message = 'Cortando el momento de tu material…';
+        await useLibraryHit(dir, String(b.sceneId ?? ''), { projectId: String(b.projectId ?? ''), file: String(b.file ?? ''), t: Number(b.t) || 0, duration: Number(b.duracion) || undefined }, { asBackdrop: Boolean(b.fondo) });
+        return {};
+      });
+      return json(res, job);
+    }
     if (b.op === 'quitar-adelanto') return json(res, { project: await removeTeaser(dir) });
     if (b.op === 'igualar-color') { const r = await matchSceneColors(dir); return json(res, { project: r.project, changed: r.changed }); }
     if (b.op === 'crear-imagenes') {
