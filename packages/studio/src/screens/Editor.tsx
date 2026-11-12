@@ -4,7 +4,7 @@ import { buildTimeline, type Scene } from '@snz/schema';
 import { Reel } from '@snz/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
-import { api, applyPunchZooms, sceneSpeech } from '../useProject.ts';
+import { api, applyPunchZooms, askAssistant, sceneSpeech } from '../useProject.ts';
 
 const COLORS = ['#FE2C55', '#25F4EE', '#FFFFFF', '#FACC15'];
 const ROLES = Object.keys(ROLE_LABEL) as Scene['role'][];
@@ -25,6 +25,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     brand: store.brand,
     voiceover: store.extras?.voiceover,
     faces: store.extras?.faces,
+    transitions: store.extras?.transitions,
   }), [project, store.transcript, store.brand, store.extras]);
 
   /** Inicio y duración (en frames) de cada escena en la salida. */
@@ -78,6 +79,42 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     if (s) fn(s);
   });
 
+  const transitions = store.extras?.transitions ?? [];
+  const [trText, setTrText] = useState('');
+  const [busy, setBusy] = useState('');
+
+  /** Recomienda una transición para cada escena según el estilo del reel. */
+  const recommend = async () => {
+    try {
+      const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'recomendar-transiciones' }) });
+      store.replace(d.project);
+      const used = d.advice.filter((a: { transition: string | null }) => a.transition).length;
+      ctx.toast(`Transiciones recomendadas: ${used} con efecto y ${d.advice.length - used} con corte seco. Deshacer con ⌘Z.`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+
+  /** Claude crea una transición nueva a partir de la descripción y la aplica a la escena elegida. */
+  const createTransition = async () => {
+    const desc = trText.trim();
+    if (!desc || !scene) return;
+    setBusy('Enviando a Claude…');
+    try {
+      const target = idx > 0 ? scene.id : project.scenes[1]?.id;
+      const r = await askAssistant(project.id, `Crea una transición nueva con crear_transicion según esta descripción: "${desc}". Tiene que encajar con el estilo del reel (preset ${project.presetId}).${target ? ` Luego aplícala a la escena ${target} con poner_transicion.` : ''}`, target, setBusy);
+      setTrText('');
+      await store.reloadExtras();
+      ctx.toast(r.saved || r.text.length <= 220 ? r.text : r.text.slice(0, 218) + '…');
+    } catch (e: any) { ctx.toast(`Claude no pudo hacerlo: ${e.message}`); } finally { setBusy(''); }
+  };
+
+  /** Reproduce desde un poco antes del cambio de escena para ver la transición. */
+  const previewTransition = () => {
+    const s = spans[idx];
+    if (!s) return;
+    player.current?.seekTo(Math.max(0, s.from - Math.round(timeline.fps * 0.8)));
+    player.current?.play();
+  };
+
   const applyPreset = async (presetId: string) => {
     try {
       const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'preset', presetId }) });
@@ -123,6 +160,15 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             ))}
           </div>
           <label className="row"><input type="checkbox" checked={project.captions.uppercase} onChange={(e) => store.update((p) => { p.captions.uppercase = e.target.checked; })} /> Mayúsculas</label>
+
+          <h2 style={{ fontSize: 16, marginTop: 6 }}>Transiciones</h2>
+          <span className="small muted">Cómo se pasa de una escena a la siguiente. Se eligen por escena en el panel derecho.</span>
+          <button className="btn rect" onClick={recommend}>Recomendar para todo el reel</button>
+          <label className="field">Pídele a Claude una transición nueva
+            <textarea rows={2} value={trText} onChange={(e) => setTrText(e.target.value)} placeholder="Ej.: que la escena caiga desde arriba como una cortina" />
+          </label>
+          <button className="btn cyan rect" disabled={!trText.trim() || Boolean(busy)} onClick={createTransition}>{busy ? 'Claude trabajando…' : 'Crear con Claude'}</button>
+          {busy && <span className="pill" role="status">{busy}</span>}
         </aside>
 
         <main className="stage">
@@ -180,6 +226,31 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 ))}
               </div>
             </div>
+            {idx > 0 ? (
+              <div className="col" style={{ padding: 12, borderRadius: 10, border: '1px solid var(--line)' }}>
+                <label className="field">Transición de entrada
+                  <select value={scene.transition?.id ?? ''} onChange={(e) => edit((s) => { s.transition = e.target.value ? { id: e.target.value } : undefined; })}>
+                    <option value="">Corte seco (sin transición)</option>
+                    {transitions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                  </select>
+                </label>
+                {scene.transition && (() => {
+                  const spec = transitions.find((x) => x.id === scene.transition!.id);
+                  return (
+                    <>
+                      <span className="small muted">{spec?.description ?? 'Esta transición ya no existe: se verá como corte seco.'}</span>
+                      <label className="field">Duración (segundos)
+                        <input type="number" min={0.1} max={1.5} step={0.05} value={scene.transition!.duration ?? spec?.duration ?? 0.35}
+                          onChange={(e) => { const v = Math.min(1.5, Math.max(0.1, Number(e.target.value) || 0.35)); edit((s) => { if (s.transition) s.transition.duration = v; }); }} />
+                      </label>
+                    </>
+                  );
+                })()}
+                <button className="btn rect" onClick={previewTransition}>Ver la transición</button>
+              </div>
+            ) : (
+              <span className="small muted">La primera escena no lleva transición de entrada.</span>
+            )}
             <label className="row"><input type="checkbox" checked={scene.punchZoom} onChange={(e) => edit((s) => { s.punchZoom = e.target.checked; })} /> Zoom de golpe al entrar</label>
             <div className="col">
               <span className="small muted">Lo que se dice</span>
@@ -205,6 +276,23 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 {project.scenes[i].title || ROLE_LABEL[project.scenes[i].role]}
               </button>
             ))}
+            <div className="playhead" style={{ left: pct(frame) }} />
+          </div>
+        </div>
+        <div className="track">
+          <span>Transiciones</span>
+          <div className="lane" onClick={seekLane}>
+            {spans.map((x, i) => {
+              const tr = project.scenes[i].transition;
+              if (i === 0 || !tr) return null;
+              const name = transitions.find((y) => y.id === tr.id)?.name ?? tr.id;
+              return (
+                <button key={x.id} className="clip" title={`Entra con: ${name}`} style={{ left: `calc(${pct(x.from)} - 4px)`, maxWidth: pct(x.dur), background: 'var(--cyan)', color: '#000' }}
+                  onClick={(e) => { e.stopPropagation(); select(x.id); }}>
+                  ◆ {name}
+                </button>
+              );
+            })}
             <div className="playhead" style={{ left: pct(frame) }} />
           </div>
         </div>

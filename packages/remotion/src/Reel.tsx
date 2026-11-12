@@ -11,6 +11,7 @@ import { loadFont as loadBebas } from '@remotion/google-fonts/BebasNeue';
 import { loadFont as loadOswald } from '@remotion/google-fonts/Oswald';
 import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlack';
 import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
+import { ease, layerStyle } from '@snz/schema';
 import type { Timeline, TimelineClip, TimelineOverlay } from '@snz/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
 import { MotionGraphic } from './Motion.tsx';
@@ -72,8 +73,19 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const voice = t.originalVolume <= 0 ? null
     : t.voiceSrc ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} />
     : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} /> : null;
+  // Transición de entrada: la escena anterior sigue debajo mientras la nueva entra animada.
+  const tr = clip.transition && frame < clip.transition.frames ? clip.transition : null;
+  const p = tr ? ease(tr.spec.easing, frame / tr.frames) : 1;
+  const inStyle = tr ? layerStyle(tr.spec.entra, p) : {};
+  const outPos = tr?.out ? coverPosition(t, tr.out.focusX, tr.out.focusY) : null;
   return (
     <AbsoluteFill>
+      {tr?.out && outPos ? (
+        <AbsoluteFill style={layerStyle(tr.spec.sale, p)}>
+          <OffthreadVideo src={t.videoSrc} trimBefore={tr.out.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${outPos.x * 100}% ${outPos.y * 100}%` }} />
+        </AbsoluteFill>
+      ) : null}
+      <AbsoluteFill style={inStyle}>
       {clip.motion ? (
         <MotionGraphic spec={clip.motion} brand={t.brand} font={font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} />
       ) : clip.brollSrc ? (
@@ -87,6 +99,10 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
           style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }}
         />
       )}
+      </AbsoluteFill>
+      {tr?.spec.destello ? (
+        <AbsoluteFill style={{ backgroundColor: tr.spec.destello.color, opacity: tr.spec.destello.pico * Math.sin(Math.PI * Math.min(1, frame / tr.frames)) }} />
+      ) : null}
       {voice}
     </AbsoluteFill>
   );

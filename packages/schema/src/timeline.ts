@@ -1,4 +1,5 @@
 import type { CaptionStyle, Project, Scene, Transcript } from './project.ts';
+import { findTransition, type TransitionSpec } from './transitions.ts';
 
 export type MotionSpec = { template: string; data: Record<string, any>; text?: string };
 
@@ -18,6 +19,13 @@ export type TimelineClip = {
   visual: Scene['visual'];
   brollSrc?: string;
   motion?: MotionSpec;
+  /** Transición de entrada (solo en el primer tramo de una escena). */
+  transition?: {
+    spec: TransitionSpec;
+    frames: number;
+    /** Continuación de la escena anterior, que se ve debajo mientras dura la transición. */
+    out?: { sourceStartFrame: number; focusX: number; focusY: number };
+  };
 };
 
 export type TimelineWord = { text: string; startFrame: number; endFrame: number };
@@ -63,6 +71,8 @@ export interface TimelineUrls {
   voiceover?: { src: string; words: Transcript['words'] };
   /** Posición de la cara a lo largo del video fuente. */
   faces?: FacePoint[];
+  /** Transiciones propias del cliente (además de las incluidas). */
+  transitions?: TransitionSpec[];
 }
 
 export type FacePoint = { t: number; x: number; y: number };
@@ -152,6 +162,24 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         durationInFrames: toFrame(acc) - toFrame(sceneStart),
       });
     }
+  }
+
+  // Transiciones: se resuelven al final, cuando ya se conoce el clip anterior.
+  const sourceFrames = toFrame(project.source.duration);
+  for (const scene of project.scenes) {
+    const spec = findTransition(scene.transition?.id, urls.transitions);
+    const idx = clips.findIndex((c) => c.sceneId === scene.id);
+    if (!spec || idx <= 0) continue;
+    const clip = clips[idx];
+    const prev = clips[idx - 1];
+    const frames = Math.max(2, Math.min(toFrame(scene.transition?.duration ?? spec.duration), Math.floor(clip.durationInFrames / 2)));
+    const tail = prev.sourceStartFrame + prev.durationInFrames;
+    clip.transition = {
+      spec,
+      frames,
+      // Solo si la escena anterior es la toma original y queda material después del corte.
+      out: prev.visual === 'original' && tail + frames <= sourceFrames ? { sourceStartFrame: tail, focusX: prev.focusX, focusY: prev.focusY } : undefined,
+    };
   }
 
   if (urls.voiceover) {

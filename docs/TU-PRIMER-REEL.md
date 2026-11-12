@@ -58,6 +58,14 @@ Ejemplos de lo que puedes escribirle a Claude:
 - «guarda este estilo como "CRE rápido"»
 - «vuelve a como estaba antes»
 
+## Transiciones y Claude dentro de la página
+
+- En el **Editor**, pulsa «Recomendar para todo el reel» y la app pone las transiciones que van con tu estilo. Cada escena tiene su selector a la derecha, y «Ver la transición» la reproduce.
+- Si quieres una que no existe, descríbela en «Pídele a Claude una transición nueva» (por ejemplo: «que la escena caiga desde arriba como una cortina») y pulsa «Crear con Claude».
+- En **Variantes**, «Pedir variantes a Claude» las genera ahí mismo.
+
+Para que esos botones funcionen, inicia sesión una sola vez: abre una terminal en la carpeta del programa, corre `npx claude` y escribe `/login`.
+
 ## Videos sin voz (gimnasio, comida, producto)
 
 Si en el video nadie habla, pídele un montaje:

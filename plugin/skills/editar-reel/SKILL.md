@@ -66,6 +66,12 @@ Si el gancho no es claro, propone 3 opciones sacadas de frases que la persona s�
   - "vuelve a como estaba" → `listar_versiones`, `comparar_version` y `restaurar_version`.
 - El encuadre sigue la cara automáticamente. Si aun así la persona queda mal encuadrada, fíjalo a mano con `ajustar_encuadre`.
 - "ponle voz en off" → `poner_voz_en_off` (ver la skill `montaje` para escribir el guion).
+- Transiciones:
+  - "ponle transiciones" → `recomendar_transiciones` y cuenta en una línea qué puso y por qué;
+  - "cambia la transición de la escena 3" → `listar_transiciones` y `poner_transicion`;
+  - "quiero una transición que…" → `crear_transicion` con esa descripción y luego `poner_transicion`.
+
+  Regla: en un reel rápido la mayoría de cambios son corte seco; una transición vistosa cada pocas escenas y en el cierre. No pongas una distinta en cada corte.
 - Después de cambios importantes, `guardar_version`.
 - Varios videos de una vez: dile al usuario que corra `npm run se -- lote <carpeta>` y luego afina cada proyecto contigo.
 - Si hay peticiones del studio (`leer_peticiones`), atiéndelas y márcalas con `responder_peticion`.

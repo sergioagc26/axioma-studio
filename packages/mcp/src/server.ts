@@ -296,6 +296,52 @@ export function createServer() {
     return `Kit guardado para ${p.client ?? 'personal'}:\n${JSON.stringify(kit, null, 2)}`;
   });
 
+  tool('listar_transiciones', 'Transiciones disponibles: las incluidas y las propias del cliente.', { proyecto }, async ({ proyecto }) => {
+    const p = await E.readProject(await resolveProject(proyecto));
+    return E.formatTransitions(await E.allTransitions(p.client));
+  });
+
+  tool('recomendar_transiciones', 'Pone en todas las escenas la transición recomendada según el estilo del reel (rápido: casi todo corte seco con golpes de energía; con ritmo: transiciones cortas en los cambios de idea; sobrio: fundidos). Devuelve el motivo de cada una. Después puedes ajustar escenas sueltas con poner_transicion.', { proyecto }, async ({ proyecto }) => {
+    const dir = await resolveProject(proyecto);
+    const { advice } = await E.applyRecommendedTransitions(dir);
+    return advice.map((a) => `${a.sceneId}: ${a.transition ?? 'corte'} — ${a.reason}`).join('\n');
+  });
+
+  tool('poner_transicion', 'Pone la transición de ENTRADA de una escena (cómo se pasa de la anterior a esta). "corte" la quita. Úsalas con medida: en un reel rápido, la mayoría de cambios deben ser corte seco.', {
+    proyecto, escena: z.string(), transicion: z.string().describe('Id de listar_transiciones, o "corte"'), duracion: z.number().min(0.1).max(1.5).optional(),
+  }, async ({ proyecto, escena, transicion, duracion }) => {
+    const dir = await resolveProject(proyecto);
+    return E.summarize(await E.setTransition(dir, escena, transicion === 'corte' ? null : transicion, duracion), dir);
+  });
+
+  const capa = z.object({
+    opacidad: z.tuple([z.number(), z.number()]).optional().describe('[inicio, fin] entre 0 y 1'),
+    x: z.tuple([z.number(), z.number()]).optional().describe('[inicio, fin] en % del ancho; 100 = fuera por la derecha'),
+    y: z.tuple([z.number(), z.number()]).optional().describe('[inicio, fin] en % del alto; 100 = fuera por abajo'),
+    escala: z.tuple([z.number(), z.number()]).optional().describe('[inicio, fin]; 1 = tamaño normal'),
+    giro: z.tuple([z.number(), z.number()]).optional().describe('[inicio, fin] en grados'),
+    desenfoque: z.tuple([z.number(), z.number()]).optional().describe('[inicio, fin] en píxeles'),
+  });
+  tool(
+    'crear_transicion',
+    'Crea una transición NUEVA para el cliente a partir de una descripción. Una transición es un dato: cómo ENTRA la escena nueva, cómo SALE la anterior (ambas van de [inicio, fin] durante la transición) y un destello opcional. La escena nueva debe terminar en su estado normal (opacidad 1, x 0, y 0, escala 1, giro 0, desenfoque 0). Ejemplo "cortina": entra {y:[-100,0]}, sale {escala:[1,0.9], opacidad:[1,0.4]}. Después aplícala con poner_transicion.',
+    {
+      proyecto,
+      nombre: z.string(),
+      descripcion: z.string().describe('Para qué sirve y cuándo usarla'),
+      duracion: z.number().min(0.1).max(1.5).default(0.35),
+      curva: z.enum(['lineal', 'suave', 'rebote']).default('suave'),
+      entra: capa.default({}),
+      sale: capa.default({}),
+      destello: z.object({ color: z.string().default('#FFFFFF'), pico: z.number().min(0).max(1).default(0.9) }).optional(),
+    },
+    async (a) => {
+      const p = await E.readProject(await resolveProject(a.proyecto));
+      const spec = await E.saveTransition(p.client, { name: a.nombre, description: a.descripcion, duration: a.duracion, easing: a.curva, entra: a.entra, sale: a.sale, destello: a.destello });
+      return `Transición creada: ${spec.id} (${spec.name}) para ${p.client ?? 'personal'}. Aplícala con poner_transicion.`;
+    },
+  );
+
   tool('leer_peticiones', 'Peticiones de cambio escritas en el studio.', { proyecto, todas: z.boolean().default(false) }, async ({ proyecto, todas }) => {
     const p = await E.readProject(await resolveProject(proyecto));
     const list = p.requests.filter((r) => todas || r.status === 'pendiente');

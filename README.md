@@ -51,7 +51,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
 - **Skills** (`plugin/skills/`): `editar-reel`, `montaje`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 43 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Servidor MCP** (`packages/mcp`): 47 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -96,6 +96,35 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Versiones**: guardar, listar, comparar y restaurar. Estados `borrador → en_revision → aprobado`.
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
+
+## Transiciones
+
+Cada escena puede tener una **transición de entrada** (cómo se pasa de la anterior a ella). Sin transición es un corte seco.
+
+- **Incluidas**: fundido, deslizar a la izquierda, deslizar hacia arriba, zoom, barrido rápido, destello, desenfoque, golpe y giro con zoom.
+- **Recomendación** (`recomendar_transiciones`, o «Recomendar para todo el reel» en el editor), según el estilo:
+  - rápido o montaje: casi todo corte seco, con un golpe de energía cada tres escenas;
+  - con ritmo: transiciones cortas en los cambios de idea;
+  - sobrio: fundidos;
+  - al entrar a b-roll o gráficos, deslizar hacia arriba; en el cierre, destello.
+- **Transiciones nuevas** (`crear_transicion`, o «Crear con Claude» en el editor): una transición es un dato validado, no código. Dice cómo entra la escena nueva, cómo sale la anterior (opacidad, posición, escala, giro, desenfoque) y un destello opcional. Se guardan por cliente en `workspace/clientes/<cliente>/transiciones/`.
+- Mientras dura la transición, la escena anterior sigue viéndose debajo (se usa el material que viene justo después del corte). La duración del reel y el audio no cambian.
+- En el editor: pista «Transiciones» en la línea de tiempo y, por escena, el selector, la duración y «Ver la transición».
+
+## Claude dentro de la app
+
+Los botones «Pedir variantes a Claude», «Pedir a Claude» y «Crear con Claude» del studio le hablan a Claude directamente, sin pasar por el chat. El resultado aparece solo en la pantalla.
+
+- Usa Claude Code (paquete oficial `@anthropic-ai/claude-code`, incluido) en modo no interactivo, con tu suscripción. No usa la API de pago.
+- Solo tiene permiso para las herramientas de este programa (`mcp__snz-studio`).
+- **Hay que iniciar sesión una vez** en este computador:
+
+  ```bash
+  npx claude
+  ```
+
+  y dentro escribir `/login`.
+- Si no hay sesión iniciada, la app lo avisa y guarda la petición para atenderla desde el chat («revisa las peticiones del studio»).
 
 ## Videos sin voz, voz en off y encuadre a la cara
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Brand, FacePoint, Preset, Project, Scene, Transcript } from '@snz/schema';
+import type { Brand, FacePoint, Preset, Project, Scene, Transcript, TransitionSpec } from '@snz/schema';
 
-export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[] }
+export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; transitions: TransitionSpec[] }
 
 export interface Job { id: string; status: 'running' | 'done' | 'error'; message: string; progress: number; result?: Record<string, any> }
 
@@ -53,6 +53,8 @@ export interface ProjectStore {
   setPresets: (p: Preset[]) => void;
   error: string | null;
   saving: boolean;
+  /** Vuelve a pedir al servidor lo que no vive en project.json (transiciones propias, voz en off…). */
+  reloadExtras: () => Promise<void>;
   /** Cambia el proyecto: guarda, y queda en el historial de deshacer. */
   update: (fn: (p: Project) => void) => void;
   /** Reemplaza el proyecto con uno que devolvió el servidor. */
@@ -147,8 +149,26 @@ export function useProject(id: string | null): ProjectStore {
     to.push(current.current);
     show(p); sync(); save(p);
   };
+  const reloadExtras = useCallback(async () => {
+    if (!id) return;
+    const d = await api(`/api/project?id=${encodeURIComponent(id)}`);
+    setExtras(d.extras); setPresets(d.presets); setBrand(d.brand);
+  }, [id]);
+
   const undo = useCallback(() => step(past.current, future.current), [save]);
   const redo = useCallback(() => step(future.current, past.current), [save]);
 
-  return { project, transcript, brand, extras, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
+  return { project, transcript, brand, extras, reloadExtras, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
+}
+
+/**
+ * Le pide un cambio a Claude desde la app y espera el resultado. Si Claude no
+ * está disponible (falta iniciar sesión), la petición queda guardada y se avisa.
+ */
+export async function askAssistant(projectId: string, text: string, sceneId: string | undefined, onStep: (msg: string) => void): Promise<{ text: string; saved?: boolean }> {
+  const job = await api<Job>(`/api/op?id=${encodeURIComponent(projectId)}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'ia', text, sceneId }),
+  });
+  const done = await waitJob(job, (j) => onStep(j.message));
+  return done.result as { text: string; saved?: boolean };
 }

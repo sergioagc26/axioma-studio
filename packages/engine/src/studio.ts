@@ -11,6 +11,8 @@ import * as ops from './ops.ts';
 import { P, REPO_ROOT } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
 import { allPresets, savePreset } from './presets.ts';
+import { AssistantError, askClaude, claudeBin } from './assistant.ts';
+import { applyRecommendedTransitions } from './transitions.ts';
 import { analyzeReference, listReferences, referencesDir } from './reference.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
@@ -22,7 +24,7 @@ const DIST = path.join(REPO_ROOT, 'packages', 'studio', 'dist');
 
 interface Job {
   id: string;
-  kind: 'crear' | 'render' | 'referencia';
+  kind: 'crear' | 'render' | 'referencia' | 'ia';
   status: 'running' | 'done' | 'error';
   message: string;
   progress: number;
@@ -166,7 +168,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const project = await readProject(dir);
     const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
-    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media) });
+    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()) });
   }
 
   if (p === '/api/project' && method === 'PUT') {
@@ -185,6 +187,30 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const preset = await savePreset(project.client, b.preset);
       const applied = b.aplicar ? await ops.applyPreset(dir, preset.id) : project;
       return json(res, { preset, project: applied, presets: await allPresets(project.client) });
+    }
+    if (b.op === 'recomendar-transiciones') {
+      const { advice } = await applyRecommendedTransitions(dir);
+      return json(res, { project: await readProject(dir), advice });
+    }
+    if (b.op === 'ia') {
+      // Le pide el cambio a Claude desde la app. Si Claude no está disponible, queda como petición.
+      const project = await readProject(dir);
+      const text = String(b.text ?? '').slice(0, 2000).trim();
+      if (!text) return json(res, { error: 'Escribe qué quieres pedir.' }, 400);
+      const job = startJob('ia', async (j) => {
+        j.message = 'Claude está trabajando…';
+        try {
+          const r = await askClaude(project.id, text, (m) => { j.message = m; });
+          return { text: r.text, tools: r.tools };
+        } catch (e) {
+          if (e instanceof AssistantError && e.code !== 'fallo') {
+            await ops.addRequest(dir, text, b.sceneId);
+            return { text: e.message, saved: true, code: e.code };
+          }
+          throw e;
+        }
+      });
+      return json(res, job);
     }
     if (b.op === 'peticion') return json(res, { project: await ops.addRequest(dir, String(b.text ?? '').slice(0, 2000), b.sceneId) });
     if (b.op === 'version') return json(res, { name: await ops.saveVersion(dir, b.label) });

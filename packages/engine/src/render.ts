@@ -7,6 +7,7 @@ import { renderMedia, selectComposition } from '@remotion/renderer';
 import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@snz/schema';
 import { readFaces } from './faces.ts';
 import { readKit } from './kit.ts';
+import { allTransitions } from './transitions.ts';
 import { normalizeMix } from './media.ts';
 import { P, REMOTION_ENTRY } from './paths.ts';
 import { serveFolder } from './server.ts';
@@ -39,7 +40,7 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
   const voiceover = vo && existsSync(path.join(dir, vo.file))
     ? { src: asset(vo.file), words: existsSync(wordsFile) ? (JSON.parse(await readFile(wordsFile, 'utf8')).words as Transcript['words']) : [] }
     : undefined;
-  return { voiceover, faces: await readFaces(dir) };
+  return { voiceover, faces: await readFaces(dir), transitions: await allTransitions(project.client) };
 }
 
 export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; onProgress?: (p: number) => void } = {}) {

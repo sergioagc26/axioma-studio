@@ -200,7 +200,7 @@ export function summarize(project: Project, dir: string): string {
   for (const s of project.scenes) {
     const d = s.ranges.reduce((a, r) => a + r.end - r.start, 0);
     const v = s.variants.length ? ` · variantes: ${s.variants.map((x) => x.id + (x.id === s.chosenVariant ? '*' : '')).join(',')}` : '';
-    lines.push(`  ${s.id} [${s.role}] ${s.title || '(sin título)'} · ${d.toFixed(1)} s · ${s.visual}${s.onScreenText ? ` · texto: "${s.onScreenText}"` : ''}${s.punchZoom ? ' · zoom' : ''}${v}`);
+    lines.push(`  ${s.id} [${s.role}] ${s.title || '(sin título)'} · ${d.toFixed(1)} s · ${s.visual}${s.transition ? ` · entra con ${s.transition.id}` : ''}${s.onScreenText ? ` · texto: "${s.onScreenText}"` : ''}${s.punchZoom ? ' · zoom' : ''}${v}`);
   }
   const pending = project.requests.filter((r) => r.status === 'pendiente');
   if (pending.length) lines.push(`Peticiones pendientes: ${pending.length}`);

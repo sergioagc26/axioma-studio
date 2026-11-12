@@ -61,7 +61,8 @@ export const App: React.FC = () => {
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg);
-    window.setTimeout(() => setToastMsg((m) => (m === msg ? null : m)), 3500);
+    // Los mensajes largos se quedan más tiempo en pantalla.
+    window.setTimeout(() => setToastMsg((m) => (m === msg ? null : m)), Math.min(20000, 3500 + msg.length * 45));
   }, []);
 
   // Atajos: deshacer / rehacer.

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import type { Scene, SceneVariant } from '@snz/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL, SceneFrame, VISUAL_LABEL } from '../SceneFrame.tsx';
-import { api } from '../useProject.ts';
+import { askAssistant } from '../useProject.ts';
 
 const FILTERS = ['Todo', 'Texto', 'Color', 'Toma / b-roll', 'Motion graphics'];
 
@@ -24,22 +24,23 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [filter, setFilter] = useState('Todo');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [step, setStep] = useState('');
   if (!scene) return <div className="page"><p className="muted">No hay escenas.</p></div>;
   const idx = project.scenes.indexOf(scene);
   const pending = project.requests.filter((r) => r.status === 'pendiente' && r.sceneId === scene.id);
 
+  /** Se lo pide a Claude aquí mismo; el resultado aparece solo en la pantalla. */
   const ask = async (msg: string) => {
     setSending(true);
+    setStep('Enviando a Claude…');
     try {
-      const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'peticion', text: msg, sceneId: scene.id }),
-      });
-      store.replace(d.project);
+      const r = await askAssistant(project.id, msg, scene.id, setStep);
       setText('');
-      ctx.toast('Petición guardada. En Claude escribe: «revisa las peticiones del studio».');
-    } catch (e: any) { ctx.toast(e.message); } finally { setSending(false); }
+      await store.reloadExtras();
+      ctx.toast(r.saved || r.text.length <= 220 ? r.text : r.text.slice(0, 218) + '…');
+    } catch (e: any) { ctx.toast(`Claude no pudo hacerlo: ${e.message}`); } finally { setSending(false); setStep(''); }
   };
-  const askVariants = () => ask(`Genera 4 variantes para la escena ${scene.id}${filter === 'Todo' ? '' : `, variando solo: ${filter.toLowerCase()}`}.`);
+  const askVariants = () => ask(`Genera 4 variantes distintas para la escena ${scene.id}${filter === 'Todo' ? '' : `, variando solo: ${filter.toLowerCase()}`}${scene.variants.length ? ', sin repetir las que ya tiene' : ''}. Guárdalas con generar_variantes; no elijas ninguna.`);
 
   return (
     <>
@@ -55,7 +56,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               {project.scenes.map((s, i) => <option key={s.id} value={s.id}>{i + 1} · {s.title || ROLE_LABEL[s.role]}</option>)}
             </select>
           </label>
-          <button className="btn" disabled={sending} onClick={askVariants}>{scene.variants.length ? 'Pedir otras 4' : 'Pedir variantes'}</button>
+          <button className="btn primary" disabled={sending} onClick={askVariants}>{sending ? 'Claude trabajando…' : scene.variants.length ? 'Pedir otras 4 a Claude' : 'Pedir variantes a Claude'}</button>
         </div>
       </header>
 
@@ -78,7 +79,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           {scene.variants.length === 0 && (
             <div className="card col" style={{ gridColumn: '1 / -1', padding: 22 }}>
               <strong>Esta escena todavía no tiene variantes.</strong>
-              <span className="muted">Las propone Claude. Pulsa «Pedir variantes» y luego escribe en Claude: «revisa las peticiones del studio». O pídeselo directo: «dame variantes para la escena {scene.id}».</span>
+              <span className="muted">Pulsa «Pedir variantes a Claude». Las genera aquí mismo y aparecen en unos segundos.</span>
             </div>
           )}
           {scene.variants.map((v) => {
@@ -103,10 +104,11 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <label className="row" style={{ flex: '1 1 420px', flexWrap: 'nowrap' }}>
           <span className="small muted" style={{ whiteSpace: 'nowrap' }}>Pídele un cambio a la IA</span>
           <input className="input" style={{ flex: 1 }} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ej.: más corto, que el texto diga otra cosa, b-roll de oficina"
-            onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) ask(text.trim()); }} />
+            onKeyDown={(e) => { if (e.key === 'Enter' && text.trim() && !sending) ask(`En la escena ${scene.id}: ${text.trim()}`); }} />
         </label>
-        <button className="btn cyan rect" disabled={!text.trim() || sending} onClick={() => ask(text.trim())}>Guardar petición</button>
-        {pending.length > 0 && <span className="pill">{pending.length} petición(es) esperando a Claude</span>}
+        <button className="btn cyan rect" disabled={!text.trim() || sending} onClick={() => ask(`En la escena ${scene.id}: ${text.trim()}`)}>Pedir a Claude</button>
+        {step && <span className="pill" role="status">{step}</span>}
+        {pending.length > 0 && !step && <span className="pill line">{pending.length} petición(es) guardadas sin atender</span>}
       </footer>
     </>
   );

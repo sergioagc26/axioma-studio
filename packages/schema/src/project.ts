@@ -70,6 +70,8 @@ export const Scene = z.object({
   motionTemplate: z.string().optional(),
   /** Datos de la plantilla de motion graphics (los pone el usuario; nunca inventados). */
   motionData: z.record(z.string(), z.any()).optional(),
+  /** Transición de entrada desde la escena anterior (sin valor = corte seco). */
+  transition: z.object({ id: z.string(), duration: z.number().min(0.1).max(1.5).optional() }).optional(),
   /** Zoom de golpe al inicio de la escena. */
   punchZoom: z.boolean().default(false),
   variants: z.array(SceneVariant).default([]),
