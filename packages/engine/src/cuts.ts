@@ -104,6 +104,63 @@ export function subtractSilences(ranges: Range[], silences: Range[], pacing: Pac
   return out.filter((r) => r.end - r.start > 0.05);
 }
 
+/** Frase del video con su estado de limpieza, para que Claude elija qué usar. */
+export interface Phrase {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+  words: Word[];
+  /** Muletilla o palabra inventada por Whisper (se descarta por defecto). */
+  junk: boolean;
+  /** Id de la frase que la repite más adelante (esta es una toma descartada). */
+  retakeOf?: string;
+}
+
+/**
+ * Divide la transcripción en frases numeradas (f01, f02…) y marca las que
+ * el corte automático descartaría. No borra nada: Claude decide.
+ */
+export function analyzePhrases(rawWords: Word[], pacing: Pacing, silences: Range[] = []): Phrase[] {
+  const words = silences.length ? snapWordsToSpeech(rawWords, silences) : rawWords;
+  const clean = pacing.removeFillers ? words.filter((w) => !FILLERS.has(normalize(w.text))) : words;
+  const phrases: Phrase[] = splitPhrases(clean).map((p, i) => {
+    const probs = p.map((w) => w.prob).filter((x): x is number => typeof x === 'number');
+    return {
+      id: `f${String(i + 1).padStart(2, '0')}`,
+      start: p[0].start,
+      end: p[p.length - 1].end,
+      text: p.map((w) => w.text).join(' '),
+      words: p,
+      junk: pacing.removeFillers && p.length <= 2 && probs.length === p.length
+        && probs.reduce((a, b) => a + b, 0) / probs.length < 0.4,
+    };
+  });
+  if (pacing.removeRetakes) {
+    const live = phrases.filter((p) => !p.junk);
+    live.forEach((p, i) => {
+      const later = live.slice(i + 1, i + 3).find((b) => isRetake(p.words, b.words));
+      if (later) p.retakeOf = later.id;
+    });
+  }
+  return phrases;
+}
+
+/** Tramos del video para una lista de frases, sin silencios largos ni solapes. */
+export function phrasesToRanges(phrases: Phrase[], pacing: Pacing, duration: number, silences: Range[] = []): Range[] {
+  const out: Range[] = [];
+  for (const p of phrases) {
+    for (const r of subtractSilences(wordsToRanges(p.words, pacing, duration), silences, pacing)) {
+      const last = out[out.length - 1];
+      // Solo se recorta el solape cuando el orden es cronológico; si Claude
+      // reordena frases a propósito, los tramos pueden repetirse en el tiempo.
+      if (last && r.start >= last.start && r.start < last.end) r.start = last.end;
+      if (r.end - r.start > 0.05) out.push(r);
+    }
+  }
+  return out;
+}
+
 export interface AutoCutResult {
   scenes: Scene[];
   report: CutReport;

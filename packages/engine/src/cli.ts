@@ -1,7 +1,9 @@
 import path from 'node:path';
 import { Command } from 'commander';
 import { APP_NAME, BUILTIN_PRESETS } from '@snz/schema';
+import { installClaude } from './claude.ts';
 import { doctor } from './doctor.ts';
+import { REPO_ROOT } from './paths.ts';
 import { measureLufs, probe } from './media.ts';
 import { cutProject, editVideo, prepareMedia, transcribeProject } from './pipeline.ts';
 import { renderProject } from './render.ts';
@@ -25,6 +27,16 @@ program
   .action(async () => {
     await ensureWhisper();
     console.log('whisper.cpp listo.');
+  });
+
+program
+  .command('instalar-claude')
+  .description('Conecta el plugin (skills + servidor MCP) con Claude en este computador')
+  .action(async () => {
+    const { mcpFile, settingsFile } = await installClaude();
+    console.log(`✓ ${mcpFile}\n✓ ${settingsFile}`);
+    console.log('\nAbre Claude Code (o el Code tab de Claude) en esta carpeta y acepta el plugin "snz-studio".');
+    console.log(`Para usarlo desde cualquier carpeta: /plugin marketplace add "${REPO_ROOT}" y luego /plugin install snz-studio@snz-studio`);
   });
 
 program

@@ -36,6 +36,25 @@ Cada proyecto vive en `workspace/clientes/<cliente>/proyectos/<fecha-nombre>/`.
 | `proxies/proxy.mp4` | Vista previa liviana para el studio |
 | `renders/` | Exportaciones |
 
+## Usarlo desde Claude (Fase 2)
+
+`npm run setup` ya conecta el plugin. Para repetirlo a mano:
+
+```bash
+npm run se -- instalar-claude
+```
+
+Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acepta el plugin `snz-studio` y escribe, por ejemplo:
+
+> edita este video para CRE: /ruta/al/video.mp4
+
+Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
+
+- **Skills** (`plugin/skills/`): `editar-reel`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
+- **Servidor MCP** (`packages/mcp`): 22 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
+- `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
+
 ## Cómo funciona el corte automático
 
 1. whisper.cpp 1.9.5 transcribe con alineación DTW (`-nfa`, porque la atención flash desactiva DTW).
@@ -52,6 +71,8 @@ Cada proyecto vive en `workspace/clientes/<cliente>/proyectos/<fecha-nombre>/`.
 - `packages/schema`: tipos y validación (zod), línea de tiempo y presets.
 - `packages/engine`: CLI `se`, FFmpeg, whisper, cortes, render.
 - `packages/remotion`: composición `Reel`, con subtítulos palabra por palabra, texto en pantalla y zoom de golpe.
+- `packages/mcp`: servidor MCP que expone el engine a Claude.
+- `plugin/`: plugin de Claude Code con las skills.
 - `scripts/`: setup para Mac y Windows.
 
 ```bash
@@ -66,7 +87,6 @@ npm run typecheck
 
 ## Siguiente
 
-- **Fase 2**: servidor MCP y skills para que Claude dirija la edición.
 - **Fase 3**: studio con las pantallas de los mockups.
 
-El plan completo está en el plan aprobado.
+El objetivo completo y la definición de terminado están en `docs/PROMPT-OBJETIVO.md`.

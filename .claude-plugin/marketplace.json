@@ -1,0 +1,11 @@
+{
+  "name": "snz-studio",
+  "owner": { "name": "SNZ" },
+  "plugins": [
+    {
+      "name": "snz-studio",
+      "source": "./plugin",
+      "description": "Editor de reels 9:16 con IA que corre en tu computador."
+    }
+  ]
+}

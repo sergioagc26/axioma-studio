@@ -15,5 +15,6 @@ if (-not (Need 'ffmpeg') -or -not (Need 'ffprobe')) {
 
 npm install
 npm run se -- setup
+npm run se -- instalar-claude
 New-Item -ItemType Directory -Force -Path workspace | Out-Null
 npm run se -- doctor

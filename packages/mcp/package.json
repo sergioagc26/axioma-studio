@@ -1,0 +1,2 @@
+{ "name": "@snz/mcp", "version": "0.1.0", "private": true, "type": "module", "main": "src/server.ts",
+  "dependencies": { "@snz/schema": "*", "@snz/engine": "*", "@modelcontextprotocol/sdk": "^1.32.2", "zod": "^4.6.7" } }

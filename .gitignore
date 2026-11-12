@@ -5,3 +5,5 @@ out/
 .whisper/
 *.log
 .DS_Store
+plugin/.mcp.json
+.claude/settings.local.json

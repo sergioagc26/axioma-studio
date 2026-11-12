@@ -9,6 +9,7 @@ export interface Analysis {
   silences: Range[];
 }
 import { P } from './paths.ts';
+import { listPresets } from './presets.ts';
 import { renderProject } from './render.ts';
 import { createProject, readProject, readTranscript, writeProject, writeTranscript } from './store.ts';
 import { transcribeWav } from './transcribe.ts';
@@ -80,7 +81,7 @@ export async function cutProject(dir: string, presetId?: string): Promise<CutRep
   const transcript = await readTranscript(dir);
   if (!transcript) throw new Error('Falta la transcripción.');
   if (presetId) {
-    const preset = getPreset(presetId);
+    const preset = getPreset(presetId, await listPresets(project.client));
     project.presetId = preset.id;
     project.pacing = Pacing.parse(preset.pacing);
     project.captions = CaptionStyle.parse(preset.captions);

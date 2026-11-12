@@ -18,5 +18,6 @@ fi
 
 npm install
 npm run se -- setup
+npm run se -- instalar-claude
 mkdir -p workspace
 npm run se -- doctor
