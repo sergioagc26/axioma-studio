@@ -53,6 +53,10 @@ export const SceneVariant = z.object({
   textColor: z.string().optional(),
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
+  /** Zoom de golpe al entrar. */
+  punchZoom: z.boolean().optional(),
+  /** Id de la transición de entrada ("corte" = sin transición). */
+  transition: z.string().optional(),
   notes: z.string().optional(),
 });
 export type SceneVariant = z.infer<typeof SceneVariant>;
@@ -70,6 +74,8 @@ export const Scene = z.object({
   motionTemplate: z.string().optional(),
   /** Datos de la plantilla de motion graphics (los pone el usuario; nunca inventados). */
   motionData: z.record(z.string(), z.any()).optional(),
+  /** Efectos de sonido de la escena. `offset` son segundos desde su inicio. */
+  sfx: z.array(z.object({ id: z.string(), offset: z.number().min(0).default(0), volume: z.number().min(0).max(1).default(0.6) })).default([]),
   /** Transición de entrada desde la escena anterior (sin valor = corte seco). */
   transition: z.object({ id: z.string(), duration: z.number().min(0.1).max(1.5).optional() }).optional(),
   /** Zoom de golpe al inicio de la escena. */
@@ -175,6 +181,12 @@ export const Project = z.object({
   scenes: z.array(Scene).default([]),
   audio: z.object({
     denoise: z.boolean().default(true),
+    /** Fuerza de la limpieza de ruido. */
+    denoiseLevel: z.enum(['suave', 'media', 'fuerte']).default('media'),
+    /** Realce de voz: más presencia y volumen parejo (ecualización y compresión). */
+    enhance: z.boolean().default(false),
+    /** Efectos automáticos: barrido en cada transición y un "pop" al entrar cada texto. */
+    sfxAuto: z.boolean().default(false),
     targetLufs: z.number().default(-16),
     /** Audio de voz procesado (limpio y nivelado), relativo al proyecto. */
     processedVoice: z.string().optional(),
@@ -190,7 +202,7 @@ export const Project = z.object({
       voice: z.string().optional(),
       duration: z.number(),
     }).optional(),
-  }).default({ denoise: true, targetLufs: -16, musicVolume: 0.18, originalVolume: 1 }),
+  }).default({ denoise: true, denoiseLevel: 'media', enhance: false, sfxAuto: false, targetLufs: -16, musicVolume: 0.18, originalVolume: 1 }),
   assets: z.array(Asset).default([]),
   approval: z.enum(['borrador', 'en_revision', 'aprobado']).default('borrador'),
   requests: z.array(Request).default([]),

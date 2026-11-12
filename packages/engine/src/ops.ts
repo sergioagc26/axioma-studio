@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
-  CaptionStyle, Pacing, Project, Scene, SceneVariant, getPreset, outputDuration,
+  CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, getPreset, outputDuration, suggestVariants,
   type Asset, type Preset,
 } from '@snz/schema';
 import { analyzePhrases, applyPunchZooms, phrasesToRanges, type Phrase } from './cuts.ts';
@@ -11,7 +11,8 @@ import { P, WORKSPACE } from './paths.ts';
 import { readAnalysis } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { listPresets } from './presets.ts';
-import { extractWav16k, mediaDuration } from './media.ts';
+import { extractWav16k, mediaDuration, processVoice } from './media.ts';
+import { ensureProjectSfx } from './sfx.ts';
 import { transcribeWav } from './transcribe.ts';
 import { synthesize, type TtsProvider } from './tts.ts';
 
@@ -116,22 +117,26 @@ export async function setVariants(dir: string, sceneId: string, variants: Omit<S
   return writeProject(dir, project);
 }
 
-/** Aplica una variante: sus campos pasan a la escena. `null` vuelve al original. */
+/** Aplica una variante: sus campos pasan a la escena. `null` solo quita la marca. */
 export async function chooseVariant(dir: string, sceneId: string, variantId: string | null) {
   const project = await readProject(dir);
   const scene = findScene(project, sceneId);
   if (variantId === null) {
-    scene.chosenVariant = undefined;
+    applyVariant(scene, null);
   } else {
     const v = scene.variants.find((x) => x.id === variantId);
     if (!v) throw new Error(`La escena ${sceneId} no tiene la variante "${variantId}".`);
-    scene.chosenVariant = v.id;
-    scene.visual = v.visual;
-    if (v.onScreenText !== undefined) scene.onScreenText = v.onScreenText || undefined;
-    if (v.textColor) scene.textColor = v.textColor;
-    if (v.brollFile) scene.brollFile = v.brollFile;
-    if (v.motionTemplate) scene.motionTemplate = v.motionTemplate;
+    applyVariant(scene, v);
   }
+  return writeProject(dir, project);
+}
+
+/** Tres variantes automáticas para una escena (sin Claude), guardadas en ella. */
+export async function suggestSceneVariants(dir: string, sceneId: string, round = 0) {
+  const project = await readProject(dir);
+  const scene = findScene(project, sceneId);
+  scene.variants = suggestVariants(project, scene, await readTranscript(dir), round);
+  scene.chosenVariant = undefined;
   return writeProject(dir, project);
 }
 
@@ -354,4 +359,42 @@ export async function restoreVersion(dir: string, name: string) {
   const old = Project.parse(JSON.parse(await readFile(path.join(dir, P.versions, path.basename(name)), 'utf8')));
   await saveVersion(dir, 'antes-de-restaurar');
   return writeProject(dir, old);
+}
+
+/**
+ * Corrección de audio de la voz grabada: vuelve a procesarla con la limpieza de
+ * ruido y el realce elegidos. Solo aplica a proyectos hablados.
+ */
+export async function correctAudio(dir: string, opts: { denoise?: boolean; level?: 'suave' | 'media' | 'fuerte'; enhance?: boolean }) {
+  const project = await readProject(dir);
+  if (project.kind !== 'hablado') throw new Error('La corrección de voz aplica a videos hablados. En un montaje, ajusta el sonido original o silencia el video.');
+  if (opts.denoise !== undefined) project.audio.denoise = opts.denoise;
+  if (opts.level) project.audio.denoiseLevel = opts.level;
+  if (opts.enhance !== undefined) project.audio.enhance = opts.enhance;
+  await processVoice(path.join(dir, P.master), path.join(dir, P.voice), project.audio);
+  project.audio.processedVoice = P.voice;
+  return writeProject(dir, project);
+}
+
+/** Añade un efecto de sonido a una escena. */
+export async function addSfx(dir: string, sceneId: string, id: string, opts: { offset?: number; volume?: number } = {}) {
+  await ensureProjectSfx(dir, [id]);
+  const project = await readProject(dir);
+  findScene(project, sceneId).sfx.push({ id, offset: opts.offset ?? 0, volume: opts.volume ?? 0.6 });
+  return writeProject(dir, project);
+}
+
+/** Quita los efectos de una escena, o de todas si no se indica. */
+export async function clearSfx(dir: string, sceneId?: string) {
+  const project = await readProject(dir);
+  for (const s of project.scenes) if (!sceneId || s.id === sceneId) s.sfx = [];
+  return writeProject(dir, project);
+}
+
+/** Efectos automáticos: barrido en cada transición y "pop" al entrar cada texto. */
+export async function setAutoSfx(dir: string, on: boolean) {
+  if (on) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
+  const project = await readProject(dir);
+  project.audio.sfxAuto = on;
+  return writeProject(dir, project);
 }

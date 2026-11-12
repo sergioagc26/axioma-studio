@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { APP_NAME } from '@snz/schema';
 import { api, useProject, waitJob, type Job, type ProjectStore } from './useProject.ts';
+import { Audio } from './screens/Audio.tsx';
 import { Brief } from './screens/Brief.tsx';
 import { Editor } from './screens/Editor.tsx';
 import { Projects } from './screens/Projects.tsx';
@@ -8,7 +9,7 @@ import { Referencias } from './screens/Referencias.tsx';
 import { Storyboard } from './screens/Storyboard.tsx';
 import { Variantes } from './screens/Variantes.tsx';
 
-export type Screen = 'proyectos' | 'brief' | 'storyboard' | 'editor' | 'variantes' | 'referencias';
+export type Screen = 'proyectos' | 'brief' | 'storyboard' | 'editor' | 'variantes' | 'audio' | 'referencias';
 
 export interface Ctx {
   store: ProjectStore;
@@ -21,11 +22,11 @@ export interface Ctx {
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   const q = new URLSearchParams(query);
-  const screen = (['proyectos', 'brief', 'storyboard', 'editor', 'variantes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
+  const screen = (['proyectos', 'brief', 'storyboard', 'editor', 'variantes', 'audio', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
   return { screen, p: q.get('p'), s: q.get('s') };
 }
 
-const TABS: [Screen, string][] = [['brief', 'Brief'], ['storyboard', 'Storyboard'], ['editor', 'Editor'], ['variantes', 'Variantes'], ['referencias', 'Referencias']];
+const TABS: [Screen, string][] = [['brief', 'Brief'], ['storyboard', 'Storyboard'], ['editor', 'Editor'], ['variantes', 'Variantes'], ['audio', 'Audio'], ['referencias', 'Referencias']];
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
@@ -144,6 +145,7 @@ export const App: React.FC = () => {
         : route.screen === 'storyboard' ? <Storyboard ctx={ctx} />
         : route.screen === 'editor' ? <Editor ctx={ctx} />
         : route.screen === 'variantes' ? <Variantes ctx={ctx} />
+        : route.screen === 'audio' ? <Audio ctx={ctx} />
         : <Referencias ctx={ctx} />}
 
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}

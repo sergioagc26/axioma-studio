@@ -18,3 +18,4 @@ export * from './montage.ts';
 export * from './tts.ts';
 export * from './transitions.ts';
 export * from './assistant.ts';
+export * from './sfx.ts';

@@ -51,7 +51,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
 - **Skills** (`plugin/skills/`): `editar-reel`, `montaje`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 47 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Servidor MCP** (`packages/mcp`): 53 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -96,6 +96,40 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Versiones**: guardar, listar, comparar y restaurar. Estados `borrador → en_revision → aprobado`.
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
+
+## Variantes automáticas
+
+Al seleccionar un clip hay siempre **tres variantes al instante**, sin esperar a Claude:
+
+- En el Editor, en el panel derecho («Variantes para este clip»): se aplican con un toque.
+- En la pantalla Variantes: con vista previa, «Otras 3» y «Pedir variantes a Claude» para opciones más creativas.
+
+Salen de reglas (`packages/schema/src/suggest.ts`): lo que se dice en la escena, su papel y el estilo del reel.
+
+- Los textos se sacan de lo que dijo la persona; no se inventa nada. Los datos que falten se ven como `[DATO]`.
+- Según el papel: gancho con golpe, lista de puntos en un beneficio, dato grande en una prueba, cierre con la marca en el llamado a la acción.
+- En un montaje sin voz, las variantes cambian el movimiento: zoom de golpe, barrido, destello, texto encima.
+- Una variante puede cambiar texto, color, tipo de imagen, zoom y transición de entrada.
+
+Desde Claude: `sugerir_variantes` (las de reglas) y `generar_variantes` (las que propone Claude).
+
+## Audio
+
+Pantalla **Audio** del studio, o con las herramientas de Claude:
+
+| Qué | En el studio | Herramienta |
+| --- | --- | --- |
+| Quitar o bajar el sonido original | Barra de volumen y «Quitar el sonido original» | `ajustar_sonido_original` |
+| Corrección de voz | Limpiar ruido (suave, media, fuerte) y «Realzar la voz» | `corregir_audio` |
+| Música de fondo | Subir archivo con su licencia, volumen, quitar | `poner_musica` |
+| Voz en off | Texto, voz, generar, quitar | `poner_voz_en_off`, `quitar_voz_en_off` |
+| Efectos de sonido | Automáticos, o uno por escena con su segundo | `efectos_automaticos`, `poner_efecto`, `quitar_efectos` |
+
+- **Realzar la voz**: ecualización (menos graves turbios, más presencia) y compresión para un volumen parejo.
+- **Efectos incluidos**: barrido, pop, clic, campanita, impacto y subida. Se sintetizan con FFmpeg, así que no tienen problema de licencia.
+- **Efectos automáticos**: un barrido en cada transición (impacto si es un destello) y un «pop» al entrar cada texto.
+- La mezcla final (voz, música, voz en off y efectos) se nivela a -16 LUFS al exportar.
+- Los errores del studio quedan escritos en `workspace/studio-errores.log`.
 
 ## Transiciones
 

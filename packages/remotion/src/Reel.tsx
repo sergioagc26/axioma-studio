@@ -56,6 +56,11 @@ export const Reel: React.FC<Timeline> = (t) => {
         </Sequence>
       ))}
       {t.voiceoverSrc ? <Audio src={t.voiceoverSrc} /> : null}
+      {t.sfx.map((e, i) => (
+        <Sequence key={`fx${i}`} from={e.fromFrame}>
+          <Audio src={e.src} volume={e.volume} />
+        </Sequence>
+      ))}
       {t.musicSrc ? <Music t={t} /> : null}
     </AbsoluteFill>
   );

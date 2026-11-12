@@ -66,6 +66,11 @@ Si el gancho no es claro, propone 3 opciones sacadas de frases que la persona s�
   - "vuelve a como estaba" → `listar_versiones`, `comparar_version` y `restaurar_version`.
 - El encuadre sigue la cara automáticamente. Si aun así la persona queda mal encuadrada, fíjalo a mano con `ajustar_encuadre`.
 - "ponle voz en off" → `poner_voz_en_off` (ver la skill `montaje` para escribir el guion).
+- Audio:
+  - "se oye ruido" o "mejora el audio" → `corregir_audio` (empieza con nivel `media`; `fuerte` solo si hace falta, porque puede sonar metálico; `realzar_voz` para más claridad);
+  - "quita el sonido del video" → `ajustar_sonido_original` con 0;
+  - "ponle efectos de sonido" → `efectos_automaticos`, o `poner_efecto` en momentos concretos (`listar_efectos`). Con medida: no uno en cada corte.
+- "dame opciones rápidas" → `sugerir_variantes` (3 al instante); para opciones más pensadas, la skill `variantes`.
 - Transiciones:
   - "ponle transiciones" → `recomendar_transiciones` y cuenta en una línea qué puso y por qué;
   - "cambia la transición de la escena 3" → `listar_transiciones` y `poner_transicion`;

@@ -68,12 +68,20 @@ export async function extractWav16k(input: string, out: string) {
   await ffmpeg(['-i', input, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', out]);
 }
 
+export interface VoiceOptions { denoise: boolean; denoiseLevel?: 'suave' | 'media' | 'fuerte'; enhance?: boolean; targetLufs: number }
+
 /**
- * Voz limpia y nivelada: filtro de graves, reducción de ruido y loudnorm en
- * dos pasadas al objetivo (por defecto -16 LUFS, lo habitual en Instagram).
+ * Voz limpia y nivelada: filtro de graves, reducción de ruido (suave, media o
+ * fuerte), realce opcional (más presencia y volumen parejo) y loudnorm en dos
+ * pasadas al objetivo (por defecto -16 LUFS, lo habitual en Instagram).
  */
-export async function processVoice(input: string, out: string, { denoise, targetLufs }: { denoise: boolean; targetLufs: number }) {
-  const pre = ['highpass=f=80', ...(denoise ? ['afftdn=nf=-25'] : [])].join(',');
+export async function processVoice(input: string, out: string, { denoise, denoiseLevel = 'media', enhance = false, targetLufs }: VoiceOptions) {
+  const nr = { suave: 8, media: 12, fuerte: 24 }[denoiseLevel];
+  const pre = [
+    'highpass=f=80',
+    ...(denoise ? [`afftdn=nr=${nr}:nf=-25`] : []),
+    ...(enhance ? ['equalizer=f=220:t=q:w=1:g=-2', 'equalizer=f=3200:t=q:w=1:g=3', 'acompressor=threshold=-20dB:ratio=3:attack=5:release=90:makeup=2'] : []),
+  ].join(',');
   const target = `I=${targetLufs}:TP=-1.5:LRA=11`;
   const { stderr } = await ffmpeg(['-i', input, '-vn', '-af', `${pre},loudnorm=${target}:print_format=json`, '-f', 'null', '-']);
   const m = JSON.parse(stderr.slice(stderr.lastIndexOf('{'), stderr.lastIndexOf('}') + 1));

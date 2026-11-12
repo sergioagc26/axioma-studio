@@ -58,6 +58,11 @@ Ejemplos de lo que puedes escribirle a Claude:
 - «guarda este estilo como "CRE rápido"»
 - «vuelve a como estaba antes»
 
+## Variantes y audio
+
+- **Variantes**: al tocar un clip en el Editor aparecen tres opciones a la derecha. Toca una y se aplica. En la pestaña Variantes puedes pedir «Otras 3» o pedirle a Claude algo más creativo.
+- **Audio** (pestaña Audio): quitar o bajar el sonido del video, limpiar el ruido de la voz, poner música (con su licencia), generar una voz en off y añadir efectos de sonido.
+
 ## Transiciones y Claude dentro de la página
 
 - En el **Editor**, pulsa «Recomendar para todo el reel» y la app pone las transiciones que van con tu estilo. Cada escena tiene su selector a la derecha, y «Ver la transición» la reproduce.

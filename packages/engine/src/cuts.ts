@@ -232,6 +232,7 @@ export function autoCut(rawWords: Word[], pacing: Pacing, duration: number, sile
       visual: 'original',
       punchZoom: false,
       variants: [],
+      sfx: [],
     });
     group = [];
     groupDur = 0;

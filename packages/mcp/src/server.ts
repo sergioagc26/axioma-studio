@@ -296,6 +296,47 @@ export function createServer() {
     return `Kit guardado para ${p.client ?? 'personal'}:\n${JSON.stringify(kit, null, 2)}`;
   });
 
+  tool('sugerir_variantes', 'Genera al instante 3 variantes para una escena con reglas (sin pensar tú): salen de lo que se dice, del papel de la escena y del estilo. Úsala para algo rápido; para variantes más creativas usa generar_variantes con tus propias ideas.', {
+    proyecto, escena: z.string(), ronda: z.number().int().min(0).default(0).describe('Sube el número para obtener otras 3'),
+  }, async ({ proyecto, escena, ronda }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.suggestSceneVariants(dir, escena, ronda);
+    const s = p.scenes.find((x) => x.id === escena)!;
+    return s.variants.map((v) => `${v.id} · ${v.label} (${v.visual})${v.onScreenText ? ` · texto: "${v.onScreenText}"` : ''} — ${v.notes ?? ''}`).join('\n');
+  });
+
+  tool('corregir_audio', 'Corrige la voz grabada de un video hablado: limpieza de ruido (suave, media o fuerte) y realce de voz (más presencia y volumen parejo). Vuelve a procesar el audio; tarda unos segundos.', {
+    proyecto,
+    limpiar_ruido: z.boolean().optional(),
+    nivel: z.enum(['suave', 'media', 'fuerte']).optional().describe('fuerte quita más ruido pero puede sonar metálico'),
+    realzar_voz: z.boolean().optional(),
+  }, async ({ proyecto, limpiar_ruido, nivel, realzar_voz }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.correctAudio(dir, { denoise: limpiar_ruido, level: nivel, enhance: realzar_voz });
+    return `Audio corregido: limpieza ${p.audio.denoise ? p.audio.denoiseLevel : 'apagada'} · realce ${p.audio.enhance ? 'activado' : 'apagado'} · ${p.audio.targetLufs} LUFS.`;
+  });
+
+  tool('listar_efectos', 'Efectos de sonido incluidos.', {}, async () => E.formatSfx());
+
+  tool('poner_efecto', 'Añade un efecto de sonido a una escena. "momento" son segundos desde el inicio de la escena. Úsalos con medida: uno en un cambio fuerte o al entrar un texto clave, no en cada corte.', {
+    proyecto, escena: z.string(), efecto: z.enum(['whoosh', 'pop', 'clic', 'ding', 'impacto', 'subida']),
+    momento: z.number().min(0).default(0), volumen: z.number().min(0).max(1).default(0.6),
+  }, async ({ proyecto, escena, efecto, momento, volumen }) => {
+    const dir = await resolveProject(proyecto);
+    await E.addSfx(dir, escena, efecto, { offset: momento, volume: volumen });
+    return `Efecto ${efecto} en ${escena} a los ${momento} s.`;
+  });
+
+  tool('quitar_efectos', 'Quita los efectos de sonido de una escena, o de todas si no indicas escena.', { proyecto, escena: z.string().optional() }, async ({ proyecto, escena }) => {
+    await E.clearSfx(await resolveProject(proyecto), escena);
+    return escena ? `Efectos quitados de ${escena}.` : 'Efectos quitados de todas las escenas.';
+  });
+
+  tool('efectos_automaticos', 'Activa o desactiva los efectos automáticos: un barrido en cada transición (impacto si es un destello) y un "pop" al entrar cada texto en pantalla.', { proyecto, activar: z.boolean() }, async ({ proyecto, activar }) => {
+    await E.setAutoSfx(await resolveProject(proyecto), activar);
+    return `Efectos automáticos: ${activar ? 'activados' : 'desactivados'}.`;
+  });
+
   tool('listar_transiciones', 'Transiciones disponibles: las incluidas y las propias del cliente.', { proyecto }, async ({ proyecto }) => {
     const p = await E.readProject(await resolveProject(proyecto));
     return E.formatTransitions(await E.allTransitions(p.client));

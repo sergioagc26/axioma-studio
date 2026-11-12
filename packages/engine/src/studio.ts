@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, watch } from 'node:fs';
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rm } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,11 +8,13 @@ import { pipeline as pipe } from 'node:stream/promises';
 import { APP_NAME, Project } from '@snz/schema';
 import { ffmpeg } from './exec.ts';
 import * as ops from './ops.ts';
-import { P, REPO_ROOT } from './paths.ts';
+import { P, REPO_ROOT, WORKSPACE } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
 import { allPresets, savePreset } from './presets.ts';
 import { AssistantError, askClaude, claudeBin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
+import { SFX, sfxFile } from './sfx.ts';
+import { ttsProviders } from './tts.ts';
 import { analyzeReference, listReferences, referencesDir } from './reference.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
@@ -24,7 +26,7 @@ const DIST = path.join(REPO_ROOT, 'packages', 'studio', 'dist');
 
 interface Job {
   id: string;
-  kind: 'crear' | 'render' | 'referencia' | 'ia';
+  kind: 'crear' | 'render' | 'referencia' | 'ia' | 'audio';
   status: 'running' | 'done' | 'error';
   message: string;
   progress: number;
@@ -168,7 +170,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const project = await readProject(dir);
     const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
-    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()) });
+    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()), sfx: Object.entries(SFX).map(([sid, d]) => ({ id: sid, name: d.name, description: d.description })), voices: await ttsProviders() });
   }
 
   if (p === '/api/project' && method === 'PUT') {
@@ -188,6 +190,30 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const applied = b.aplicar ? await ops.applyPreset(dir, preset.id) : project;
       return json(res, { preset, project: applied, presets: await allPresets(project.client) });
     }
+    if (b.op === 'corregir-audio') {
+      const job = startJob('audio', async (j) => {
+        j.message = 'Limpiando y nivelando la voz…';
+        await ops.correctAudio(dir, { denoise: b.denoise, level: b.level, enhance: b.enhance });
+        return {};
+      });
+      return json(res, job);
+    }
+    if (b.op === 'voz-en-off') {
+      const job = startJob('audio', async (j) => {
+        j.message = 'Generando la voz en off…';
+        const p = await ops.setVoiceover(dir, String(b.text ?? ''), { provider: b.provider || undefined, voice: b.voice || undefined });
+        if (p.kind === 'montaje') {
+          j.message = 'Ajustando el montaje a la voz…';
+          await buildMontage(dir, {});
+        }
+        return {};
+      });
+      return json(res, job);
+    }
+    if (b.op === 'quitar-voz') return json(res, { project: await ops.removeVoiceover(dir) });
+    if (b.op === 'efecto') return json(res, { project: await ops.addSfx(dir, b.sceneId, b.id, { offset: b.offset, volume: b.volume }) });
+    if (b.op === 'efectos-auto') return json(res, { project: await ops.setAutoSfx(dir, Boolean(b.on)) });
+    if (b.op === 'quitar-musica') return json(res, { project: await ops.setMusic(dir, null) });
     if (b.op === 'recomendar-transiciones') {
       const { advice } = await applyRecommendedTransitions(dir);
       return json(res, { project: await readProject(dir), advice });
@@ -223,6 +249,27 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, job);
     }
     return json(res, { error: `Operación desconocida: ${b.op}` }, 400);
+  }
+
+  if (p === '/api/music' && method === 'POST') {
+    // Sube la música de fondo. La licencia es obligatoria.
+    const dir = await findDir(id);
+    const tmpDir = path.join(os.tmpdir(), `snz-music-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'musica.mp3'));
+    await pipe(req, createWriteStream(tmp));
+    try {
+      return json(res, { project: await ops.setMusic(dir, tmp, { license: url.searchParams.get('license') ?? '', source: 'subida en el studio' }) });
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  if (p.startsWith('/sfx/')) {
+    // Vista previa de un efecto incluido.
+    const sid = path.basename(p).replace(/\.wav$/, '');
+    if (!SFX[sid] || !sendFile(req, res, await sfxFile(sid))) res.writeHead(404).end();
+    return;
   }
 
   if (p === '/api/references' && method === 'GET') {
@@ -311,6 +358,9 @@ export function startStudio(): Promise<string> {
     const base = `http://127.0.0.1:${STUDIO_PORT}`;
     const server = http.createServer((req, res) => {
       handle(req, res).catch((e) => {
+        // Queda escrito qué falló, para poder diagnosticarlo después.
+        const line = `${new Date().toISOString()} ${req.method} ${req.url} → ${e instanceof Error ? e.stack ?? e.message : e}\n`;
+        mkdir(WORKSPACE, { recursive: true }).then(() => appendFile(path.join(WORKSPACE, 'studio-errores.log'), line)).catch(() => {});
         if (!res.headersSent) json(res, { error: e instanceof Error ? e.message : String(e) }, e?.status ?? 500);
         else res.end();
       });

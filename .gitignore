@@ -10,3 +10,4 @@ plugin/.mcp.json
 packages/studio/dist/
 .claude/launch.json
 .env
+.sfx/

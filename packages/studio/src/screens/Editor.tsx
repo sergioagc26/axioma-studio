@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { buildTimeline, type Scene } from '@snz/schema';
+import { applyVariant, buildTimeline, suggestVariants, type Scene } from '@snz/schema';
 import { Reel } from '@snz/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -73,6 +73,12 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     addEventListener('keydown', on);
     return () => removeEventListener('keydown', on);
   });
+
+  // Siempre hay 3 variantes para el clip seleccionado: las guardadas o, si no hay, sugeridas al instante.
+  const quick = useMemo(
+    () => (!scene ? [] : scene.variants.length ? scene.variants.slice(0, 3) : suggestVariants(project, scene, store.transcript)),
+    [project, scene, store.transcript],
+  );
 
   const edit = (fn: (s: Scene) => void) => store.update((p) => {
     const s = p.scenes.find((x) => x.id === selId);
@@ -258,9 +264,21 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </div>
             <button className="btn rect" onClick={() => store.update((p) => { p.scenes = p.scenes.filter((s) => s.id !== scene.id); applyPunchZooms(p.scenes, p.pacing.punchZoomEvery); })}>Eliminar escena</button>
             <div className="col" style={{ marginTop: 'auto', padding: 14, borderRadius: 12, background: 'var(--cyanSoft)' }}>
-              <strong>¿No te convence esta escena?</strong>
-              <span className="muted small">La IA te propone versiones con otro texto, color, b-roll o motion graphics.</span>
-              <button className="btn cyan" onClick={() => ctx.go('variantes', { s: scene.id })}>Ver variantes</button>
+              <strong>Variantes para este clip</strong>
+              <span className="muted small">Tres opciones según lo que dices y el estilo. Toca una para aplicarla.</span>
+              {quick.map((v) => {
+                const on = scene.chosenVariant === v.id && scene.variants.length > 0;
+                return (
+                  <button key={v.id + v.label} className="tpl" style={on ? { borderColor: 'var(--pink)', background: 'var(--pinkSoft)' } : { background: 'var(--panel)' }} title={v.notes}
+                    onClick={() => store.update((p) => { const s = p.scenes[idx]; if (!s.variants.length) s.variants = quick; applyVariant(s, v); })}>
+                    <span className="col" style={{ gap: 2, minWidth: 0 }}>
+                      <strong>{v.label}</strong>
+                      <span className="small muted">{v.onScreenText ? `"${v.onScreenText}"` : v.notes}</span>
+                    </span>
+                  </button>
+                );
+              })}
+              <button className="btn cyan" onClick={() => ctx.go('variantes', { s: scene.id })}>Más opciones y pedir a Claude</button>
             </div>
           </aside>
         )}
@@ -316,7 +334,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         </div>
         <div className="track">
           <span>Voz</span>
-          <div className="lane" onClick={seekLane}>
+          <div className="lane" onClick={() => ctx.go('audio')} title="Abrir la pantalla de Audio">
+            {timeline.sfx.map((e, i) => <div key={i} className="clip" style={{ left: pct(e.fromFrame), width: 6, padding: 0, background: 'var(--cyan)', zIndex: 1 }} />)}
             <div className="clip" style={{ left: 0, width: '100%', background: 'var(--violet)', color: 'var(--onViolet)' }}>{project.audio.voiceover ? `Voz en off · ${project.audio.voiceover.provider}` : project.kind === 'montaje' ? `Sonido original · ${Math.round(project.audio.originalVolume * 100)}%` : `Voz limpia · ${project.audio.targetLufs} LUFS`}{project.audio.music ? ' · con música' : ''}</div>
             <div className="playhead" style={{ left: pct(frame) }} />
           </div>

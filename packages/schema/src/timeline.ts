@@ -56,6 +56,8 @@ export type Timeline = {
   overlays: TimelineOverlay[];
   captions: CaptionStyle;
   brand: Brand;
+  /** Efectos de sonido colocados en la salida. */
+  sfx: { src: string; fromFrame: number; volume: number }[];
 };
 
 export interface TimelineUrls {
@@ -182,6 +184,23 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     };
   }
 
+  // Efectos de sonido: los de cada escena y, si están activados, los automáticos.
+  const sfx: Timeline['sfx'] = [];
+  const sfxSrc = (id: string) => (urls.asset ? urls.asset(`media/sfx/${id}.wav`) : undefined);
+  const add = (id: string, fromFrame: number, volume: number) => {
+    const src = sfxSrc(id);
+    if (src && fromFrame < toFrame(acc)) sfx.push({ src, fromFrame: Math.max(0, fromFrame), volume });
+  };
+  for (const scene of project.scenes) {
+    const start = clips.find((c) => c.sceneId === scene.id)?.fromFrame;
+    if (start === undefined) continue;
+    for (const e of scene.sfx) add(e.id, start + toFrame(e.offset), e.volume);
+  }
+  if (project.audio.sfxAuto) {
+    for (const c of clips) if (c.transition) add(c.transition.spec.destello ? 'impacto' : 'whoosh', c.fromFrame - Math.round(fps * 0.08), 0.45);
+    for (const o of overlays) add('pop', o.fromFrame, 0.4);
+  }
+
   if (urls.voiceover) {
     for (const w of urls.voiceover.words) {
       if (w.start >= acc) break;
@@ -206,6 +225,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     words,
     overlays,
     captions: project.captions,
+    sfx,
     brand: urls.brand ?? { primary: project.captions.highlightColor, secondary: '#25F4EE', text: '#FFFFFF' },
   };
 }

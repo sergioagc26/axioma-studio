@@ -80,7 +80,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
     }));
     // Con música la mezcla sube de volumen: se nivela el resultado final.
-    if (timeline.musicSrc || timeline.voiceoverSrc) {
+    if (timeline.musicSrc || timeline.voiceoverSrc || timeline.sfx.length) {
       await normalizeMix(raw, out, project.audio.targetLufs);
       await rm(raw, { force: true });
     } else {
