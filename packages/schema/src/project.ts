@@ -168,7 +168,7 @@ export const Scene = z.object({
   /** Tamaño del video dentro del cuadro (1 = llena la pantalla; menos deja ver un fondo desenfocado). */
   videoScale: z.number().min(0.4).max(2.5).default(1),
   /** Fondo detrás de la persona recortada (necesita el recorte del proyecto). 'ninguno' = el video tal cual. */
-  backdrop: z.enum(['ninguno', 'oscuro', 'claro', 'marca', 'degradado', 'desenfoque', 'imagen']).default('ninguno'),
+  backdrop: z.enum(['ninguno', 'cine', 'oscuro', 'claro', 'marca', 'degradado', 'desenfoque', 'imagen']).default('ninguno'),
   /** Imagen o video del proyecto que va de fondo cuando backdrop es 'imagen'. */
   backdropFile: z.string().optional(),
   /** Giro del texto en grados y separación entre letras. */
@@ -309,6 +309,8 @@ export const Project = z.object({
   brief: z.record(z.string(), z.string()).default({}),
   /** Cuándo se armó la edición a partir del brief. */
   briefAppliedAt: z.string().optional(),
+  /** Si el reel es un clip de un video largo: el tramo del original que usa (s). */
+  clipRange: z.object({ start: z.number(), end: z.number() }).optional(),
   presetId: z.string().default('rapido'),
   /** Cuánto se edita al aplicar un estilo o editar con IA: más o menos textos, zooms, gráficos y sonidos. */
   intensity: z.enum(['suave', 'media', 'fuerte']).default('media'),

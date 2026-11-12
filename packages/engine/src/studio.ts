@@ -21,6 +21,8 @@ import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
 import { autoEdit } from './auto.ts';
+import { createClipProject, projectClips } from './clips.ts';
+import { matchSceneColors } from './colormatch.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
@@ -110,6 +112,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/pexels' && method === 'GET') return json(res, { results: await searchBroll(String(url.searchParams.get('q') ?? '').slice(0, 80), 9) });
   if (p === '/api/sonidos' && method === 'GET') return json(res, { results: await searchSounds(String(url.searchParams.get('q') ?? '').slice(0, 80)) });
   if (p === '/api/elegir-carpeta' && method === 'POST') return json(res, { folder: await pickFolder() });
+  if (p === '/api/clips' && method === 'GET') return json(res, { clips: await projectClips(await findDir(id)) });
   if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
   if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1') });
   if (p === '/api/claude' && method === 'POST') { await openClaudeLogin(); return json(res, { ok: true }); }
@@ -216,6 +219,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const kit = await saveKit(project.client, { name: b.name || undefined, sector: b.sector || undefined, personality: b.personality || undefined, primary: b.primary || undefined, secondary: b.secondary || undefined });
       const applied = await ops.applyBrandStyle(dir);
       return json(res, { kit, project: applied?.project ?? project, why: applied?.why ?? null });
+    }
+    if (b.op === 'igualar-color') { const r = await matchSceneColors(dir); return json(res, { project: r.project, changed: r.changed }); }
+    if (b.op === 'crear-clip') {
+      // Reel nuevo con un tramo del video largo, ya editado con IA.
+      const job = startJob('crear', async (j) => {
+        j.message = 'Creando el reel del clip…';
+        const made = await createClipProject(dir, { start: Number(b.start), end: Number(b.end), title: String(b.title ?? '') }, Number(b.n) || 1);
+        j.message = 'Editando el clip…';
+        const { summary } = await autoEdit(made.dir);
+        return { id: made.id, summary };
+      });
+      return json(res, job);
     }
     if (b.op === 'auto-editar') {
       // Edición completa sin preguntas: referencia del cliente + tendencia del nicho + lo que se ve en el video.

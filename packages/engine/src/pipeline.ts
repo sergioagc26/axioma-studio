@@ -117,7 +117,10 @@ export async function cutProject(dir: string, presetId?: string): Promise<CutRep
     project.captions = CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(project.client)) });
   }
   const { silences } = (await readAnalysis(dir)) ?? (await analyzeAudio(dir));
-  const { scenes, report } = autoCut(transcript.words, project.pacing, project.source.duration, silences);
+  // Un clip de un video largo solo usa su tramo.
+  const cr = project.clipRange;
+  const words = cr ? transcript.words.filter((w) => w.start >= cr.start - 0.05 && w.end <= cr.end + 0.05) : transcript.words;
+  const { scenes, report } = autoCut(words, project.pacing, project.source.duration, silences);
   project.scenes = scenes;
   await writeProject(dir, project);
   return report;

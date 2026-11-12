@@ -14,6 +14,7 @@ import { listPresets, savePreset } from './presets.ts';
 import { extractWav16k, mediaDuration, processVoice } from './media.ts';
 import { AUTO_SFX, ensureProjectSfx } from './sfx.ts';
 import { generateImage } from './imagegen.ts';
+import { ensureDepth } from './depth.ts';
 import { transcribeWav } from './transcribe.ts';
 import { synthesize, type TtsProvider } from './tts.ts';
 
@@ -370,6 +371,7 @@ export async function setBroll(dir: string, sceneId: string, file: string, info:
   scene.chosenVariant = undefined;
   // Una imagen quieta se anima con un acercamiento lento.
   if (/\.(jpe?g|png|webp)$/i.test(scene.brollFile) && scene.camera === 'ninguno') scene.camera = 'acercar';
+  await ensureDepth(dir, scene.brollFile);
   return writeProject(dir, project);
 }
 
@@ -393,11 +395,13 @@ export async function setBrollFromIdea(dir: string, sceneId: string, idea: strin
       scene.brollFile = undefined;
       scene.backdrop = 'imagen';
       scene.visual = 'original';
+      await ensureDepth(dir, scene.backdropFile);
       return await writeProject(dir, project);
     }
     scene.visual = 'broll';
     scene.chosenVariant = undefined;
     if (scene.camera === 'ninguno') scene.camera = 'acercar';
+    await ensureDepth(dir, scene.brollFile);
     return await writeProject(dir, project);
   } finally {
     await rm(path.dirname(file), { recursive: true, force: true });
@@ -410,6 +414,7 @@ export async function setBackdropFile(dir: string, sceneId: string, file: string
   const scene = findScene(project, sceneId);
   scene.backdropFile = await importAsset(dir, project, file, 'broll', { source: 'subido en el studio', license: 'propia' });
   scene.backdrop = 'imagen';
+  await ensureDepth(dir, scene.backdropFile);
   return writeProject(dir, project);
 }
 

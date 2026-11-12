@@ -27,3 +27,6 @@ export * from './auto.ts';
 export * from './matte.ts';
 export * from './sounds.ts';
 export * from './env.ts';
+export * from './clips.ts';
+export * from './depth.ts';
+export * from './colormatch.ts';

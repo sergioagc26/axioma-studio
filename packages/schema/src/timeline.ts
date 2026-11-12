@@ -67,6 +67,9 @@ export type TimelineClip = {
   /** Fondo detrás de la persona recortada. */
   backdrop?: string;
   backdropSrc?: string;
+  /** Mapas de profundidad de las imágenes (cámara 3D). */
+  brollDepthSrc?: string;
+  backdropDepthSrc?: string;
   /** Posición de este tramo dentro de su escena (para el movimiento de cámara continuo). */
   sceneFrames: number;
   visual: Scene['visual'];
@@ -137,6 +140,8 @@ export interface TimelineUrls {
   voiceover?: { src: string; words: Transcript['words'] };
   /** Video con la persona recortada, si ya se hizo. */
   cutout?: string;
+  /** Mapas de profundidad que existen en el proyecto (rutas relativas). */
+  depth?: string[];
   /** Parte del cuadro que ocupa la persona, dos veces por segundo. */
   cutoutCoverage?: number[];
   /** Posición de la cara a lo largo del video fuente. */
@@ -163,6 +168,8 @@ export type FormatId = keyof typeof FORMATS;
  * no se acumule desfase entre clips.
  */
 /** ¿Hay una persona en este tramo? Sin ella no se cambia el fondo: el cuadro quedaría vacío. */
+const depthOf = (rel: string) => rel.replace(/\.(jpe?g|png|webp)$/i, '.depth.png');
+
 function hasPerson(cov: number[] | undefined, start: number, end: number): boolean {
   if (!cov?.length) return true;
   const part = cov.slice(Math.floor(start * 2), Math.max(Math.floor(start * 2) + 1, Math.ceil(end * 2)));
@@ -238,6 +245,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
           videoScale: scene.videoScale,
           backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, r.start, r.end) ? scene.backdrop : undefined,
           backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,
+          brollDepthSrc: brollSrc && urls.depth?.includes(depthOf(brollFile!)) ? urls.asset!(depthOf(brollFile!)) : undefined,
+          backdropDepthSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.depth?.includes(depthOf(scene.backdropFile)) ? urls.asset!(depthOf(scene.backdropFile)) : undefined,
           sceneFrames: 0,
           sceneId: scene.id,
           fromFrame: from,

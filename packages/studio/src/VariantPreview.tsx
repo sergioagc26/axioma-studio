@@ -19,7 +19,7 @@ export const VariantPreview: React.FC<{
     if (variant) applyVariant(scene, variant);
     const t = buildTimeline(copy, transcript, {
       video: media(copy.source.proxy ?? 'media/master.mp4'),
-      asset: media, brand: store.brand, faces: store.extras?.faces, transitions: store.extras?.transitions, voiceover: store.extras?.voiceover, cutout: store.extras?.cutout, cutoutCoverage: store.extras?.cutoutCoverage,
+      asset: media, brand: store.brand, faces: store.extras?.faces, transitions: store.extras?.transitions, voiceover: store.extras?.voiceover, cutout: store.extras?.cutout, cutoutCoverage: store.extras?.cutoutCoverage, depth: store.extras?.depth,
     });
     const clips = t.clips.filter((c) => c.sceneId === sceneId);
     const from = clips[0]?.fromFrame ?? 0;

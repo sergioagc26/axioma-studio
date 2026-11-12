@@ -194,6 +194,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     voiceover: store.extras?.voiceover,
     cutout: store.extras?.cutout,
     cutoutCoverage: store.extras?.cutoutCoverage,
+    depth: store.extras?.depth,
     faces: store.extras?.faces,
     transitions: store.extras?.transitions,
   }), [project, store.transcript, store.brand, store.extras]);
@@ -415,6 +416,23 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ctx.toast(`Aplicado: ${a.title.toLowerCase()}.`);
     } catch (e: any) { ctx.toast(e.message); }
   };
+  // Clips para redes sacados del video largo (solo si el original dura más de 45 s).
+  type Clip = { start: number; end: number; title: string; score: number; hook: number; flow: number; value: number; reasons: string[] };
+  const [clips, setClips] = useState<Clip[] | null>(null);
+  const [makingClip, setMakingClip] = useState('');
+  const longVideo = project.source.duration > 45 && !project.clipRange && project.kind === 'hablado';
+  const findClips = async () => {
+    try { setClips((await api<{ clips: Clip[] }>(`/api/clips?id=${encodeURIComponent(project.id)}`)).clips); } catch (e: any) { ctx.toast(e.message); }
+  };
+  const makeClip = async (c: Clip, n: number) => {
+    setMakingClip('Creando el reel del clip…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'crear-clip', ...c, n }) });
+      const done = await waitJob(job, (j) => setMakingClip(j.message || 'Creando…'));
+      ctx.toast(`Clip listo. ${(done.result?.summary as string[] ?? []).join(' ')}`);
+      ctx.go('editor', { p: done.result?.id, s: null });
+    } catch (e: any) { ctx.toast(`No se pudo crear el clip: ${e.message}`); } finally { setMakingClip(''); }
+  };
   /** Recorta a la persona de todo el video; después cada escena puede cambiar de fondo. */
   const cutBackground = async () => {
     setCutting('Recortando a la persona…');
@@ -489,6 +507,27 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </details>
             )}
           </div>
+          {longVideo && (
+            <details className="grp" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !clips) findClips(); }}>
+              <summary>Clips para redes</summary>
+              <div className="col">
+                <span className="small muted">Los mejores tramos de 20–60 s de este video, con puntaje de gancho (G), cierre (C) y valor (V). Cada uno se vuelve un reel nuevo ya editado.</span>
+                {clips === null && <span className="small muted">Buscando…</span>}
+                {clips?.length === 0 && <span className="small muted">No encontré tramos con un gancho y un cierre claros.</span>}
+                {clips?.map((c, i) => (
+                  <div key={c.start} className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--panel2)', gap: 4 }}>
+                    <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+                      <strong className="small" style={{ minWidth: 0 }}>«{c.title}»</strong>
+                      <span className="pill" style={{ flex: 'none' }}>{c.score}</span>
+                    </div>
+                    <span className="small muted">{Math.round(c.end - c.start)} s · G {c.hook} · C {c.flow} · V {c.value}</span>
+                    <span className="small muted">{c.reasons.join(' · ')}</span>
+                    <button className="btn rect" style={{ height: 30, alignSelf: 'flex-start' }} disabled={Boolean(makingClip)} onClick={() => makeClip(c, i + 1)}>{makingClip || 'Crear reel de este clip'}</button>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
           {advice.length > 0 && (
             <details className="grp" open>
               <summary>Sugerencias ({advice.length})</summary>
@@ -558,6 +597,14 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 Object.assign(p.finish, { grain: true, vignette: true, halation: true });
               })}>Look de cine en un clic</button>
               <span className="small muted">Pone en todas las escenas el color de cine, grano, bordes oscuros, brillo y la cámara acercándose despacio.</span>
+              <button className="btn rect" style={{ height: 34 }} onClick={async () => {
+                try {
+                  const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'igualar-color' }) });
+                  store.replace(d.project);
+                  ctx.toast(d.changed ? `Color igualado en ${d.changed} escena${d.changed > 1 ? 's' : ''}.` : 'Las escenas ya tenían un color parejo.');
+                } catch (e: any) { ctx.toast(e.message); }
+              }}>Igualar el color entre escenas</button>
+              <span className="small muted">Ajusta brillo y color de las tomas que se salen, para que todo parezca del mismo rodaje.</span>
               <span className="small muted">La calidad y la carpeta se eligen al pulsar «Exportar».</span>
             </div>
           </details>
@@ -772,6 +819,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <label className="field">Fondo detrás de la persona
               <select value={scene.backdrop} disabled={!store.extras?.cutout} onChange={(e) => edit((s) => { s.backdrop = e.target.value as Scene['backdrop']; })}>
                 <option value="ninguno">El del video (sin cambios)</option>
+                <option value="cine">Desenfoque de cine (el fondo real, fuera de foco)</option>
                 <option value="desenfoque">Mi video desenfocado</option>
                 <option value="oscuro">Oscuro</option>
                 <option value="claro">Claro</option>

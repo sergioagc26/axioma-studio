@@ -11,6 +11,7 @@ import { learnFromExport, readKit } from './kit.ts';
 import { allTransitions } from './transitions.ts';
 import { normalizeMix } from './media.ts';
 import { ensureUsedSfx } from './sfx.ts';
+import { depthPath, ensureProjectDepth } from './depth.ts';
 import { publishPack, publishText } from '@axioma/schema';
 import { P, REMOTION_ENTRY } from './paths.ts';
 import { serveFolder } from './server.ts';
@@ -43,7 +44,7 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
   const voiceover = vo && existsSync(path.join(dir, vo.file))
     ? { src: asset(vo.file), words: existsSync(wordsFile) ? (JSON.parse(await readFile(wordsFile, 'utf8')).words as Transcript['words']) : [] }
     : undefined;
-  return { voiceover, faces: await readFaces(dir), transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir) };
+  return { voiceover, faces: await readFaces(dir), transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
 }
 
 export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void } = {}) {
@@ -51,6 +52,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
   const transcript = await readTranscript(dir);
   await ensureUsedSfx(dir, project);
+  await ensureProjectDepth(dir, project);
   const server = await serveFolder(dir);
   try {
     const has = (rel?: string) => Boolean(rel && existsSync(path.join(dir, rel)));

@@ -111,6 +111,30 @@ export const Reel: React.FC<Timeline> = (t) => {
   );
 };
 
+/**
+ * Cámara 3D sobre una foto: con el mapa de profundidad, lo cercano (claro en el mapa) se mueve
+ * y crece más que el fondo, como un paralaje de cine. Sin mapa, zoom plano.
+ */
+const Parallax: React.FC<{ src: string; depth?: string; clip: TimelineClip; base: React.CSSProperties }> = ({ src, depth, clip, base }) => {
+  const frame = useCurrentFrame();
+  const at = Math.min(1, (clip.sceneOffsetFrames + frame) / Math.max(1, clip.sceneFrames || clip.durationInFrames));
+  const a = Math.max(0.06, clip.cameraAmount);
+  const dir = clip.camera === 'alejar' ? -1 : 1;
+  const sx = clip.camera === 'izquierda' ? -1 : clip.camera === 'derecha' ? 1 : 0;
+  const sy = clip.camera === 'arriba' ? -1 : clip.camera === 'abajo' ? 1 : 0;
+  const layer = (k: number): React.CSSProperties => ({
+    position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: base.filter,
+    transform: `translate(${(at - 0.5) * sx * a * 60 * k}%, ${(at - 0.5) * sy * a * 60 * k}%) scale(${1.06 + a * k * (dir > 0 ? at : 1 - at)})`,
+  });
+  if (!depth) return <Img src={src} style={base} />;
+  return (
+    <AbsoluteFill>
+      <Img src={src} style={{ ...layer(0.55), filter: `${base.filter ?? ''} blur(2.5px)`.trim() }} />
+      <Img src={src} style={{ ...layer(1), maskImage: `url(${depth})`, maskMode: 'luminance', maskSize: 'cover', maskPosition: 'center', WebkitMaskImage: `url(${depth})`, WebkitMaskSize: 'cover' } as React.CSSProperties} />
+    </AbsoluteFill>
+  );
+};
+
 /** Grano de película: ruido que cambia en cada fotograma, muy sutil. */
 const Grain: React.FC = () => {
   const frame = useCurrentFrame();
@@ -207,14 +231,15 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
       ) : clip.brollSrc ? (
         // Una imagen como b-roll: el movimiento de cámara de la escena la anima.
-        /\.(jpe?g|png|webp)(\?|$)/i.test(clip.brollSrc) ? <Img src={clip.brollSrc} style={cover} />
+        /\.(jpe?g|png|webp)(\?|$)/i.test(clip.brollSrc) ? <Parallax src={clip.brollSrc} depth={clip.brollDepthSrc} clip={clip} base={cover} />
         : <OffthreadVideo src={clip.brollSrc} trimBefore={clip.sceneOffsetFrames} muted style={cover} />
       ) : clip.backdrop && t.cutoutSrc ? (
         // Persona recortada sobre otro fondo: color, degradado, el video desenfocado o una imagen.
         <>
-          {clip.backdrop === 'desenfoque' ? <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55)', transform: 'scale(1.2)' }} />
+          {clip.backdrop === 'cine' ? <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%`, filter: `${filter ?? ''} blur(11px) brightness(0.92)`.trim() }} />
+            : clip.backdrop === 'desenfoque' ? <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55)', transform: 'scale(1.2)' }} />
             : clip.backdrop === 'imagen' && clip.backdropSrc ? (/\.(jpe?g|png|webp)(\?|$)/i.test(clip.backdropSrc)
-              ? <Img src={clip.backdropSrc} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${1.05 + 0.08 * (frame / Math.max(1, clip.durationInFrames))})` }} />
+              ? <Parallax src={clip.backdropSrc} depth={clip.backdropDepthSrc} clip={clip} base={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${1.05 + 0.08 * (frame / Math.max(1, clip.durationInFrames))})` }} />
               : <OffthreadVideo src={clip.backdropSrc} trimBefore={clip.sceneOffsetFrames} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)
             : <AbsoluteFill style={{ background: clip.backdrop === 'claro' ? '#F4F1EA' : clip.backdrop === 'marca' ? t.brand.primary : clip.backdrop === 'degradado' ? `linear-gradient(${150 + 40 * Math.sin((clip.fromFrame + frame) / 45)}deg, ${t.brand.primary}, ${t.brand.secondary})` : '#0B0B0F' }} />}
           <AbsoluteFill>
