@@ -10,7 +10,7 @@ import { measureLufs, probe } from './media.ts';
 import { setVoiceover } from './ops.ts';
 import { cutProject, editMontage, editVideo, prepareMedia, transcribeProject } from './pipeline.ts';
 import { renderProject } from './render.ts';
-import { openBrowser, startStudio, studioUrl } from './studio.ts';
+import { lanAddresses, lanKey, openBrowser, startStudio, studioUrl } from './studio.ts';
 import { ensureWhisper } from './transcribe.ts';
 
 const program = new Command();
@@ -47,10 +47,21 @@ program
   .command('studio')
   .argument('[proyecto]', 'id del proyecto a abrir')
   .option('--no-open', 'no abrir el navegador')
+  .option('--red', 'permitir abrirla desde otros equipos de tu red (con clave)')
   .description('Abre la interfaz (storyboard, editor, variantes)')
   .action(async (id, o) => {
-    const url = studioUrl(await startStudio(), id ? 'storyboard' : 'proyectos', id);
-    console.log(`Studio: ${url}\nCtrl+C para cerrarlo.`);
+    const network = Boolean(o.red) || process.env.AXIOMA_RED === '1';
+    const url = studioUrl(await startStudio({ network }), id ? 'storyboard' : 'proyectos', id);
+    console.log(`Studio: ${url}`);
+    if (network) {
+      const key = await lanKey();
+      const port = new URL(url).port;
+      const ips = lanAddresses();
+      console.log(ips.length
+        ? `\nDesde tu portátil (misma red Wi-Fi), abre en el navegador:\n${ips.map((ip) => `  http://${ip}:${port}/?clave=${key}`).join('\n')}\nLa clave queda guardada en ese navegador. Si el Mac pregunta si permites conexiones entrantes para «node», pulsa Permitir.`
+        : '\nNo encontré una red local activa en este computador.');
+    }
+    console.log('\nCtrl+C para cerrarlo.');
     if (o.open) openBrowser(url);
   });
 

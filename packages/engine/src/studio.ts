@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, watch } from 'node:fs';
-import { appendFile, mkdir, readFile, rm } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -92,8 +92,47 @@ async function thumb(dir: string, t: number, rel?: string | null): Promise<strin
   return out;
 }
 
+// --- Acceso desde otros equipos de la red (por ejemplo, el portátil) ---
+let networkKey: string | null = null;
+const isLoopback = (a?: string) => !a || a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+
+/** Clave de acceso para la red: se crea una vez y se guarda en workspace/clave-red.txt. */
+export async function lanKey(): Promise<string> {
+  const file = path.join(WORKSPACE, 'clave-red.txt');
+  try { const k = (await readFile(file, 'utf8')).trim(); if (k.length >= 12) return k; } catch { /* se crea */ }
+  const { randomBytes } = await import('node:crypto');
+  const k = randomBytes(12).toString('base64url');
+  await mkdir(WORKSPACE, { recursive: true });
+  await writeFile(file, k + '\n', { mode: 0o600 });
+  return k;
+}
+
+/** Direcciones de este equipo en la red local (para abrir la app desde el portátil). */
+export function lanAddresses(): string[] {
+  return Object.values(os.networkInterfaces()).flat().filter((i): i is os.NetworkInterfaceInfo => Boolean(i && i.family === 'IPv4' && !i.internal)).map((i) => i.address);
+}
+
+/**
+ * Los equipos de la red necesitan la clave: la primera vez llega en el enlace (?clave=) y
+ * queda guardada en una cookie del navegador. Este mismo computador no la necesita.
+ * Devuelve true si la petición ya se respondió (rechazo o redirección).
+ */
+function guardNetwork(req: http.IncomingMessage, res: http.ServerResponse, url: URL): boolean {
+  if (!networkKey || isLoopback(req.socket.remoteAddress)) return false;
+  const cookie = /(?:^|;\s*)axioma=([^;]+)/.exec(req.headers.cookie ?? '')?.[1];
+  if (cookie === networkKey) return false;
+  if (url.searchParams.get('clave') === networkKey) {
+    url.searchParams.delete('clave');
+    res.writeHead(302, { 'Set-Cookie': `axioma=${networkKey}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`, Location: url.pathname + (url.search || '') }).end();
+    return true;
+  }
+  res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' }).end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${APP_NAME}</title><body style="font-family:system-ui;background:#111;color:#eee;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px"><div style="max-width:420px"><h1>${APP_NAME}</h1><p>Para entrar desde este equipo, abre el enlace con la clave que muestra el computador donde corre la app (empieza con <code>http://</code> y termina en <code>?clave=…</code>).</p></div>`);
+  return true;
+}
+
 async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://x');
+  if (guardNetwork(req, res, url)) return;
   const p = url.pathname;
   const id = url.searchParams.get('id');
   const method = req.method ?? 'GET';
@@ -529,8 +568,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 let running: Promise<string> | null = null;
 
 /** Arranca el studio (o reutiliza el que ya corre) y devuelve su URL base. */
-export function startStudio(): Promise<string> {
-  running ??= new Promise<string>((resolve, reject) => {
+export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
+  running ??= new Promise<string>(async (resolve, reject) => {
+    // En modo red se escucha en todas las interfaces y se exige la clave a los demás equipos.
+    if (opts.network) networkKey = await lanKey();
     const base = `http://127.0.0.1:${STUDIO_PORT}`;
     const server = http.createServer((req, res) => {
       handle(req, res).catch((e) => {
@@ -550,7 +591,7 @@ export function startStudio(): Promise<string> {
       } catch { /* no es nuestro */ }
       reject(new Error(`El puerto ${STUDIO_PORT} está ocupado por otro programa. Usa SE_STUDIO_PORT para cambiarlo.`));
     });
-    server.listen(STUDIO_PORT, '127.0.0.1', () => resolve(base));
+    server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => resolve(base));
   });
   return running;
 }

@@ -12,7 +12,8 @@
     "remotion:studio": "remotion studio packages/remotion/src/index.ts",
     "setup": "node scripts/setup.mjs",
     "build:studio": "npm run build -w @axioma/studio",
-    "studio": "tsx packages/engine/src/cli.ts studio"
+    "studio": "tsx packages/engine/src/cli.ts studio",
+    "studio:red": "tsx packages/engine/src/cli.ts studio --red"
   },
   "engines": {
     "node": ">=20"

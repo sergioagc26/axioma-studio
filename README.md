@@ -102,6 +102,16 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## Abrir la app desde el portátil
+
+La app corre en este computador (el Mac mini) y el portátil solo necesita un navegador; los cortes, el render y la IA se hacen aquí.
+
+1. En el Mac mini, haz doble clic en **«Abrir Axioma Studio.command»** (o corre `npm run studio:red`).
+2. La ventana muestra un enlace como `http://192.168.x.x:4747/?clave=…`. Ábrelo en el navegador del portátil, conectado a la misma red Wi-Fi.
+3. La primera vez el Mac puede preguntar si permites conexiones entrantes para «node»: pulsa Permitir.
+
+La clave queda guardada en ese navegador por 30 días; sin ella nadie más de la red puede entrar. Está en `workspace/clave-red.txt`; bórrala y reinicia la app para cambiarla. El Mac mini tiene que estar encendido y con la app abierta. Fuera de casa no funciona tal cual: para eso hace falta una red privada como Tailscale.
+
 ## IA local (gratis, sin internet)
 
 Si Claude no está conectado, la app usa un modelo de lenguaje que corre en tu computador con [Ollama](https://ollama.com):
