@@ -74,7 +74,7 @@ export interface VoiceOptions { denoise: boolean; denoiseLevel?: 'suave' | 'medi
 /**
  * Voz limpia y nivelada: filtro de graves, reducción de ruido (suave, media o
  * fuerte), realce opcional (más presencia y volumen parejo) y loudnorm en dos
- * pasadas al objetivo (por defecto -16 LUFS, lo habitual en Instagram).
+ * pasadas al objetivo (por defecto -14 LUFS, el nivel de Reels, TikTok y YouTube).
  */
 export async function processVoice(input: string, out: string, { denoise, denoiseLevel = 'media', enhance = false, targetLufs }: VoiceOptions) {
   const nr = { suave: 8, media: 12, fuerte: 24 }[denoiseLevel];

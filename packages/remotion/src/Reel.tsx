@@ -90,6 +90,13 @@ export const Reel: React.FC<Timeline> = (t) => {
           <Caption chunk={ch} font={font} t={t} />
         </Sequence>
       ))}
+      {t.finish.halation ? <AbsoluteFill style={{ backdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', WebkitBackdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', mixBlendMode: 'screen', opacity: 0.28, pointerEvents: 'none' }} /> : null}
+      {t.finish.letterbox ? (
+        <AbsoluteFill style={{ pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '7%', background: '#000' }} />
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '7%', background: '#000' }} />
+        </AbsoluteFill>
+      ) : null}
       {t.finish.vignette ? <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%)', pointerEvents: 'none' }} /> : null}
       {t.finish.grain ? <Grain /> : null}
       {t.finish.progressBar ? <Progress t={t} /> : null}
@@ -155,8 +162,21 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
     case 'temblor': drift = 1 + amt * 0.5; dx = Math.sin(abs * 0.9) * amt * 9; dy = Math.cos(abs * 1.3) * amt * 9; break;
   }
   const filter = [LOOKS[clip.look], clip.adjust].filter(Boolean).join(' ') || undefined;
-  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * clip.videoScale})`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
   const pos = coverPosition(t, clip.focusX, clip.focusY);
+  // Zoom en la palabra importante: cada énfasis alterna entre acercar y alejar, con un muelle corto.
+  let kz = 1;
+  if (t.emphasis?.length && clip.visual === 'original' && !clip.motion) {
+    const absF = clip.fromFrame + frame;
+    let n = 0;
+    while (n < t.emphasis.length && t.emphasis[n] <= absF) n++;
+    if (n > 0) {
+      const p = spring({ frame: absF - t.emphasis[n - 1], fps, config: { damping: 18, stiffness: 220 }, durationInFrames: 8 });
+      const from = (n - 1) % 2 === 1 ? 1.13 : 1;
+      const to = n % 2 === 1 ? 1.13 : 1;
+      kz = interpolate(p, [0, 1], [from, to]);
+    }
+  }
+  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: `${pos.x * 100}% ${pos.y * 100}%`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
   const fadeVol = (f: number) => t.originalVolume * Math.min(1, (f + 1) / 2, (clip.durationInFrames - f) / 2);

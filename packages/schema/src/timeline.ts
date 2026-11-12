@@ -117,7 +117,9 @@ export type Timeline = {
   captions: CaptionStyle;
   brand: Brand;
   /** Acabados de todo el reel. */
-  finish: { progressBar: boolean; grain: boolean; vignette: boolean };
+  finish: { progressBar: boolean; grain: boolean; vignette: boolean; keywordZoom: boolean; halation: boolean; letterbox: boolean };
+  /** Fotogramas donde el zoom cambia (acercar/alejar) en la palabra importante de una frase. */
+  emphasis: number[];
   /** Efectos de sonido colocados en la salida. */
   sfx: { src: string; fromFrame: number; volume: number }[];
 };
@@ -165,6 +167,30 @@ function hasPerson(cov: number[] | undefined, start: number, end: number): boole
   if (!cov?.length) return true;
   const part = cov.slice(Math.floor(start * 2), Math.max(Math.floor(start * 2) + 1, Math.ceil(end * 2)));
   return part.length ? part.reduce((a, b) => a + b, 0) / part.length >= 0.2 : true;
+}
+
+/**
+ * Dónde hacer zoom: en la palabra importante de cada frase (un número o la palabra con
+ * más significado), con una separación mínima según la intensidad para no marear.
+ */
+function emphasisFrames(words: { text: string; startFrame: number; endFrame: number }[], fps: number, level: 'suave' | 'media' | 'fuerte'): number[] {
+  const gap = fps * (level === 'suave' ? 6 : level === 'fuerte' ? 2.2 : 3.5);
+  const out: number[] = [];
+  let phrase: typeof words = [];
+  const flush = () => {
+    if (phrase.length >= 2) {
+      const key = keywordOf(phrase.map((w) => w.text).join(' '));
+      const hit = key ? phrase.find((w) => w.text.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase() === key.replace(/[^\p{L}\p{N}]/gu, '').toLowerCase()) : undefined;
+      if (hit && (!out.length || hit.startFrame - out[out.length - 1] >= gap)) out.push(hit.startFrame);
+    }
+    phrase = [];
+  };
+  words.forEach((w, i) => {
+    phrase.push(w);
+    const next = words[i + 1];
+    if (/[.,;:!?…]$/.test(w.text) || !next || next.startFrame - w.endFrame > fps * 0.35) flush();
+  });
+  return out;
 }
 
 export function buildTimeline(project: Project, transcript: Transcript | null, urls: TimelineUrls): Timeline {
@@ -334,6 +360,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     captions: project.captions,
     sfx,
     finish: project.finish,
+    emphasis: project.finish.keywordZoom ? emphasisFrames(words, fps, project.intensity ?? 'media') : [],
     brand: urls.brand ?? { primary: project.captions.highlightColor, secondary: '#25F4EE', text: '#FFFFFF' },
   };
 }

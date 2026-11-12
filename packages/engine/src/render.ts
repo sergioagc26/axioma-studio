@@ -1,6 +1,6 @@
 import { cutoutCoverage } from './matte.ts';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
@@ -10,6 +10,8 @@ import { readFaces } from './faces.ts';
 import { learnFromExport, readKit } from './kit.ts';
 import { allTransitions } from './transitions.ts';
 import { normalizeMix } from './media.ts';
+import { ensureUsedSfx } from './sfx.ts';
+import { publishPack, publishText } from '@axioma/schema';
 import { P, REMOTION_ENTRY } from './paths.ts';
 import { serveFolder } from './server.ts';
 import { readProject, readTranscript } from './store.ts';
@@ -48,6 +50,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
   const project = await readProject(dir);
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
   const transcript = await readTranscript(dir);
+  await ensureUsedSfx(dir, project);
   const server = await serveFolder(dir);
   try {
     const has = (rel?: string) => Boolean(rel && existsSync(path.join(dir, rel)));
@@ -85,14 +88,18 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       concurrency: Math.max(1, Math.min(8, Math.floor(os.cpus().length / 2))),
       onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
     }));
-    // Con música la mezcla sube de volumen: se nivela el resultado final.
-    if (timeline.musicSrc || timeline.voiceoverSrc || timeline.sfx.length) {
+    // Siempre se nivela el resultado final al volumen elegido (−14 LUFS para redes).
+    try {
       await normalizeMix(raw, out, project.audio.targetLufs);
       await rm(raw, { force: true });
-    } else {
-      await rename(raw, out);
+    } catch {
+      await rename(raw, out); // sin pista de audio no hay nada que nivelar
     }
     opts.onProgress?.(1);
+    // Al lado del video queda el texto para publicar: título, descripción y hashtags.
+    const kit = await readKit(project.client).catch(() => null);
+    const pack = publishPack(project, transcript, kit?.sector);
+    await writeFile(out.replace(/\.mp4$/i, '') + '.txt', publishText(pack)).catch(() => {});
     // La marca aprende con qué diseño se exporta.
     const titles = project.scenes.filter((x) => x.onScreenText).map((x) => x.textStyle);
     await learnFromExport(project.client, project.captions.design, titles.sort((a, b) => titles.filter((x) => x === b).length - titles.filter((x) => x === a).length)[0]).catch(() => {});

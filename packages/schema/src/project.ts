@@ -229,7 +229,7 @@ export const Preset = z.object({
     /** Un motion graphic hecho con lo que se dice cada tantas escenas (0 = ninguno). */
     motionEvery: z.number().int().min(0).optional(),
     /** Acabados de todo el reel. */
-    finish: z.object({ progressBar: z.boolean().optional(), grain: z.boolean().optional(), vignette: z.boolean().optional() }).optional(),
+    finish: z.object({ progressBar: z.boolean().optional(), grain: z.boolean().optional(), vignette: z.boolean().optional(), halation: z.boolean().optional(), letterbox: z.boolean().optional() }).optional(),
   }).optional(),
   /** Colores de la referencia o del cliente (informativo). */
   palette: z.array(z.string()).optional(),
@@ -323,7 +323,7 @@ export const Project = z.object({
     enhance: z.boolean().default(false),
     /** Efectos automáticos: barrido en cada transición y un "pop" al entrar cada texto. */
     sfxAuto: z.boolean().default(false),
-    targetLufs: z.number().default(-16),
+    targetLufs: z.number().default(-14),
     /** Audio de voz procesado (limpio y nivelado), relativo al proyecto. */
     processedVoice: z.string().optional(),
     music: z.string().optional(),
@@ -338,7 +338,7 @@ export const Project = z.object({
       voice: z.string().optional(),
       duration: z.number(),
     }).optional(),
-  }).default({ denoise: true, denoiseLevel: 'media', enhance: false, sfxAuto: false, targetLufs: -16, musicVolume: 0.18, originalVolume: 1 }),
+  }).default({ denoise: true, denoiseLevel: 'media', enhance: false, sfxAuto: false, targetLufs: -14, musicVolume: 0.18, originalVolume: 1 }),
   /** Acabados profesionales de todo el reel. */
   finish: z.object({
     /** Barra de progreso arriba: ayuda a que la gente se quede hasta el final. */
@@ -347,7 +347,13 @@ export const Project = z.object({
     grain: z.boolean().default(false),
     /** Bordes oscuros suaves en todo el reel. */
     vignette: z.boolean().default(false),
-  }).default({ progressBar: false, grain: false, vignette: false }),
+    /** Zoom suave en la palabra importante de cada frase, alternando acercar y alejar, centrado en la cara. */
+    keywordZoom: z.boolean().default(true),
+    /** Brillo de cine: las luces se abren con un halo suave. */
+    halation: z.boolean().default(false),
+    /** Barras de cine arriba y abajo. */
+    letterbox: z.boolean().default(false),
+  }).default({ progressBar: false, grain: false, vignette: false, keywordZoom: true, halation: false, letterbox: false }),
   /** Cómo y dónde se exporta. */
   export: z.object({
     /** maxima: casi sin compresión (archivos grandes); alta: la recomendada para redes; ligera: para enviar rápido. */

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { APP_NAME } from '@axioma/schema';
+import { APP_NAME, publishPack, publishText } from '@axioma/schema';
 import { api, useProject, waitJob, type Job, type ProjectStore } from './useProject.ts';
 import { Audio } from './screens/Audio.tsx';
 import { Brief } from './screens/Brief.tsx';
@@ -40,6 +40,7 @@ export const App: React.FC = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [calidad, setCalidad] = useState<'maxima' | 'alta' | 'ligera'>('alta');
   const [carpeta, setCarpeta] = useState('');
+  const [lufs, setLufs] = useState(-14);
   // ¿Claude tiene sesión iniciada? null = todavía comprobando.
   const [claude, setClaude] = useState<boolean | null>(null);
   useEffect(() => { api('/api/claude').then((d) => setClaude(d.conectado)).catch(() => setClaude(false)); }, []);
@@ -98,10 +99,12 @@ export const App: React.FC = () => {
     return () => removeEventListener('keydown', on);
   }, [store.undo, store.redo]);
 
+  const pubText = project ? publishText(publishPack(project, store.transcript, store.kit?.sector)) : '';
   const openExport = () => {
     if (!project) return;
     setCalidad(project.export.quality);
     setCarpeta(project.export.folder ?? '');
+    setLufs(project.audio.targetLufs <= -15 ? -16 : -14);
     setExportOpen(true);
   };
   const pickFolder = async () => {
@@ -115,7 +118,7 @@ export const App: React.FC = () => {
     setExportOpen(false);
     try {
       const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta, lufs }),
       });
       const done = await waitJob(job, setRender);
       toast(`Exportado en: ${done.result?.path}`);
@@ -199,12 +202,23 @@ export const App: React.FC = () => {
                 </button>
               ))}
             </div>
+            <span className="small muted">Volumen</span>
+            <div className="opts" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              {([[-14, 'Redes sociales', 'Reels, TikTok y YouTube (−14 LUFS).'], [-16, 'Más suave', 'Para web o presentaciones (−16 LUFS).']] as const).map(([v, name, desc]) => (
+                <button key={v} className={`opt ${lufs === v ? 'on' : ''}`} aria-pressed={lufs === v} onClick={() => setLufs(v)}>
+                  <strong>{name}</strong><span className="muted small">{desc}</span>
+                </button>
+              ))}
+            </div>
             <span className="small muted">¿Dónde lo guardo?</span>
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <input className="input" style={{ flex: 1, minWidth: 0 }} value={carpeta} onChange={(e) => setCarpeta(e.target.value)} placeholder="Dentro del proyecto (carpeta renders)" />
               <button className="btn rect" onClick={pickFolder}>Elegir carpeta…</button>
             </div>
             <span className="small muted">Se recuerda para la próxima vez. Vacío = dentro del proyecto.</span>
+            <span className="small muted">Texto para publicar (también se guarda junto al video como .txt)</span>
+            <textarea className="input" readOnly rows={6} style={{ resize: 'vertical', fontFamily: 'inherit' }} value={pubText} />
+            <button className="btn rect" style={{ alignSelf: 'flex-start' }} onClick={() => { navigator.clipboard?.writeText(pubText).then(() => toast('Texto copiado.')).catch(() => toast('No se pudo copiar; selecciónalo y cópialo a mano.')); }}>Copiar texto</button>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setExportOpen(false)}>Cancelar</button>
               <button className="btn primary" onClick={exportar}>Exportar MP4</button>

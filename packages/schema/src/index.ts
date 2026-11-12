@@ -6,3 +6,5 @@ export * from './suggest.ts';
 export * from './brand.ts';
 export * from './trends.ts';
 export * from './captionStyles.ts';
+export * from './advice.ts';
+export * from './publish.ts';

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@axioma/schema';
+import { adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@axioma/schema';
 import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -402,6 +402,19 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     store.replace(d.project);
     await store.reloadExtras();
   };
+  // Sugerencias que la app detecta; el usuario decide cuáles aplicar.
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const advice = useMemo(() => adviseProject(project, store.transcript).filter((a) => !dismissed.includes(a.id)), [project, store.transcript, dismissed]);
+  const applyAdvice = async (a: ReturnType<typeof adviseProject>[number]) => {
+    if (a.go) return ctx.go(a.go, {});
+    if (a.fix) { store.update((p) => a.fix!(p)); return ctx.toast(`Aplicado: ${a.title.toLowerCase()}.`); }
+    try {
+      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a.op) });
+      if (d.id && d.status) await waitJob(d, () => {});
+      await reloadProject();
+      ctx.toast(`Aplicado: ${a.title.toLowerCase()}.`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
   /** Recorta a la persona de todo el video; después cada escena puede cambiar de fondo. */
   const cutBackground = async () => {
     setCutting('Recortando a la persona…');
@@ -476,6 +489,23 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </details>
             )}
           </div>
+          {advice.length > 0 && (
+            <details className="grp" open>
+              <summary>Sugerencias ({advice.length})</summary>
+              <div className="col">
+                {advice.map((a) => (
+                  <div key={a.id} className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--panel2)', gap: 6 }}>
+                    <strong className="small">{a.title}</strong>
+                    <span className="small muted">{a.why}</span>
+                    <div className="row" style={{ gap: 6 }}>
+                      <button className="btn primary" style={{ height: 30 }} onClick={() => applyAdvice(a)}>{a.go ? 'Ir' : 'Aplicar'}</button>
+                      <button className="btn ghost" style={{ height: 30 }} onClick={() => setDismissed((d) => [...d, a.id])}>Ahora no</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
           <details className="grp" open>
             <summary>Estilos</summary>
             <div className="col">
@@ -520,6 +550,14 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <label className="row"><input type="checkbox" checked={project.finish.progressBar} onChange={(e) => store.update((p) => { p.finish.progressBar = e.target.checked; })} /> Barra de progreso arriba</label>
               <label className="row"><input type="checkbox" checked={project.finish.grain} onChange={(e) => store.update((p) => { p.finish.grain = e.target.checked; })} /> Grano de película</label>
               <label className="row"><input type="checkbox" checked={project.finish.vignette} onChange={(e) => store.update((p) => { p.finish.vignette = e.target.checked; })} /> Bordes oscuros en todo el reel</label>
+              <label className="row"><input type="checkbox" checked={project.finish.keywordZoom} onChange={(e) => store.update((p) => { p.finish.keywordZoom = e.target.checked; })} /> Zoom en la palabra importante de cada frase</label>
+              <label className="row"><input type="checkbox" checked={project.finish.halation} onChange={(e) => store.update((p) => { p.finish.halation = e.target.checked; })} /> Brillo de cine (halo en las luces)</label>
+              <label className="row"><input type="checkbox" checked={project.finish.letterbox} onChange={(e) => store.update((p) => { p.finish.letterbox = e.target.checked; })} /> Barras de cine</label>
+              <button className="btn rect" style={{ height: 34 }} onClick={() => store.update((p) => {
+                p.scenes.forEach((sc) => { sc.look = 'cine'; if (sc.camera === 'ninguno') sc.camera = 'acercar'; });
+                Object.assign(p.finish, { grain: true, vignette: true, halation: true });
+              })}>Look de cine en un clic</button>
+              <span className="small muted">Pone en todas las escenas el color de cine, grano, bordes oscuros, brillo y la cámara acercándose despacio.</span>
               <span className="small muted">La calidad y la carpeta se eligen al pulsar «Exportar».</span>
             </div>
           </details>

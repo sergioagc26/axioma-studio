@@ -13,7 +13,7 @@ import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
 import { allPresets, savePreset } from './presets.ts';
 import { AssistantError, askClaude, claudeBin, claudeReady, openClaudeLogin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
-import { SFX, sfxFile } from './sfx.ts';
+import { SFX, ensureUsedSfx, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
 import { analyzeReference, listReferences, presetFromReference, referencesDir } from './reference.ts';
 import { applyBrief } from './brief.ts';
@@ -195,6 +195,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const project = await readProject(dir);
     const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
+    await ensureUsedSfx(dir, project).catch(() => {}); // la vista previa necesita los sonidos en el proyecto
     return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()), kit: await readKit(project.client), vision: await readVision(dir), sfx: Object.entries(SFX).map(([sid, d]) => ({ id: sid, name: d.name, description: d.description })), voices: await ttsProviders() });
   }
 
@@ -337,8 +338,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'render') {
       // La calidad y la carpeta se eligen en la ventana de exportar y quedan recordadas.
-      if (b.calidad || typeof b.carpeta === 'string') {
+      if (b.calidad || typeof b.carpeta === 'string' || b.lufs) {
         const pr = await readProject(dir);
+        if ([-14, -16].includes(Number(b.lufs))) pr.audio.targetLufs = Number(b.lufs);
         if (['maxima', 'alta', 'ligera'].includes(b.calidad)) pr.export.quality = b.calidad;
         if (typeof b.carpeta === 'string') pr.export.folder = b.carpeta.trim() || undefined;
         await writeProject(dir, pr);

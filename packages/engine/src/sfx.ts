@@ -71,3 +71,10 @@ export async function ensureProjectSfx(dir: string, ids: string[]) {
 export function formatSfx(): string {
   return Object.entries(SFX).map(([id, d]) => `${id} · ${d.name}: ${d.description}`).join('\n');
 }
+
+/** Deja en el proyecto todos los sonidos que el reel va a usar (los automáticos y los de cada escena). */
+export async function ensureUsedSfx(dir: string, project: { audio: { sfxAuto: boolean }; scenes: { sfx: { id: string }[] }[] }) {
+  const ids = project.scenes.flatMap((s) => s.sfx.map((e) => e.id)).filter((id) => SFX[id]);
+  if (project.audio.sfxAuto) ids.push(...AUTO_SFX);
+  if (ids.length) await ensureProjectSfx(dir, ids);
+}

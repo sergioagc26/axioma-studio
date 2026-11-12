@@ -199,7 +199,7 @@ async function dressEdit(dir: string, project: Project, st: NonNullable<Preset['
       s.autoMotion = true;
     });
   }
-  if (st.finish) project.finish = { ...project.finish, progressBar: Boolean(st.finish.progressBar), grain: Boolean(st.finish.grain), vignette: Boolean(st.finish.vignette) };
+  if (st.finish) project.finish = { ...project.finish, progressBar: Boolean(st.finish.progressBar), grain: Boolean(st.finish.grain), vignette: Boolean(st.finish.vignette), halation: Boolean(st.finish.halation), letterbox: Boolean(st.finish.letterbox) };
 }
 
 export async function applyPreset(dir: string, presetId: string) {

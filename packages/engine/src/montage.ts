@@ -106,7 +106,7 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
     pacing: Pacing.parse(preset.pacing),
     captions: CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(opts.client)) }),
     // En un montaje el sonido original es ambiente: sin limpieza de voz y más bajo.
-    audio: { denoise: false, targetLufs: -16, musicVolume: 0.4, originalVolume: 0.6 },
+    audio: { denoise: false, targetLufs: -14, musicVolume: 0.4, originalVolume: 0.6 },
   });
   await writeProject(dir, project);
   await writeFile(path.join(dir, 'boundaries.json'), JSON.stringify(boundaries, null, 2));
