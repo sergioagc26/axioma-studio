@@ -61,11 +61,11 @@ export const CaptionStyle = z.object({
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
 /** Formas de mostrar el texto en pantalla de una escena. */
-export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado']);
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor']);
 /** Estilos de texto básicos; el resto son los llamativos. */
 export const BASIC_TEXT_STYLES = ['caja', 'resaltado', 'subrayado', 'banda', 'etiqueta', 'contorno'] as const;
 /** Cómo entra el texto en pantalla. */
-export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido', 'rebote', 'zoom', 'girar', 'desenfoque', 'palabra', 'maquina']);
+export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido', 'rebote', 'zoom', 'girar', 'desenfoque', 'palabra', 'maquina', 'caer', 'derecha', 'voltear', 'elastico', 'latido', 'golpe', 'cortina', 'estirar', 'parpadeo']);
 export type TextAnim = z.infer<typeof TextAnim>;
 export type TextStyle = z.infer<typeof TextStyle>;
 /** Aspecto de color de la imagen. */
@@ -121,6 +121,10 @@ export const Scene = z.object({
   trimEnd: z.number().default(0),
   visual: SceneVisual.default('original'),
   onScreenText: z.string().optional(),
+  /** Texto que puso un estilo (no el usuario): si sigue igual, otro estilo lo puede cambiar. */
+  autoText: z.string().optional(),
+  /** El motion graphic de esta escena lo puso un estilo. */
+  autoMotion: z.boolean().optional(),
   textColor: z.string().optional(),
   /** Forma del texto en pantalla. */
   textStyle: TextStyle.default('caja'),
@@ -207,6 +211,19 @@ export const Preset = z.object({
     /** Destellos en los cortes (detectados en la referencia). */
     flashes: z.boolean().optional(),
     sfxAuto: z.boolean().optional(),
+    // --- Receta de edición: lo que el estilo pone solo en el reel.
+    /** Cuántos textos en pantalla saca de lo que se dice. */
+    texts: z.enum(['ninguno', 'pocos', 'muchos']).optional(),
+    /** Estilo del texto del gancho (primera escena). */
+    hook: TextStyle.optional(),
+    /** Zoom cuando aparece un texto. */
+    zoomText: z.boolean().optional(),
+    /** Movimientos de cámara que se van turnando entre escenas. */
+    cameras: z.array(Camera).optional(),
+    /** Un motion graphic hecho con lo que se dice cada tantas escenas (0 = ninguno). */
+    motionEvery: z.number().int().min(0).optional(),
+    /** Acabados de todo el reel. */
+    finish: z.object({ progressBar: z.boolean().optional(), grain: z.boolean().optional(), vignette: z.boolean().optional() }).optional(),
   }).optional(),
   /** Colores de la referencia o del cliente (informativo). */
   palette: z.array(z.string()).optional(),

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  AbsoluteFill, Audio, OffthreadVideo, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig,
+  AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig,
 } from 'remotion';
 import { loadFont as loadMontserrat } from '@remotion/google-fonts/Montserrat';
 import { loadFont as loadInter } from '@remotion/google-fonts/Inter';
@@ -183,7 +183,9 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
       {clip.motion ? (
         <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
       ) : clip.brollSrc ? (
-        <OffthreadVideo src={clip.brollSrc} trimBefore={clip.sceneOffsetFrames} muted style={cover} />
+        // Una imagen como b-roll: el movimiento de cámara de la escena la anima.
+        /\.(jpe?g|png|webp)(\?|$)/i.test(clip.brollSrc) ? <Img src={clip.brollSrc} style={cover} />
+        : <OffthreadVideo src={clip.brollSrc} trimBefore={clip.sceneOffsetFrames} muted style={cover} />
       ) : (
         <OffthreadVideo
           src={t.videoSrc}
@@ -366,6 +368,15 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     : overlay.anim === 'zoom' ? { opacity: Math.min(1, enter * 2), transform: `translate(-50%, -50%) scale(${interpolate(enter, [0, 1], [2.6, 1])})` }
     : overlay.anim === 'girar' ? { opacity: enter, transform: `translate(-50%, -50%) rotate(${interpolate(enter, [0, 1], [-18, 0])}deg) scale(${interpolate(enter, [0, 1], [0.7, 1])})` }
     : overlay.anim === 'desenfoque' ? { opacity: interpolate(frame, [0, 14], [0, 1], { extrapolateRight: 'clamp' }), filter: `blur(${interpolate(frame, [0, 14], [26, 0], { extrapolateRight: 'clamp' })}px)`, transform: 'translate(-50%, -50%)' }
+    : overlay.anim === 'caer' ? { opacity: Math.min(1, enter * 2), transform: `translate(-50%, calc(-50% + ${interpolate(enter, [0, 1], [-320, 0])}px))` }
+    : overlay.anim === 'derecha' ? { opacity: enter, transform: `translate(calc(-50% + ${interpolate(enter, [0, 1], [420, 0])}px), -50%)` }
+    : overlay.anim === 'voltear' ? { opacity: Math.min(1, enter * 2), transform: `translate(-50%, -50%) perspective(900px) rotateX(${interpolate(enter, [0, 1], [-88, 0])}deg)` }
+    : overlay.anim === 'elastico' ? { opacity: Math.min(1, frame / 3), transform: `translate(-50%, -50%) scale(${spring({ frame, fps, config: { damping: 5, stiffness: 190, mass: 0.7 } })})` }
+    : overlay.anim === 'latido' ? { opacity: Math.min(1, enter * 2), transform: `translate(-50%, -50%) scale(${interpolate(enter, [0, 1], [0.6, 1]) * (1 + 0.05 * Math.max(0, Math.sin((frame / fps) * Math.PI * 3)))})` }
+    : overlay.anim === 'golpe' ? { opacity: Math.min(1, frame / 2), transform: `translate(calc(-50% + ${frame > 4 && frame < 12 ? Math.sin(frame * 2.4) * (12 - frame) * 1.6 : 0}px), -50%) scale(${interpolate(frame, [0, 5], [3.4, 1], { extrapolateRight: 'clamp' })})` }
+    : overlay.anim === 'cortina' ? { transform: `translate(-50%, calc(-50% + ${interpolate(frame, [0, 12], [40, 0], { extrapolateRight: 'clamp' })}px))`, clipPath: `inset(${interpolate(frame, [0, 12], [105, -20], { extrapolateRight: 'clamp' })}% -5% -20% -5%)` }
+    : overlay.anim === 'estirar' ? { opacity: interpolate(frame, [0, 10], [0, 1], { extrapolateRight: 'clamp' }), transform: 'translate(-50%, -50%)', letterSpacing: `${overlay.spacing + interpolate(frame, [0, 16], [0.6, 0], { extrapolateRight: 'clamp' })}em` }
+    : overlay.anim === 'parpadeo' ? { opacity: frame < 12 ? (Math.floor(frame / 2) % 2 ? 1 : 0.15) : 1, transform: 'translate(-50%, -50%)' }
     // "palabra" y "maquina" revelan el texto poco a poco (ver `shown` más abajo).
     : overlay.anim === 'palabra' || overlay.anim === 'maquina' ? { transform: 'translate(-50%, -50%)' }
     : { opacity: enter, transform: `translate(-50%, calc(-50% + ${interpolate(enter, [0, 1], [34, 0])}px))` };
@@ -474,6 +485,13 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     : overlay.style === 'contorno' ? { color: 'transparent', WebkitTextStroke: `${Math.round(4 * k)}px #fff`, textShadow: '0 6px 18px rgba(0,0,0,0.55)' }
     : overlay.style === 'degradado' ? { backgroundImage: `linear-gradient(100deg, ${color}, ${t.brand.secondary})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.65))' }
     : overlay.style === 'sombra' ? { color: '#fff', textShadow: `${5 * k}px ${5 * k}px 0 ${color}, ${10 * k}px ${10 * k}px 0 #000` }
+    // Letras con volumen: varias capas de sombra hacen el canto.
+    : overlay.style === 'tresd' ? { color: '#fff', textShadow: Array.from({ length: 9 }, (_, i) => `${(i + 1) * k}px ${(i + 1) * k}px 0 ${color}`).join(', ') + `, ${14 * k}px ${16 * k}px 18px rgba(0,0,0,0.6)` }
+    : overlay.style === 'fuego' ? { backgroundImage: 'linear-gradient(180deg, #FFF3B0 10%, #FACC15 40%, #F97316 70%, #DC2626 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 0 16px rgba(249,115,22,0.75)) drop-shadow(0 6px 8px rgba(0,0,0,0.7))' }
+    : overlay.style === 'cromado' ? { backgroundImage: 'linear-gradient(180deg, #FFFFFF 0%, #D4D8DD 38%, #6B7280 52%, #E5E7EB 66%, #FFFFFF 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 5px 0 rgba(0,0,0,0.85)) drop-shadow(0 10px 16px rgba(0,0,0,0.5))' }
+    : overlay.style === 'burbuja' ? { color, WebkitTextStroke: `${Math.round(14 * k)}px #fff`, paintOrder: 'stroke fill', filter: `drop-shadow(0 ${8 * k}px 0 rgba(0,0,0,0.85))` }
+    : overlay.style === 'retro' ? { color: '#FFF7E0', textShadow: `${4 * k}px ${4 * k}px 0 ${color}, ${8 * k}px ${8 * k}px 0 ${t.brand.secondary}, ${12 * k}px ${12 * k}px 0 #000` }
+    : overlay.style === 'resplandor' ? { color: '#fff', textShadow: `0 0 14px rgba(255,255,255,0.95), 0 0 44px ${color}, 0 0 90px ${color}` }
     : outline;
   return (
     <AbsoluteFill>
@@ -513,6 +531,10 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
           if (overlay.style === 'neon') return <span key={i} style={{ ...inline, color: '#fff', fontSize: '1.15em' }}>{w}</span>;
           if (overlay.style === 'contorno') return <span key={i} style={{ ...inline, color, WebkitTextStroke: '0', fontSize: '1.15em' }}>{w}</span>;
           if (overlay.style === 'degradado') return <span key={i} style={{ ...inline, fontSize: '1.25em', transform: `scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;
+          if (overlay.style === 'tresd' || overlay.style === 'retro') return <span key={i} style={{ ...inline, color, textShadow: Array.from({ length: 9 }, (_, n) => `${(n + 1) * k}px ${(n + 1) * k}px 0 #000`).join(', '), fontSize: '1.2em' }}>{w}</span>;
+          if (overlay.style === 'fuego' || overlay.style === 'cromado') return <span key={i} style={{ ...inline, fontSize: '1.3em', transform: `scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;
+          if (overlay.style === 'burbuja') return <span key={i} style={{ ...inline, color: t.brand.secondary, fontSize: '1.2em', transform: `rotate(-3deg) scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;
+          if (overlay.style === 'resplandor') return <span key={i} style={{ ...inline, color, textShadow: `0 0 12px ${color}, 0 0 40px ${color}`, fontSize: '1.2em' }}>{w}</span>;
           if (overlay.style === 'sombra') return <span key={i} style={{ ...inline, color, textShadow: `${5 * k}px ${5 * k}px 0 #000`, fontSize: '1.18em' }}>{w}</span>;
           // resaltado: la palabra clave en color y más grande.
           return <span key={i} style={{ ...inline, color, fontSize: '1.22em', transform: `scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;

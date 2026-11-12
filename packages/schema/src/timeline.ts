@@ -172,7 +172,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     const brollFile = v?.brollFile ?? scene.brollFile;
     const template = v?.motionTemplate ?? scene.motionTemplate;
     // Solo cuenta como b-roll si es un archivo del proyecto (no una búsqueda pendiente).
-    const brollSrc = visual === 'broll' && brollFile && /\.(mp4|mov|m4v|webm)$/i.test(brollFile) && urls.asset ? urls.asset(brollFile) : undefined;
+    const brollSrc = visual === 'broll' && brollFile && /\.(mp4|mov|m4v|webm|jpe?g|png|webp)$/i.test(brollFile) && urls.asset ? urls.asset(brollFile) : undefined;
     const motion: MotionSpec | undefined = visual === 'motion' && template
       ? { template, data: scene.motionData ?? {}, text: activeText(scene), style: scene.motionStyle }
       : visual === 'texto' && activeText(scene) ? { template: 'texto', data: {}, text: activeText(scene), style: scene.motionStyle } : undefined;

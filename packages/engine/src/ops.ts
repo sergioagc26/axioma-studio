@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
-  CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, brandStyle, getPreset, outputDuration, recommendTransitions, sceneLength, suggestVariants,
+  CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, brandStyle, getPreset, motionIdeas, shortPhrases, speechOf, outputDuration, recommendTransitions, sceneLength, suggestVariants,
   type Asset, type Preset,
 } from '@snz/schema';
 import { analyzePhrases, applyPunchZooms, phrasesToRanges, type Phrase } from './cuts.ts';
@@ -13,6 +13,7 @@ import { readProject, readTranscript, writeProject } from './store.ts';
 import { listPresets, savePreset } from './presets.ts';
 import { extractWav16k, mediaDuration, processVoice } from './media.ts';
 import { ensureProjectSfx } from './sfx.ts';
+import { generateImage } from './imagegen.ts';
 import { transcribeWav } from './transcribe.ts';
 import { synthesize, type TtsProvider } from './tts.ts';
 
@@ -141,6 +142,55 @@ export async function suggestSceneVariants(dir: string, sceneId: string, round =
   return writeProject(dir, project);
 }
 
+const STRONG_MOTION = ['pregunta', 'porcentaje', 'contador', 'comparacion', 'pasos', 'checklist', 'lista', 'barras'];
+
+/**
+ * Un estilo es una edición ya puesta, no solo un color: pone el gancho, los textos
+ * sacados de lo que se dice, el zoom cuando aparecen, los movimientos de cámara,
+ * los motion graphics con las cifras y frases del video y los acabados del reel.
+ * Lo que el usuario escribió o eligió a mano no se toca: solo se reemplaza lo que
+ * había puesto el estilo anterior.
+ */
+async function dressEdit(dir: string, project: Project, st: NonNullable<Preset['style']>) {
+  const transcript = project.kind === 'hablado' ? await readTranscript(dir).catch(() => null) : null;
+  const mode = st.texts ?? 'pocos';
+  const n = project.scenes.length;
+  project.scenes.forEach((s, i) => {
+    // Se quita lo que puso el estilo anterior.
+    if (s.autoText !== undefined && s.onScreenText === s.autoText) s.onScreenText = undefined;
+    s.autoText = undefined;
+    if (s.autoMotion) { s.visual = 'original'; s.motionTemplate = undefined; s.motionData = undefined; s.autoMotion = undefined; }
+    if (st.cameras?.length) s.camera = st.cameras[i % st.cameras.length];
+    const first = i === 0;
+    const last = i === n - 1 && n > 1;
+    const wants = mode !== 'ninguno' && (first || last || (mode === 'muchos' ? i % 2 === 0 : i % 3 === 0));
+    if (transcript && wants && !s.onScreenText && s.visual === 'original') {
+      const text = shortPhrases(speechOf(s, transcript))[0];
+      if (text) { s.onScreenText = text; s.autoText = text; }
+    }
+    if (first && st.hook && s.onScreenText) s.textStyle = st.hook;
+    // Zoom cuando aparece el texto.
+    if (st.zoomText && s.onScreenText) {
+      s.punchZoom = true;
+      if (s.camera === 'ninguno') s.camera = 'acercar';
+    }
+  });
+  if (transcript && st.motionEvery) {
+    const every = st.motionEvery;
+    project.scenes.forEach((s, i) => {
+      if (i === 0 || i === n - 1 || i % every !== every - 1 || s.visual !== 'original') return;
+      const idea = motionIdeas(speechOf(s, transcript), s, false).find((m) => STRONG_MOTION.includes(m.motionTemplate ?? ''));
+      if (!idea) return;
+      // El gráfico ocupa la escena: el texto que puso el estilo se quita para que no se encimen.
+      if (s.autoText !== undefined && s.onScreenText === s.autoText) { s.onScreenText = undefined; s.autoText = undefined; }
+      applyVariant(s, { ...idea, id: 'a' });
+      s.chosenVariant = undefined;
+      s.autoMotion = true;
+    });
+  }
+  if (st.finish) project.finish = { ...project.finish, progressBar: Boolean(st.finish.progressBar), grain: Boolean(st.finish.grain), vignette: Boolean(st.finish.vignette) };
+}
+
 export async function applyPreset(dir: string, presetId: string) {
   const project = await readProject(dir);
   const preset: Preset = getPreset(presetId, await listPresets(project.client));
@@ -170,6 +220,7 @@ export async function applyPreset(dir: string, presetId: string) {
       if (st.sfxAuto) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
       project.audio.sfxAuto = st.sfxAuto;
     }
+    await dressEdit(dir, project, st);
   }
   return writeProject(dir, project);
 }
@@ -301,7 +352,32 @@ export async function setBroll(dir: string, sceneId: string, file: string, info:
   scene.brollFile = await importAsset(dir, project, file, 'broll', { source: info.source ?? 'archivo local', license: info.license, author: info.author, url: info.url });
   scene.visual = 'broll';
   scene.chosenVariant = undefined;
+  // Una imagen quieta se anima con un acercamiento lento.
+  if (/\.(jpe?g|png|webp)$/i.test(scene.brollFile) && scene.camera === 'ninguno') scene.camera = 'acercar';
   return writeProject(dir, project);
+}
+
+/**
+ * B-roll desde una idea: se crea la imagen y se anima con un movimiento de cámara
+ * lento para que no quede quieta. Queda guardada en el proyecto como cualquier otro recurso.
+ */
+export async function setBrollFromIdea(dir: string, sceneId: string, idea: string) {
+  const before = await readProject(dir);
+  const { width, height } = before.format;
+  // Tamaño proporcional al reel, sin pasar del lado mayor que acepta el generador.
+  const k = Math.min(1, 1280 / Math.max(width, height));
+  const file = await generateImage(idea, { width: Math.round(width * k), height: Math.round(height * k) });
+  try {
+    const project = await readProject(dir);
+    const scene = findScene(project, sceneId);
+    scene.brollFile = await importAsset(dir, project, file, 'broll', { source: `Creada con IA a partir de la idea: ${idea.trim().slice(0, 120)}`, license: 'Generada con IA (Pollinations)' });
+    scene.visual = 'broll';
+    scene.chosenVariant = undefined;
+    if (scene.camera === 'ninguno') scene.camera = 'acercar';
+    return await writeProject(dir, project);
+  } finally {
+    await rm(path.dirname(file), { recursive: true, force: true });
+  }
 }
 
 export async function setMotion(dir: string, sceneId: string, template: string, data: Record<string, unknown>) {

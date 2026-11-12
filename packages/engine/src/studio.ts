@@ -19,6 +19,7 @@ import { analyzeReference, listReferences, presetFromReference, referencesDir } 
 import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
+import { pickFolder, systemFonts } from './fonts.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -94,6 +95,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
 
   if (p === '/api/ping') return json(res, { app: APP_NAME });
+  if (p === '/api/elegir-carpeta' && method === 'POST') return json(res, { folder: await pickFolder() });
+  if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
   if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1') });
   if (p === '/api/claude' && method === 'POST') { await openClaudeLogin(); return json(res, { ok: true }); }
 
@@ -276,7 +279,22 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'peticion') return json(res, { project: await ops.addRequest(dir, String(b.text ?? '').slice(0, 2000), b.sceneId) });
     if (b.op === 'version') return json(res, { name: await ops.saveVersion(dir, b.label) });
+    if (b.op === 'broll-idea') {
+      const job = startJob('ia', async (j) => {
+        j.message = 'Creando la imagen…';
+        await ops.setBrollFromIdea(dir, String(b.sceneId ?? ''), String(b.idea ?? ''));
+        return {};
+      });
+      return json(res, job);
+    }
     if (b.op === 'render') {
+      // La calidad y la carpeta se eligen en la ventana de exportar y quedan recordadas.
+      if (b.calidad || typeof b.carpeta === 'string') {
+        const pr = await readProject(dir);
+        if (['maxima', 'alta', 'ligera'].includes(b.calidad)) pr.export.quality = b.calidad;
+        if (typeof b.carpeta === 'string') pr.export.folder = b.carpeta.trim() || undefined;
+        await writeProject(dir, pr);
+      }
       const job = startJob('render', async (j) => {
         j.message = 'Renderizando…';
         const { out } = await renderProject(dir, { format: b.formato, onProgress: (x) => { j.progress = x; } });

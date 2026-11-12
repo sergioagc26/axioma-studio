@@ -84,6 +84,12 @@ const TYPO: [NonNullable<SceneVariant['textStyle']>, string, NonNullable<SceneVa
   ['subrayado', 'Playfair Display', 'fundido', 'Elegante subrayado'],
   ['etiqueta', 'Sora', 'maquina', 'Etiqueta que se escribe'],
   ['contorno', 'Barlow Condensed', 'zoom', 'Contorno'],
+  ['tresd', 'Archivo Black', 'golpe', 'Letras 3D con golpe'],
+  ['fuego', 'Anton', 'elastico', 'Fuego'],
+  ['cromado', 'Kanit', 'voltear', 'Cromado que se voltea'],
+  ['burbuja', 'Bangers', 'caer', 'Burbuja de cómic'],
+  ['retro', 'Righteous', 'cortina', 'Retro en capas'],
+  ['resplandor', 'Sora', 'estirar', 'Resplandor'],
 ];
 const CAMS: [NonNullable<SceneVariant['camera']>, number, number, string][] = [
   ['acercar', 0.2, 0.35, 'La cámara se acerca despacio, con los bordes oscurecidos: foco en ti.'],

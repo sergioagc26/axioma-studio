@@ -21,3 +21,5 @@ export * from './assistant.ts';
 export * from './sfx.ts';
 export * from './brief.ts';
 export * from './vision.ts';
+export * from './fonts.ts';
+export * from './imagegen.ts';

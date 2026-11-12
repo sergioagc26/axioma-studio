@@ -24,7 +24,7 @@ async function resolveProject(ref?: string): Promise<string> {
 const proyecto = z.string().optional().describe('Id o carpeta del proyecto. Si se omite, el más reciente.');
 const role = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
 const visual = z.enum(['original', 'broll', 'motion', 'texto']);
-const textStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado']);
+const textStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor']);
 const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
 const camera = z.enum(['ninguno', 'acercar', 'alejar']);
 

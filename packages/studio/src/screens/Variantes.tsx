@@ -3,7 +3,7 @@ import { applyVariant, motionGallery, suggestVariants, type SceneVariant, VISION
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL, VISUAL_LABEL } from '../SceneFrame.tsx';
 import { VariantPreview } from '../VariantPreview.tsx';
-import { api } from '../useProject.ts';
+import { api, waitJob, type Job } from '../useProject.ts';
 import { askAssistant } from '../useProject.ts';
 
 const CATEGORY: Record<string, string> = { motion: 'Motion graphics', broll: 'B-roll', color: 'Color', tipografia: 'Tipografía', camara: 'Cámara' };
@@ -42,7 +42,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   });
   const [license, setLicense] = useState('');
   /** Una variante de b-roll sin archivo todavía. */
-  const needsClip = (v: SceneVariant) => v.visual === 'broll' && !/\.(mp4|mov|m4v|webm)$/i.test(v.brollFile ?? '');
+  const needsClip = (v: SceneVariant) => v.visual === 'broll' && !/\.(mp4|mov|m4v|webm|jpe?g|png|webp)$/i.test(v.brollFile ?? '');
   /** Sube un clip y lo pone como b-roll de la escena. */
   const uploadBroll = async (file: File) => {
     if (!license.trim()) return ctx.toast('Escribe primero la licencia del clip (por ejemplo: propia, Pexels).');
@@ -50,6 +50,28 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const d = await api(`/api/broll?id=${encodeURIComponent(project.id)}&scene=${scene.id}&filename=${encodeURIComponent(file.name)}&license=${encodeURIComponent(license.trim())}`, { method: 'POST', body: file });
       store.replace(d.project);
       ctx.toast('B-roll puesto en la escena. Queda guardado para usarlo en otras.');
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+
+  const [idea, setIdea] = useState('');
+  const [making, setMaking] = useState('');
+  /** Crea una imagen desde la idea y la pone animada como b-roll de la escena. */
+  const brollFromIdea = async () => {
+    setMaking('Creando la imagen…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'broll-idea', sceneId: scene.id, idea }) });
+      await waitJob(job, (j) => setMaking(j.message || 'Creando la imagen…'));
+      const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
+      store.replace(d.project);
+      ctx.toast('Imagen creada y puesta como b-roll, con la cámara acercándose. Cambia el movimiento en el editor si quieres.');
+    } catch (e: any) { ctx.toast(`No se pudo crear la imagen: ${e.message}`); } finally { setMaking(''); }
+  };
+  /** Sube una imagen o un video propio como b-roll (licencia: propia). */
+  const uploadOwn = async (file: File) => {
+    try {
+      const d = await api(`/api/broll?id=${encodeURIComponent(project.id)}&scene=${scene.id}&filename=${encodeURIComponent(file.name)}&license=propia`, { method: 'POST', body: file });
+      store.replace(d.project);
+      ctx.toast('B-roll puesto en la escena.');
     } catch (e: any) { ctx.toast(e.message); }
   };
 
@@ -137,6 +159,22 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           })}
         </div>
       </div>
+
+      <section className="page" style={{ flex: 'none', paddingTop: 0, paddingBottom: 0 }}>
+        <div className="card col" style={{ padding: 16, borderRadius: 16, gap: 10 }}>
+          <h2 style={{ fontSize: 20 }}>B-roll para este clip</h2>
+          <span className="muted small">Escribe una idea y la app crea la imagen y la anima con movimiento de cámara. O sube tu propia imagen o video.</span>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <input className="input" style={{ flex: '1 1 320px' }} value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="Ej.: taza de café humeante sobre una mesa de madera"
+              onKeyDown={(e) => { if (e.key === 'Enter' && idea.trim().length > 2 && !making) brollFromIdea(); }} />
+            <button className="btn primary rect" disabled={idea.trim().length < 3 || Boolean(making)} onClick={brollFromIdea}>{making || 'Crear imagen y animarla'}</button>
+            <label className="btn rect" style={{ cursor: 'pointer' }}>Subir imagen o video mío
+              <input type="file" accept="video/*,image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadOwn(f); e.target.value = ''; }} />
+            </label>
+          </div>
+          <span className="muted small">La imagen la genera un servicio gratuito en internet (Pollinations): solo se le envía el texto de la idea.</span>
+        </div>
+      </section>
 
       <section className="page" style={{ flex: 'none', paddingTop: 0 }}>
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>

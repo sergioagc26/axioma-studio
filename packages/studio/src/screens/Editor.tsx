@@ -25,6 +25,12 @@ const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['glitch', 'Glitch', 'Letras con sombras de color que tiemblan. Rebelde y digital.'],
   ['trazo', 'Rodeado a mano', 'Un óvalo dibujado a mano rodea la palabra clave.'],
   ['apilado', 'Palabras apiladas', 'Una palabra por línea, cada una a todo el ancho. Editorial.'],
+  ['tresd', 'Letras 3D', 'Letras con volumen: un canto de color que les da profundidad.'],
+  ['fuego', 'Fuego', 'Degradado de amarillo a rojo con brillo. Para ofertas y retos.'],
+  ['cromado', 'Cromado', 'Letras metálicas brillantes. Para autos, tecnología y lujo.'],
+  ['burbuja', 'Burbuja', 'Letras de color con borde blanco grueso, tipo caricatura.'],
+  ['retro', 'Retro en capas', 'Tres sombras de colores apiladas, estilo años 70.'],
+  ['resplandor', 'Resplandor', 'Letras blancas con un halo de luz de color alrededor.'],
 ];
 const BASIC = new Set<string>(BASIC_TEXT_STYLES);
 const DESIGNS: [string, string, string][] = [
@@ -39,6 +45,8 @@ const DESIGNS: [string, string, string][] = [
 const TEXT_ANIMS: [Scene['textAnim'], string][] = [
   ['subir', 'Sube'], ['pop', 'Salta'], ['rebote', 'Cae y rebota'], ['zoom', 'Llega desde cerca'], ['deslizar', 'Desliza'], ['girar', 'Entra girando'],
   ['fundido', 'Aparece'], ['desenfoque', 'Se enfoca'], ['barrido', 'Se revela'], ['palabra', 'Palabra por palabra'], ['maquina', 'Se escribe'],
+  ['caer', 'Cae desde arriba'], ['derecha', 'Entra por la derecha'], ['voltear', 'Se voltea'], ['elastico', 'Elástico'], ['latido', 'Late'],
+  ['golpe', 'Golpe con sacudida'], ['cortina', 'Sube tras una cortina'], ['estirar', 'Letras que se juntan'], ['parpadeo', 'Parpadea'],
 ];
 const LOOK_NAMES: [Scene['look'], string][] = [
   ['normal', 'Normal'], ['vivo', 'Colores vivos'], ['calido', 'Cálido'], ['frio', 'Frío'], ['cine', 'Cine'], ['contraste', 'Alto contraste'],
@@ -85,7 +93,19 @@ const MotionData: React.FC<{ scene: Scene; onChange: (d: Record<string, unknown>
 };
 
 /** Lista de tipografías agrupada. */
-const FontOptions: React.FC = () => <>{FONT_GROUPS.map(([g, fonts]) => <optgroup key={g} label={g}>{fonts.map((f) => <option key={f}>{f}</option>)}</optgroup>)}</>;
+// Tipografías instaladas en este computador: se piden una vez y se comparten entre todas las listas.
+let systemFontsMemo: Promise<string[]> | null = null;
+const loadSystemFonts = () => (systemFontsMemo ??= api<{ fonts: string[] }>('/api/fonts').then((d) => d.fonts).catch(() => []));
+const FontOptions: React.FC = () => {
+  const [mine, setMine] = useState<string[]>([]);
+  useEffect(() => { let on = true; loadSystemFonts().then((f) => { if (on) setMine(f); }); return () => { on = false; }; }, []);
+  return (
+    <>
+      {FONT_GROUPS.map(([g, fonts]) => <optgroup key={g} label={g}>{fonts.map((f) => <option key={f}>{f}</option>)}</optgroup>)}
+      {mine.length > 0 && <optgroup label={`De tu computador (${mine.length})`}>{mine.map((f) => <option key={f}>{f}</option>)}</optgroup>}
+    </>
+  );
+};
 /** Nueve posiciones rápidas para el texto (x, y de 0 a 1), dentro de las zonas seguras. */
 const GRID: [number, number][] = [0.22, 0.45, 0.62].flatMap((y) => [0.3, 0.5, 0.7].map((x) => [x, y] as [number, number]));
 
@@ -348,7 +368,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <details className="grp" open>
             <summary>Estilos</summary>
             <div className="col">
-              <span className="small muted">Cada estilo cambia subtítulos, títulos, entradas, imagen, cámara y transiciones. Después ajusta lo que quieras.</span>
+              <span className="small muted">Cada estilo es una edición ya puesta: gancho, textos sacados de lo que dices, zoom cuando aparecen, cámara, gráficos, transiciones, sonidos y subtítulos. Lo que escribiste a mano no se toca.</span>
               <button className="btn rect" style={{ height: 34 }} onClick={saveStyle}>Guardar lo actual como mi estilo</button>
               {rec && rec.id !== project.presetId && (
                 <div className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--cyanSoft)', gap: 6 }}>
@@ -376,18 +396,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <label className="row"><input type="checkbox" checked={project.finish.progressBar} onChange={(e) => store.update((p) => { p.finish.progressBar = e.target.checked; })} /> Barra de progreso arriba</label>
               <label className="row"><input type="checkbox" checked={project.finish.grain} onChange={(e) => store.update((p) => { p.finish.grain = e.target.checked; })} /> Grano de película</label>
               <label className="row"><input type="checkbox" checked={project.finish.vignette} onChange={(e) => store.update((p) => { p.finish.vignette = e.target.checked; })} /> Bordes oscuros en todo el reel</label>
-              <label className="field">Calidad al exportar
-                <select value={project.export.quality} onChange={(e) => store.update((p) => { p.export.quality = e.target.value as typeof p.export.quality; })}>
-                  <option value="maxima">Máxima (archivo grande, casi sin compresión)</option>
-                  <option value="alta">Alta (recomendada para redes)</option>
-                  <option value="ligera">Ligera (para enviar rápido)</option>
-                </select>
-              </label>
-              <label className="field">Carpeta donde guardar
-                <input key={project.id + 'f'} defaultValue={project.export.folder ?? ''} placeholder="Carpeta del proyecto (renders)"
-                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (project.export.folder ?? '')) store.update((p) => { p.export.folder = v || undefined; }); }} />
-              </label>
-              <span className="small muted">Escribe la ruta completa, por ejemplo /Users/tu-usuario/Desktop/Reels. Vacío = dentro del proyecto.</span>
+              <span className="small muted">La calidad y la carpeta se eligen al pulsar «Exportar».</span>
             </div>
           </details>
           <details className="grp">

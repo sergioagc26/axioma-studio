@@ -36,6 +36,10 @@ export const App: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [render, setRender] = useState<Job | null>(null);
   const [formato, setFormato] = useState('9:16');
+  // Ventana de exportar: formato, calidad y carpeta se eligen al exportar, no durante la edición.
+  const [exportOpen, setExportOpen] = useState(false);
+  const [calidad, setCalidad] = useState<'maxima' | 'alta' | 'ligera'>('alta');
+  const [carpeta, setCarpeta] = useState('');
   // ¿Claude tiene sesión iniciada? null = todavía comprobando.
   const [claude, setClaude] = useState<boolean | null>(null);
   useEffect(() => { api('/api/claude').then((d) => setClaude(d.conectado)).catch(() => setClaude(false)); }, []);
@@ -94,11 +98,24 @@ export const App: React.FC = () => {
     return () => removeEventListener('keydown', on);
   }, [store.undo, store.redo]);
 
+  const openExport = () => {
+    if (!project) return;
+    setCalidad(project.export.quality);
+    setCarpeta(project.export.folder ?? '');
+    setExportOpen(true);
+  };
+  const pickFolder = async () => {
+    try {
+      const d = await api<{ folder: string | null }>('/api/elegir-carpeta', { method: 'POST' });
+      if (d.folder) setCarpeta(d.folder);
+    } catch (e: any) { toast(e.message); }
+  };
   const exportar = async () => {
     if (!project) return;
+    setExportOpen(false);
     try {
       const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta }),
       });
       const done = await waitJob(job, setRender);
       toast(`Exportado en: ${done.result?.path}`);
@@ -146,13 +163,8 @@ export const App: React.FC = () => {
             Tema {theme === 'oscuro' ? 'claro' : 'oscuro'}
           </button>
           {project && (
-            <select className="input" aria-label="Formato de exportación" value={formato} onChange={(e) => setFormato(e.target.value)} style={{ minHeight: 40 }}>
-              <option>9:16</option><option>4:5</option><option>1:1</option>
-            </select>
-          )}
-          {project && (
-            <button className="btn primary" disabled={Boolean(render) || !project.scenes.length} onClick={exportar}>
-              {render ? `Exportando ${Math.round(render.progress * 100)}%` : 'Exportar MP4'}
+            <button className="btn primary" disabled={Boolean(render) || !project.scenes.length} onClick={openExport}>
+              {render ? `Exportando ${Math.round(render.progress * 100)}%` : 'Exportar'}
             </button>
           )}
         </div>
@@ -167,6 +179,39 @@ export const App: React.FC = () => {
         : route.screen === 'audio' ? <Audio ctx={ctx} />
         : <Referencias ctx={ctx} />}
 
+      {exportOpen && project && (
+        <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setExportOpen(false); }}>
+          <div className="modal card col" role="dialog" aria-modal="true" aria-label="Exportar video">
+            <h2 style={{ fontSize: 22 }}>Exportar video</h2>
+            <span className="small muted">Formato</span>
+            <div className="opts" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios']] as const).map(([id, name, desc]) => (
+                <button key={id} className={`opt ${formato === id ? 'on' : ''}`} aria-pressed={formato === id} onClick={() => setFormato(id)}>
+                  <strong>{name} · {id}</strong><span className="muted small">{desc}</span>
+                </button>
+              ))}
+            </div>
+            <span className="small muted">Calidad</span>
+            <div className="opts" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              {([['maxima', 'Máxima', 'Casi sin compresión. Archivo grande.'], ['alta', 'Alta', 'Recomendada para redes.'], ['ligera', 'Ligera', 'Para enviar rápido.']] as const).map(([id, name, desc]) => (
+                <button key={id} className={`opt ${calidad === id ? 'on' : ''}`} aria-pressed={calidad === id} onClick={() => setCalidad(id)}>
+                  <strong>{name}</strong><span className="muted small">{desc}</span>
+                </button>
+              ))}
+            </div>
+            <span className="small muted">¿Dónde lo guardo?</span>
+            <div className="row" style={{ flexWrap: 'nowrap' }}>
+              <input className="input" style={{ flex: 1, minWidth: 0 }} value={carpeta} onChange={(e) => setCarpeta(e.target.value)} placeholder="Dentro del proyecto (carpeta renders)" />
+              <button className="btn rect" onClick={pickFolder}>Elegir carpeta…</button>
+            </div>
+            <span className="small muted">Se recuerda para la próxima vez. Vacío = dentro del proyecto.</span>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setExportOpen(false)}>Cancelar</button>
+              <button className="btn primary" onClick={exportar}>Exportar MP4</button>
+            </div>
+          </div>
+        </div>
+      )}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
   );
