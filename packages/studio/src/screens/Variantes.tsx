@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { applyVariant, suggestVariants, type SceneVariant } from '@snz/schema';
 import type { Ctx } from '../App.tsx';
-import { ROLE_LABEL, SceneFrame, VISUAL_LABEL } from '../SceneFrame.tsx';
+import { ROLE_LABEL, VISUAL_LABEL } from '../SceneFrame.tsx';
+import { VariantPreview } from '../VariantPreview.tsx';
+import { api } from '../useProject.ts';
 import { askAssistant } from '../useProject.ts';
 
+const CATEGORY: Record<string, string> = { motion: 'Motion graphics', broll: 'B-roll', color: 'Color', tipografia: 'Tipografía' };
 const FILTERS = ['Todo', 'Texto', 'Color', 'Toma / b-roll', 'Motion graphics'];
 
 export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
@@ -33,6 +36,19 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     if (!s.variants.length) s.variants = shown; // se guardan las sugeridas junto con la elegida
     applyVariant(s, v);
   });
+  const [license, setLicense] = useState('');
+  /** Una variante de b-roll sin archivo todavía. */
+  const needsClip = (v: SceneVariant) => v.visual === 'broll' && !/\.(mp4|mov|m4v|webm)$/i.test(v.brollFile ?? '');
+  /** Sube un clip y lo pone como b-roll de la escena. */
+  const uploadBroll = async (file: File) => {
+    if (!license.trim()) return ctx.toast('Escribe primero la licencia del clip (por ejemplo: propia, Pexels).');
+    try {
+      const d = await api(`/api/broll?id=${encodeURIComponent(project.id)}&scene=${scene.id}&filename=${encodeURIComponent(file.name)}&license=${encodeURIComponent(license.trim())}`, { method: 'POST', body: file });
+      store.replace(d.project);
+      ctx.toast('B-roll puesto en la escena. Queda guardado para usarlo en otras.');
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+
   const others = () => {
     if (saved) store.update((p) => { p.scenes[idx].variants = []; p.scenes[idx].chosenVariant = undefined; });
     setRound((r) => r + 1);
@@ -57,7 +73,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <button className="btn rect" onClick={() => ctx.go('editor', { s: scene.id })}>‹ Volver al editor</button>
         <div className="col" style={{ gap: 0 }}>
           <strong style={{ font: "700 18px 'Space Grotesk', sans-serif" }}>Variantes · Escena {idx + 1} · {scene.title || ROLE_LABEL[scene.role]}</strong>
-          <span className="muted small">{saved ? 'Variantes guardadas de esta escena.' : 'Sugeridas al instante según lo que dices y el estilo del reel.'} Elige una y la escena se reemplaza.</span>
+          <span className="muted small">{saved ? 'Variantes guardadas de esta escena.' : 'Una de cada tipo: motion graphics, b-roll, color y tipografía. La miniatura es el fotograma real.'} Elige una y la escena se reemplaza.</span>
         </div>
         <div className="row spacer">
           <label className="field" style={{ flexDirection: 'row', alignItems: 'center' }}>Escena
@@ -65,7 +81,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               {project.scenes.map((s, i) => <option key={s.id} value={s.id}>{i + 1} · {s.title || ROLE_LABEL[s.role]}</option>)}
             </select>
           </label>
-          <button className="btn" onClick={others}>Otras 3</button>
+          <button className="btn" onClick={others}>Otras 4</button>
           <button className="btn primary" disabled={sending} onClick={askVariants}>{sending ? 'Claude trabajando…' : 'Pedir variantes a Claude'}</button>
         </div>
       </header>
@@ -80,7 +96,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <div className="cols">
         <div className="col" style={{ flex: '1 1 200px', maxWidth: 230 }}>
           <span className="small muted" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>Actual</span>
-          <SceneFrame projectId={project.id} scene={scene} transcript={store.transcript} style={{ borderRadius: 14 }} />
+          <VariantPreview project={project} sceneId={scene.id} variant={null} transcript={store.transcript} store={store} style={{ borderRadius: 14 }} />
           <span className="muted small">{VISUAL_LABEL[scene.visual]}{scene.onScreenText ? ` · "${scene.onScreenText}"` : ' · sin texto'}{scene.punchZoom ? ' · zoom' : ''}{scene.transition ? ` · entra con ${scene.transition.id}` : ''}</span>
         </div>
 
@@ -91,16 +107,27 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <article key={v.id + v.label} className={`card col vcard ${on ? 'on' : ''}`}>
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <span className="small muted" style={{ fontWeight: 700 }}>{v.id.toUpperCase()}</span>
-                  <span className={`chip ${v.visual}`} style={{ alignSelf: 'auto' }}>{VISUAL_LABEL[v.visual]}</span>
+                  <span className={`chip ${v.visual}`} style={{ alignSelf: 'auto' }}>{CATEGORY[v.category ?? ''] ?? VISUAL_LABEL[v.visual]}</span>
                 </div>
-                <SceneFrame projectId={project.id} scene={scene} transcript={store.transcript} text={v.onScreenText ?? null} color={v.textColor} visual={v.visual} />
+                {needsClip(v) ? (
+                  <div className="frame card-motion" style={{ border: '2px dashed var(--line)', background: 'transparent' }}>
+                    <span className="tpl-name" style={{ color: 'var(--muted)' }}>Falta el clip de b-roll</span>
+                  </div>
+                ) : <VariantPreview project={project} sceneId={scene.id} variant={v} transcript={store.transcript} store={store} />}
                 <h2 style={{ fontSize: 15, fontFamily: 'inherit', fontWeight: 600 }}>{v.label}</h2>
                 <span className="muted small" style={{ minHeight: 34 }}>{v.notes ?? v.brollFile ?? v.motionTemplate ?? ''}</span>
                 <div className="row small muted" style={{ minHeight: 18 }}>
                   {v.punchZoom ? <span className="pill line">zoom</span> : null}
                   {v.transition ? <span className="pill line">entra: {v.transition}</span> : null}
                 </div>
-                <button className={`btn rect ${on ? 'primary' : ''}`} style={{ height: 44 }} onClick={() => choose(v)}>{on ? 'Seleccionada' : 'Elegir'}</button>
+                {needsClip(v) ? (
+                  <>
+                    <input className="input" placeholder="Licencia del clip (propia, Pexels…)" value={license} onChange={(e) => setLicense(e.target.value)} />
+                    <label className="btn rect primary" style={{ height: 44, cursor: 'pointer' }}>Subir b-roll
+                      <input type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadBroll(f); e.target.value = ''; }} />
+                    </label>
+                  </>
+                ) : <button className={`btn rect ${on ? 'primary' : ''}`} style={{ height: 44 }} onClick={() => choose(v)}>{on ? 'Seleccionada' : 'Elegir'}</button>}
               </article>
             );
           })}

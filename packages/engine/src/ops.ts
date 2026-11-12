@@ -153,6 +153,8 @@ export async function applyPreset(dir: string, presetId: string) {
   if (st) {
     for (const s of project.scenes) {
       if (st.textStyle) s.textStyle = st.textStyle;
+      if (st.textFont) s.textFont = st.textFont;
+      if (st.textAnim) s.textAnim = st.textAnim;
       if (st.look) s.look = st.look;
       if (st.camera) s.camera = st.camera;
     }

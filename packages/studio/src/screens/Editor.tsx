@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { FONT_FAMILIES, MIN_CLIP, applyVariant, buildTimeline, keywordOf, sceneLength, suggestVariants, type Scene } from '@snz/schema';
+import { FONT_FAMILIES, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene } from '@snz/schema';
 import { Reel } from '@snz/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -16,7 +16,15 @@ const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['subrayado', 'Subrayado', 'Letras blancas; la palabra clave se subraya con una línea que se dibuja.'],
   ['neon', 'Neón', 'Letras con brillo de neón en el color elegido.'],
   ['banda', 'Banda de titular', 'Una franja de color de lado a lado, como un titular.'],
+  ['contorno', 'Contorno', 'Letras huecas con borde blanco; la palabra clave rellena de color.'],
+  ['degradado', 'Degradado', 'Letras con degradado entre el color elegido y el secundario de la marca.'],
+  ['sombra', 'Sombra retro', 'Letras blancas con una sombra dura de color, estilo cartel.'],
+  ['etiqueta', 'Etiqueta', 'Una píldora oscura con un punto de color; discreta, para b-roll o datos.'],
 ];
+
+const TEXT_ANIMS: [Scene['textAnim'], string][] = [['subir', 'Sube'], ['pop', 'Salta'], ['deslizar', 'Desliza'], ['fundido', 'Aparece'], ['barrido', 'Se revela']];
+/** Nueve posiciones rápidas para el texto (x, y de 0 a 1), dentro de las zonas seguras. */
+const GRID: [number, number][] = [0.22, 0.45, 0.62].flatMap((y) => [0.3, 0.5, 0.7].map((x) => [x, y] as [number, number]));
 
 /** Muestras rápidas más una rueda para elegir cualquier color. */
 const ColorRow: React.FC<{ value: string; label: string; swatches?: string[]; onPick: (c: string) => void }> = ({ value, label, swatches = COLORS, onPick }) => {
@@ -36,6 +44,17 @@ const ColorRow: React.FC<{ value: string; label: string; swatches?: string[]; on
         onChange={(e) => setDraft(e.target.value)} onBlur={() => /^#[0-9a-f]{6}$/i.test(draft) && draft.toUpperCase() !== hex.toUpperCase() ? onPick(draft.toUpperCase()) : setDraft(hex)}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
     </div>
+  );
+};
+
+/** Barra genérica que guarda al soltar (para no llenar el historial de deshacer). */
+const Slider: React.FC<{ label: string; value: number; min: number; max: number; step: number; show: (v: number) => string; onCommit: (v: number) => void }> = ({ label, value, min, max, step, show, onCommit }) => {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return (
+    <label className="field">{label}: {show(v)}
+      <input type="range" min={min} max={max} step={step} value={v} onChange={(e) => setV(Number(e.target.value))} onPointerUp={() => v !== value && onCommit(+v.toFixed(2))} onKeyUp={() => v !== value && onCommit(+v.toFixed(2))} />
+    </label>
   );
 };
 
@@ -130,9 +149,57 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
   // Siempre hay 3 variantes para el clip seleccionado: las guardadas o, si no hay, sugeridas al instante.
   const quick = useMemo(
-    () => (!scene ? [] : scene.variants.length ? scene.variants.slice(0, 3) : suggestVariants(project, scene, store.transcript)),
+    () => (!scene ? [] : scene.variants.length ? scene.variants.slice(0, 4) : suggestVariants(project, scene, store.transcript)),
     [project, scene, store.transcript],
   );
+
+  /** Arrastre del borde de un clip: recorta (hacia dentro) o alarga (hacia fuera). */
+  const lane = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ side: 'l' | 'r'; delta: number } | null>(null);
+  const startDrag = (side: 'l' | 'r') => (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const width = lane.current?.getBoundingClientRect().width ?? 1;
+    const perPx = total / timeline.fps / width; // segundos por píxel
+    const x0 = e.clientX;
+    let delta = 0;
+    const move = (ev: PointerEvent) => { delta = (ev.clientX - x0) * perPx; setDrag({ side, delta }); };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      setDrag(null);
+      if (Math.abs(delta) < 0.03) return;
+      // Borde izquierdo a la derecha = quitar del inicio; borde derecho a la izquierda = quitar del final.
+      edit((s) => {
+        if (side === 'l') s.trimStart = +(s.trimStart + delta).toFixed(2);
+        else s.trimEnd = +(s.trimEnd - delta).toFixed(2);
+      });
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+  };
+
+  /** Divide en dos la escena que está bajo el cursor de reproducción. */
+  const split = () => {
+    const clip = timeline.clips.find((c) => frame >= c.fromFrame && frame < c.fromFrame + c.durationInFrames);
+    if (!clip) return;
+    const at = (clip.sourceStartFrame + (frame - clip.fromFrame)) / timeline.fps;
+    const i = project.scenes.findIndex((s) => s.id === clip.sceneId);
+    const ranges = effectiveRanges(project.scenes[i], project.source.duration);
+    const a = ranges.filter((r) => r.end <= at).concat(ranges.filter((r) => r.start < at && r.end > at).map((r) => ({ start: r.start, end: at })));
+    const b = ranges.filter((r) => r.start < at && r.end > at).map((r) => ({ start: at, end: r.end })).concat(ranges.filter((r) => r.start >= at));
+    const len = (x: typeof ranges) => x.reduce((n, r) => n + r.end - r.start, 0);
+    if (len(a) < MIN_CLIP || len(b) < MIN_CLIP) return ctx.toast('Mueve el cursor más al centro del clip para dividirlo.');
+    const next = Math.max(0, ...project.scenes.map((s) => Number(s.id.replace(/\D/g, '')) || 0)) + 1;
+    const id = `s${String(next).padStart(2, '0')}`;
+    store.update((p) => {
+      const s = p.scenes[i];
+      const second = { ...structuredClone(s), id, ranges: b, trimStart: 0, trimEnd: 0, transition: undefined, onScreenText: undefined, sfx: [], variants: [], chosenVariant: undefined, punchZoom: false };
+      s.ranges = a; s.trimStart = 0; s.trimEnd = 0;
+      p.scenes.splice(i + 1, 0, second);
+    });
+    ctx.go('editor', { s: id });
+  };
 
   const fullLength = scene ? scene.ranges.reduce((a, r) => a + Math.max(0, r.end - r.start), 0) : 0;
 
@@ -141,6 +208,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     if (s) fn(s);
   });
 
+  // La app estudia lo que se dice y recomienda un estilo profesional.
+  const rec = useMemo(() => recommendPreset(project, store.transcript), [project.kind, store.transcript]);
   const transitions = store.extras?.transitions ?? [];
   /** Unión abierta: id de la escena que entra. */
   const [joint, setJoint] = useState<string | null>(null);
@@ -201,8 +270,15 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <div className="editor">
         <aside className="side l">
           <details className="grp" open>
-            <summary>Presets</summary>
+            <summary>Estilos</summary>
             <div className="col">
+              {rec && rec.id !== project.presetId && (
+                <div className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--cyanSoft)', gap: 6 }}>
+                  <strong className="small">Recomendado: {store.presets.find((p) => p.id === rec.id)?.name}</strong>
+                  <span className="small muted">{rec.reason}</span>
+                  <button className="btn cyan" style={{ height: 34 }} onClick={() => applyPreset(rec.id)}>Aplicar este estilo</button>
+                </div>
+              )}
           {store.presets.map((p) => (
             <button key={p.id} className={`tpl ${project.presetId === p.id ? 'on' : ''}`} onClick={() => applyPreset(p.id)}>
               <span style={{ width: 30, height: 52, borderRadius: 6, background: '#1E1E22', flex: 'none', display: 'grid', placeItems: 'end center', paddingBottom: 6 }} aria-hidden="true">
@@ -301,7 +377,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <summary>Variantes para este clip</summary>
               <div className="col">
             <div className="col">
-                            <span className="muted small">Tres opciones según lo que dices y el estilo. Toca una para aplicarla.</span>
+                            <span className="muted small">Una de cada tipo: gráficos, b-roll, color y tipografía. Toca una para aplicarla.</span>
               {quick.map((v) => {
                 const on = scene.chosenVariant === v.id && scene.variants.length > 0;
                 return (
@@ -335,22 +411,40 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </select>
             </label>
             <span className="small muted">{TEXT_STYLES.find(([id]) => id === scene.textStyle)?.[2]}</span>
-            <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-end' }}>
-              <label className="field" style={{ flex: 1 }}>Palabra a remarcar
-                <input key={scene.id + 'k' + (scene.onScreenText ?? '')} defaultValue={scene.textKeyword ?? ''} placeholder={keywordOf(scene.onScreenText ?? '') || 'Automática'}
-                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (scene.textKeyword ?? '')) edit((s) => { s.textKeyword = v || undefined; }); }} />
+            <label className="field">Palabra a remarcar
+              <input key={scene.id + 'k' + (scene.onScreenText ?? '')} defaultValue={scene.textKeyword ?? ''} placeholder={keywordOf(scene.onScreenText ?? '') || 'Automática'}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v !== (scene.textKeyword ?? '')) edit((s) => { s.textKeyword = v || undefined; }); }} />
+            </label>
+            <div className="row" style={{ flexWrap: 'nowrap' }}>
+              <label className="field" style={{ flex: 1 }}>Tipografía
+                <select value={scene.textFont ?? ''} onChange={(e) => edit((s) => { s.textFont = e.target.value || undefined; })}>
+                  <option value="">Igual que los subtítulos</option>
+                  {FONT_FAMILIES.map((f) => <option key={f}>{f}</option>)}
+                </select>
               </label>
-              <label className="field">Posición
-                <select value={scene.textPosition} onChange={(e) => edit((s) => { s.textPosition = e.target.value as Scene['textPosition']; })}>
-                  <option value="arriba">Arriba</option><option value="centro">Centro</option>
+              <label className="field" style={{ flex: 1 }}>Entrada
+                <select value={scene.textAnim} onChange={(e) => edit((s) => { s.textAnim = e.target.value as Scene['textAnim']; })}>
+                  {TEXT_ANIMS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                 </select>
               </label>
             </div>
+            <Slider label="Tamaño" value={scene.textSize} min={0.5} max={2} step={0.05} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.textSize = v; })} />
+            <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+              <div className="col" style={{ gap: 4 }}>
+                <span className="small muted">Posición</span>
+                <div className="posgrid" role="group" aria-label="Posición del texto">
+                  {GRID.map(([x, y], i) => {
+                    const cx = scene.textX ?? 0.5, cy = scene.textY ?? (scene.textPosition === 'centro' ? 0.45 : 0.2);
+                    const on = Math.abs(cx - x) < 0.06 && Math.abs(cy - y) < 0.06;
+                    return <button key={i} className={on ? 'on' : ''} aria-label={`Posición ${i + 1} de 9`} aria-pressed={on} onClick={() => edit((s) => { s.textX = x; s.textY = y; })} />;
+                  })}
+                </div>
               </div>
-            </details>
-            <details className="grp">
-              <summary>Imagen y cámara</summary>
-              <div className="col">
+              <div className="col" style={{ flex: 1, gap: 4 }}>
+                <Slider label="Horizontal" value={scene.textX ?? 0.5} min={0.15} max={0.85} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.textX = v; })} />
+                <Slider label="Vertical" value={scene.textY ?? (scene.textPosition === 'centro' ? 0.45 : 0.2)} min={0.1} max={0.85} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.textY = v; })} />
+              </div>
+            </div>
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <label className="field" style={{ flex: 1 }}>Imagen
                 <select value={scene.look} onChange={(e) => edit((s) => { s.look = e.target.value as Scene['look']; })}>
@@ -412,14 +506,28 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       )}
 
       <section className="tl" aria-label="Línea de tiempo">
+        <div className="row small muted" style={{ justifyContent: 'space-between' }}>
+          <div className="row">
+            <button className="btn rect" style={{ height: 30 }} onClick={split} title="Corta en dos el clip donde está el cursor rojo">✂ Dividir en el cursor</button>
+            <button className="btn rect" style={{ height: 30 }} disabled={!scene} onClick={() => edit((s) => { s.trimStart = 0; s.trimEnd = 0; })}>Recuperar clip entero</button>
+            <button className="btn rect" style={{ height: 30 }} disabled={!scene} onClick={() => store.update((p) => { p.scenes = p.scenes.filter((s) => s.id !== selId); applyPunchZooms(p.scenes, p.pacing.punchZoomEvery); })}>Eliminar clip</button>
+          </div>
+          <span>{drag ? `${drag.side === 'l' ? 'Inicio' : 'Final'}: ${drag.delta > 0 ? '+' : ''}${drag.delta.toFixed(1)} s` : 'Arrastra los bordes blancos del clip seleccionado para recortarlo o alargarlo.'}</span>
+        </div>
         <div className="track">
           <span>Video</span>
-          <div className="lane" onClick={seekLane}>
+          <div className="lane" ref={lane} onClick={seekLane}>
             {spans.map((x, i) => (
               <button key={x.id} className={`clip ${x.id === selId ? 'sel' : ''}`} style={{ left: pct(x.from), width: pct(x.dur), background: 'var(--chip)', color: 'var(--text)' }}
                 onClick={(e) => { e.stopPropagation(); select(x.id); }}>
                 {project.scenes[i].title || ROLE_LABEL[project.scenes[i].role]}
               </button>
+            ))}
+            {spans.filter((x) => x.id === selId).map((x) => (
+              <React.Fragment key={`h${x.id}`}>
+                <div className="handle" style={{ left: `calc(${pct(x.from)} + ${drag?.side === 'l' ? drag.delta / (total / timeline.fps) * 100 : 0}%)` }} onPointerDown={startDrag('l')} role="slider" aria-label="Borde inicial del clip: arrastra para recortar o alargar" aria-valuenow={scene?.trimStart ?? 0} tabIndex={0} />
+                <div className="handle r" style={{ left: `calc(${pct(x.from + x.dur)} + ${drag?.side === 'r' ? drag.delta / (total / timeline.fps) * 100 : 0}%)` }} onPointerDown={startDrag('r')} role="slider" aria-label="Borde final del clip: arrastra para recortar o alargar" aria-valuenow={scene?.trimEnd ?? 0} tabIndex={0} />
+              </React.Fragment>
             ))}
             {spans.map((x, i) => {
               if (i === 0) return null;

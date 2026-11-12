@@ -285,6 +285,20 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
   }
 
+  if (p === '/api/broll' && method === 'POST') {
+    // Sube un clip y lo pone como b-roll de una escena. La licencia es obligatoria.
+    const dir = await findDir(id);
+    const tmpDir = path.join(os.tmpdir(), `snz-broll-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'broll.mp4'));
+    await pipe(req, createWriteStream(tmp));
+    try {
+      return json(res, { project: await ops.setBroll(dir, url.searchParams.get('scene') ?? '', tmp, { license: url.searchParams.get('license') ?? '', source: 'subido en el studio' }) });
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  }
+
   if (p.startsWith('/sfx/')) {
     // Vista previa de un efecto incluido.
     const sid = path.basename(p).replace(/\.wav$/, '');

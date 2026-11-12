@@ -226,30 +226,42 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
   );
 };
 
-/** Texto en pantalla de una escena, en uno de siete estilos. La palabra clave se remarca. */
-const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }> = ({ overlay, font, t }) => {
+/**
+ * Texto en pantalla de una escena. Once estilos, con la palabra clave remarcada,
+ * tamaño, tipografía, posición libre y animación de entrada.
+ */
+const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }> = ({ overlay, font: baseFont, t }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const font = useFont(overlay.font ?? '') || baseFont;
   const enter = spring({ frame, fps, config: { damping: 16, stiffness: 200 }, durationInFrames: 10 });
   // La palabra clave entra un instante después, para que el ojo vaya a ella.
   const kw = spring({ frame: frame - 5, fps, config: { damping: 11, stiffness: 220 }, durationInFrames: 12 });
   const color = overlay.color ?? t.captions.highlightColor;
   const upper = t.captions.uppercase;
+  const k = overlay.size;
   const words = overlay.text.split(/\s+/).filter(Boolean);
   const isKey = (w: string) => isKeyword(w, overlay.keyword);
-  const top = overlay.position === 'centro' ? '40%' : '15%';
-  const wrap: React.CSSProperties = {
-    position: 'absolute', top, left: '7%', right: '7%', textAlign: 'center', fontFamily: font, fontWeight: 800,
-    lineHeight: 1.1, textTransform: upper ? 'uppercase' : 'none', opacity: enter,
-    transform: `translateY(${interpolate(enter, [0, 1], [30, 0])}px)`,
-  };
-  const outline: React.CSSProperties = { color: '#fff', WebkitTextStroke: '9px #000', paintOrder: 'stroke fill', textShadow: '0 8px 22px rgba(0,0,0,0.5)' };
   const gap = (i: number) => (i < words.length - 1 ? ' ' : '');
+
+  // Animación de entrada.
+  const anim: React.CSSProperties =
+    overlay.anim === 'pop' ? { opacity: Math.min(1, enter * 2), transform: `translate(-50%, -50%) scale(${interpolate(enter, [0, 1], [0.55, 1])})` }
+    : overlay.anim === 'deslizar' ? { opacity: enter, transform: `translate(calc(-50% + ${interpolate(enter, [0, 1], [-90, 0])}px), -50%)` }
+    : overlay.anim === 'fundido' ? { opacity: interpolate(frame, [0, 12], [0, 1], { extrapolateRight: 'clamp' }), transform: 'translate(-50%, -50%)' }
+    : overlay.anim === 'barrido' ? { transform: 'translate(-50%, -50%)', clipPath: `inset(-20% ${interpolate(frame, [0, 12], [100, -5], { extrapolateRight: 'clamp' })}% -20% -5%)` }
+    : { opacity: enter, transform: `translate(-50%, calc(-50% + ${interpolate(enter, [0, 1], [34, 0])}px))` };
+
+  const wrap: React.CSSProperties = {
+    position: 'absolute', left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: '86%', textAlign: 'center',
+    fontFamily: font, fontWeight: 800, lineHeight: 1.1, textTransform: upper ? 'uppercase' : 'none', ...anim,
+  };
+  const outline: React.CSSProperties = { color: '#fff', WebkitTextStroke: `${Math.round(9 * k)}px #000`, paintOrder: 'stroke fill', textShadow: '0 8px 22px rgba(0,0,0,0.5)' };
 
   if (overlay.style === 'banda') {
     return (
       <AbsoluteFill>
-        <div style={{ position: 'absolute', top: overlay.position === 'centro' ? '42%' : '11%', left: 0, right: 0, padding: '22px 60px', backgroundColor: color, color: onColor(color), fontFamily: font, fontWeight: 800, fontSize: 56, lineHeight: 1.1, textAlign: 'center', textTransform: upper ? 'uppercase' : 'none', transform: `scaleX(${interpolate(enter, [0, 1], [0, 1])})` }}>
+        <div style={{ position: 'absolute', top: `${overlay.y * 100}%`, left: 0, right: 0, padding: `${22 * k}px 60px`, backgroundColor: color, color: onColor(color), fontFamily: font, fontWeight: 800, fontSize: 56 * k, lineHeight: 1.1, textAlign: 'center', textTransform: upper ? 'uppercase' : 'none', transform: `translateY(-50%) scaleX(${interpolate(enter, [0, 1], [0, 1])})` }}>
           <span style={{ opacity: interpolate(enter, [0.6, 1], [0, 1], { extrapolateLeft: 'clamp' }) }}>{overlay.text}</span>
         </div>
       </AbsoluteFill>
@@ -262,32 +274,44 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     return (
       <AbsoluteFill>
         <div style={{ ...wrap, ...outline }}>
-          {rest ? <div style={{ fontSize: 50 }}>{rest}</div> : null}
-          {key ? <div style={{ fontSize: Math.min(190, Math.max(96, 1150 / Math.max(4, key.length))), color, lineHeight: 0.98, transform: `scale(${interpolate(kw, [0, 1], [0.6, 1])})` }}>{key}</div> : null}
+          {rest ? <div style={{ fontSize: 50 * k }}>{rest}</div> : null}
+          {key ? <div style={{ fontSize: Math.min(190, Math.max(96, 1150 / Math.max(4, key.length))) * k, color, lineHeight: 0.98, transform: `scale(${interpolate(kw, [0, 1], [0.6, 1])})` }}>{key}</div> : null}
         </div>
       </AbsoluteFill>
     );
   }
 
-  if (overlay.style === 'caja') {
+  if (overlay.style === 'caja' || overlay.style === 'etiqueta') {
+    const tag = overlay.style === 'etiqueta';
     return (
-      <AbsoluteFill style={{ alignItems: 'center' }}>
-        <div style={{ ...wrap, left: undefined, right: undefined, maxWidth: '84%', padding: '18px 30px', borderRadius: 18, backgroundColor: color, color: onColor(color), fontSize: 58 }}>
-          {words.map((w, i) => <span key={i} style={isKey(w) ? { fontSize: '1.12em', textDecoration: 'underline', textDecorationThickness: 6, textUnderlineOffset: 8 } : undefined}>{w}{gap(i)}</span>)}
+      <AbsoluteFill>
+        <div style={{ ...wrap, width: 'auto', maxWidth: '84%', display: 'flex', alignItems: 'center', gap: 16 * k, padding: tag ? `${14 * k}px ${30 * k}px` : `${18 * k}px ${30 * k}px`, borderRadius: tag ? 999 : 18, backgroundColor: tag ? 'rgba(10,10,12,0.78)' : color, color: tag ? '#fff' : onColor(color), fontSize: (tag ? 44 : 58) * k, fontWeight: tag ? 700 : 800 }}>
+          {tag ? <span style={{ width: 20 * k, height: 20 * k, borderRadius: 999, backgroundColor: color, flex: 'none' }} /> : null}
+          <span>
+            {words.map((w, i) => <span key={i} style={isKey(w) ? (tag ? { color } : { fontSize: '1.12em', textDecoration: 'underline', textDecorationThickness: 6, textUnderlineOffset: 8 }) : undefined}>{w}{gap(i)}</span>)}
+          </span>
         </div>
       </AbsoluteFill>
     );
   }
 
+  // Estilos de letra suelta: cada uno define el aspecto base y cómo se ve la palabra clave.
+  const base: React.CSSProperties =
+    overlay.style === 'neon' ? { color, textShadow: `0 0 18px ${color}, 0 0 46px ${color}, 0 4px 10px rgba(0,0,0,0.8)` }
+    : overlay.style === 'contorno' ? { color: 'transparent', WebkitTextStroke: `${Math.round(4 * k)}px #fff`, textShadow: '0 6px 18px rgba(0,0,0,0.55)' }
+    : overlay.style === 'degradado' ? { backgroundImage: `linear-gradient(100deg, ${color}, ${t.brand.secondary})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.65))' }
+    : overlay.style === 'sombra' ? { color: '#fff', textShadow: `${5 * k}px ${5 * k}px 0 ${color}, ${10 * k}px ${10 * k}px 0 #000` }
+    : outline;
   return (
     <AbsoluteFill>
-      <div style={{ ...wrap, fontSize: 68, ...(overlay.style === 'neon' ? { color, textShadow: `0 0 18px ${color}, 0 0 46px ${color}, 0 4px 10px rgba(0,0,0,0.8)` } : outline) }}>
+      <div style={{ ...wrap, fontSize: 68 * k, ...base }}>
         {words.map((w, i) => {
           if (!isKey(w)) return <span key={i}>{w}{gap(i)}</span>;
+          const inline: React.CSSProperties = { display: 'inline-block', margin: '0 0.1em' };
           if (overlay.style === 'marcador') {
             // Trazo de marcador que se pinta de izquierda a derecha detrás de la palabra.
             return (
-              <span key={i} style={{ position: 'relative', display: 'inline-block', padding: '0 0.16em', margin: '0 0.06em', color: onColor(color), WebkitTextStroke: '0', textShadow: 'none' }}>
+              <span key={i} style={{ ...inline, position: 'relative', padding: '0 0.16em', margin: '0 0.06em', color: onColor(color), WebkitTextStroke: '0', textShadow: 'none' }}>
                 <span style={{ position: 'absolute', inset: '6% 0', backgroundColor: color, borderRadius: 10, transformOrigin: 'left center', transform: `scaleX(${Math.min(1, Math.max(0, kw))}) rotate(-1.2deg)` }} />
                 <span style={{ position: 'relative' }}>{w}</span>
               </span>
@@ -295,15 +319,18 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
           }
           if (overlay.style === 'subrayado') {
             return (
-              <span key={i} style={{ position: 'relative', display: 'inline-block', margin: '0 0.1em' }}>
+              <span key={i} style={{ ...inline, position: 'relative' }}>
                 {w}
-                <span style={{ position: 'absolute', left: 0, right: 0, bottom: -10, height: 12, borderRadius: 6, backgroundColor: color, transformOrigin: 'left center', transform: `scaleX(${Math.min(1, Math.max(0, kw))})` }} />
+                <span style={{ position: 'absolute', left: 0, right: 0, bottom: -10, height: 12 * k, borderRadius: 6, backgroundColor: color, transformOrigin: 'left center', transform: `scaleX(${Math.min(1, Math.max(0, kw))})` }} />
               </span>
             );
           }
-          if (overlay.style === 'neon') return <span key={i} style={{ display: 'inline-block', margin: '0 0.1em', color: '#fff', fontSize: '1.15em' }}>{w}</span>;
+          if (overlay.style === 'neon') return <span key={i} style={{ ...inline, color: '#fff', fontSize: '1.15em' }}>{w}</span>;
+          if (overlay.style === 'contorno') return <span key={i} style={{ ...inline, color, WebkitTextStroke: '0', fontSize: '1.15em' }}>{w}</span>;
+          if (overlay.style === 'degradado') return <span key={i} style={{ ...inline, fontSize: '1.25em', transform: `scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;
+          if (overlay.style === 'sombra') return <span key={i} style={{ ...inline, color, textShadow: `${5 * k}px ${5 * k}px 0 #000`, fontSize: '1.18em' }}>{w}</span>;
           // resaltado: la palabra clave en color y más grande.
-          return <span key={i} style={{ display: 'inline-block', margin: '0 0.1em', color, fontSize: '1.22em', transform: `scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;
+          return <span key={i} style={{ ...inline, color, fontSize: '1.22em', transform: `scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;
         })}
       </div>
     </AbsoluteFill>

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { Project, buildTimeline, effectiveRanges, getPreset, outputDuration, sceneLength } from '@snz/schema';
+import { BUILTIN_PRESETS, Project, buildTimeline, effectiveRanges, getPreset, outputDuration, recommendPreset, sceneLength } from '@snz/schema';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const fixture = path.join(repo, 'workspace', 'clientes', 'personal', 'proyectos', '2026-11-12-prueba-sintetica');
@@ -26,6 +26,11 @@ describe('recorte de clips', () => {
     expect(sceneLength(scene(2.5, 0))).toBeCloseTo(2.5);
   });
 
+  it('un recorte negativo alarga el clip con el material vecino, sin salirse del video', () => {
+    expect(effectiveRanges(scene(-1.5, -2))).toEqual([{ start: 8.5, end: 12 }, { start: 20, end: 25 }]);
+    expect(effectiveRanges(scene(-99, -99), 24)).toEqual([{ start: 0, end: 12 }, { start: 20, end: 24 }]);
+  });
+
   it('siempre deja un mínimo de clip', () => {
     expect(sceneLength(scene(99, 99))).toBeCloseTo(0.3);
     expect(sceneLength(scene(0, 99))).toBeCloseTo(0.3);
@@ -43,6 +48,30 @@ describe('recorte de clips', () => {
     expect(t.clips[0]).toMatchObject({ sourceStartFrame: 330, durationInFrames: 60 });
     expect(t.clips[1].fromFrame).toBe(60);
     expect(t.words.map((w) => w.text)).toEqual(['dentro']); // la palabra recortada no se subtitula
+  });
+});
+
+describe('estilo recomendado según el video', () => {
+  const tr = (text: string) => ({ words: text.split(' ').map((w, i) => ({ text: w, start: i * 0.4, end: i * 0.4 + 0.3 })) });
+  it('reconoce el tema por lo que se dice', () => {
+    expect(recommendPreset({ kind: 'hablado' }, tr('Hoy entrenamos pierna en el gimnasio con esta rutina de pesas')).id).toBe('energia');
+    expect(recommendPreset({ kind: 'hablado' }, tr('Esta receta de pizza lleva tres ingredientes y va al horno')).id).toBe('comida-calida');
+    expect(recommendPreset({ kind: 'hablado' }, tr('Si tu negocio no consigue clientes pierdes ventas y dinero')).id).toBe('negocio-directo');
+    expect(recommendPreset({ kind: 'hablado' }, tr('Esta herramienta de inteligencia artificial automatiza tu app')).id).toBe('tech-neon');
+  });
+  it('sin tema claro decide por el tipo de video, y siempre da el motivo', () => {
+    const m = recommendPreset({ kind: 'montaje' }, null);
+    expect(m.id).toBe('energia');
+    expect(m.reason.length).toBeGreaterThan(10);
+    expect(BUILTIN_PRESETS.some((p) => p.id === recommendPreset({ kind: 'hablado' }, tr('hola que tal como estas')).id)).toBe(true);
+  });
+  it('los estilos profesionales traen subtítulos, textos, imagen y transiciones', () => {
+    for (const id of ['negocio-directo', 'energia', 'comida-calida', 'tech-neon', 'clase-clara', 'elegante']) {
+      const p = getPreset(id);
+      expect(p.style?.textStyle).toBeTruthy();
+      expect(p.style?.transitions).toBe(true);
+      expect(p.captions.effect).toBeTruthy();
+    }
   });
 });
 

@@ -116,16 +116,29 @@ El brief es lo primero. Al terminar de responderlo, «Crear mi edición» (o `ap
 
 Además pone el gancho en grande en la primera escena (con una frase que sí dijiste), las transiciones recomendadas y, con ritmo rápido, efectos de sonido. Antes guarda una versión. Después se cambia a mano lo que se quiera.
 
-## Recortar clips
+## Cortar, recortar, alargar y dividir clips
 
-Cada clip se acorta quitando segundos del inicio o del final (barras en el editor, o `recortar_escena`). No se pierde material: «Recuperar el clip entero» lo devuelve. Los subtítulos y la duración total siguen el recorte.
+En la línea de tiempo del editor:
+
+- **Arrastrar los bordes blancos** del clip seleccionado: hacia dentro lo recorta, hacia fuera lo alarga con el material que hay antes o después del corte.
+- **✂ Dividir en el cursor**: parte en dos el clip donde está el cursor rojo.
+- **Recuperar clip entero** y **Eliminar clip**.
+
+El recorte no borra material (`trimStart` / `trimEnd`, positivos recortan y negativos alargan). Desde Claude: `recortar_escena`.
+
+## Estilos profesionales y recomendación
+
+Además de los seis presets de ritmo hay seis **estilos completos** (subtítulos, textos, imagen, transiciones y efectos): Negocio directo, Energía, Comida cálida, Tecnología neón, Clase clara y Elegante.
+
+El editor **estudia lo que se dice** y recomienda uno, con el motivo («El video habla de tecnología o herramientas (3 menciones)»). Si no hay un tema claro, decide por el tipo de video y la velocidad al hablar. La búsqueda de tema es por palabras clave en la transcripción; no busca referencias en internet.
 
 ## Textos y subtítulos
 
-**Texto en pantalla** de cada escena, en siete estilos: recuadro de color, palabra clave en color, marcador (un trazo que se pinta detrás de la clave), palabra gigante, subrayado, neón y banda de titular.
+**Texto en pantalla** de cada escena, en once estilos: recuadro de color, palabra clave en color, marcador (un trazo que se pinta detrás de la clave), palabra gigante, subrayado, neón, banda de titular, contorno, degradado, sombra retro y etiqueta.
 
 - La **palabra clave** se remarca sola (un número si lo hay; si no, la palabra con significado más larga) o la eliges tú.
-- Posición arriba o al centro.
+- **Tamaño** (50–200 %), **tipografía** propia del texto y **animación de entrada** (sube, salta, desliza, aparece, se revela).
+- **Posición libre**: una rejilla de nueve posiciones y barras horizontal y vertical.
 - **Color**: muestras rápidas, rueda para cualquier color y código hexadecimal.
 
 **Subtítulos**:
@@ -138,16 +151,18 @@ Cada clip se acorta quitando segundos del inicio o del final (barras en el edito
 
 ## Variantes automáticas
 
-Al seleccionar un clip hay siempre **tres variantes al instante**, sin esperar a Claude:
+Al seleccionar un clip hay siempre **cuatro variantes, una de cada tipo**, sin esperar a Claude:
 
-- En el Editor, en el panel derecho («Variantes para este clip»): se aplican con un toque.
-- En la pantalla Variantes: con vista previa, «Otras 3» y «Pedir variantes a Claude» para opciones más creativas.
+| Tipo | Qué cambia | De dónde sale |
+| --- | --- | --- |
+| Motion graphics | Número animado, lista, cierre con marca o tarjeta de texto | Las cifras y frases que se dijeron en ese clip |
+| B-roll | Otro video encima con una etiqueta | Los clips de b-roll del proyecto; si no hay, botón para subir uno |
+| Color | Aspecto de la imagen y color del texto | Cálido, blanco y negro, alto contraste o frío |
+| Tipografía | Forma, letra y entrada del texto | Ocho combinaciones (gigante con Anton, marcador con Poppins…) |
 
-Cada variante es una idea completa (texto, forma del texto, palabra clave, imagen y cámara), no un ajuste suelto. Salen de reglas (`packages/schema/src/suggest.ts`): lo que se dice en la escena, su papel y el estilo del reel.
-
-- Los textos se sacan de lo que dijo la persona; no se inventa nada. Los datos que falten se ven como `[DATO]`.
-- Según el papel: gancho con golpe, lista de puntos en un beneficio, dato grande en una prueba, cierre con la marca en el llamado a la acción.
-- En un montaje sin voz, las ideas van por la imagen: acercamiento lento, blanco y negro con golpe, cinemático cálido, título gigante.
+- La **miniatura es el fotograma real** de la escena con la variante aplicada (Remotion `Thumbnail`), no un dibujo.
+- «Otras 4» cambia el set. «Pedir variantes a Claude» queda para cuando ninguna sirva.
+- En el Editor aparecen a la derecha y se aplican con un toque.
 
 Desde Claude: `sugerir_variantes` (las de reglas) y `generar_variantes` (las que propone Claude).
 

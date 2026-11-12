@@ -47,7 +47,10 @@ export const CaptionStyle = z.object({
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
 /** Formas de mostrar el texto en pantalla de una escena. */
-export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda']);
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta']);
+/** Cómo entra el texto en pantalla. */
+export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido']);
+export type TextAnim = z.infer<typeof TextAnim>;
 export type TextStyle = z.infer<typeof TextStyle>;
 /** Aspecto de color de la imagen. */
 export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
@@ -67,9 +70,15 @@ export const SceneVariant = z.object({
   textColor: z.string().optional(),
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
+  /** Qué cambia esta variante: gráficos, b-roll, color, tipografía o una idea general. */
+  category: z.enum(['motion', 'broll', 'color', 'tipografia', 'idea']).optional(),
   textStyle: TextStyle.optional(),
   textKeyword: z.string().optional(),
   textPosition: z.enum(['arriba', 'centro']).optional(),
+  textFont: z.string().optional(),
+  textSize: z.number().optional(),
+  textAnim: TextAnim.optional(),
+  motionData: z.record(z.string(), z.any()).optional(),
   look: Look.optional(),
   camera: Camera.optional(),
   /** Zoom de golpe al entrar. */
@@ -86,9 +95,12 @@ export const Scene = z.object({
   title: z.string().default(''),
   /** Tramos del video fuente que forman la escena, en orden. */
   ranges: z.array(Range).min(1),
-  /** Recorte del clip: segundos que se quitan del inicio y del final (sin perder el material). */
-  trimStart: z.number().min(0).default(0),
-  trimEnd: z.number().min(0).default(0),
+  /**
+   * Recorte del clip en segundos: positivo quita del inicio o del final;
+   * negativo lo alarga con el material que hay antes o después. No se pierde nada.
+   */
+  trimStart: z.number().default(0),
+  trimEnd: z.number().default(0),
   visual: SceneVisual.default('original'),
   onScreenText: z.string().optional(),
   textColor: z.string().optional(),
@@ -98,6 +110,14 @@ export const Scene = z.object({
   textKeyword: z.string().optional(),
   /** Dónde va el texto en pantalla. */
   textPosition: z.enum(['arriba', 'centro']).default('arriba'),
+  /** Posición libre del centro del texto (0–1). Si falta, manda textPosition. */
+  textX: z.number().min(0).max(1).optional(),
+  textY: z.number().min(0).max(1).optional(),
+  /** Tamaño relativo del texto (1 = normal). */
+  textSize: z.number().min(0.4).max(2.5).default(1),
+  /** Tipografía del texto. Si falta, la de los subtítulos. */
+  textFont: z.string().optional(),
+  textAnim: TextAnim.default('subir'),
   look: Look.default('normal'),
   camera: Camera.default('ninguno'),
   brollFile: z.string().optional(),
@@ -138,6 +158,8 @@ export const Preset = z.object({
   /** Estilo de las escenas que trae el preset (lo usan las plantillas desde referencia). */
   style: z.object({
     textStyle: TextStyle.optional(),
+    textFont: z.string().optional(),
+    textAnim: TextAnim.optional(),
     look: Look.optional(),
     camera: Camera.optional(),
     /** Poner las transiciones recomendadas al aplicar el preset. */

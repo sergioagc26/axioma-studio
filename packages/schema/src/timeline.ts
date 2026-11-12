@@ -1,16 +1,25 @@
-import type { Camera, CaptionStyle, Look, Project, Scene, TextStyle, Transcript } from './project.ts';
+import type { Camera, CaptionStyle, Look, Project, Scene, TextAnim, TextStyle, Transcript } from './project.ts';
 import { keywordOf } from './suggest.ts';
 import { findTransition, type TransitionSpec } from './transitions.ts';
 
 /** Duración mínima que queda de un clip después de recortarlo. */
 export const MIN_CLIP = 0.3;
 
-/** Tramos de la escena después de aplicar su recorte de inicio y final. */
-export function effectiveRanges(scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'>): { start: number; end: number }[] {
+/**
+ * Tramos de la escena después de aplicar su recorte. Un recorte positivo quita
+ * del inicio o del final; uno negativo alarga el clip con el material vecino
+ * (sin pasar de 0 ni de `maxEnd`, la duración del video fuente).
+ */
+export function effectiveRanges(scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'>, maxEnd = Number.POSITIVE_INFINITY): { start: number; end: number }[] {
   const ranges = scene.ranges.map((r) => ({ start: r.start, end: Math.max(r.start, r.end) }));
+  if (!ranges.length) return ranges;
+  const ts = scene.trimStart ?? 0;
+  const te = scene.trimEnd ?? 0;
+  if (ts < 0) ranges[0].start = Math.max(0, ranges[0].start + ts);
+  if (te < 0) ranges[ranges.length - 1].end = Math.min(maxEnd, ranges[ranges.length - 1].end - te);
   const total = ranges.reduce((a, r) => a + r.end - r.start, 0);
-  let s = Math.max(0, Math.min(scene.trimStart ?? 0, total - MIN_CLIP));
-  let e = Math.max(0, Math.min(scene.trimEnd ?? 0, total - MIN_CLIP - s));
+  let s = Math.max(0, Math.min(ts, total - MIN_CLIP));
+  let e = Math.max(0, Math.min(te, total - MIN_CLIP - s));
   for (const r of ranges) {
     const cut = Math.min(s, r.end - r.start);
     r.start += cut;
@@ -62,7 +71,9 @@ export type TimelineWord = { text: string; startFrame: number; endFrame: number 
 
 export type TimelineOverlay = {
   sceneId: string; text: string; color?: string; fromFrame: number; durationInFrames: number;
-  style: TextStyle; keyword: string; position: 'arriba' | 'centro';
+  style: TextStyle; keyword: string;
+  /** Centro del texto (0–1), tamaño relativo, tipografía y animación de entrada. */
+  x: number; y: number; size: number; font?: string; anim: TextAnim;
 };
 
 export type Brand = { primary: string; secondary: string; text: string; name?: string; logoSrc?: string };
@@ -153,7 +164,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
       ? { template, data: scene.motionData ?? {}, text: activeText(scene) }
       : visual === 'texto' && activeText(scene) ? { template: 'texto', data: {}, text: activeText(scene) } : undefined;
 
-    effectiveRanges(scene).forEach((r, i) => {
+    effectiveRanges(scene, project.source.duration).forEach((r, i) => {
       const dur = Math.max(0, r.end - r.start);
       if (dur <= 0) return;
       const from = toFrame(acc);
@@ -198,7 +209,11 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         color: activeColor(scene),
         style: scene.textStyle,
         keyword: scene.textKeyword || keywordOf(text),
-        position: scene.textPosition,
+        x: scene.textX ?? 0.5,
+        y: scene.textY ?? (scene.textPosition === 'centro' ? 0.45 : 0.2),
+        size: scene.textSize,
+        font: scene.textFont,
+        anim: scene.textAnim,
         fromFrame: toFrame(sceneStart),
         durationInFrames: toFrame(acc) - toFrame(sceneStart),
       });

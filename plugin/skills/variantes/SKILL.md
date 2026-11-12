@@ -5,6 +5,8 @@ description: Propone 2–4 versiones distintas de una escena de un reel (texto c
 
 # Variantes de una escena
 
+La app ya da cuatro variantes automáticas por clip (motion graphics, b-roll, color y tipografía) con `sugerir_variantes`. Usa esta skill cuando el usuario quiere algo que esas no cubren. Marca cada variante con su tipo y procura cubrir tipos distintos.
+
 1. Llama `leer_proyecto` para ver la escena y `leer_transcripcion` si necesitas lo que se dice en ella.
 2. Propón de 2 a 4 variantes. Cada una es una **idea completa** que tenga sentido para lo que se dice en la escena, no un ajuste suelto. "Otra transición" o "ponerle un texto" no son variantes. Una idea combina:
    - **Texto** (≤ 6 palabras, de lo que dijo la persona) y su **palabra clave** (`palabra_clave`): la que carga el significado.

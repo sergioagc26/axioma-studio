@@ -29,30 +29,43 @@ describe('variantes automáticas', () => {
     expect(p.every((x) => x.split(' ').length <= 6)).toBe(true);
   });
 
-  it('da siempre 3 variantes distintas, con textos sacados de la transcripción', () => {
+  it('da una variante de cada tipo: gráficos, b-roll, color y tipografía', () => {
     const project = base();
+    const said = words.map((w) => w.text).join(' ');
     for (const scene of project.scenes) {
       const v = suggestVariants(project, scene, transcript);
-      expect(v).toHaveLength(3);
-      expect(new Set(v.map((x) => x.label)).size).toBe(3);
-      expect(v.map((x) => x.id)).toEqual(['a', 'b', 'c']);
-      const said = words.map((w) => w.text).join(' ');
-      for (const x of v) if (x.onScreenText && !x.onScreenText.startsWith('[')) expect(said).toContain(x.onScreenText);
+      expect(v.map((x) => x.category)).toEqual(['motion', 'broll', 'color', 'tipografia']);
+      expect(v.map((x) => x.id)).toEqual(['a', 'b', 'c', 'd']);
+      // Los textos y los puntos de la lista salen de lo que se dijo.
+      for (const x of v) if (x.onScreenText && !x.onScreenText.startsWith('[')) expect(said + ' Ahorra horas').toContain(x.onScreenText);
+      for (const item of (v[0].motionData?.items as string[] | undefined) ?? []) expect(said).toContain(item);
     }
-    // "Otras 3" cambia el set.
-    const a = suggestVariants(project, project.scenes[1], transcript, 0).map((x) => x.label);
-    const b = suggestVariants(project, project.scenes[1], transcript, 1).map((x) => x.label);
-    expect(b).not.toEqual(a);
+    // "Otras" cambia color y tipografía.
+    const a = suggestVariants(project, project.scenes[1], transcript, 0);
+    const b = suggestVariants(project, project.scenes[1], transcript, 1);
+    expect(b[2].look).not.toBe(a[2].look);
+    expect(b[3].textStyle).not.toBe(a[3].textStyle);
   });
 
-  it('según el papel: cierre con la marca en el CTA, opciones de movimiento en un montaje', () => {
+  it('los gráficos usan las cifras dichas, el b-roll usa los clips del proyecto y el cierre lleva la marca', () => {
+    const nums = { language: 'es', model: 'x', words: 'Ahorras 10 horas cada semana con esto.'.split(' ').map((w, i) => W(w, 2.6 + i * 0.4)) };
+    const p = base();
+    const m = suggestVariants(p, p.scenes[1], nums)[0];
+    expect(m).toMatchObject({ visual: 'motion', motionTemplate: 'contador' });
+    expect(m.motionData?.valor).toBe(10);
+
+    // Sin clips, el b-roll pide uno; con clips, usa el del proyecto.
+    expect(suggestVariants(p, p.scenes[1], transcript)[1].brollFile).not.toMatch(/\.mp4$/);
+    const withClip = base({ assets: [{ file: 'media/broll/oficina.mp4', kind: 'broll', source: 'x', license: 'propia' }] });
+    expect(suggestVariants(withClip, withClip.scenes[1], transcript)[1].brollFile).toBe('media/broll/oficina.mp4');
+
     const cta = base({ scenes: [{ id: 's1', ranges: [{ start: 0, end: 2 }] }, { id: 's2', role: 'cta', ranges: [{ start: 2.6, end: 6 }] }] });
     expect(suggestVariants(cta, cta.scenes[1], transcript)[0]).toMatchObject({ visual: 'motion', motionTemplate: 'logo' });
+
+    // En un montaje sin voz también hay cuatro, y la primera escena no lleva transición.
     const montaje = base({ kind: 'montaje' });
-    const v = suggestVariants(montaje, montaje.scenes[1], null);
-    expect(v).toHaveLength(3);
-    expect(v.some((x) => x.transition || x.punchZoom)).toBe(true);
-    expect(suggestVariants(montaje, montaje.scenes[0], null).every((x) => !x.transition)).toBe(true); // la primera no lleva transición
+    expect(suggestVariants(montaje, montaje.scenes[0], null)).toHaveLength(4);
+    expect(suggestVariants(montaje, montaje.scenes[0], null).every((x) => !x.transition)).toBe(true);
   });
 
   it('aplicar una variante cambia texto, zoom y transición', () => {
