@@ -4,29 +4,66 @@ import type { Ctx } from '../App.tsx';
 import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
 
-interface Q { key: string; label: string; title: string; help: string; options: { value: string; title: string; desc: string; preset?: string }[] }
+interface Opt { value: string; title: string; desc: string }
+interface Q { key: string; label: string; title: string; help: string; placeholder: string; options: Opt[] }
 
+/** Frase de cierre que va con cada objetivo: sale primero en la última pregunta. */
+const CTA_FOR: Record<string, string> = {
+  'Mensajes por DM': 'Escríbeme «INFO» por DM',
+  Comentarios: 'Comenta «QUIERO» y te lo envío',
+  Guardados: 'Guárdalo para cuando lo necesites',
+  'Ir al link': 'Entra al link de mi perfil',
+  Seguidores: 'Sígueme para más como esto',
+  Compartidos: 'Envíaselo a quien lo necesita',
+};
+export const SPOKEN_CTA = 'La que digo en el video';
+
+// Todas las preguntas se responden tocando una opción; escribir es solo para una respuesta distinta.
 const QUESTIONS: Q[] = [
-  { key: 'formato', label: 'Formato', title: '¿Reel o historia?', help: 'Define las zonas seguras y la duración recomendada.', options: [
-    { value: 'Reel 9:16', title: 'Reel', desc: 'Vertical, para el feed de Reels.' },
-    { value: 'Historia 9:16', title: 'Historia', desc: 'Vertical, hasta 60 s por historia.' }] },
-  { key: 'objetivo', label: 'Objetivo', title: '¿Qué quieres que haga quien lo vea?', help: 'El cierre del reel se arma alrededor de esto.', options: [
-    { value: 'Mensajes por DM', title: 'Escribir por DM', desc: 'Que te escriban.' },
-    { value: 'Comentarios', title: 'Comentar', desc: 'Que respondan o opinen.' },
-    { value: 'Guardados', title: 'Guardar', desc: 'Contenido útil para volver a ver.' },
-    { value: 'Ir al link', title: 'Ir al link', desc: 'Visitar tu página o perfil.' }] },
-  { key: 'publico', label: 'Público', title: '¿Para quién es?', help: 'Una frase corta basta.', options: [] },
-  { key: 'ritmo', label: 'Ritmo', title: '¿Qué ritmo quieres para este reel?', help: 'Con esto la IA decide cada cuánto cortar y cómo entran los textos. Puedes cambiarlo después.', options: [
-    { value: 'Rápido', title: 'Rápido', desc: 'Sin pausas, zoom de golpe frecuente.', preset: 'rapido' },
-    { value: 'Con ritmo', title: 'Con ritmo', desc: 'Pausas cortas que respiran.', preset: 'con-ritmo' },
-    { value: 'Sobrio', title: 'Sobrio', desc: 'Ritmo natural, sin zooms.', preset: 'sobrio' }] },
-  { key: 'tono', label: 'Tono', title: '¿Qué tono?', help: 'Guía los textos en pantalla.', options: [
-    { value: 'Directo', title: 'Directo', desc: 'Al grano.' }, { value: 'Cercano', title: 'Cercano', desc: 'Como a un amigo.' },
-    { value: 'Educativo', title: 'Educativo', desc: 'Explica paso a paso.' }, { value: 'Inspirador', title: 'Inspirador', desc: 'Motiva a actuar.' }] },
-  { key: 'duracion', label: 'Duración', title: '¿Duración objetivo?', help: 'La IA recorta lo redundante para acercarse.', options: [
-    { value: '15–20 s', title: '15–20 s', desc: 'Muy corto.' }, { value: '20–30 s', title: '20–30 s', desc: 'Lo más común.' },
-    { value: '30–60 s', title: '30–60 s', desc: 'Para explicar más.' }, { value: 'Lo que dure', title: 'Lo que dure', desc: 'Sin recortar ideas.' }] },
-  { key: 'cta', label: 'Llamado a la acción', title: '¿Con qué frase cierras?', help: 'Si ya lo dices en el video, puedes dejarlo vacío.', options: [] },
+  { key: 'formato', label: 'Formato', title: '¿Dónde lo vas a publicar?', help: 'Define las zonas seguras y cómo se acomodan los textos.', placeholder: 'Ej.: pantalla de un evento', options: [
+    { value: 'Reel 9:16', title: 'Reel de Instagram', desc: 'Vertical, para el feed de Reels.' },
+    { value: 'Historia 9:16', title: 'Historia', desc: 'Deja libre la zona de respuesta.' },
+    { value: 'TikTok 9:16', title: 'TikTok', desc: 'Vertical, ritmo de TikTok.' },
+    { value: 'YouTube Short 9:16', title: 'YouTube Short', desc: 'Vertical, hasta 60 s.' },
+    { value: 'Anuncio 9:16', title: 'Anuncio pagado', desc: 'Para pautar: mensaje claro y cierre fuerte.' }] },
+  { key: 'objetivo', label: 'Objetivo', title: '¿Qué quieres que haga quien lo vea?', help: 'El cierre del reel se arma alrededor de esto.', placeholder: 'Ej.: que reserven una clase de prueba', options: [
+    { value: 'Mensajes por DM', title: 'Escribirte por DM', desc: 'Que te escriban para pedir info.' },
+    { value: 'Comentarios', title: 'Comentar', desc: 'Que respondan u opinen.' },
+    { value: 'Guardados', title: 'Guardarlo', desc: 'Contenido útil para volver a ver.' },
+    { value: 'Compartidos', title: 'Compartirlo', desc: 'Que lo envíen a alguien.' },
+    { value: 'Ir al link', title: 'Ir al link', desc: 'Visitar tu página, comprar o reservar.' },
+    { value: 'Seguidores', title: 'Seguirte', desc: 'Ganar seguidores nuevos.' }] },
+  { key: 'publico', label: 'Público', title: '¿Para quién es?', help: 'Elige a quién le hablas en este video.', placeholder: 'Ej.: dueños de pymes locales', options: [
+    { value: 'Gente que aún no me conoce', title: 'Gente nueva', desc: 'Aún no te conoce: hay que presentarse rápido.' },
+    { value: 'Seguidores que ya me conocen', title: 'Mis seguidores', desc: 'Ya te siguen: puedes ir directo al tema.' },
+    { value: 'Clientes listos para comprar', title: 'Listos para comprar', desc: 'Solo les falta un empujón.' },
+    { value: 'Dueños de negocio y emprendedores', title: 'Dueños de negocio', desc: 'Emprendedores y pymes.' },
+    { value: 'Jóvenes de 18 a 25', title: 'Jóvenes', desc: 'De 18 a 25 años.' },
+    { value: 'Adultos y familias', title: 'Adultos y familias', desc: 'De 30 años en adelante.' }] },
+  { key: 'ritmo', label: 'Ritmo', title: '¿Qué ritmo quieres?', help: 'Decide cada cuánto se corta y cómo entran los textos. Puedes cambiarlo después.', placeholder: 'Ej.: rápido al inicio y más calmado al final', options: [
+    { value: 'Rápido', title: 'Rápido', desc: 'Sin pausas, zoom de golpe frecuente.' },
+    { value: 'Con ritmo', title: 'Con ritmo', desc: 'Pausas cortas que respiran.' },
+    { value: 'Sobrio', title: 'Sobrio', desc: 'Ritmo natural, sin zooms.' },
+    { value: 'Enérgico', title: 'Enérgico', desc: 'Cortes fuertes, efectos y movimiento.' },
+    { value: 'Pausado y elegante', title: 'Pausado y elegante', desc: 'Planos largos y transiciones suaves.' },
+    { value: 'Que decida la app', title: 'Que decida la app', desc: 'Según lo que ve y oye en tu video.' }] },
+  { key: 'tono', label: 'Tono', title: '¿Qué tono?', help: 'Guía los textos, los subtítulos y la imagen.', placeholder: 'Ej.: serio pero con humor', options: [
+    { value: 'Directo', title: 'Directo', desc: 'Al grano.' },
+    { value: 'Cercano', title: 'Cercano', desc: 'Como a un amigo.' },
+    { value: 'Educativo', title: 'Educativo', desc: 'Explica paso a paso.' },
+    { value: 'Inspirador', title: 'Inspirador', desc: 'Motiva a actuar.' },
+    { value: 'Divertido', title: 'Divertido', desc: 'Colores fuertes y humor.' },
+    { value: 'Elegante', title: 'Elegante', desc: 'Limpio, con aire de cine.' }] },
+  { key: 'duracion', label: 'Duración', title: '¿Cuánto debe durar?', help: 'La app recorta lo redundante para acercarse.', placeholder: 'Ej.: máximo 40 s', options: [
+    { value: '10–15 s', title: '10–15 s', desc: 'Un solo mensaje.' },
+    { value: '15–20 s', title: '15–20 s', desc: 'Muy corto.' },
+    { value: '20–30 s', title: '20–30 s', desc: 'Lo más común.' },
+    { value: '30–45 s', title: '30–45 s', desc: 'Para explicar un poco más.' },
+    { value: '45–60 s', title: '45–60 s', desc: 'Tema completo.' },
+    { value: 'Lo que dure', title: 'Lo que dure', desc: 'Sin recortar ideas.' }] },
+  { key: 'cta', label: 'Llamado a la acción', title: '¿Con qué frase cierras?', help: 'Aparece en pantalla en la última escena.', placeholder: 'Ej.: Escríbeme «REEL» y te cuento', options: [
+    { value: SPOKEN_CTA, title: SPOKEN_CTA, desc: 'No se añade texto: se usa tu cierre.' },
+    ...Object.values(CTA_FOR).map((v) => ({ value: v, title: v, desc: '' }))] },
 ];
 
 export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
@@ -34,7 +71,11 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const project = store.project!;
   const firstEmpty = QUESTIONS.findIndex((q) => !project.brief[q.key]);
   const [i, setI] = useState(firstEmpty === -1 ? 0 : firstEmpty);
-  const q = QUESTIONS[i];
+  const base = QUESTIONS[i];
+  const forGoal = CTA_FOR[project.brief.objetivo ?? ''];
+  const q: Q = base.key === 'cta' && forGoal
+    ? { ...base, options: [{ value: forGoal, title: forGoal, desc: 'Va con tu objetivo.' }, ...base.options.filter((o) => o.value !== forGoal)] }
+    : base;
   const value = project.brief[q.key] ?? '';
   const answered = QUESTIONS.filter((x) => project.brief[x.key]).length;
 
@@ -74,9 +115,12 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(`No se pudo armar la edición: ${e.message}`); } finally { setBuilding(''); }
   };
 
-  const answer = async (v: string, _preset?: string) => {
+  /** Guarda la respuesta. Al tocar una opción se pasa sola a la siguiente pregunta. */
+  const answer = (v: string, next = false) => {
     store.update((p) => { if (v) p.brief[q.key] = v; else delete p.brief[q.key]; });
+    if (next && i < QUESTIONS.length - 1) setI(i + 1);
   };
+  const custom = Boolean(value) && !q.options.some((o) => o.value === value);
 
   return (
     <div className="cols">
@@ -136,22 +180,21 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <span className="small" style={{ fontWeight: 700, color: 'var(--pinkText)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Pregunta {i + 1}</span>
         <h1 style={{ fontSize: 30, lineHeight: 1.15 }}>{q.title}</h1>
         <p className="muted" style={{ margin: 0, maxWidth: 560 }}>{q.help}</p>
-        {q.options.length > 0 && (
-          <div className="opts">
-            {q.options.map((o) => (
-              <button key={o.value} className={`opt ${value === o.value ? 'on' : ''}`} aria-pressed={value === o.value} onClick={() => answer(o.value, o.preset)}>
-                <strong style={{ fontSize: 16 }}>{o.title}</strong>
-                <span className="muted small">{o.desc}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <label className="field">{q.options.length ? 'O descríbelo con tus palabras' : 'Tu respuesta'}
+        <div className="opts">
+          {q.options.map((o) => (
+            <button key={o.value} className={`opt ${value === o.value ? 'on' : ''}`} aria-pressed={value === o.value} onClick={() => answer(o.value, true)}>
+              <strong style={{ fontSize: 16 }}>{o.title}</strong>
+              {o.desc && <span className="muted small">{o.desc}</span>}
+            </button>
+          ))}
+        </div>
+        <label className="field">Otra respuesta (opcional)
           <input
             key={q.key}
-            defaultValue={q.options.some((o) => o.value === value) ? '' : value}
-            placeholder={q.key === 'publico' ? 'Ej.: dueños de pymes locales' : q.key === 'cta' ? 'Ej.: Escríbeme "REEL" y te cuento' : ''}
-            onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== value) answer(v); }}
+            defaultValue={custom ? value : ''}
+            placeholder={q.placeholder}
+            style={custom ? { borderColor: 'var(--pink)' } : undefined}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== value) answer(v); else if (!v && custom) answer(''); }}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           />
         </label>

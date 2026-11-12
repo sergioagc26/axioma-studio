@@ -19,15 +19,17 @@ Eso decide subtítulos, títulos, letra, imagen y efectos: no elijas esos estilo
 
 ## Preguntas (en este orden, saltando lo que ya sepas)
 
-| Clave | Pregunta | Opciones típicas |
+| Clave | Pregunta | Opciones (las mismas de la app) |
 | --- | --- | --- |
-| `formato` | ¿Reel o historia? | Reel 9:16 (por defecto), Historia |
-| `objetivo` | ¿Qué quieres que haga quien lo vea? | Escribir por DM, comentar, guardar, ir al link, seguirte |
-| `publico` | ¿Para quién es? | Texto libre corto |
-| `ritmo` | ¿Qué ritmo? | Rápido → `rapido`, Con ritmo → `con-ritmo`, Sobrio → `sobrio` |
-| `tono` | ¿Qué tono? | Directo, cercano, educativo, inspirador, divertido |
-| `duracion` | ¿Duración objetivo? | 15–20 s, 20–30 s, 30–60 s, lo que dure |
-| `cta` | ¿Con qué frase cierras? | La que dijo en el video, o una que te dé |
+| `formato` | ¿Dónde lo vas a publicar? | Reel 9:16 (por defecto), Historia 9:16, TikTok 9:16, YouTube Short 9:16, Anuncio 9:16 |
+| `objetivo` | ¿Qué quieres que haga quien lo vea? | Mensajes por DM, Comentarios, Guardados, Compartidos, Ir al link, Seguidores |
+| `publico` | ¿Para quién es? | Gente que aún no me conoce, Seguidores que ya me conocen, Clientes listos para comprar, Dueños de negocio y emprendedores, Jóvenes de 18 a 25, Adultos y familias |
+| `ritmo` | ¿Qué ritmo? | Rápido, Con ritmo, Sobrio, Enérgico, Pausado y elegante, Que decida la app |
+| `tono` | ¿Qué tono? | Directo, Cercano, Educativo, Inspirador, Divertido, Elegante |
+| `duracion` | ¿Cuánto debe durar? | 10–15 s, 15–20 s, 20–30 s, 30–45 s, 45–60 s, Lo que dure |
+| `cta` | ¿Con qué frase cierras? | La que digo en el video, o una frase que vaya con el objetivo (por ejemplo: Escríbeme «INFO» por DM) |
+
+Todas las preguntas se responden eligiendo: ofrece siempre estas opciones y deja la respuesta escrita solo como alternativa. Guarda el texto de la opción tal cual.
 
 ## Cómo preguntar
 

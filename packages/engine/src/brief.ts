@@ -6,7 +6,7 @@ import { cutProject } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
 
-const RITMO: Record<string, string> = { rapido: 'rapido', 'con ritmo': 'con-ritmo', sobrio: 'sobrio' };
+const RITMO: Record<string, string> = { rapido: 'rapido', 'con ritmo': 'con-ritmo', sobrio: 'sobrio', energico: 'energia', 'pausado y elegante': 'elegante', elegante: 'elegante' };
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 
 /** Estilo de textos, subtítulos e imagen según el tono elegido. */
@@ -15,6 +15,8 @@ const TONO: Record<string, { textStyle: Scene['textStyle']; effect: Project['cap
   cercano: { textStyle: 'subrayado', effect: 'color', look: 'calido', camera: 'acercar', why: 'tonos cálidos, la cámara se acerca y textos subrayados' },
   educativo: { textStyle: 'marcador', effect: 'caja', look: 'normal', camera: 'ninguno', why: 'la idea clave marcada con marcador y subtítulos con caja' },
   inspirador: { textStyle: 'gigante', effect: 'pop', look: 'contraste', camera: 'acercar', why: 'palabras gigantes, más contraste y la cámara acercándose' },
+  elegante: { textStyle: 'sombra', effect: 'color', look: 'cine', camera: 'acercar', why: 'textos limpios con sombra, imagen de cine y la cámara acercándose despacio' },
+  energico: { textStyle: 'apilado', effect: 'pop', look: 'vivo', camera: 'pulso', why: 'palabras apiladas, colores vivos y la cámara con pulso' },
   divertido: { textStyle: 'banda', effect: 'caja', look: 'contraste', camera: 'ninguno', why: 'bandas de titular y colores fuertes' },
 };
 
@@ -103,8 +105,10 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   const last = project.scenes[project.scenes.length - 1];
   if (last && project.scenes.length > 1) {
     last.title ||= 'Cierre';
-    if (b.cta?.trim()) {
-      last.onScreenText = b.cta.trim();
+    // «La que digo en el video» no añade texto: el cierre es el que ya se dijo.
+    const cta = /digo en el video/i.test(b.cta ?? '') ? '' : (b.cta ?? '').trim();
+    if (cta) {
+      last.onScreenText = cta;
       last.textStyle = 'banda';
       last.textPosition = 'arriba';
       summary.push(`Cierre con tu llamado a la acción: «${last.onScreenText}».`);
