@@ -34,20 +34,12 @@ Un preset guarda dos cosas:
 
 ## Desde un video de referencia
 
-1. Llama `analizar_referencia` con la ruta del video. Devuelve el ritmo de cortes, el tempo, la paleta, los valores sugeridos y 8 fotogramas.
-2. Mira 3 o 4 fotogramas con tu herramienta de lectura de imágenes y anota **solo el estilo** de los subtítulos:
-   - posición (arriba, centro, tercio inferior → `posicion_y`);
-   - mayúsculas o no;
-   - cuántas palabras por línea;
-   - si resalta una palabra y con qué color;
-   - la fuente más parecida de la lista disponible.
-3. Resume el reporte al usuario en 4–5 líneas y pregunta qué quiere tomar: ritmo, color, tipografía o todo.
-4. Guarda con `guardar_preset`, usando los valores sugeridos más lo que viste, y pasa `referencia` y `paleta`.
-5. Ofrece aplicarlo al proyecto (`aplicar_preset`) y renderizar.
+1. Llama `analizar_referencia` con la ruta del video. Detecta solo: ritmo de cortes, tempo, paleta, subtítulos (posición, color, resaltado, palabras a la vez), aspecto de la imagen y destellos en los cortes.
+2. Llama `guardar_referencia` con el id: guarda todo ese estilo como plantilla y lo aplica al proyecto. No hay que describir nada a mano.
+3. Resume al usuario en 3–4 líneas qué se detectó y ofrece renderizar.
+4. Solo si el usuario dice que algo no coincide (la tipografía y las mayúsculas no se leen de la imagen), mira 2 o 3 fotogramas y corrige con `ajustar_subtitulos` y `guardar_preset`.
 
-Nunca copies textos, clips ni música de la referencia. Si la fuente exacta no está en la lista, dilo y usa la más parecida.
-
-El mismo análisis sirve para los reels propios del usuario que mejor funcionaron.
+Nunca copies textos, clips ni música de la referencia. El mismo análisis sirve para los reels propios del usuario que mejor funcionaron.
 
 ## Kit de marca
 

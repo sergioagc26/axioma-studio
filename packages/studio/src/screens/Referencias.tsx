@@ -4,6 +4,8 @@ import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 
 interface Report {
+  captions: { y: number; color: string; highlight: string | null; box: boolean; rate: number; wordsPerLine: number } | null;
+  look: string; flashes: boolean;
   id: string; name: string; client: string; duration: number; cuts: number[]; avgShot: number; bpm: number | null;
   palette: string[]; frames: string[];
   suggested: { maxPause: number; punchZoomEvery: number; highlightColor: string; ritmo: string };
@@ -19,6 +21,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [cur, setCur] = useState<Report | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const [touched, setTouched] = useState({ font: false, uppercase: false });
   const [form, setForm] = useState({
     name: '', ritmo: true, color: true, fuente: true, font: 'Montserrat', mode: 'word', uppercase: true, words: 3, useKit: false,
   });
@@ -39,25 +42,22 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(`No se pudo analizar: ${e.message}`); } finally { setJob(null); }
   };
 
+  /** Un solo paso: guarda todo el estilo detectado como plantilla y lo aplica al reel. */
   const save = async (aplicar: boolean) => {
     if (!cur) return;
-    const preset = {
-      name: form.name.trim() || `Estilo ${cur.name}`,
-      description: `Desde la referencia "${cur.name}": plano medio ${cur.avgShot.toFixed(1)} s.`,
-      base: cur.suggested.ritmo,
-      pacing: form.ritmo ? { maxPause: cur.suggested.maxPause, punchZoomEvery: cur.suggested.punchZoomEvery } : {},
-      captions: {
-        mode: form.mode, uppercase: form.uppercase, wordsPerLine: form.words,
-        ...(form.fuente ? { fontFamily: form.font } : {}),
-        ...(form.color && !form.useKit ? { highlightColor: cur.suggested.highlightColor } : {}),
-      },
-      palette: cur.palette, reference: cur.id,
-    };
     try {
-      const d = await api(`/api/op?id=${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'guardar-preset', preset, aplicar }) });
+      const d = await api(`/api/op?id=${pid}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          op: 'guardar-referencia', refId: cur.id, name: form.name, aplicar,
+          // Solo se envía lo que el usuario cambió a mano en «Ajustar».
+          captions: { ...(touched.font ? { fontFamily: form.font } : {}), ...(touched.uppercase ? { uppercase: form.uppercase } : {}), ...(form.useKit ? { highlightColor: project.captions.highlightColor } : {}) },
+        }),
+      });
       store.setPresets(d.presets);
       if (aplicar) store.replace(d.project);
-      ctx.toast(aplicar ? `Plantilla "${d.preset.name}" guardada y aplicada.` : `Plantilla "${d.preset.name}" guardada.`);
+      ctx.toast(aplicar ? `Estilo «${d.preset.name}» guardado y aplicado: subtítulos, textos, ritmo, transiciones y efectos.` : `Estilo «${d.preset.name}» guardado.`);
+      if (aplicar) ctx.go('editor', { s: null });
     } catch (e: any) { ctx.toast(e.message); }
   };
 
@@ -120,11 +120,24 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <span className="small muted">Tempo aproximado. Con voz hablada sin música no se detecta.</span>
             </article>
             <article className="card col">
-              <h3 style={{ fontSize: 15 }}>Subtítulos y tipografía</h3>
-              <span className="small muted">Elige a la derecha lo que ves en los fotogramas, o pídele a Claude: «mira la referencia {cur.id} y dime qué subtítulos usa».</span>
-              <div style={{ padding: 12, borderRadius: 10, background: '#18181B', textAlign: 'center', fontFamily: `'${form.font}', sans-serif`, fontWeight: 800, fontSize: 18, color: '#fff', textTransform: form.uppercase ? 'uppercase' : 'none' }}>
-                Así se ve <span style={{ color: form.useKit ? project.captions.highlightColor : cur.suggested.highlightColor }}>el estilo</span>
-              </div>
+              <h3 style={{ fontSize: 15 }}>Subtítulos detectados</h3>
+              {cur.captions ? (
+                <>
+                  <div style={{ padding: 12, borderRadius: 10, background: cur.captions.color === '#000000' ? '#EDEDED' : '#18181B', textAlign: 'center', fontFamily: `'${form.font}', sans-serif`, fontWeight: 800, fontSize: 18, color: cur.captions.color, textTransform: form.uppercase ? 'uppercase' : 'none' }}>
+                    Así se ve <span style={cur.captions.box ? { background: cur.captions.highlight ?? cur.suggested.highlightColor, color: '#000', borderRadius: 4, padding: '0 4px' } : { color: cur.captions.highlight ?? cur.captions.color }}>el estilo</span>
+                  </div>
+                  <span className="small muted">
+                    A {Math.round(cur.captions.y * 100)} % de alto · letras {cur.captions.color}
+                    {cur.captions.highlight ? ` · resalta en ${cur.captions.highlight}${cur.captions.box ? ' con caja' : ''}` : ' · sin color de resaltado'}
+                    {' '}· unas {cur.captions.wordsPerLine} palabra{cur.captions.wordsPerLine > 1 ? 's' : ''} a la vez
+                  </span>
+                </>
+              ) : <span className="muted">No se encontraron subtítulos en la imagen. Se usarán los del ritmo detectado.</span>}
+            </article>
+            <article className="card col">
+              <h3 style={{ fontSize: 15 }}>Imagen y cortes</h3>
+              <span style={{ font: "700 20px 'Space Grotesk', sans-serif" }}>{({ normal: 'Color normal', bn: 'Blanco y negro', calido: 'Tonos cálidos', frio: 'Tonos fríos', contraste: 'Alto contraste' } as Record<string, string>)[cur.look] ?? cur.look}</span>
+              <span className="small muted">{cur.flashes ? 'Usa destellos en los cortes: las transiciones serán destellos.' : 'Sin destellos: se pondrán las transiciones que van con el ritmo.'}</span>
             </article>
             <article className="card col" style={{ gridColumn: '1 / -1' }}>
               <h3 style={{ fontSize: 15 }}>Fotogramas</h3>
@@ -138,35 +151,25 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
       {cur && (
         <aside className="card col" style={{ flex: '1 1 270px', maxWidth: 320, gap: 12, borderRadius: 16 }}>
-          <h2 style={{ fontSize: 18 }}>Guardar como plantilla</h2>
+          <h2 style={{ fontSize: 18 }}>Guardar este estilo</h2>
           <label className="field">Nombre
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </label>
-          <fieldset className="col" style={{ border: 0, margin: 0, padding: 0 }}>
-            <legend className="small muted" style={{ marginBottom: 6 }}>Qué aplicar</legend>
-            <label className="row"><input type="checkbox" checked={form.ritmo} onChange={(e) => setForm({ ...form, ritmo: e.target.checked })} /> Ritmo de cortes</label>
-            <label className="row"><input type="checkbox" checked={form.color} onChange={(e) => setForm({ ...form, color: e.target.checked })} /> Color de resaltado</label>
-            <label className="row"><input type="checkbox" checked={form.fuente} onChange={(e) => setForm({ ...form, fuente: e.target.checked })} /> Tipografía</label>
-          </fieldset>
-          <label className="field">Tipografía más parecida
-            <select value={form.font} onChange={(e) => setForm({ ...form, font: e.target.value })}>
-              {FONT_FAMILIES.map((f) => <option key={f}>{f}</option>)}
-            </select>
-          </label>
-          <label className="field">Subtítulos
-            <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
-              <option value="word">Palabra a palabra</option><option value="phrase">Frase completa</option>
-            </select>
-          </label>
-          <label className="field">Palabras por línea
-            <input type="number" min={1} max={8} value={form.words} onChange={(e) => setForm({ ...form, words: Math.min(8, Math.max(1, Number(e.target.value) || 3)) })} />
-          </label>
-          <label className="row"><input type="checkbox" checked={form.uppercase} onChange={(e) => setForm({ ...form, uppercase: e.target.checked })} /> Mayúsculas</label>
-          <label className="row" style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--cyanSoft)', flexWrap: 'nowrap' }}>
-            <input type="checkbox" checked={form.useKit} onChange={(e) => setForm({ ...form, useKit: e.target.checked })} />
-            <span className="small">Mantener los colores actuales en vez de los de la referencia</span>
-          </label>
-          <button className="btn primary" style={{ height: 46 }} onClick={() => save(true)}>Guardar y aplicar a este reel</button>
+          <span className="small muted">Se guarda todo lo detectado: ritmo de cortes, subtítulos (posición, colores, forma de resaltar), estilo de los textos, imagen, transiciones y efectos de sonido.</span>
+          <details className="grp">
+            <summary>Ajustar antes de guardar</summary>
+            <div className="col">
+              <label className="field">Tipografía
+                <select value={form.font} onChange={(e) => { setForm({ ...form, font: e.target.value }); setTouched({ ...touched, font: true }); }}>
+                  {FONT_FAMILIES.map((f) => <option key={f}>{f}</option>)}
+                </select>
+              </label>
+              <label className="row"><input type="checkbox" checked={form.uppercase} onChange={(e) => { setForm({ ...form, uppercase: e.target.checked }); setTouched({ ...touched, uppercase: true }); }} /> Mayúsculas</label>
+              <label className="row"><input type="checkbox" checked={form.useKit} onChange={(e) => setForm({ ...form, useKit: e.target.checked })} /> Mantener mi color de resaltado actual</label>
+              <span className="small muted">La tipografía y las mayúsculas no se pueden leer de la imagen: se eligen según el ritmo. Cámbialas aquí si no coinciden.</span>
+            </div>
+          </details>
+          <button className="btn primary" style={{ height: 46 }} onClick={() => save(true)}>Guardar estilo y aplicarlo a este reel</button>
           <button className="btn" onClick={() => save(false)}>Solo guardar</button>
         </aside>
       )}

@@ -1,4 +1,4 @@
-import { Scene, type Pacing, type Range, type Word } from '@snz/schema';
+import { Scene, sceneLength, type Pacing, type Range, type Word } from '@snz/schema';
 
 /** Muletillas puras. No incluye palabras reales como "este" o "bueno". */
 const FILLERS = new Set(['eh', 'ehh', 'eeh', 'em', 'emm', 'mm', 'mmm', 'hmm', 'ah', 'ahh', 'uh', 'um', 'ehm']);
@@ -273,6 +273,6 @@ export function applyPunchZooms(scenes: Scene[], every: number) {
       s.punchZoom = true;
       next = t + every;
     }
-    t += s.ranges.reduce((a, r) => a + r.end - r.start, 0);
+    t += sceneLength(s);
   }
 }

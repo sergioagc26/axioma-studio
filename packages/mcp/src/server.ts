@@ -100,6 +100,31 @@ export function createServer() {
     return E.summarize(await E.setBrief(dir, respuestas), dir);
   });
 
+  tool('aplicar_brief', 'Arma la edición completa a partir del brief guardado: ritmo (preset y corte), duración máxima, tono (estilo de textos, subtítulos, imagen y cámara), gancho, llamado a la acción, transiciones y efectos. Es el primer paso después de guardar_brief. Rehace el storyboard (guarda una versión antes). Después afina a mano lo que haga falta.', { proyecto }, async ({ proyecto }) => {
+    const dir = await resolveProject(proyecto);
+    const { project, summary } = await E.applyBrief(dir);
+    return `${summary.map((x) => `- ${x}`).join('\n')}\n\n${E.summarize(project, dir)}`;
+  });
+
+  tool('recortar_escena', 'Recorta la duración de una escena quitando segundos del inicio o del final. No borra material: con 0 y 0 se recupera entera.', {
+    proyecto, escena: z.string(), inicio: z.number().min(0).optional().describe('Segundos a quitar del inicio'), final: z.number().min(0).optional().describe('Segundos a quitar del final'),
+  }, async ({ proyecto, escena, inicio, final }) => {
+    const dir = await resolveProject(proyecto);
+    return E.summarize(await E.editScene(dir, escena, { trimStart: inicio, trimEnd: final }), dir);
+  });
+
+  tool('guardar_referencia', 'Guarda como plantilla el estilo completo detectado en una referencia ya analizada (ritmo, subtítulos, textos, imagen, transiciones, efectos) y lo aplica al proyecto. No hace falta describir nada a mano.', {
+    proyecto, referencia: z.string().describe('Id de analizar_referencia o listar_referencias'), nombre: z.string().optional(), aplicar: z.boolean().default(true),
+  }, async ({ proyecto, referencia, nombre, aplicar }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.readProject(dir);
+    const report = (await E.listReferences(p.client)).find((r) => r.id === referencia);
+    if (!report) throw new Error(`No existe la referencia ${referencia}.`);
+    const preset = await E.savePreset(p.client, E.presetFromReference(report, nombre));
+    if (aplicar) await E.applyPreset(dir, preset.id);
+    return `Plantilla ${preset.id} guardada${aplicar ? ' y aplicada' : ''}.\n${E.summarize(await E.readProject(dir), dir)}`;
+  });
+
   tool('aplicar_cortes', 'Rehace el corte automático (borra el storyboard actual). Opcionalmente cambia de preset.', {
     proyecto, preset: z.string().optional(),
   }, async ({ proyecto, preset }) => {

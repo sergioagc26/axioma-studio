@@ -23,7 +23,7 @@ Usa la skill `brief`. Son preguntas rápidas: si el usuario ya respondió algo e
 
 Llama `crear_proyecto` con el video, el cliente y el preset que salga del brief (ritmo rápido → `rapido`, con ritmo → `con-ritmo`, calmado → `sobrio`, o un preset del cliente). Avisa antes: "Esto tarda 1–5 minutos: transcribo, limpio el audio y hago un primer corte."
 
-Luego `guardar_brief` con las respuestas.
+Luego `guardar_brief` con las respuestas y, enseguida, `aplicar_brief`: arma la edición según el brief (ritmo, duración, tono, gancho, cierre, transiciones). Es el punto de partida; el paso 4 lo afina.
 
 ## 4. Armar el storyboard
 
@@ -71,6 +71,7 @@ Si el gancho no es claro, propone 3 opciones sacadas de frases que la persona s�
   - "quita el sonido del video" → `ajustar_sonido_original` con 0;
   - "ponle efectos de sonido" → `efectos_automaticos`, o `poner_efecto` en momentos concretos (`listar_efectos`). Con medida: no uno en cada corte.
 - "dame opciones rápidas" → `sugerir_variantes` (3 al instante); para opciones más pensadas, la skill `variantes`.
+- "acorta este clip" → `recortar_escena` (segundos del inicio o del final; no borra material).
 - Transiciones:
   - "ponle transiciones" → `recomendar_transiciones` y cuenta en una línea qué puso y por qué;
   - "cambia la transición de la escena 3" → `listar_transiciones` y `poner_transicion`;

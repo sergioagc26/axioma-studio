@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
-  CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, getPreset, outputDuration, suggestVariants,
+  CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, getPreset, outputDuration, recommendTransitions, sceneLength, suggestVariants,
   type Asset, type Preset,
 } from '@snz/schema';
 import { analyzePhrases, applyPunchZooms, phrasesToRanges, type Phrase } from './cuts.ts';
@@ -70,7 +70,7 @@ export async function buildStoryboard(dir: string, drafts: SceneDraft[]) {
   return writeProject(dir, project);
 }
 
-export type ScenePatch = Partial<Pick<Scene, 'role' | 'title' | 'onScreenText' | 'textColor' | 'visual' | 'punchZoom' | 'brollFile' | 'motionTemplate' | 'textStyle' | 'textKeyword' | 'textPosition' | 'look' | 'camera'>> & {
+export type ScenePatch = Partial<Pick<Scene, 'role' | 'title' | 'onScreenText' | 'textColor' | 'visual' | 'punchZoom' | 'brollFile' | 'motionTemplate' | 'textStyle' | 'textKeyword' | 'textPosition' | 'look' | 'camera' | 'trimStart' | 'trimEnd'>> & {
   phrases?: string[];
 };
 
@@ -148,6 +148,27 @@ export async function applyPreset(dir: string, presetId: string) {
   project.pacing = Pacing.parse(preset.pacing);
   project.captions = CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(project.client)) });
   applyPunchZooms(project.scenes, project.pacing.punchZoomEvery);
+  // Un preset con estilo (los que salen de una referencia) también viste las escenas.
+  const st = preset.style;
+  if (st) {
+    for (const s of project.scenes) {
+      if (st.textStyle) s.textStyle = st.textStyle;
+      if (st.look) s.look = st.look;
+      if (st.camera) s.camera = st.camera;
+    }
+    if (st.transitions) {
+      const advice = recommendTransitions(project);
+      for (const a of advice) {
+        const s = project.scenes.find((x) => x.id === a.sceneId);
+        // Si la referencia usa destellos, las transiciones con efecto pasan a ser destellos.
+        if (s) s.transition = a.transition ? { id: st.flashes ? 'destello' : a.transition } : undefined;
+      }
+    }
+    if (st.sfxAuto !== undefined) {
+      if (st.sfxAuto) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
+      project.audio.sfxAuto = st.sfxAuto;
+    }
+  }
   return writeProject(dir, project);
 }
 
@@ -204,7 +225,7 @@ export function summarize(project: Project, dir: string): string {
   if (Object.keys(project.brief).length) lines.push(`Brief: ${Object.entries(project.brief).map(([k, v]) => `${k}=${v}`).join('; ')}`);
   lines.push('Escenas:');
   for (const s of project.scenes) {
-    const d = s.ranges.reduce((a, r) => a + r.end - r.start, 0);
+    const d = sceneLength(s);
     const v = s.variants.length ? ` · variantes: ${s.variants.map((x) => x.id + (x.id === s.chosenVariant ? '*' : '')).join(',')}` : '';
     lines.push(`  ${s.id} [${s.role}] ${s.title || '(sin título)'} · ${d.toFixed(1)} s · ${s.visual}${s.transition ? ` · entra con ${s.transition.id}` : ''}${s.onScreenText ? ` · texto: "${s.onScreenText}"` : ''}${s.punchZoom ? ' · zoom' : ''}${v}`);
   }

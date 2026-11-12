@@ -21,6 +21,23 @@ export interface ReferenceReport {
   palette: string[];
   /** Fotogramas para que Claude mire el estilo (rutas relativas a la carpeta de la referencia). */
   frames: string[];
+  /** Subtítulos detectados en la imagen (null si no se encontraron). */
+  captions: {
+    /** Posición vertical del centro, 0 arriba y 1 abajo. */
+    y: number;
+    color: string;
+    /** Color con el que se resalta una palabra, si lo hay. */
+    highlight: string | null;
+    /** La palabra resaltada va dentro de una caja de color. */
+    box: boolean;
+    /** Cambios de subtítulo por segundo. */
+    rate: number;
+    wordsPerLine: number;
+  } | null;
+  /** Aspecto de color de la imagen. */
+  look: 'normal' | 'bn' | 'calido' | 'frio' | 'contraste';
+  /** Hay destellos blancos en los cortes. */
+  flashes: boolean;
   /** Valores sugeridos para un preset. */
   suggested: { maxPause: number; punchZoomEvery: number; highlightColor: string; ritmo: 'rapido' | 'con-ritmo' | 'sobrio' };
 }
@@ -90,6 +107,190 @@ async function detectPalette(file: string, duration: number, tmp: string): Promi
     .map((b) => `#${hex(b.r / b.n)}${hex(b.g / b.n)}${hex(b.b / b.n)}`.toUpperCase());
 }
 
+const W = 90;
+const H = 160;
+const hex2 = (v: number) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0');
+
+/**
+ * Lee el estilo visual directamente de la imagen, sin ayuda de nadie:
+ * dónde están los subtítulos, de qué color son, si resaltan una palabra,
+ * cada cuánto cambian, el aspecto de color y si hay destellos en los cortes.
+ *
+ * Los subtítulos se reconocen porque son la franja con más bordes nítidos y
+ * claros que además cambia muchas veces por segundo (un logo fijo no cambia).
+ */
+async function detectVisualStyle(file: string, duration: number, cuts: number[], tmp: string): Promise<Pick<ReferenceReport, 'captions' | 'look' | 'flashes'>> {
+  const fps = 6;
+  const span = Math.min(duration, 40);
+  const raw = path.join(tmp, 'estilo.raw');
+  await ffmpeg(['-t', span.toFixed(2), '-i', file, '-an', '-vf', `fps=${fps},scale=${W}:${H}`, '-pix_fmt', 'rgb24', '-f', 'rawvideo', raw]);
+  const buf = await readFile(raw);
+  await rm(raw, { force: true });
+  const size = W * H * 3;
+  const n = Math.floor(buf.length / size);
+  if (n < 6) return { captions: null, look: 'normal', flashes: false };
+
+  const x0 = Math.round(W * 0.08), x1 = Math.round(W * 0.92);
+  const edges = new Float64Array(H);   // bordes claros por fila (media)
+  const change = new Float64Array(H);  // cuánto cambia la fila entre fotogramas
+  const luma = new Float64Array(n);
+  let sat = 0, warm = 0, contrast = 0;
+  let prev: Uint8Array | null = null;
+  for (let f = 0; f < n; f++) {
+    const o = f * size;
+    const mask = new Uint8Array(W * H);
+    let sum = 0, sum2 = 0;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = o + (y * W + x) * 3;
+        const r = buf[i], g = buf[i + 1], b = buf[i + 2];
+        const l = 0.299 * r + 0.587 * g + 0.114 * b;
+        sum += l; sum2 += l * l;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        sat += mx ? (mx - mn) / mx : 0;
+        warm += (r - b) / 255;
+        if (x > x0 && x < x1) {
+          const j = i - 3;
+          const lp = 0.299 * buf[j] + 0.587 * buf[j + 1] + 0.114 * buf[j + 2];
+          // Borde de texto: salto fuerte de brillo junto a un píxel claro o muy saturado.
+          if (Math.abs(l - lp) > 70 && (mx > 190)) mask[y * W + x] = 1;
+        }
+      }
+    }
+    const mean = sum / (W * H);
+    luma[f] = mean / 255;
+    contrast += Math.sqrt(Math.max(0, sum2 / (W * H) - mean * mean)) / 255;
+    for (let y = 0; y < H; y++) {
+      let e = 0, d = 0;
+      for (let x = x0; x < x1; x++) {
+        e += mask[y * W + x];
+        if (prev) d += mask[y * W + x] !== prev[y * W + x] ? 1 : 0;
+      }
+      edges[y] += e / n;
+      change[y] += d / n;
+    }
+    prev = mask;
+  }
+  const px = n * W * H;
+  sat /= px; warm /= px; contrast /= n;
+  const look = sat < 0.05 ? 'bn' : warm > 0.09 ? 'calido' : warm < -0.05 ? 'frio' : contrast > 0.29 ? 'contraste' : 'normal';
+
+  // Destellos: un fotograma casi blanco pegado a un corte.
+  let flashHits = 0;
+  for (const c of cuts) {
+    const f = Math.round(c * fps);
+    if ([f - 1, f, f + 1].some((k) => k >= 0 && k < n && luma[k] > 0.8 && luma[k] - (luma[k - 2] ?? luma[k]) > 0.25)) flashHits++;
+  }
+  const flashes = cuts.length > 0 && flashHits >= Math.max(2, cuts.length * 0.2);
+
+  // Franja de subtítulos: bordes × cambio, en una ventana de ~11 % de alto, lejos de los extremos.
+  const win = Math.round(H * 0.11);
+  let best = -1, bestY = 0, total = 0, count = 0;
+  for (let y = Math.round(H * 0.12); y + win < Math.round(H * 0.9); y++) {
+    let sc = 0;
+    for (let k = 0; k < win; k++) sc += edges[y + k] * change[y + k];
+    total += sc; count++;
+    if (sc > best) { best = sc; bestY = y; }
+  }
+  const avg = total / Math.max(1, count);
+  let bandEdges = 0;
+  for (let k = 0; k < win; k++) bandEdges += edges[bestY + k];
+  // Poca nitidez o una franja que no destaca del resto: no hay subtítulos claros.
+  // Umbrales medidos con videos reales: con subtítulos, pico/media 2,9–4,7 y bordes 1,1–1,4; sin ellos, 2,3 y 0,8.
+  if (best < avg * 2.6 || bandEdges / win < 1.0) return { captions: null, look, flashes };
+
+  // Colores y ritmo de cambio dentro de la franja.
+  const vividBins = new Map<number, { n: number; r: number; g: number; b: number }>();
+  const dark = { n: 0, r: 0, g: 0, b: 0 };
+  const light = { n: 0, r: 0, g: 0, b: 0 };
+  let bandPx = 0, vividPx = 0, changes = 0;
+  let prevSig = -1;
+  for (let f = 0; f < n; f++) {
+    const o = f * size;
+    let sig = 0;
+    for (let y = bestY; y < bestY + win; y++) {
+      for (let x = x0; x < x1; x++) {
+        const i = o + (y * W + x) * 3;
+        const r = buf[i], g = buf[i + 1], b = buf[i + 2];
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+        const s2 = mx ? (mx - mn) / mx : 0;
+        const l = 0.299 * r + 0.587 * g + 0.114 * b;
+        bandPx++;
+        if (s2 > 0.5 && mx > 120) {
+          vividPx++;
+          const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
+          const bin = vividBins.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+          bin.n++; bin.r += r; bin.g += g; bin.b += b;
+          vividBins.set(key, bin);
+        } else if (l < 70) { dark.n++; dark.r += r; dark.g += g; dark.b += b; sig += x + y; }
+        else if (l > 185) { light.n++; light.r += r; light.g += g; light.b += b; }
+      }
+    }
+    if (prevSig >= 0 && Math.abs(sig - prevSig) > Math.max(sig, prevSig, 1) * 0.12) changes++;
+    prevSig = sig;
+  }
+  const toHex = (b: { n: number; r: number; g: number; b: number }) => `#${hex2(b.r / b.n)}${hex2(b.g / b.n)}${hex2(b.b / b.n)}`.toUpperCase();
+  // El texto es el grupo minoritario: letras oscuras sobre fondo claro, o claras sobre fondo oscuro.
+  // Letras oscuras: hay bastante negro y el fondo es claro o una caja de color.
+  const darkText = dark.n > bandPx * 0.03 && (light.n > bandPx * 0.35 || vividPx > bandPx * 0.1);
+  const vivid = [...vividBins.values()].sort((a, b) => b.n - a.n)[0];
+  const rate = changes / (n / fps);
+  return {
+    look,
+    flashes,
+    captions: {
+      y: +((bestY + win / 2) / H).toFixed(2),
+      color: darkText ? (dark.r / dark.n < 40 ? '#000000' : toHex(dark)) : '#FFFFFF',
+      highlight: vivid && vividPx / bandPx > 0.03 ? toHex(vivid) : null,
+      box: vividPx / bandPx > 0.1,
+      rate: +rate.toFixed(2),
+      // Se habla a unas 2,6 palabras por segundo: si el subtítulo cambia 1 vez por segundo, lleva ~3 palabras.
+      wordsPerLine: Math.min(6, Math.max(1, Math.round(2.6 / Math.max(0.4, rate)))),
+    },
+  };
+}
+
+/**
+ * Convierte el reporte de una referencia en un preset completo: ritmo,
+ * subtítulos (posición, colores, forma de resaltar, palabras por línea),
+ * estilo de los textos, aspecto de la imagen, transiciones y efectos.
+ */
+export function presetFromReference(r: ReferenceReport, name?: string) {
+  const c = r.captions;
+  const fast = r.suggested.ritmo === 'rapido';
+  const highlight = c?.highlight ?? r.suggested.highlightColor;
+  return {
+    name: name?.trim() || `Estilo ${r.name}`,
+    description: `Desde la referencia «${r.name}»: plano medio ${r.avgShot.toFixed(1)} s${c ? `, subtítulos al ${Math.round(c.y * 100)} % de alto` : ''}.`,
+    base: r.suggested.ritmo,
+    pacing: { maxPause: r.suggested.maxPause, punchZoomEvery: r.suggested.punchZoomEvery },
+    captions: {
+      highlightColor: highlight,
+      ...(c ? {
+        y: Math.min(0.78, Math.max(0.2, c.y)),
+        color: c.color,
+        // Letras oscuras: sin borde negro, que las taparía.
+        stroke: c.color !== '#000000' && parseInt(c.color.slice(1, 3), 16) > 120,
+        wordsPerLine: c.wordsPerLine,
+        mode: (c.wordsPerLine <= 4 ? 'word' : 'phrase') as 'word' | 'phrase',
+        effect: (c.box ? 'caja' : c.highlight ? (fast ? 'pop' : 'color') : 'subrayado') as 'caja' | 'pop' | 'color' | 'subrayado',
+        emphasis: Boolean(c.highlight),
+      } : { effect: (fast ? 'pop' : 'color') as 'pop' | 'color' }),
+      uppercase: fast,
+      fontFamily: fast ? 'Montserrat' : 'Inter',
+    },
+    style: {
+      textStyle: (c?.box ? 'caja' : fast ? 'resaltado' : 'subrayado') as 'caja' | 'resaltado' | 'subrayado',
+      look: r.look,
+      transitions: true,
+      flashes: r.flashes,
+      sfxAuto: fast,
+    },
+    palette: r.palette,
+    reference: r.id,
+  };
+}
+
 const saturation = (h: string) => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const max = Math.max(r, g, b);
@@ -115,6 +316,7 @@ export async function analyzeReference(input: string, opts: { client?: string; n
   const cuts = await detectCuts(file);
   const bpm = await detectBpm(file, dir);
   const palette = await detectPalette(file, info.duration, dir);
+  const visual = await detectVisualStyle(file, info.duration, cuts, dir);
 
   const frames: string[] = [];
   const count = 8;
@@ -130,7 +332,7 @@ export async function analyzeReference(input: string, opts: { client?: string; n
   const accent = [...palette].sort((a, b) => saturation(b) - saturation(a))[0];
   const report: ReferenceReport = {
     id, name, client: opts.client ?? 'personal', createdAt: new Date().toISOString(),
-    duration: info.duration, cuts, avgShot, bpm, palette, frames,
+    duration: info.duration, cuts, avgShot, bpm, palette, frames, ...visual,
     suggested: {
       ritmo,
       maxPause: ritmo === 'rapido' ? 0.2 : ritmo === 'con-ritmo' ? 0.35 : 0.6,
@@ -160,7 +362,11 @@ export function formatReport(r: ReferenceReport, dir: string): string {
     `Música: ${r.bpm ? `~${r.bpm} BPM (aproximado)` : 'sin pulso claro'}`,
     `Paleta: ${r.palette.join(' ')}`,
     `Sugerido: pausa máxima ${r.suggested.maxPause} s · zoom cada ${r.suggested.punchZoomEvery} s · resaltado ${r.suggested.highlightColor}`,
-    'Fotogramas (míralos para describir subtítulos y tipografía; solo el estilo, nunca el contenido):',
+    r.captions
+      ? `Subtítulos detectados: al ${Math.round(r.captions.y * 100)} % de alto · letras ${r.captions.color}${r.captions.highlight ? ` · resaltado ${r.captions.highlight}${r.captions.box ? ' en caja' : ''}` : ' · sin resaltado'} · ~${r.captions.wordsPerLine} palabras por línea`
+      : 'Subtítulos: no se detectaron en la imagen.',
+    `Imagen: ${r.look}${r.flashes ? ' · destellos en los cortes' : ''}`,
+    'Fotogramas (opcional: míralos solo para afinar la tipografía; el estilo ya está detectado):',
     ...r.frames.map((f) => `  ${path.join(dir, f)}`),
   ].join('\n');
 }

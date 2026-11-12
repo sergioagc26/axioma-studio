@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { FONT_FAMILIES, applyVariant, buildTimeline, keywordOf, suggestVariants, type Scene } from '@snz/schema';
+import { FONT_FAMILIES, MIN_CLIP, applyVariant, buildTimeline, keywordOf, sceneLength, suggestVariants, type Scene } from '@snz/schema';
 import { Reel } from '@snz/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -36,6 +36,19 @@ const ColorRow: React.FC<{ value: string; label: string; swatches?: string[]; on
         onChange={(e) => setDraft(e.target.value)} onBlur={() => /^#[0-9a-f]{6}$/i.test(draft) && draft.toUpperCase() !== hex.toUpperCase() ? onPick(draft.toUpperCase()) : setDraft(hex)}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
     </div>
+  );
+};
+
+/** Barra para recortar segundos de un clip; guarda al soltar. */
+const TrimSlider: React.FC<{ label: string; value: number; max: number; onCommit: (v: number) => void }> = ({ label, value, max, onCommit }) => {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const top = Math.max(max, value);
+  return (
+    <label className="field">{label}: {v.toFixed(1)} s
+      <input type="range" min={0} max={top} step={0.05} value={Math.min(v, top)} disabled={top <= 0} onChange={(e) => setV(Number(e.target.value))}
+        onPointerUp={() => v !== value && onCommit(+v.toFixed(2))} onKeyUp={() => v !== value && onCommit(+v.toFixed(2))} />
+    </label>
   );
 };
 
@@ -121,12 +134,24 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     [project, scene, store.transcript],
   );
 
+  const fullLength = scene ? scene.ranges.reduce((a, r) => a + Math.max(0, r.end - r.start), 0) : 0;
+
   const edit = (fn: (s: Scene) => void) => store.update((p) => {
     const s = p.scenes.find((x) => x.id === selId);
     if (s) fn(s);
   });
 
   const transitions = store.extras?.transitions ?? [];
+  /** Unión abierta: id de la escena que entra. */
+  const [joint, setJoint] = useState<string | null>(null);
+  const jointIdx = project.scenes.findIndex((s) => s.id === joint);
+  const jointScene = jointIdx >= 0 ? project.scenes[jointIdx] : null;
+  const previewJoint = (i: number) => {
+    const s = spans[i];
+    if (!s) return;
+    player.current?.seekTo(Math.max(0, s.from - Math.round(timeline.fps * 0.8)));
+    player.current?.play();
+  };
   const [trText, setTrText] = useState('');
   const [busy, setBusy] = useState('');
 
@@ -146,20 +171,12 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     if (!desc || !scene) return;
     setBusy('Enviando a Claude…');
     try {
-      const target = idx > 0 ? scene.id : project.scenes[1]?.id;
+      const target = jointScene?.id ?? (idx > 0 ? scene.id : project.scenes[1]?.id);
       const r = await askAssistant(project.id, `Crea una transición nueva con crear_transicion según esta descripción: "${desc}". Tiene que encajar con el estilo del reel (preset ${project.presetId}).${target ? ` Luego aplícala a la escena ${target} con poner_transicion.` : ''}`, target, setBusy);
       setTrText('');
       await store.reloadExtras();
       ctx.toast(r.saved || r.text.length <= 220 ? r.text : r.text.slice(0, 218) + '…');
     } catch (e: any) { ctx.toast(`Claude no pudo hacerlo: ${e.message}`); } finally { setBusy(''); }
-  };
-
-  /** Reproduce desde un poco antes del cambio de escena para ver la transición. */
-  const previewTransition = () => {
-    const s = spans[idx];
-    if (!s) return;
-    player.current?.seekTo(Math.max(0, s.from - Math.round(timeline.fps * 0.8)));
-    player.current?.play();
   };
 
   const applyPreset = async (presetId: string) => {
@@ -183,7 +200,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     <>
       <div className="editor">
         <aside className="side l">
-          <h2 style={{ fontSize: 16 }}>Presets</h2>
+          <details className="grp" open>
+            <summary>Presets</summary>
+            <div className="col">
           {store.presets.map((p) => (
             <button key={p.id} className={`tpl ${project.presetId === p.id ? 'on' : ''}`} onClick={() => applyPreset(p.id)}>
               <span style={{ width: 30, height: 52, borderRadius: 6, background: '#1E1E22', flex: 'none', display: 'grid', placeItems: 'end center', paddingBottom: 6 }} aria-hidden="true">
@@ -195,7 +214,11 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </span>
             </button>
           ))}
-          <h2 style={{ fontSize: 16, marginTop: 6 }}>Subtítulos</h2>
+            </div>
+          </details>
+          <details className="grp">
+            <summary>Subtítulos</summary>
+            <div className="col">
           <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <button className={project.captions.mode === 'word' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'word'; })}>Palabra a palabra</button>
             <button className={project.captions.mode === 'phrase' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'phrase'; })}>Frase completa</button>
@@ -219,14 +242,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <label className="row"><input type="checkbox" checked={project.captions.uppercase} onChange={(e) => store.update((p) => { p.captions.uppercase = e.target.checked; })} /> Mayúsculas</label>
           <label className="row"><input type="checkbox" checked={project.captions.stroke} onChange={(e) => store.update((p) => { p.captions.stroke = e.target.checked; })} /> Borde negro en las letras</label>
 
-          <h2 style={{ fontSize: 16, marginTop: 6 }}>Transiciones</h2>
-          <span className="small muted">Cómo se pasa de una escena a la siguiente. Se eligen por escena en el panel derecho.</span>
-          <button className="btn rect" onClick={recommend}>Recomendar para todo el reel</button>
-          <label className="field">Pídele a Claude una transición nueva
-            <textarea rows={2} value={trText} onChange={(e) => setTrText(e.target.value)} placeholder="Ej.: que la escena caiga desde arriba como una cortina" />
-          </label>
-          <button className="btn cyan rect" disabled={!trText.trim() || Boolean(busy)} onClick={createTransition}>{busy ? 'Claude trabajando…' : 'Crear con Claude'}</button>
-          {busy && <span className="pill" role="status">{busy}</span>}
+            </div>
+          </details>
         </aside>
 
         <main className="stage">
@@ -271,6 +288,39 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
               </select>
             </label>
+            <div className="col" style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--panel2)' }}>
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <strong>Duración del clip</strong>
+                <span className="small muted">{sceneLength(scene).toFixed(1)} s de {fullLength.toFixed(1)} s</span>
+              </div>
+              <TrimSlider label="Quitar del inicio" value={scene.trimStart} max={Math.max(0, fullLength - MIN_CLIP - scene.trimEnd)} onCommit={(v) => edit((s) => { s.trimStart = v; })} />
+              <TrimSlider label="Quitar del final" value={scene.trimEnd} max={Math.max(0, fullLength - MIN_CLIP - scene.trimStart)} onCommit={(v) => edit((s) => { s.trimEnd = v; })} />
+              {(scene.trimStart > 0 || scene.trimEnd > 0) && <button className="btn ghost" style={{ alignSelf: 'flex-start', height: 28 }} onClick={() => edit((s) => { s.trimStart = 0; s.trimEnd = 0; })}>Recuperar el clip entero</button>}
+            </div>
+            <details className="grp" open>
+              <summary>Variantes para este clip</summary>
+              <div className="col">
+            <div className="col">
+                            <span className="muted small">Tres opciones según lo que dices y el estilo. Toca una para aplicarla.</span>
+              {quick.map((v) => {
+                const on = scene.chosenVariant === v.id && scene.variants.length > 0;
+                return (
+                  <button key={v.id + v.label} className="tpl" style={on ? { borderColor: 'var(--pink)', background: 'var(--pinkSoft)' } : { background: 'var(--panel)' }} title={v.notes}
+                    onClick={() => store.update((p) => { const s = p.scenes[idx]; if (!s.variants.length) s.variants = quick; applyVariant(s, v); })}>
+                    <span className="col" style={{ gap: 2, minWidth: 0 }}>
+                      <strong>{v.label}</strong>
+                      <span className="small muted">{v.onScreenText ? `"${v.onScreenText}"` : v.notes}</span>
+                    </span>
+                  </button>
+                );
+              })}
+              <button className="btn cyan" onClick={() => ctx.go('variantes', { s: scene.id })}>Más opciones y pedir a Claude</button>
+            </div>
+              </div>
+            </details>
+            <details className="grp" open>
+              <summary>Texto en pantalla</summary>
+              <div className="col">
             <label className="field">Texto en pantalla
               <textarea key={scene.id + 'o'} rows={2} defaultValue={scene.onScreenText ?? ''} placeholder="Máximo 6 palabras"
                 onBlur={(e) => { const v = e.target.value.trim(); if (v !== (scene.onScreenText ?? '')) edit((s) => { s.onScreenText = v || undefined; }); }} />
@@ -296,6 +346,11 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 </select>
               </label>
             </div>
+              </div>
+            </details>
+            <details className="grp">
+              <summary>Imagen y cámara</summary>
+              <div className="col">
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <label className="field" style={{ flex: 1 }}>Imagen
                 <select value={scene.look} onChange={(e) => edit((s) => { s.look = e.target.value as Scene['look']; })}>
@@ -308,57 +363,53 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 </select>
               </label>
             </div>
-            {idx > 0 ? (
-              <div className="col" style={{ padding: 12, borderRadius: 10, border: '1px solid var(--line)' }}>
-                <label className="field">Transición de entrada
-                  <select value={scene.transition?.id ?? ''} onChange={(e) => edit((s) => { s.transition = e.target.value ? { id: e.target.value } : undefined; })}>
-                    <option value="">Corte seco (sin transición)</option>
-                    {transitions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-                  </select>
-                </label>
-                {scene.transition && (() => {
-                  const spec = transitions.find((x) => x.id === scene.transition!.id);
-                  return (
-                    <>
-                      <span className="small muted">{spec?.description ?? 'Esta transición ya no existe: se verá como corte seco.'}</span>
-                      <label className="field">Duración (segundos)
-                        <input type="number" min={0.1} max={1.5} step={0.05} value={scene.transition!.duration ?? spec?.duration ?? 0.35}
-                          onChange={(e) => { const v = Math.min(1.5, Math.max(0.1, Number(e.target.value) || 0.35)); edit((s) => { if (s.transition) s.transition.duration = v; }); }} />
-                      </label>
-                    </>
-                  );
-                })()}
-                <button className="btn rect" onClick={previewTransition}>Ver la transición</button>
-              </div>
-            ) : (
-              <span className="small muted">La primera escena no lleva transición de entrada.</span>
-            )}
             <label className="row"><input type="checkbox" checked={scene.punchZoom} onChange={(e) => edit((s) => { s.punchZoom = e.target.checked; })} /> Zoom de golpe al entrar</label>
+              </div>
+            </details>
+            <details className="grp">
+              <summary>Lo que se dice</summary>
+              <div className="col">
             <div className="col">
               <span className="small muted">Lo que se dice</span>
               <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--panel2)' }}>{sceneSpeech(scene, store.transcript) || '—'}</div>
             </div>
+              </div>
+            </details>
             <button className="btn rect" onClick={() => store.update((p) => { p.scenes = p.scenes.filter((s) => s.id !== scene.id); applyPunchZooms(p.scenes, p.pacing.punchZoomEvery); })}>Eliminar escena</button>
-            <div className="col" style={{ marginTop: 'auto', padding: 14, borderRadius: 12, background: 'var(--cyanSoft)' }}>
-              <strong>Variantes para este clip</strong>
-              <span className="muted small">Tres opciones según lo que dices y el estilo. Toca una para aplicarla.</span>
-              {quick.map((v) => {
-                const on = scene.chosenVariant === v.id && scene.variants.length > 0;
-                return (
-                  <button key={v.id + v.label} className="tpl" style={on ? { borderColor: 'var(--pink)', background: 'var(--pinkSoft)' } : { background: 'var(--panel)' }} title={v.notes}
-                    onClick={() => store.update((p) => { const s = p.scenes[idx]; if (!s.variants.length) s.variants = quick; applyVariant(s, v); })}>
-                    <span className="col" style={{ gap: 2, minWidth: 0 }}>
-                      <strong>{v.label}</strong>
-                      <span className="small muted">{v.onScreenText ? `"${v.onScreenText}"` : v.notes}</span>
-                    </span>
-                  </button>
-                );
-              })}
-              <button className="btn cyan" onClick={() => ctx.go('variantes', { s: scene.id })}>Más opciones y pedir a Claude</button>
-            </div>
           </aside>
         )}
       </div>
+
+      {jointScene && jointIdx > 0 && (
+        <section className="trbar" aria-label="Transición entre clips">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <strong>Transición entre la escena {jointIdx} y la {jointIdx + 1}</strong>
+            <div className="row">
+              <label className="row small muted">Duración
+                <input className="input hex" type="number" min={0.1} max={1.5} step={0.05} disabled={!jointScene.transition}
+                  value={jointScene.transition?.duration ?? transitions.find((x) => x.id === jointScene.transition?.id)?.duration ?? 0.35}
+                  onChange={(e) => { const v = Math.min(1.5, Math.max(0.1, Number(e.target.value) || 0.35)); store.update((p) => { const s = p.scenes[jointIdx]; if (s.transition) s.transition.duration = v; }); }} /> s
+              </label>
+              <button className="btn rect" style={{ height: 34 }} onClick={() => previewJoint(jointIdx)}>Ver</button>
+              <button className="btn rect" style={{ height: 34 }} onClick={recommend}>Recomendar todas</button>
+              <button className="btn sq" style={{ height: 34, width: 34 }} aria-label="Cerrar" onClick={() => setJoint(null)}>✕</button>
+            </div>
+          </div>
+          <div className="row">
+            <button className={`btn rect opt-tr ${!jointScene.transition ? 'on' : ''}`} onClick={() => store.update((p) => { p.scenes[jointIdx].transition = undefined; })}>Corte seco</button>
+            {transitions.map((x) => (
+              <button key={x.id} className={`btn rect opt-tr ${jointScene.transition?.id === x.id ? 'on' : ''}`} title={x.description}
+                onClick={() => { store.update((p) => { p.scenes[jointIdx].transition = { id: x.id }; }); window.setTimeout(() => previewJoint(jointIdx), 350); }}>{x.name}</button>
+            ))}
+          </div>
+          <div className="row" style={{ flexWrap: 'nowrap' }}>
+            <input className="input" style={{ flex: 1 }} value={trText} onChange={(e) => setTrText(e.target.value)} placeholder="¿Quieres otra? Descríbela: «que la escena caiga desde arriba como una cortina»"
+              onKeyDown={(e) => { if (e.key === 'Enter' && trText.trim() && !busy) createTransition(); }} />
+            <button className="btn cyan rect" disabled={!trText.trim() || Boolean(busy)} onClick={createTransition}>{busy ? 'Claude trabajando…' : 'Crear con Claude'}</button>
+            {busy && <span className="pill" role="status">{busy}</span>}
+          </div>
+        </section>
+      )}
 
       <section className="tl" aria-label="Línea de tiempo">
         <div className="track">
@@ -370,20 +421,15 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 {project.scenes[i].title || ROLE_LABEL[project.scenes[i].role]}
               </button>
             ))}
-            <div className="playhead" style={{ left: pct(frame) }} />
-          </div>
-        </div>
-        <div className="track">
-          <span>Transiciones</span>
-          <div className="lane" onClick={seekLane}>
             {spans.map((x, i) => {
+              if (i === 0) return null;
               const tr = project.scenes[i].transition;
-              if (i === 0 || !tr) return null;
-              const name = transitions.find((y) => y.id === tr.id)?.name ?? tr.id;
+              const name = tr ? transitions.find((y) => y.id === tr.id)?.name ?? tr.id : 'Corte seco';
               return (
-                <button key={x.id} className="clip" title={`Entra con: ${name}`} style={{ left: `calc(${pct(x.from)} - 4px)`, maxWidth: pct(x.dur), background: 'var(--cyan)', color: '#000' }}
-                  onClick={(e) => { e.stopPropagation(); select(x.id); }}>
-                  ◆ {name}
+                <button key={`j${x.id}`} className={`joint ${tr ? 'has' : ''} ${joint === x.id ? 'open' : ''}`} style={{ left: pct(x.from) }}
+                  aria-label={`Transición entre la escena ${i} y la ${i + 1}: ${name}`} title={`Transición: ${name}`}
+                  onClick={(e) => { e.stopPropagation(); setJoint(joint === x.id ? null : x.id); }}>
+                  {tr ? '◆' : '+'}
                 </button>
               );
             })}

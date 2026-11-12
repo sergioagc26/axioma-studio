@@ -51,7 +51,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
 - **Skills** (`plugin/skills/`): `editar-reel`, `montaje`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 53 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Servidor MCP** (`packages/mcp`): 56 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -77,7 +77,12 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Presets base**: Rápido, Con ritmo, Sobrio, Testimonio, Antes/después y Oferta con CTA. Cada cliente puede guardar los suyos en `workspace/clientes/<cliente>/presets/`.
 - **Kit de marca** (`kit.json` del cliente): colores, fuentes y logo. Su color primario y su fuente mandan sobre cualquier preset.
 - **Fuentes de subtítulos** (Google Fonts): Montserrat, Inter, Space Grotesk, Poppins, Anton, Bebas Neue, Oswald, Archivo Black y DM Sans.
-- **Plantilla desde referencia**: en la pantalla Referencias del studio, o con la herramienta `analizar_referencia`. Saca:
+- **Plantilla desde referencia**: en la pantalla Referencias del studio («Guardar estilo y aplicarlo»), o con `analizar_referencia` y `guardar_referencia`. Todo se detecta solo, sin describir nada:
+  - subtítulos: posición, color de letras, color de resaltado, si va en caja y cuántas palabras a la vez (son la franja con más bordes nítidos que cambia varias veces por segundo);
+  - aspecto de la imagen (blanco y negro, cálido, frío, contraste) y destellos en los cortes;
+  - al guardar, el preset lleva también el estilo de los textos, las transiciones y los efectos de sonido.
+
+  La tipografía y las mayúsculas no se leen de la imagen: se eligen según el ritmo y se pueden ajustar. Además saca:
   - el ritmo de cortes (FFmpeg `scene`);
   - el tempo aproximado (autocorrelación de los ataques del audio, 60–180 BPM);
   - la paleta dominante;
@@ -96,6 +101,24 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Versiones**: guardar, listar, comparar y restaurar. Estados `borrador → en_revision → aprobado`.
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
+
+## El brief manda
+
+El brief es lo primero. Al terminar de responderlo, «Crear mi edición» (o `aplicar_brief`) arma el reel con las respuestas:
+
+| Respuesta | Qué decide |
+| --- | --- |
+| Ritmo | El preset: cuánta pausa se deja, zooms y subtítulos; en un montaje, el largo de los cortes |
+| Duración | El máximo: se quitan partes del medio (de atrás hacia adelante) y se recorta el final si hace falta |
+| Tono | Estilo de textos, efecto de los subtítulos, imagen y cámara (directo, cercano, educativo, inspirador, divertido) |
+| Llamado a la acción | El texto de la última escena, en banda de titular |
+| Formato | En historias, los subtítulos suben para dejar libre la zona de respuesta |
+
+Además pone el gancho en grande en la primera escena (con una frase que sí dijiste), las transiciones recomendadas y, con ritmo rápido, efectos de sonido. Antes guarda una versión. Después se cambia a mano lo que se quiera.
+
+## Recortar clips
+
+Cada clip se acorta quitando segundos del inicio o del final (barras en el editor, o `recortar_escena`). No se pierde material: «Recuperar el clip entero» lo devuelve. Los subtítulos y la duración total siguen el recorte.
 
 ## Textos y subtítulos
 
@@ -158,7 +181,7 @@ Cada escena puede tener una **transición de entrada** (cómo se pasa de la ante
   - al entrar a b-roll o gráficos, deslizar hacia arriba; en el cierre, destello.
 - **Transiciones nuevas** (`crear_transicion`, o «Crear con Claude» en el editor): una transición es un dato validado, no código. Dice cómo entra la escena nueva, cómo sale la anterior (opacidad, posición, escala, giro, desenfoque) y un destello opcional. Se guardan por cliente en `workspace/clientes/<cliente>/transiciones/`.
 - Mientras dura la transición, la escena anterior sigue viéndose debajo (se usa el material que viene justo después del corte). La duración del reel y el audio no cambian.
-- En el editor: pista «Transiciones» en la línea de tiempo y, por escena, el selector, la duración y «Ver la transición».
+- En el editor: un botón en la unión de cada par de clips. Al tocarlo se abre la barra con todas las transiciones, la duración, «Ver», «Recomendar todas» y «Crear con Claude».
 
 ## Claude dentro de la app
 

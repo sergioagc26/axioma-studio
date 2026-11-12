@@ -15,7 +15,8 @@ import { AssistantError, askClaude, claudeBin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
-import { analyzeReference, listReferences, referencesDir } from './reference.ts';
+import { analyzeReference, listReferences, presetFromReference, referencesDir } from './reference.ts';
+import { applyBrief } from './brief.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -184,6 +185,25 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const b = await readBody(req);
     if (b.op === 'preset') return json(res, { project: await ops.applyPreset(dir, b.presetId) });
+    if (b.op === 'aplicar-brief') {
+      // Arma la edición según las respuestas del brief.
+      const job = startJob('crear', async (j) => {
+        j.message = 'Armando tu edición según el brief…';
+        const { summary } = await applyBrief(dir);
+        return { summary };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'guardar-referencia') {
+      // Un solo paso: el estilo detectado en la referencia se guarda como plantilla y se aplica.
+      const project = await readProject(dir);
+      const report = (await listReferences(project.client)).find((r) => r.id === b.refId);
+      if (!report) return json(res, { error: 'No existe esa referencia.' }, 404);
+      const base = presetFromReference(report, b.name);
+      const preset = await savePreset(project.client, { ...base, captions: { ...base.captions, ...(b.captions ?? {}) }, style: { ...base.style, ...(b.style ?? {}) } });
+      const applied = b.aplicar === false ? project : await ops.applyPreset(dir, preset.id);
+      return json(res, { preset, project: applied, presets: await allPresets(project.client) });
+    }
     if (b.op === 'guardar-preset') {
       const project = await readProject(dir);
       const preset = await savePreset(project.client, b.preset);

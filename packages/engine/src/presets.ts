@@ -30,7 +30,7 @@ export async function allPresets(client?: string): Promise<Preset[]> {
 /** Guarda un preset del cliente partiendo de uno existente. */
 export async function savePreset(
   client: string | undefined,
-  input: { name: string; description?: string; base?: string; pacing?: Partial<Pacing>; captions?: Partial<CaptionStyle>; palette?: string[]; reference?: string },
+  input: { name: string; description?: string; base?: string; pacing?: Partial<Pacing>; captions?: Partial<CaptionStyle>; palette?: string[]; reference?: string; style?: Preset['style'] },
 ): Promise<Preset> {
   const base = (await allPresets(client)).find((p) => p.id === (input.base ?? 'con-ritmo')) ?? BUILTIN_PRESETS[0];
   const preset = Preset.parse({
@@ -41,6 +41,7 @@ export async function savePreset(
     captions: CaptionStyle.parse({ ...base.captions, ...input.captions, ...fontWeightFor(input.captions?.fontFamily) }),
     palette: input.palette,
     reference: input.reference,
+    style: input.style,
   });
   const dir = presetsDir(client);
   await mkdir(dir, { recursive: true });

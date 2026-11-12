@@ -64,7 +64,7 @@ export const Storyboard: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <span className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em' }}>Brief</span>
         {brief.length ? brief.map(([k, v]) => <span key={k} className="pill line"><span className="muted">{k}:</span> <span style={{ color: 'var(--text)' }}>{v}</span></span>)
           : <span className="muted">Sin responder todavía.</span>}
-        <button className="btn rect spacer" onClick={() => ctx.go('brief')}>Editar respuestas</button>
+        <button className={`btn rect spacer ${project.briefAppliedAt ? '' : 'primary'}`} onClick={() => ctx.go('brief')}>{project.briefAppliedAt ? 'Editar respuestas' : 'Responder el brief y crear la edición'}</button>
       </section>
       <main className="page">
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>

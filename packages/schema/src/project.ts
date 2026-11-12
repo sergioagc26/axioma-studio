@@ -86,6 +86,9 @@ export const Scene = z.object({
   title: z.string().default(''),
   /** Tramos del video fuente que forman la escena, en orden. */
   ranges: z.array(Range).min(1),
+  /** Recorte del clip: segundos que se quitan del inicio y del final (sin perder el material). */
+  trimStart: z.number().min(0).default(0),
+  trimEnd: z.number().min(0).default(0),
   visual: SceneVisual.default('original'),
   onScreenText: z.string().optional(),
   textColor: z.string().optional(),
@@ -132,6 +135,17 @@ export const Preset = z.object({
   description: z.string().default(''),
   pacing: Pacing.default(Pacing.parse({})),
   captions: CaptionStyle.default(CaptionStyle.parse({})),
+  /** Estilo de las escenas que trae el preset (lo usan las plantillas desde referencia). */
+  style: z.object({
+    textStyle: TextStyle.optional(),
+    look: Look.optional(),
+    camera: Camera.optional(),
+    /** Poner las transiciones recomendadas al aplicar el preset. */
+    transitions: z.boolean().optional(),
+    /** Destellos en los cortes (detectados en la referencia). */
+    flashes: z.boolean().optional(),
+    sfxAuto: z.boolean().optional(),
+  }).optional(),
   /** Colores de la referencia o del cliente (informativo). */
   palette: z.array(z.string()).optional(),
   /** Id de la referencia de la que salió el preset. */
@@ -202,6 +216,8 @@ export const Project = z.object({
   }),
   source: SourceMedia,
   brief: z.record(z.string(), z.string()).default({}),
+  /** Cuándo se armó la edición a partir del brief. */
+  briefAppliedAt: z.string().optional(),
   presetId: z.string().default('rapido'),
   pacing: Pacing,
   captions: CaptionStyle,

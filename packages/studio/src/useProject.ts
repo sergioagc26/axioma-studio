@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sceneLength, speechOf } from '@snz/schema';
 import type { Brand, FacePoint, Preset, Project, Scene, Transcript, TransitionSpec } from '@snz/schema';
 
 export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; transitions: TransitionSpec[] }
@@ -24,15 +25,10 @@ export async function waitJob(job: Job, onTick: (j: Job) => void): Promise<Job> 
   }
 }
 
-export const sceneDuration = (s: Scene) => s.ranges.reduce((a, r) => a + Math.max(0, r.end - r.start), 0);
+export const sceneDuration = (s: Scene) => sceneLength(s);
 
-/** Lo que se dice en una escena, según la transcripción. */
-export function sceneSpeech(s: Scene, t: Transcript | null): string {
-  if (!t) return '';
-  return s.ranges
-    .flatMap((r) => t.words.filter((w) => { const m = (w.start + w.end) / 2; return m >= r.start && m < r.end; }))
-    .map((w) => w.text).join(' ');
-}
+/** Lo que se dice en una escena (con su recorte), según la transcripción. */
+export const sceneSpeech = (s: Scene, t: Transcript | null): string => speechOf(s, t);
 
 /** Mismo criterio que el engine: zoom en la primera escena tras cada intervalo. */
 export function applyPunchZooms(scenes: Scene[], every: number) {

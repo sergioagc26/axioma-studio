@@ -2,6 +2,31 @@ import type { Camera, CaptionStyle, Look, Project, Scene, TextStyle, Transcript 
 import { keywordOf } from './suggest.ts';
 import { findTransition, type TransitionSpec } from './transitions.ts';
 
+/** Duración mínima que queda de un clip después de recortarlo. */
+export const MIN_CLIP = 0.3;
+
+/** Tramos de la escena después de aplicar su recorte de inicio y final. */
+export function effectiveRanges(scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'>): { start: number; end: number }[] {
+  const ranges = scene.ranges.map((r) => ({ start: r.start, end: Math.max(r.start, r.end) }));
+  const total = ranges.reduce((a, r) => a + r.end - r.start, 0);
+  let s = Math.max(0, Math.min(scene.trimStart ?? 0, total - MIN_CLIP));
+  let e = Math.max(0, Math.min(scene.trimEnd ?? 0, total - MIN_CLIP - s));
+  for (const r of ranges) {
+    const cut = Math.min(s, r.end - r.start);
+    r.start += cut;
+    s -= cut;
+  }
+  for (const r of [...ranges].reverse()) {
+    const cut = Math.min(e, r.end - r.start);
+    r.end -= cut;
+    e -= cut;
+  }
+  return ranges.filter((r) => r.end - r.start > 0.001);
+}
+
+/** Duración de una escena en la salida (con su recorte). */
+export const sceneLength = (scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'>) => effectiveRanges(scene).reduce((a, r) => a + r.end - r.start, 0);
+
 export type MotionSpec = { template: string; data: Record<string, any>; text?: string };
 
 /** Un tramo del video fuente colocado en la línea de tiempo de salida. */
@@ -128,7 +153,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
       ? { template, data: scene.motionData ?? {}, text: activeText(scene) }
       : visual === 'texto' && activeText(scene) ? { template: 'texto', data: {}, text: activeText(scene) } : undefined;
 
-    scene.ranges.forEach((r, i) => {
+    effectiveRanges(scene).forEach((r, i) => {
       const dur = Math.max(0, r.end - r.start);
       if (dur <= 0) return;
       const from = toFrame(acc);
@@ -261,5 +286,5 @@ function activeColor(scene: Scene) {
 
 /** Duración total de salida del proyecto en segundos. */
 export function outputDuration(project: Project): number {
-  return project.scenes.reduce((a, s) => a + s.ranges.reduce((b, r) => b + Math.max(0, r.end - r.start), 0), 0);
+  return project.scenes.reduce((a, s) => a + sceneLength(s), 0);
 }

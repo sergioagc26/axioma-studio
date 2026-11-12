@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Ctx } from '../App.tsx';
-import { api, sceneDuration } from '../useProject.ts';
+import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
 
 interface Q { key: string; label: string; title: string; help: string; options: { value: string; title: string; desc: string; preset?: string }[] }
@@ -37,17 +37,23 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const value = project.brief[q.key] ?? '';
   const answered = QUESTIONS.filter((x) => project.brief[x.key]).length;
 
-  const answer = async (v: string, preset?: string) => {
+  const [building, setBuilding] = useState('');
+  /** Arma la edición según el brief y lleva al editor. */
+  const build = async () => {
+    setBuilding('Armando tu edición…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'aplicar-brief' }) });
+      const done = await waitJob(job, (j) => setBuilding(j.message));
+      const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
+      store.replace(d.project);
+      await store.reloadExtras();
+      ctx.toast(`Edición lista. ${(done.result?.summary as string[]).join(' ')}`);
+      ctx.go('editor', { s: null });
+    } catch (e: any) { ctx.toast(`No se pudo armar la edición: ${e.message}`); } finally { setBuilding(''); }
+  };
+
+  const answer = async (v: string, _preset?: string) => {
     store.update((p) => { if (v) p.brief[q.key] = v; else delete p.brief[q.key]; });
-    if (preset && preset !== project.presetId) {
-      // El ritmo cambia el preset (pausas, zooms y subtítulos) sin rehacer el storyboard.
-      window.setTimeout(async () => {
-        try {
-          const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'preset', presetId: preset }) });
-          store.replace(d.project);
-        } catch (e: any) { ctx.toast(e.message); }
-      }, 400);
-    }
   };
 
   return (
@@ -95,13 +101,21 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <button className="btn" disabled={i === 0} onClick={() => setI(i - 1)}>Atrás</button>
           {i < QUESTIONS.length - 1
             ? <button className="btn primary" onClick={() => setI(i + 1)}>Siguiente pregunta</button>
-            : <button className="btn primary" onClick={() => ctx.go('storyboard')}>Ver storyboard</button>}
+            : <button className="btn primary" disabled={Boolean(building)} onClick={build}>{building || (project.briefAppliedAt ? 'Volver a crear la edición' : 'Crear mi edición')}</button>}
         </div>
+        {answered >= 3 && i < QUESTIONS.length - 1 && (
+          <button className="btn cyan" style={{ alignSelf: 'flex-end' }} disabled={Boolean(building)} onClick={build}>{building || 'Crear mi edición con lo que llevo'}</button>
+        )}
+        <span className="small muted">
+          {project.briefAppliedAt
+            ? 'Tu edición ya se armó con este brief. Si cambias respuestas y la vuelves a crear, se reemplazan los cambios que hayas hecho a mano (queda una versión guardada).'
+            : 'Al terminar, la app arma la edición con tus respuestas: ritmo, duración, estilo de textos, gancho, cierre y transiciones. Después cambias lo que quieras.'}
+        </span>
       </main>
 
       <aside className="col" style={{ flex: '1 1 260px', maxWidth: 320, padding: 18, borderRadius: 16, background: 'var(--cyanSoft)' }}>
         <h2 style={{ fontSize: 17 }}>Así va quedando</h2>
-        <span className="muted small">Primer corte automático. Pídele a Claude que lo afine con tu brief.</span>
+        <span className="muted small">{project.briefAppliedAt ? 'Edición armada con tu brief.' : 'Primer corte automático. Responde el brief y pulsa «Crear mi edición».'}</span>
         {project.scenes.map((s, n) => (
           <div key={s.id} className="row" style={{ padding: '9px 12px', borderRadius: 10, background: 'var(--panel)', flexWrap: 'nowrap' }}>
             <span className="small muted" style={{ fontWeight: 700 }}>{String(n + 1).padStart(2, '0')}</span>

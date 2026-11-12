@@ -1,9 +1,10 @@
 import type { Project, Scene, SceneVariant, Transcript } from './project.ts';
+import { effectiveRanges } from './timeline.ts';
 
 /** Lo que se dice en una escena. */
 export function speechOf(scene: Scene, transcript: Transcript | null): string {
   if (!transcript) return '';
-  return scene.ranges
+  return effectiveRanges(scene)
     .flatMap((r) => transcript.words.filter((w) => { const m = (w.start + w.end) / 2; return m >= r.start && m < r.end; }))
     .map((w) => w.text).join(' ');
 }
