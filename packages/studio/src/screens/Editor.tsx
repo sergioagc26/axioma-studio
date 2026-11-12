@@ -7,6 +7,13 @@ import { ROLE_LABEL } from '../SceneFrame.tsx';
 import { api, applyPunchZooms, askAssistant, sceneSpeech, waitJob, type Job } from '../useProject.ts';
 
 const COLORS = ['#FE2C55', '#25F4EE', '#FFFFFF', '#FACC15'];
+/** Zonas seguras aproximadas de cada red (porcentaje del cuadro 9:16). */
+const SAFE = {
+  reel: { left: '6%', right: '14%', top: '12%', bottom: '22%' },
+  historia: { left: '6%', right: '6%', top: '13%', bottom: '18%' },
+  tiktok: { left: '6%', right: '17%', top: '10%', bottom: '26%' },
+  short: { left: '6%', right: '15%', top: '9%', bottom: '20%' },
+} as const;
 
 const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['caja', 'Recuadro de color', 'El texto dentro de un recuadro del color elegido.'],
@@ -183,6 +190,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const player = useRef<PlayerRef>(null);
   const [frame, setFrame] = useState(0);
   const [safe, setSafe] = useState(true);
+  // Zona libre según la red (lo de fuera lo tapan los botones, el perfil o la barra de respuesta).
+  const [safeNet, setSafeNet] = useState<keyof typeof SAFE>(() => /historia/i.test(project.brief.formato ?? '') ? 'historia' : /tiktok/i.test(project.brief.formato ?? '') ? 'tiktok' : /short/i.test(project.brief.formato ?? '') ? 'short' : 'reel');
   const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
 
   const timeline = useMemo(() => buildTimeline(project, store.transcript, {
@@ -664,7 +673,11 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <main className="stage">
           <div className="row small muted">
             <span className="pill line">9:16 · {project.format.width}×{project.format.height}</span>
-            <label className="row"><input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} /> Zonas seguras</label>
+            <label className="row"><input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} /> Zonas seguras
+              <select value={safeNet} onChange={(e) => setSafeNet(e.target.value as keyof typeof SAFE)} style={{ marginLeft: 6 }} aria-label="Red para las zonas seguras">
+                <option value="reel">Reel</option><option value="historia">Historia</option><option value="tiktok">TikTok</option><option value="short">Short</option>
+              </select>
+            </label>
             <span>{fmt(frame)} / {fmt(total)}</span>
           </div>
           <div className="playerbox">
@@ -680,7 +693,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               controls
               acknowledgeRemotionLicense
             />
-            {safe && <div className="safe" aria-hidden="true" />}
+            {safe && <div className="safe" aria-hidden="true" style={SAFE[safeNet]} title="Fuera de este recuadro los botones de la red tapan el contenido" />}
           </div>
           <div className="row">
             <button className="btn sq" aria-label="Escena anterior" disabled={idx <= 0} onClick={() => select(project.scenes[idx - 1].id)}>⏮</button>

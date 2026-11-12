@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, watch } from 'node:fs';
-import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,6 +26,7 @@ import { llmPublish, llmReady } from './llm.ts';
 import { localEdit } from './localedit.ts';
 import { createClipProject, projectClips } from './clips.ts';
 import { matchSceneColors } from './colormatch.ts';
+import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
@@ -165,6 +166,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const cta = /digo en el video/i.test(pr.brief.cta ?? '') ? undefined : pr.brief.cta;
     return json(res, await llmPublish(speech, { sector: kit?.sector, cta }));
   }
+  if (p === '/api/imagenes' && method === 'GET') {
+    // Juegos de imágenes ya creados (el más reciente primero).
+    const dir = await findDir(id);
+    const base = path.join(dir, P.renders, 'imagenes');
+    const sets = existsSync(base) ? (await readdir(base)).filter((d) => !d.startsWith('.')).sort().reverse() : [];
+    const out = [];
+    for (const d of sets.slice(0, 12)) {
+      const files = (await readdir(path.join(base, d))).filter((f) => f.endsWith('.png')).sort();
+      out.push({ name: d, tipo: d.split('-').pop(), files: files.map((f) => `${P.renders}/imagenes/${d}/${f}`) });
+    }
+    return json(res, { sets: out });
+  }
   if (p === '/api/plan' && method === 'GET') return json(res, { plan: await planAutoEdit(await findDir(id)) });
   if (p === '/api/clips' && method === 'GET') return json(res, { clips: await projectClips(await findDir(id)) });
   if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
@@ -275,6 +288,16 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, { kit, project: applied?.project ?? project, why: applied?.why ?? null });
     }
     if (b.op === 'igualar-color') { const r = await matchSceneColors(dir); return json(res, { project: r.project, changed: r.changed }); }
+    if (b.op === 'crear-imagenes') {
+      // Carrusel, post o historia a partir del reel.
+      const tipo = ['carrusel', 'post', 'historia'].includes(b.tipo) ? b.tipo : 'carrusel';
+      const job = startJob('crear', async (j) => {
+        j.message = 'Preparando las imágenes…';
+        const r = await createImages(dir, tipo, (m) => { j.message = m; });
+        return { files: r.files, ai: r.ai };
+      });
+      return json(res, job);
+    }
     if (b.op === 'crear-clip') {
       // Reel nuevo con un tramo del video largo, ya editado con IA.
       const job = startJob('crear', async (j) => {

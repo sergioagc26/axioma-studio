@@ -32,3 +32,4 @@ export * from './depth.ts';
 export * from './colormatch.ts';
 export * from './llm.ts';
 export * from './localedit.ts';
+export * from './images.ts';

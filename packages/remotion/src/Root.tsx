@@ -3,6 +3,7 @@ import { Composition } from 'remotion';
 import type { Timeline } from '@axioma/schema';
 import { CaptionStyle } from '@axioma/schema';
 import { Reel } from './Reel.tsx';
+import { Slide, type SlideProps } from './Slide.tsx';
 
 const empty: Timeline = {
   width: 1080,
@@ -28,7 +29,20 @@ const empty: Timeline = {
   captions: CaptionStyle.parse({}),
 };
 
+const slide: SlideProps = { width: 1080, height: 1350, kind: 'portada', title: 'Tres errores que casi me quiebran', body: 'Lo que aprendí al empezar de cero', brand: { primary: '#FE2C55', secondary: '#25F4EE', name: 'Mi marca' }, font: 'Anton', carousel: true, index: 0, total: 5 };
+
 export const Root: React.FC = () => (
+  <>
+  <Composition
+    id="Imagen"
+    component={Slide}
+    defaultProps={slide}
+    width={1080}
+    height={1350}
+    fps={30}
+    durationInFrames={1}
+    calculateMetadata={({ props }) => ({ width: props.width, height: props.height })}
+  />
   <Composition
     id="Reel"
     component={Reel}
@@ -44,4 +58,5 @@ export const Root: React.FC = () => (
       durationInFrames: props.durationInFrames,
     })}
   />
+</>
 );

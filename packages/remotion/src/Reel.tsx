@@ -63,7 +63,7 @@ const FONTS: Record<string, () => { fontFamily: string }> = {
   'DM Sans': () => loadDMSans('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),
 };
 
-function useFont(name: string): string {
+export function useFont(name: string): string {
   return useMemo(() => (FONTS[name] ? FONTS[name]().fontFamily : name), [name]);
 }
 

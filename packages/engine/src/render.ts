@@ -112,7 +112,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
 }
 
 /** Reintenta hasta 3 veces cuando el navegador interno no llega a abrir. */
-async function retryBrowser<T>(fn: () => Promise<T>): Promise<T> {
+export async function retryBrowser<T>(fn: () => Promise<T>): Promise<T> {
   for (let i = 0; ; i++) {
     try {
       return await fn();
