@@ -256,7 +256,7 @@ export function createServer() {
     posicion_y: z.number().min(0.1).max(0.9).optional().describe('0 arriba, 1 abajo. Zona segura: 0.2–0.75'),
     efecto: z.enum(['color', 'caja', 'pop', 'subrayado']).optional().describe('Cómo se marca la palabra que suena: color · caja detrás · pop (crece) · subrayado'),
     remarcar_clave: z.boolean().optional().describe('Remarca siempre la palabra más importante de cada línea'),
-    diseno: z.enum(['clasico', 'impacto', 'bloque', 'cinta', 'neon', 'elegante']).optional().describe('clasico = básico; los demás son llamativos: impacto (enormes e inclinadas), bloque (línea en bloque de color), cinta (cada palabra en su tira), neon, elegante (cursiva fina)'),
+    diseno: z.string().optional().describe('clasico = básico; los demás son llamativos: impacto (enormes e inclinadas), bloque (línea en bloque de color), cinta (cada palabra en su tira), neon, elegante (cursiva fina)'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const patch = Object.fromEntries(Object.entries({

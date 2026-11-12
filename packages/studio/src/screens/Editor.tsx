@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { BASIC_TEXT_STYLES, FONT_GROUPS, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@snz/schema';
+import { BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@snz/schema';
 import { Reel } from '@snz/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
-import { api, applyPunchZooms, askAssistant, sceneSpeech } from '../useProject.ts';
+import { api, applyPunchZooms, askAssistant, sceneSpeech, waitJob, type Job } from '../useProject.ts';
 
 const COLORS = ['#FE2C55', '#25F4EE', '#FFFFFF', '#FACC15'];
 
@@ -33,14 +33,6 @@ const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['resplandor', 'Resplandor', 'Letras blancas con un halo de luz de color alrededor.'],
 ];
 const BASIC = new Set<string>(BASIC_TEXT_STYLES);
-const DESIGNS: [string, string, string][] = [
-  ['clasico', 'Clásico', 'El básico: letras con borde y la palabra que suena marcada.'],
-  ['impacto', 'Impacto', 'Palabras enormes e inclinadas; la que suena crece.'],
-  ['bloque', 'Bloque', 'La línea dentro de un bloque de color, un poco torcido.'],
-  ['cinta', 'Tiras de color', 'Cada palabra en su tira, alternando colores.'],
-  ['neon', 'Neón', 'Letras con brillo; la que suena se enciende en blanco.'],
-  ['elegante', 'Elegante', 'Cursiva fina con subrayado. Sobrio.'],
-];
 
 const TEXT_ANIMS: [Scene['textAnim'], string][] = [
   ['subir', 'Sube'], ['pop', 'Salta'], ['rebote', 'Cae y rebota'], ['zoom', 'Llega desde cerca'], ['deslizar', 'Desliza'], ['girar', 'Entra girando'],
@@ -93,6 +85,24 @@ const MotionData: React.FC<{ scene: Scene; onChange: (d: Record<string, unknown>
 };
 
 /** Lista de tipografías agrupada. */
+/** Lista agrupada con flechas para probar una opción tras otra sin abrir el menú. */
+const Stepper: React.FC<{ label: string; items: { id: string; name: string; group: string }[]; value: string; onChange: (id: string) => void }> = ({ label, items, value, onChange }) => {
+  const i = Math.max(0, items.findIndex((x) => x.id === value));
+  const groups = [...new Set(items.map((x) => x.group))];
+  const move = (n: number) => onChange(items[(i + n + items.length) % items.length].id);
+  return (
+    <label className="field">{label}
+      <span className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
+        <button type="button" className="btn sq" aria-label="Anterior" onClick={() => move(-1)}>‹</button>
+        <select style={{ flex: 1, minWidth: 0 }} value={items[i].id} onChange={(e) => onChange(e.target.value)}>
+          {groups.map((g) => <optgroup key={g} label={g}>{items.filter((x) => x.group === g).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</optgroup>)}
+        </select>
+        <button type="button" className="btn sq" aria-label="Siguiente" onClick={() => move(1)}>›</button>
+      </span>
+    </label>
+  );
+};
+
 // Tipografías instaladas en este computador: se piden una vez y se comparten entre todas las listas.
 let systemFontsMemo: Promise<string[]> | null = null;
 const loadSystemFonts = () => (systemFontsMemo ??= api<{ fonts: string[] }>('/api/fonts').then((d) => d.fonts).catch(() => []));
@@ -344,6 +354,24 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); }
   };
 
+  // Nicho para las tendencias: el de la marca o el que corresponde a lo que se ve en el video.
+  const sector = store.kit?.sector || VISION_TOPICS.find((t) => t.id === store.vision?.topic)?.sector || null;
+  const trend = sector ? TRENDS[sector] ?? TRENDS.otro : null;
+  const hasRef = store.presets.some((p) => p.reference);
+  const [auto, setAuto] = useState('');
+  /** Edita todo el video de una vez: referencia + tendencia + lo que se ve. */
+  const autoEdit = async () => {
+    setAuto('Editando todo el video…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'auto-editar' }) });
+      const done = await waitJob(job, (j) => setAuto(j.message || 'Editando todo el video…'));
+      const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
+      store.replace(d.project);
+      await store.reloadExtras();
+      ctx.toast((done.result?.summary as string[]).join(' '));
+    } catch (e: any) { ctx.toast(`No se pudo editar: ${e.message}`); } finally { setAuto(''); }
+  };
+
   const applyPreset = async (presetId: string) => {
     try {
       const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'preset', presetId }) });
@@ -365,6 +393,22 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     <>
       <div className="editor">
         <aside className="side l">
+          <div className="col" style={{ padding: 12, borderRadius: 14, background: 'var(--pinkSoft)', gap: 8, marginBottom: 10 }}>
+            <button className="btn primary" disabled={Boolean(auto)} onClick={autoEdit}>{auto || 'Editar todo con IA'}</button>
+            <span className="small muted">
+              Un solo botón: corta, pone gancho, textos, zooms, gráficos, transiciones y sonidos.
+              {hasRef ? ' Sigue tu referencia guardada' : ' Sin referencia guardada'}{trend ? ` y lo que funciona en ${SECTORS.find(([id]) => id === sector)?.[1]?.toLowerCase()}.` : '.'} Queda una versión guardada de lo anterior.
+            </span>
+            {trend && (
+              <details>
+                <summary className="small" style={{ cursor: 'pointer', fontWeight: 600 }}>En tendencia para tu nicho</summary>
+                <ul className="small muted" style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                  {trend.points.map((t) => <li key={t}>{t}</li>)}
+                </ul>
+                <span className="small muted">Guía incluida en la app ({TRENDS_DATE}); no se consulta internet.</span>
+              </details>
+            )}
+          </div>
           <details className="grp" open>
             <summary>Estilos</summary>
             <div className="col">
@@ -406,18 +450,10 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <button className={project.captions.mode === 'word' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'word'; })}>Palabra a palabra</button>
             <button className={project.captions.mode === 'phrase' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'phrase'; })}>Frase completa</button>
           </div>
-          <label className="field">Diseño de los subtítulos
-            <select value={project.captions.design} onChange={(e) => store.update((p) => { p.captions.design = e.target.value as typeof p.captions.design; })}>
-              <optgroup label="Básico"><option value="clasico">Clásico</option></optgroup>
-              <optgroup label="Llamativos">{DESIGNS.slice(1).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</optgroup>
-            </select>
-          </label>
-          <span className="small muted">{DESIGNS.find(([id]) => id === project.captions.design)?.[2]}</span>
-          <label className="field">Cómo se marca la palabra que suena
-            <select value={project.captions.effect} onChange={(e) => store.update((p) => { p.captions.effect = e.target.value as typeof p.captions.effect; })}>
-              <option value="color">Cambia de color</option><option value="caja">Caja de color detrás</option><option value="pop">Salta y crece</option><option value="subrayado">Subrayado</option>
-            </select>
-          </label>
+          <Stepper label={`Diseño de los subtítulos (${CAPTION_DESIGNS.length})`} items={CAPTION_DESIGNS} value={project.captions.design} onChange={(id) => store.update((p) => { p.captions.design = id; })} />
+          {CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.font && <span className="small muted">Este diseño trae su propia tipografía.</span>}
+          <Stepper label={`Cómo se marca la palabra que suena (${CAPTION_EFFECTS.length})`} items={CAPTION_EFFECTS} value={project.captions.effect} onChange={(id) => store.update((p) => { p.captions.effect = id; })} />
+          {CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.legacy && <span className="small muted">Este diseño trae su propia forma de remarcar; elige otro diseño para cambiarla.</span>}
           <label className="row"><input type="checkbox" checked={project.captions.emphasis} onChange={(e) => store.update((p) => { p.captions.emphasis = e.target.checked; })} /> Remarcar la palabra más importante</label>
           <span className="small muted">Color de resaltado</span>
           <ColorRow value={project.captions.highlightColor} label="Color de resaltado de subtítulos" onPick={(c) => store.update((p) => { p.captions.highlightColor = c; })} />

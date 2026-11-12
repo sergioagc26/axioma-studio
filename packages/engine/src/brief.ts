@@ -26,6 +26,21 @@ function maxSeconds(answer?: string): number | null {
   return nums.length ? Math.max(...nums) : null;
 }
 
+/** Acorta un reel hablado hasta el máximo: quita escenas del medio, de atrás hacia adelante, y si aún no cabe recorta el final. */
+export function fitDuration(project: Project, max: number): string {
+  let removed = 0;
+  while (outputDuration(project) > max && project.scenes.length > 2) {
+    project.scenes.splice(project.scenes.length - 2, 1);
+    removed++;
+  }
+  const over = outputDuration(project) - max;
+  if (over > 0 && project.scenes.length) {
+    const last = project.scenes[project.scenes.length - 1];
+    last.trimEnd = Math.min(over, Math.max(0, sceneLength(last) - 1));
+  }
+  return removed ? `Duración ajustada a ${outputDuration(project).toFixed(0)} s (máximo ${max} s): se quitaron ${removed} partes del medio.` : `Duración: ${outputDuration(project).toFixed(0)} s, dentro del máximo de ${max} s.`;
+}
+
 /**
  * Arma la edición a partir del brief. Es el primer paso después de responderlo:
  * - ritmo → preset (pausas, zooms, subtítulos);
@@ -57,21 +72,8 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   project = await readProject(dir);
   const transcript = await readTranscript(dir);
 
-  // 2. Duración (videos hablados): se quitan escenas del medio, de atrás hacia adelante, hasta caber.
-  if (project.kind === 'hablado' && max) {
-    let removed = 0;
-    while (outputDuration(project) > max && project.scenes.length > 2) {
-      project.scenes.splice(project.scenes.length - 2, 1);
-      removed++;
-    }
-    // Si aún no cabe, se recorta el final de la última escena.
-    const over = outputDuration(project) - max;
-    if (over > 0 && project.scenes.length) {
-      const last = project.scenes[project.scenes.length - 1];
-      last.trimEnd = Math.min(over, Math.max(0, sceneLength(last) - 1));
-    }
-    summary.push(removed ? `Duración ajustada a ${outputDuration(project).toFixed(0)} s (máximo ${max} s): se quitaron ${removed} partes del medio.` : `Duración: ${outputDuration(project).toFixed(0)} s, dentro del máximo de ${max} s.`);
-  }
+  // 2. Duración (videos hablados).
+  if (project.kind === 'hablado' && max) summary.push(fitDuration(project, max));
 
   // 3. Tono → estilo
   const tone = TONO[norm(b.tono ?? '')] ?? TONO.directo;

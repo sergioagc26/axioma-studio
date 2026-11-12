@@ -12,7 +12,7 @@ import { readAnalysis } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { listPresets, savePreset } from './presets.ts';
 import { extractWav16k, mediaDuration, processVoice } from './media.ts';
-import { ensureProjectSfx } from './sfx.ts';
+import { AUTO_SFX, ensureProjectSfx } from './sfx.ts';
 import { generateImage } from './imagegen.ts';
 import { transcribeWav } from './transcribe.ts';
 import { synthesize, type TtsProvider } from './tts.ts';
@@ -193,7 +193,12 @@ async function dressEdit(dir: string, project: Project, st: NonNullable<Preset['
 
 export async function applyPreset(dir: string, presetId: string) {
   const project = await readProject(dir);
-  const preset: Preset = getPreset(presetId, await listPresets(project.client));
+  return applyPresetObject(dir, getPreset(presetId, await listPresets(project.client)));
+}
+
+/** Aplica un estilo ya armado (uno guardado, o la mezcla de referencia y tendencia de la edición automática). */
+export async function applyPresetObject(dir: string, preset: Preset) {
+  const project = await readProject(dir);
   project.presetId = preset.id;
   project.pacing = Pacing.parse(preset.pacing);
   project.captions = CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(project.client)) });
@@ -217,7 +222,7 @@ export async function applyPreset(dir: string, presetId: string) {
       }
     }
     if (st.sfxAuto !== undefined) {
-      if (st.sfxAuto) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
+      if (st.sfxAuto) await ensureProjectSfx(dir, AUTO_SFX);
       project.audio.sfxAuto = st.sfxAuto;
     }
     await dressEdit(dir, project, st);
@@ -495,7 +500,7 @@ export async function clearSfx(dir: string, sceneId?: string) {
 
 /** Efectos automáticos: barrido en cada transición y "pop" al entrar cada texto. */
 export async function setAutoSfx(dir: string, on: boolean) {
-  if (on) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
+  if (on) await ensureProjectSfx(dir, AUTO_SFX);
   const project = await readProject(dir);
   project.audio.sfxAuto = on;
   return writeProject(dir, project);
@@ -526,7 +531,7 @@ export async function applyBrandStyle(dir: string): Promise<{ project: Project; 
       if (s) s.transition = a.transition ? { id: st.flashes ? 'destello' : a.transition } : undefined;
     }
   }
-  if (st.sfxAuto) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
+  if (st.sfxAuto) await ensureProjectSfx(dir, AUTO_SFX);
   project.audio.sfxAuto = Boolean(st.sfxAuto);
   return { project: await writeProject(dir, project), why: brand.why };
 }

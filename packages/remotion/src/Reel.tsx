@@ -29,7 +29,8 @@ import { loadFont as loadPacifico } from '@remotion/google-fonts/Pacifico';
 import { loadFont as loadLobster } from '@remotion/google-fonts/Lobster';
 import { loadFont as loadCaveat } from '@remotion/google-fonts/Caveat';
 import { loadFont as loadLora } from '@remotion/google-fonts/Lora';
-import type { Timeline, TimelineClip, TimelineOverlay } from '@snz/schema';
+import type { CapColor, CaptionEffectSpec, Timeline, TimelineClip, TimelineOverlay } from '@snz/schema';
+import { captionDesign, captionEffect } from '@snz/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
 import { MotionGraphic } from './Motion.tsx';
 
@@ -270,33 +271,118 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
   const s = t.captions;
   const serif = useFont('Playfair Display');
   const d = s.design;
-  const font = d === 'elegante' ? serif : baseFont;
+  // Diseños descritos como datos (todos menos los cinco con dibujo propio).
+  const spec = captionDesign(d);
+  const G = spec.legacy ? null : spec;
+  const gfont = useFont(G?.font ?? '');
+  const font = d === 'elegante' ? serif : gfont || baseFont;
+  const fx = captionEffect(s.effect);
   const pop = spring({ frame, fps, config: { damping: 12, stiffness: 220 }, durationInFrames: 8 });
   const abs = chunk.startFrame + frame;
-  const size = s.fontSize * (d === 'impacto' ? 1.3 : d === 'elegante' ? 0.86 : d === 'cinta' ? 0.92 : 1);
-  const stroke = Math.round((size / (d === 'impacto' ? 6.5 : 9)) * s.strokeScale);
+  const size = s.fontSize * (d === 'impacto' ? 1.3 : d === 'elegante' ? 0.86 : d === 'cinta' ? 0.92 : G?.size ?? 1);
+  const stroke = Math.round((size / (d === 'impacto' ? 6.5 : 9)) * s.strokeScale * (G?.strokeMult ?? 1));
   const la = s.lineAnim;
   const hl = s.highlightColor;
-  const upper = d === 'elegante' ? false : d === 'impacto' || d === 'cinta' || d === 'bloque' ? true : s.uppercase;
+  const upper = d === 'elegante' ? false : d === 'impacto' || d === 'cinta' || d === 'bloque' ? true : G?.upper ?? s.uppercase;
+  const sec = t.brand.secondary;
+  const col = (c: CapColor | undefined, fallback: string) => (c === 'acento' ? hl : c === 'secundario' ? sec : c === 'blanco' ? '#fff' : c === 'negro' ? '#000' : c === 'texto' ? s.color : fallback);
+  // Fondos que fijan el color de la letra.
+  const bgText = G?.bg === 'caja-acento' || G?.bg === 'pildora-acento' ? onColor(hl) : G?.bg === 'blanca' ? '#000' : G?.bg === 'negra' ? '#fff' : null;
+  const wordBg = G?.bg === 'palabra' || G?.bg === 'palabra-acento' || G?.bg === 'palabra-blanca' || G?.bg === 'alterna';
+  const FILLS: Record<string, string> = {
+    degradado: `linear-gradient(100deg, ${hl}, ${sec})`,
+    fuego: 'linear-gradient(180deg, #FFF3B0 10%, #FACC15 40%, #F97316 70%, #DC2626 100%)',
+    hielo: 'linear-gradient(180deg, #FFFFFF 0%, #BAE6FD 45%, #38BDF8 100%)',
+    cromado: 'linear-gradient(180deg, #FFFFFF 0%, #D4D8DD 38%, #6B7280 52%, #E5E7EB 66%, #FFFFFF 100%)',
+    oro: 'linear-gradient(180deg, #FFF6C8 0%, #F5C542 40%, #B8860B 60%, #FDE68A 100%)',
+  };
+  const fill = G?.fill && G.fill !== 'hueco' ? FILLS[G.fill] : null;
+  const gShadow = !G?.shadow ? null
+    : G.shadow === 'suave' ? '0 6px 18px rgba(0,0,0,0.55)'
+    : G.shadow === 'dura' ? '0.06em 0.06em 0 #000'
+    : G.shadow === 'dura-acento' ? `0.06em 0.06em 0 ${hl}, 0.12em 0.12em 0 #000`
+    : G.shadow === 'doble' ? `0.05em 0.05em 0 ${hl}, 0.1em 0.1em 0 ${sec}, 0.15em 0.15em 0 #000`
+    : G.shadow === 'neon' ? `0 0 14px ${hl}, 0 0 40px ${hl}, 0 3px 8px rgba(0,0,0,0.9)`
+    : G.shadow === 'halo' ? `0 0 12px rgba(255,255,255,0.9), 0 0 36px ${hl}, 0 0 70px ${hl}`
+    : G.shadow === 'volumen' ? Array.from({ length: 8 }, (_, i) => `${(i + 1) * 0.012}em ${(i + 1) * 0.012}em 0 ${hl}`).join(', ') + ', 0.14em 0.16em 14px rgba(0,0,0,0.6)'
+    : G.shadow === 'larga' ? Array.from({ length: 14 }, (_, i) => `${(i + 1) * 0.012}em ${(i + 1) * 0.012}em 0 rgba(0,0,0,${0.55 - i * 0.03})`).join(', ')
+    : 'none';
   // La palabra más importante de la línea se remarca siempre (si la línea tiene más de una palabra).
   const key = s.emphasis && chunk.words.length > 1 ? keywordOf(chunk.words.map((w) => w.text).join(' ')) : '';
-  const plain = d === 'bloque' || d === 'cinta' || d === 'neon' || d === 'elegante'; // diseños sin borde negro
+  const plain = d === 'bloque' || d === 'cinta' || d === 'neon' || d === 'elegante' || Boolean(G && (G.stroke === 'ninguno' || fill || bgText || wordBg || G.bg)); // diseños sin borde
+  const strokeColor = G?.fill === 'hueco' ? '#fff' : G?.stroke === 'blanco' ? '#fff' : G?.stroke === 'acento' ? hl : '#000';
   const tapes = [hl, '#FFFFFF', t.brand.secondary];
 
   const box: React.CSSProperties = {
     position: 'absolute', top: `${s.y * 100}%`, left: '7%', right: '7%',
-    transform: `translateY(${la === 'subir' ? `calc(-50% + ${interpolate(pop, [0, 1], [40, 0])}px)` : '-50%'}) translateX(${la === 'deslizar' ? interpolate(pop, [0, 1], [-80, 0]) : 0}px) scale(${la === 'pop' ? interpolate(pop, [0, 1], [0.86, 1]) : 1})${d === 'bloque' ? ' rotate(-2deg)' : ''}`,
+    transform: `translateY(${la === 'subir' ? `calc(-50% + ${interpolate(pop, [0, 1], [40, 0])}px)` : '-50%'}) translateX(${la === 'deslizar' ? interpolate(pop, [0, 1], [-80, 0]) : 0}px) scale(${la === 'pop' ? interpolate(pop, [0, 1], [0.86, 1]) : 1})${d === 'bloque' ? ' rotate(-2deg)' : ''}${G?.tilt ? ` rotate(${G.tilt}deg)` : ''}${G?.skew ? ` skewX(${G.skew}deg)` : ''}`,
     opacity: la === 'ninguna' ? 1 : Math.min(1, pop * 2),
-    textAlign: 'center', fontFamily: font, fontWeight: d === 'elegante' ? 600 : s.fontWeight, fontStyle: d === 'elegante' ? 'italic' : undefined,
-    fontSize: size, lineHeight: d === 'cinta' ? 1.45 : 1.18, letterSpacing: `${s.spacing + (d === 'elegante' ? 0.01 : 0)}em`,
-    color: d === 'neon' ? hl : s.color, textTransform: upper ? 'uppercase' : 'none',
-    WebkitTextStroke: s.stroke && !plain && stroke > 0 ? `${stroke}px #000` : undefined, paintOrder: 'stroke fill',
-    textShadow: d === 'neon' ? `0 0 14px ${hl}, 0 0 40px ${hl}, 0 3px 8px rgba(0,0,0,0.9)` : d === 'elegante' ? '0 3px 14px rgba(0,0,0,0.75)' : plain ? 'none' : '0 6px 18px rgba(0,0,0,0.45)',
+    textAlign: 'center', fontFamily: font, fontWeight: d === 'elegante' ? 600 : G?.weight ?? s.fontWeight, fontStyle: d === 'elegante' || G?.italic ? 'italic' : undefined,
+    fontSize: size, lineHeight: d === 'cinta' || wordBg ? 1.45 : 1.18, letterSpacing: `${s.spacing + (d === 'elegante' ? 0.01 : 0) + (G?.spacing ?? 0)}em`,
+    color: d === 'neon' ? hl : G?.fill === 'hueco' ? 'transparent' : bgText ?? col(G?.color, s.color), textTransform: upper ? 'uppercase' : 'none',
+    WebkitTextStroke: G?.fill === 'hueco' ? `${Math.max(2, Math.round(size / 22))}px #fff` : s.stroke && !plain && stroke > 0 ? `${stroke}px ${strokeColor}` : undefined, paintOrder: 'stroke fill',
+    textShadow: d === 'neon' ? `0 0 14px ${hl}, 0 0 40px ${hl}, 0 3px 8px rgba(0,0,0,0.9)` : d === 'elegante' ? '0 3px 14px rgba(0,0,0,0.75)' : fill || bgText || wordBg ? 'none' : gShadow ?? (plain ? 'none' : '0 6px 18px rgba(0,0,0,0.45)'),
+    filter: fill || G?.fill === 'hueco' ? 'drop-shadow(0 5px 8px rgba(0,0,0,0.7))' : undefined,
+  };
+  // Fondo de toda la línea.
+  const lineBg: React.CSSProperties | undefined =
+    d === 'bloque' ? { display: 'inline-block', backgroundColor: hl, color: onColor(hl), padding: '0.12em 0.4em', borderRadius: '0.16em', boxShadow: '0 10px 0 rgba(0,0,0,0.35)' }
+    : G?.bg === 'caja' ? { display: 'inline-block', backgroundColor: 'rgba(8,8,10,0.66)', padding: '0.16em 0.45em', borderRadius: '0.22em' }
+    : G?.bg === 'caja-acento' ? { display: 'inline-block', backgroundColor: hl, padding: '0.12em 0.42em', borderRadius: '0.14em', boxShadow: '0 8px 0 rgba(0,0,0,0.3)' }
+    : G?.bg === 'blanca' ? { display: 'inline-block', backgroundColor: '#fff', padding: '0.12em 0.42em', borderRadius: '0.14em' }
+    : G?.bg === 'negra' ? { display: 'inline-block', backgroundColor: '#000', padding: '0.12em 0.42em', borderRadius: '0.14em' }
+    : G?.bg === 'pildora' ? { display: 'inline-block', backgroundColor: 'rgba(8,8,10,0.72)', padding: '0.2em 0.7em', borderRadius: 999 }
+    : G?.bg === 'pildora-acento' ? { display: 'inline-block', backgroundColor: hl, padding: '0.2em 0.7em', borderRadius: 999 }
+    : G?.bg === 'cristal' ? { display: 'inline-block', backgroundColor: 'rgba(255,255,255,0.16)', border: '2px solid rgba(255,255,255,0.35)', padding: '0.18em 0.55em', borderRadius: '0.3em', backdropFilter: 'blur(10px)' }
+    : G?.bg === 'borde' ? { display: 'inline-block', border: `0.07em solid ${hl}`, padding: '0.16em 0.5em', borderRadius: '0.12em', backgroundColor: 'rgba(0,0,0,0.35)' }
+    : s.plate ? { display: 'inline-block', backgroundColor: 'rgba(8,8,10,0.62)', padding: '0.16em 0.45em', borderRadius: '0.28em', backdropFilter: 'blur(6px)' }
+    : undefined;
+  const altTapes = [hl, '#FFFFFF', sec];
+
+  /** Remarca la palabra que suena según la forma elegida. */
+  const applyFx = (style: React.CSSProperties, f: CaptionEffectSpec, hit: number, soft: number, wordAbs: number) => {
+    const tf: string[] = [];
+    const c = f.color ? col(f.color, hl) : null;
+    if (c) Object.assign(style, { color: c, backgroundImage: 'none' });
+    if (f.gradient) Object.assign(style, { backgroundImage: `linear-gradient(100deg, ${hl}, ${sec})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextStroke: '0', textShadow: 'none' });
+    if (f.bg) {
+      const bg = col(f.bg, hl);
+      Object.assign(style, { backgroundImage: 'none', backgroundColor: bg, color: f.color ? c : onColor(bg), WebkitTextStroke: '0', textShadow: 'none', borderRadius: f.round ? 999 : '0.18em', padding: f.round ? '0 0.34em' : '0 0.18em', margin: '0 0.02em' });
+      if (f.scale === undefined) tf.push(`scale(${interpolate(hit, [0, 1], [0.9, 1])})`);
+    }
+    const k = f.bounce ? soft : hit;
+    if (f.scale && f.scale !== 1) tf.push(`scale(${interpolate(k, [0, 1], [1, f.scale])})`);
+    if (f.stretch) tf.push(`scaleX(${interpolate(k, [0, 1], [1, f.stretch])})`);
+    if (f.lift) tf.push(`translateY(${interpolate(k, [0, 1], [0, -f.lift])}px)`);
+    if (f.rotate) tf.push(`rotate(${interpolate(k, [0, 1], [0, f.rotate])}deg)`);
+    if (f.skew) tf.push(`skewX(${interpolate(hit, [0, 1], [0, f.skew])}deg)`);
+    if (f.shake) tf.push(`translate(${Math.sin(wordAbs * 2.6) * 3}px, ${Math.cos(wordAbs * 3.1) * 2}px)`);
+    if (f.flip) tf.push(`perspective(600px) rotateX(${interpolate(hit, [0, 1], [-80, 0])}deg)`);
+    if (f.focus) style.filter = `blur(${interpolate(hit, [0, 1], [8, 0])}px)`;
+    const th = (n: number) => Math.max(2, Math.round(size / n));
+    if (f.line === 'debajo') style.boxShadow = `0 ${th(7)}px 0 ${hl}`;
+    else if (f.line === 'gruesa') style.boxShadow = `0 ${th(4)}px 0 ${hl}`;
+    else if (f.line === 'fina') style.boxShadow = `0 ${th(16)}px 0 ${hl}`;
+    else if (f.line === 'doble') style.borderBottom = `${th(6)}px double ${hl}`;
+    else if (f.line === 'puntos') style.borderBottom = `${th(10)}px dotted ${hl}`;
+    else if (f.line === 'arriba') style.boxShadow = `0 -${th(9)}px 0 ${hl}`;
+    else if (f.line === 'ambas') style.boxShadow = `0 ${th(12)}px 0 ${hl}, 0 -${th(12)}px 0 ${hl}`;
+    else if (f.line === 'marcador') { Object.assign(style, { backgroundImage: `linear-gradient(transparent 48%, ${hl} 48%, ${hl} 92%, transparent 92%)`, backgroundClip: 'border-box', WebkitBackgroundClip: 'border-box', padding: '0 0.12em', margin: '0 0.02em' }); if (style.color === 'transparent') style.color = '#fff'; }
+    else if (f.line === 'circulo') Object.assign(style, { outline: `${th(14)}px solid ${hl}`, outlineOffset: '0.04em', borderRadius: 999, padding: '0 0.2em' });
+    else if (f.line === 'recuadro') Object.assign(style, { outline: `${th(14)}px solid ${hl}`, outlineOffset: '0.02em', borderRadius: '0.1em', padding: '0 0.14em' });
+    if (f.glow) style.textShadow = `0 0 12px ${c ?? hl}, 0 0 34px ${hl}`;
+    if (f.shadow) style.textShadow = `0.07em 0.07em 0 ${hl}, 0.13em 0.13em 0 #000`;
+    if (f.outline) Object.assign(style, { WebkitTextStroke: `${Math.max(3, stroke)}px ${hl}`, paintOrder: 'stroke fill' });
+    if (f.hollow) Object.assign(style, { color: 'transparent', backgroundImage: 'none', WebkitTextStroke: `${th(20)}px ${hl}`, textShadow: 'none' });
+    if (f.italic) style.fontStyle = 'italic';
+    if (f.heavy) style.fontWeight = 900;
+    if (f.caps) style.textTransform = 'uppercase';
+    if (tf.length) style.transform = `${style.transform ?? ''} ${tf.join(' ')}`.trim();
   };
   return (
     <AbsoluteFill style={{ alignItems: 'center' }}>
       <div style={box}>
-        <span style={d === 'bloque' ? { display: 'inline-block', backgroundColor: hl, color: onColor(hl), padding: '0.12em 0.4em', borderRadius: '0.16em', boxShadow: '0 10px 0 rgba(0,0,0,0.35)' } : s.plate ? { display: 'inline-block', backgroundColor: 'rgba(8,8,10,0.62)', padding: '0.16em 0.45em', borderRadius: '0.28em', backdropFilter: 'blur(6px)' } : undefined}>
+        <span style={lineBg}>
           {chunk.words.map((w, i) => {
             const start = w.startFrame;
             const end = chunk.words[i + 1]?.startFrame ?? chunk.endFrame;
@@ -304,6 +390,7 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
             const strong = isKeyword(w.text, key);
             const hit = active ? spring({ frame: abs - start, fps, config: { damping: 10, stiffness: 260 }, durationInFrames: 6 }) : 0;
             const style: React.CSSProperties = { display: 'inline-block', margin: '0 0.12em' };
+            const soft = active ? spring({ frame: abs - start, fps, config: { damping: 5, stiffness: 200, mass: 0.7 } }) : 0;
 
             if (d === 'cinta') {
               // Cada palabra en su propia tira de color, torcida y alternando.
@@ -320,13 +407,17 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
             } else if (d === 'elegante') {
               if (active || strong) Object.assign(style, { boxShadow: `0 ${Math.max(3, Math.round(size / 14))}px 0 ${hl}` });
             } else {
-              if (strong) { style.color = hl; style.fontSize = '1.14em'; }
-              if (active) {
-                if (s.effect === 'caja') Object.assign(style, { backgroundColor: hl, color: onColor(hl), WebkitTextStroke: '0', textShadow: 'none', borderRadius: '0.18em', padding: '0 0.18em', margin: '0 0.02em', transform: `scale(${interpolate(hit, [0, 1], [0.9, 1])})` });
-                else if (s.effect === 'pop') Object.assign(style, { color: hl, transform: `scale(${interpolate(hit, [0, 1], [1, 1.2])}) translateY(${interpolate(hit, [0, 1], [0, -4])}px)` });
-                else if (s.effect === 'subrayado') Object.assign(style, { boxShadow: `0 ${Math.round(size / 7)}px 0 ${hl}`, transform: 'translateY(-2px)' });
-                else style.color = hl;
+              // Diseños por datos: relleno, fondo por palabra y giro alterno; luego la forma de remarcar.
+              if (fill) Object.assign(style, { backgroundImage: fill, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' });
+              if (wordBg) {
+                const bg = G!.bg === 'palabra' ? 'rgba(8,8,10,0.82)' : G!.bg === 'palabra-acento' ? hl : G!.bg === 'palabra-blanca' ? '#FFFFFF' : altTapes[i % altTapes.length];
+                Object.assign(style, { backgroundColor: bg, color: G!.bg === 'palabra' ? col(G!.color, '#fff') : onColor(bg), padding: '0.02em 0.26em', margin: '0.06em 0.05em', borderRadius: '0.12em' });
               }
+              if (G?.alt) style.transform = `rotate(${i % 2 ? G.alt : -G.alt}deg)`;
+              if (strong && !fill && !wordBg && !bgText) { style.color = hl; style.fontSize = '1.14em'; }
+              else if (strong) style.fontSize = '1.14em';
+              if (active) applyFx(style, fx, hit, soft, abs);
+              else if (fx.dim && s.mode === 'word') style.opacity = 0.4;
             }
             return <span key={i} style={style}>{w.text}</span>;
           })}

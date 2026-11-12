@@ -23,3 +23,4 @@ export * from './brief.ts';
 export * from './vision.ts';
 export * from './fonts.ts';
 export * from './imagegen.ts';
+export * from './auto.ts';

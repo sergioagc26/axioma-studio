@@ -20,6 +20,7 @@ import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
+import { autoEdit } from './auto.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -198,6 +199,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const kit = await saveKit(project.client, { name: b.name || undefined, sector: b.sector || undefined, personality: b.personality || undefined, primary: b.primary || undefined, secondary: b.secondary || undefined });
       const applied = await ops.applyBrandStyle(dir);
       return json(res, { kit, project: applied?.project ?? project, why: applied?.why ?? null });
+    }
+    if (b.op === 'auto-editar') {
+      // Edición completa sin preguntas: referencia del cliente + tendencia del nicho + lo que se ve en el video.
+      const job = startJob('crear', async (j) => {
+        j.message = 'Editando todo el video…';
+        const { summary } = await autoEdit(dir, { referenceId: b.refId });
+        return { summary };
+      });
+      return json(res, job);
     }
     if (b.op === 'aplicar-brief') {
       // Arma la edición según las respuestas del brief.

@@ -40,13 +40,15 @@ export const CaptionStyle = z.object({
   y: z.number().min(0).max(1).default(0.68),
   stroke: z.boolean().default(true),
   /** Cómo se marca la palabra que suena: color, caja detrás, salto (crece) o subrayado. */
-  effect: z.enum(['color', 'caja', 'pop', 'subrayado']).default('color'),
+  /** Cómo se remarca la palabra que suena (ver CAPTION_EFFECTS). */
+  effect: z.string().default('color'),
   /**
    * Diseño de los subtítulos. `clasico` es el básico; los demás son los llamativos:
    * impacto (palabras enormes inclinadas), bloque (línea dentro de un bloque de color),
    * cinta (cada palabra en su tira), neon (brillo) y elegante (serif fina en cursiva).
    */
-  design: z.enum(['clasico', 'impacto', 'bloque', 'cinta', 'neon', 'elegante']).default('clasico'),
+  /** Diseño del subtítulo (ver CAPTION_DESIGNS). */
+  design: z.string().default('clasico'),
   /** Remarca siempre la palabra más importante de cada línea (más grande y en color). */
   emphasis: z.boolean().default(true),
   /** Placa oscura translúcida detrás de la línea, para que se lea sobre cualquier fondo. */

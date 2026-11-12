@@ -280,8 +280,13 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     for (const e of scene.sfx) add(e.id, start + toFrame(e.offset), e.volume);
   }
   if (project.audio.sfxAuto) {
-    for (const c of clips) if (c.transition) add(c.transition.spec.destello ? 'impacto' : 'whoosh', c.fromFrame - Math.round(fps * 0.08), 0.45);
-    for (const o of overlays) add('pop', o.fromFrame, 0.4);
+    // Se van turnando varios sonidos para que no suene siempre igual.
+    const sweeps = ['whoosh', 'barrido-agudo', 'barrido-grave'];
+    const hits = ['impacto', 'bombo'];
+    const pops = ['pop', 'burbuja', 'clic'];
+    let n = 0;
+    for (const c of clips) if (c.transition) { add(c.transition.spec.destello ? hits[n % hits.length] : sweeps[n % sweeps.length], c.fromFrame - Math.round(fps * 0.08), 0.45); n++; }
+    overlays.forEach((o, i) => add(pops[i % pops.length], o.fromFrame, 0.4));
   }
 
   if (urls.voiceover) {
