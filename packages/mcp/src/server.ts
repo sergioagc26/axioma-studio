@@ -24,6 +24,9 @@ async function resolveProject(ref?: string): Promise<string> {
 const proyecto = z.string().optional().describe('Id o carpeta del proyecto. Si se omite, el más reciente.');
 const role = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
 const visual = z.enum(['original', 'broll', 'motion', 'texto']);
+const textStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda']);
+const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
+const camera = z.enum(['ninguno', 'acercar', 'alejar']);
 
 export function createServer() {
   const server = new McpServer({ name: 'snz-studio', version: '0.2.0' });
@@ -138,10 +141,16 @@ export function createServer() {
     visual: visual.optional(),
     zoom: z.boolean().optional(),
     frases: z.array(z.string()).optional(),
+    estilo_texto: textStyle.optional().describe('caja = recuadro de color · resaltado = clave en color y más grande · marcador = trazo de marcador detrás de la clave · gigante = la clave enorme y el resto pequeño · subrayado · neon = brillo · banda = franja de titular'),
+    palabra_clave: z.string().optional().describe('Palabra del texto que se remarca. Sin valor se elige sola la más importante.'),
+    posicion_texto: z.enum(['arriba', 'centro']).optional(),
+    imagen: look.optional().describe('bn = blanco y negro · calido · frio · contraste'),
+    camara: camera.optional().describe('acercar o alejar: movimiento lento durante la escena'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const p = await E.editScene(dir, a.escena, {
       role: a.rol, title: a.titulo, onScreenText: a.texto_en_pantalla, textColor: a.color_texto, visual: a.visual, punchZoom: a.zoom, phrases: a.frases,
+      textStyle: a.estilo_texto, textKeyword: a.palabra_clave, textPosition: a.posicion_texto, look: a.imagen, camera: a.camara,
     });
     return E.summarize(p, dir);
   });
@@ -160,7 +169,7 @@ export function createServer() {
 
   tool(
     'generar_variantes',
-    'Guarda las variantes que propones para una escena (2 a 4, distintas entre sí). Se identifican como a, b, c, d.',
+    'Guarda las variantes que propones para una escena (2 a 4). Cada variante debe ser una IDEA completa y distinta —texto, forma del texto, palabra clave, imagen, cámara— que tenga sentido para lo que se dice; no un ajuste suelto como "otra transición". Se identifican como a, b, c, d.',
     {
       proyecto,
       escena: z.string(),
@@ -171,7 +180,13 @@ export function createServer() {
         color_texto: z.string().optional(),
         broll: z.string().optional().describe('Archivo o búsqueda de b-roll'),
         motion: z.string().optional().describe('Plantilla de motion graphics'),
-        notas: z.string().optional(),
+        estilo_texto: textStyle.optional(),
+        palabra_clave: z.string().optional(),
+        imagen: look.optional(),
+        camara: camera.optional(),
+        zoom: z.boolean().optional(),
+        transicion: z.string().optional(),
+        notas: z.string().optional().describe('Una frase: por qué esta idea le va a la escena'),
       })).min(2).max(4),
     },
     async ({ proyecto, escena, variantes }) => {
@@ -179,6 +194,7 @@ export function createServer() {
       const p = await E.setVariants(dir, escena, variantes.map((v) => ({
         label: v.etiqueta, visual: v.visual, onScreenText: v.texto_en_pantalla, textColor: v.color_texto,
         brollFile: v.broll, motionTemplate: v.motion, notes: v.notas,
+        textStyle: v.estilo_texto, textKeyword: v.palabra_clave, look: v.imagen, camera: v.camara, punchZoom: v.zoom, transition: v.transicion,
       })));
       return E.summarize(p, dir);
     },
@@ -213,11 +229,13 @@ export function createServer() {
     color_resaltado: z.string().optional(),
     mayusculas: z.boolean().optional(),
     posicion_y: z.number().min(0.1).max(0.9).optional().describe('0 arriba, 1 abajo. Zona segura: 0.2–0.75'),
+    efecto: z.enum(['color', 'caja', 'pop', 'subrayado']).optional().describe('Cómo se marca la palabra que suena: color · caja detrás · pop (crece) · subrayado'),
+    remarcar_clave: z.boolean().optional().describe('Remarca siempre la palabra más importante de cada línea'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const patch = Object.fromEntries(Object.entries({
       mode: a.modo, wordsPerLine: a.palabras_por_linea, fontFamily: a.fuente, fontSize: a.tamano,
-      color: a.color, highlightColor: a.color_resaltado, uppercase: a.mayusculas, y: a.posicion_y,
+      color: a.color, highlightColor: a.color_resaltado, uppercase: a.mayusculas, y: a.posicion_y, effect: a.efecto, emphasis: a.remarcar_clave,
     }).filter(([, v]) => v !== undefined));
     await E.setCaptions(dir, patch);
     return E.summarize(await E.readProject(dir), dir);

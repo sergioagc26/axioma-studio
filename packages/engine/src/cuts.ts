@@ -1,4 +1,4 @@
-import type { Pacing, Range, Scene, Word } from '@snz/schema';
+import { Scene, type Pacing, type Range, type Word } from '@snz/schema';
 
 /** Muletillas puras. No incluye palabras reales como "este" o "bueno". */
 const FILLERS = new Set(['eh', 'ehh', 'eeh', 'em', 'emm', 'mm', 'mmm', 'hmm', 'ah', 'ahh', 'uh', 'um', 'ehm']);
@@ -224,16 +224,10 @@ export function autoCut(rawWords: Word[], pacing: Pacing, duration: number, sile
   let groupDur = 0;
   const flush = () => {
     if (!group.length) return;
-    scenes.push({
+    scenes.push(Scene.parse({
       id: `s${String(scenes.length + 1).padStart(2, '0')}`,
-      role: 'otro',
-      title: '',
       ranges: group.filter((r) => r.end > r.start),
-      visual: 'original',
-      punchZoom: false,
-      variants: [],
-      sfx: [],
-    });
+    }));
     group = [];
     groupDur = 0;
   };

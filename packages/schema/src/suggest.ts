@@ -36,6 +36,21 @@ export function shortPhrases(speech: string): string[] {
   return [...new Set([...byWeight(out), ...byWeight(cut)])];
 }
 
+/**
+ * La palabra más importante de un texto corto: un número si lo hay; si no, la
+ * palabra con significado más larga. Devuelve '' si no hay ninguna clara.
+ */
+export function keywordOf(text: string): string {
+  const words = text.split(/\s+/).map(clean).filter(Boolean);
+  const num = words.find((w) => /\d/.test(w));
+  if (num) return num;
+  const cand = words.filter((w) => !STOP.has(norm(w)) && norm(w).length >= 4);
+  return cand.sort((a, b) => norm(b).length - norm(a).length)[0] ?? '';
+}
+
+/** ¿Es `word` la palabra clave `keyword`? (sin tildes ni mayúsculas) */
+export const isKeyword = (word: string, keyword: string) => Boolean(keyword) && norm(word) === norm(keyword);
+
 /** Palabras clave para buscar b-roll. */
 export function keywords(speech: string, max = 4): string[] {
   const seen = new Set<string>();
@@ -50,56 +65,59 @@ export function keywords(speech: string, max = 4): string[] {
 type Draft = Omit<SceneVariant, 'id'>;
 
 /**
- * Tres variantes al instante para una escena, según lo que se dice, el papel
- * de la escena y el estilo del reel. No inventa contenido: los textos salen de
- * lo que dijo la persona y los datos que falten quedan como [DATO].
- * `round` cambia el set (para "otras 3").
+ * Tres variantes al instante para una escena. Cada una es una IDEA completa
+ * (texto + forma del texto + cámara + color de imagen), no un ajuste suelto,
+ * y depende de lo que se dice, del papel de la escena y del estilo del reel.
+ * No inventa contenido: los textos salen de lo que dijo la persona y los datos
+ * que falten quedan como [DATO]. `round` cambia el set (para "otras 3").
  */
 export function suggestVariants(project: Project, scene: Scene, transcript: Transcript | null, round = 0): SceneVariant[] {
   const speech = speechOf(scene, transcript);
   const phrases = shortPhrases(speech);
   const accent = project.captions.highlightColor;
   const fast = project.kind === 'montaje' || project.pacing.maxPause <= 0.22;
-  const calm = project.pacing.maxPause > 0.42;
   const first = project.scenes[0]?.id === scene.id;
+  const tr = (id: string) => (first ? undefined : id);
   const pool: Draft[] = [];
-  const phrase = (i: number) => phrases[(i + round) % Math.max(1, phrases.length)];
+  const p0 = phrases[round % Math.max(1, phrases.length)];
+  const p1 = phrases[(round + 1) % Math.max(1, phrases.length)];
 
   if (project.kind === 'montaje' || !speech) {
-    // Sin voz: se juega con el movimiento y la entrada del corte.
+    // Sin voz: la idea está en cómo se ve y se mueve la toma.
+    const txt = scene.onScreenText ?? '[TU TEXTO]';
     pool.push(
-      { label: 'Con zoom de golpe', visual: 'original', punchZoom: true, transition: first ? undefined : 'golpe', notes: 'Entra con un pequeño rebote y zoom. Da energía.' },
-      { label: 'Entrada con barrido', visual: 'original', punchZoom: false, transition: first ? undefined : 'giro', notes: 'Barrido rápido desde el corte anterior.' },
-      { label: 'Con texto encima', visual: 'original', onScreenText: scene.onScreenText ?? '[TU TEXTO]', textColor: accent, notes: 'Un rótulo corto sobre la toma. Escribe tu texto.' },
-      { label: 'Limpio, sin efectos', visual: 'original', punchZoom: false, onScreenText: '', notes: 'Corte seco, sin zoom ni texto.' },
-      { label: 'Entrada con destello', visual: 'original', punchZoom: true, transition: first ? undefined : 'destello', notes: 'Un golpe de luz marca el cambio.' },
-      { label: 'Deslizar desde abajo', visual: 'original', transition: first ? undefined : 'deslizar-arriba', notes: 'La toma sube desde abajo.' },
+      { label: 'Acercamiento lento', visual: 'original', camera: 'acercar', look: 'normal', punchZoom: false, onScreenText: '', notes: 'La cámara se acerca despacio durante la toma. Da intención sin distraer.' },
+      { label: 'Blanco y negro con golpe', visual: 'original', look: 'bn', punchZoom: true, transition: tr('golpe'), onScreenText: '', notes: 'Imagen en blanco y negro que entra con un golpe. Dramático, para el esfuerzo.' },
+      { label: 'Título gigante', visual: 'original', onScreenText: txt, textStyle: 'gigante', textColor: accent, textPosition: 'centro', camera: 'alejar', notes: 'Una palabra enorme sobre la toma mientras la cámara se aleja. Escribe tu texto.' },
+      { label: 'Cinemático cálido', visual: 'original', look: 'calido', camera: 'alejar', punchZoom: false, onScreenText: '', notes: 'Tonos cálidos y la cámara alejándose. Para comida y momentos de calma.' },
+      { label: 'Alto contraste con destello', visual: 'original', look: 'contraste', punchZoom: true, transition: tr('destello'), onScreenText: '', notes: 'Colores fuertes y un destello al entrar. Para el momento más potente.' },
+      { label: 'Rótulo en banda', visual: 'original', onScreenText: txt, textStyle: 'banda', textColor: accent, look: 'normal', notes: 'Una banda de color con el texto, como un titular. Escribe tu texto.' },
+      { label: 'Frío y limpio', visual: 'original', look: 'frio', camera: 'acercar', onScreenText: '', notes: 'Tonos fríos, sin texto. Para producto y tecnología.' },
     );
   } else {
-    const p0 = phrase(0);
-    const p1 = phrase(1);
-    if (p0) pool.push({ label: 'Texto destacado', visual: 'original', onScreenText: p0, textColor: accent, punchZoom: fast, notes: 'La frase clave arriba, en el color de la marca.' });
-    if (p1 && p1 !== p0) pool.push({ label: 'Otra frase clave', visual: 'original', onScreenText: p1, textColor: '#FFFFFF', notes: 'Resalta otra parte de lo que dices, en blanco.' });
-    pool.push({ label: 'Sobrio, sin texto', visual: 'original', onScreenText: '', punchZoom: false, transition: !first && calm ? 'fundido' : undefined, notes: 'Solo tú y los subtítulos. Deja respirar.' });
-    if (p0) pool.push({ label: 'Tarjeta de texto', visual: 'texto', onScreenText: p0, transition: first ? undefined : 'golpe', notes: 'La frase ocupa toda la pantalla mientras sigue tu voz.' });
+    if (p0) pool.push({ label: 'Palabra clave gigante', visual: 'original', onScreenText: p0, textStyle: 'gigante', textColor: accent, punchZoom: fast, notes: `La palabra más importante («${keywordOf(p0) || p0}») enorme, y el resto pequeño encima.` });
+    if (p0) pool.push({ label: 'Marcador sobre la clave', visual: 'original', onScreenText: p1 && p1 !== p0 ? p1 : p0, textStyle: 'marcador', textColor: accent, camera: 'acercar', notes: 'Un trazo de marcador pinta la palabra clave mientras la cámara se acerca.' });
+    pool.push({ label: 'Limpio y cercano', visual: 'original', onScreenText: '', camera: 'acercar', look: 'normal', punchZoom: false, notes: 'Sin texto: solo tú, los subtítulos y un acercamiento lento. Para decir algo personal.' });
+    if (p0) pool.push({ label: 'Tarjeta de texto', visual: 'texto', onScreenText: p0, transition: tr('golpe'), notes: 'La frase ocupa toda la pantalla mientras sigue tu voz. Corta la monotonía.' });
+    if (p0) pool.push({ label: 'Blanco y negro dramático', visual: 'original', look: 'bn', onScreenText: p0, textStyle: 'resaltado', textColor: accent, punchZoom: true, notes: 'Imagen en blanco y negro con la palabra clave en color. Para el problema o un momento serio.' });
     const keys = keywords(speech);
-    if (keys.length) pool.push({ label: 'B-roll', visual: 'broll', brollFile: keys.join(' '), onScreenText: p0, transition: first ? undefined : 'deslizar-arriba', notes: `Otro video encima mientras hablas. Búsqueda: ${keys.join(', ')}.` });
+    if (keys.length) pool.push({ label: 'B-roll con titular', visual: 'broll', brollFile: keys.join(' '), onScreenText: p0, textStyle: 'banda', transition: tr('deslizar-arriba'), notes: `Otro video encima con una banda de titular. Búsqueda: ${keys.join(', ')}.` });
+    if (p0) pool.push({ label: 'Subrayado elegante', visual: 'original', onScreenText: p1 && p1 !== p0 ? p1 : p0, textStyle: 'subrayado', textColor: '#FFFFFF', look: 'calido', notes: 'Texto blanco con la clave subrayada y tonos cálidos. Sobrio y profesional.' });
+    if (p0) pool.push({ label: 'Neón', visual: 'original', onScreenText: p0, textStyle: 'neon', textColor: accent, look: 'contraste', notes: 'Texto con brillo de neón y más contraste. Para un tono nocturno o tecnológico.' });
 
-    // Según el papel de la escena, una opción que le va bien.
+    // Según el papel de la escena, la idea que mejor le va, primero.
     if (scene.role === 'cta') pool.unshift({ label: 'Cierre con la marca', visual: 'motion', motionTemplate: 'logo', onScreenText: p0, transition: 'destello', notes: 'Logo o nombre de la marca con el llamado a la acción.' });
     else if (scene.role === 'prueba' || /\d/.test(speech)) pool.unshift({ label: 'Dato grande', visual: 'motion', motionTemplate: 'contador', onScreenText: p0, notes: 'Un número grande animado. Pon tu dato real: se ve [DATO] hasta que lo pongas.' });
     else if (scene.role === 'beneficio' || scene.role === 'demostracion') pool.unshift({ label: 'Lista de puntos', visual: 'motion', motionTemplate: 'lista', onScreenText: p0, notes: 'Los puntos uno por uno. Escribe tus puntos reales.' });
-    else if (scene.role === 'gancho' && p0) pool.unshift({ label: 'Gancho con golpe', visual: 'original', onScreenText: p0, textColor: accent, punchZoom: true, notes: 'Texto grande y zoom desde el primer segundo.' });
+    else if (scene.role === 'problema' && p0) pool.unshift(...pool.splice(pool.findIndex((x) => x.label === 'Blanco y negro dramático'), 1));
   }
 
-  // Tres distintas: se rota el orden según la ronda y se evita repetir tipo + texto.
+  // Tres distintas: se rota el orden según la ronda.
   const rotated = pool.map((_, i) => pool[(i + round * 3) % pool.length]);
   const picked: Draft[] = [];
   for (const v of rotated) {
     if (picked.length >= 3) break;
-    // Ni la misma etiqueta ni el mismo texto sobre el mismo tipo de imagen.
-    const same = (x: Draft) => x.label === v.label || (x.visual === v.visual && Boolean(v.onScreenText) && x.onScreenText === v.onScreenText);
-    if (!picked.some(same)) picked.push(v);
+    if (!picked.some((x) => x.label === v.label)) picked.push(v);
   }
   return picked.map((v, i) => ({ ...v, id: String.fromCharCode(97 + i) }));
 }
@@ -114,6 +132,12 @@ export function applyVariant(scene: Scene, v: SceneVariant | null) {
   scene.visual = v.visual;
   if (v.onScreenText !== undefined) scene.onScreenText = v.onScreenText || undefined;
   if (v.textColor) scene.textColor = v.textColor;
+  if (v.textStyle) scene.textStyle = v.textStyle;
+  if (v.textPosition) scene.textPosition = v.textPosition;
+  scene.textKeyword = v.textKeyword;
+  // La imagen y la cámara son parte de la idea: lo que la variante no pide vuelve a lo normal.
+  scene.look = v.look ?? 'normal';
+  scene.camera = v.camera ?? 'ninguno';
   if (v.brollFile) scene.brollFile = v.brollFile;
   if (v.motionTemplate) scene.motionTemplate = v.motionTemplate;
   if (v.punchZoom !== undefined) scene.punchZoom = v.punchZoom;

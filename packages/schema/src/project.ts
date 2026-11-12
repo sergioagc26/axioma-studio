@@ -39,8 +39,22 @@ export const CaptionStyle = z.object({
   /** Posición vertical del centro del subtítulo, 0 = arriba, 1 = abajo. */
   y: z.number().min(0).max(1).default(0.68),
   stroke: z.boolean().default(true),
+  /** Cómo se marca la palabra que suena: color, caja detrás, salto (crece) o subrayado. */
+  effect: z.enum(['color', 'caja', 'pop', 'subrayado']).default('color'),
+  /** Remarca siempre la palabra más importante de cada línea (más grande y en color). */
+  emphasis: z.boolean().default(true),
 });
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
+
+/** Formas de mostrar el texto en pantalla de una escena. */
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda']);
+export type TextStyle = z.infer<typeof TextStyle>;
+/** Aspecto de color de la imagen. */
+export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
+export type Look = z.infer<typeof Look>;
+/** Movimiento de cámara simulado durante la escena. */
+export const Camera = z.enum(['ninguno', 'acercar', 'alejar']);
+export type Camera = z.infer<typeof Camera>;
 
 export const SceneRole = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
 export const SceneVisual = z.enum(['original', 'broll', 'motion', 'texto']);
@@ -53,6 +67,11 @@ export const SceneVariant = z.object({
   textColor: z.string().optional(),
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
+  textStyle: TextStyle.optional(),
+  textKeyword: z.string().optional(),
+  textPosition: z.enum(['arriba', 'centro']).optional(),
+  look: Look.optional(),
+  camera: Camera.optional(),
   /** Zoom de golpe al entrar. */
   punchZoom: z.boolean().optional(),
   /** Id de la transición de entrada ("corte" = sin transición). */
@@ -70,6 +89,14 @@ export const Scene = z.object({
   visual: SceneVisual.default('original'),
   onScreenText: z.string().optional(),
   textColor: z.string().optional(),
+  /** Forma del texto en pantalla. */
+  textStyle: TextStyle.default('caja'),
+  /** Palabra que se remarca en el texto. Sin valor, se elige sola la más importante. */
+  textKeyword: z.string().optional(),
+  /** Dónde va el texto en pantalla. */
+  textPosition: z.enum(['arriba', 'centro']).default('arriba'),
+  look: Look.default('normal'),
+  camera: Camera.default('ninguno'),
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
   /** Datos de la plantilla de motion graphics (los pone el usuario; nunca inventados). */

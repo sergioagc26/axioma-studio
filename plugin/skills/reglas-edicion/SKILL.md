@@ -14,7 +14,10 @@ description: Reglas de edición que siempre aplican al editar reels con snz-stud
    - Texto y subtítulos entre el 20 % y el 75 % de la altura.
    - Nada en los bordes laterales, que es donde van los botones.
    - Los subtítulos van por defecto en 0,68.
-5. **Texto en pantalla corto.** Máximo 6 palabras, que se lean en menos de 1,5 s.
+5. **Texto en pantalla corto y con jerarquía.**
+   - Máximo 6 palabras, que se lean en menos de 1,5 s.
+   - Siempre hay una palabra clave remarcada: la que carga el significado, no un artículo.
+   - Usa como mucho dos estilos de texto distintos en un mismo reel, y los colores del kit del cliente.
 6. **Datos reales.**
    - Nunca inventes cifras, testimonios, resultados ni nombres.
    - Si una variante necesita un dato que no tienes, usa `[DATO]` y pídelo.

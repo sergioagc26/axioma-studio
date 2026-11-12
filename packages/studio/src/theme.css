@@ -51,6 +51,10 @@ button:disabled { opacity: .45; cursor: default; }
 .seg button.on { border-color: var(--pink); background: var(--pinkSoft); font-weight: 600; }
 .swatch { width: 36px; height: 36px; border-radius: 999px; border: 2px solid var(--line); padding: 0; }
 .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg) inset; }
+.wheel { width: 36px; height: 36px; border-radius: 999px; overflow: hidden; border: 2px solid var(--line); cursor: pointer; flex: none;
+  background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); display: block; }
+.wheel input { opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
+.input.hex { width: 92px; min-height: 36px; padding: 4px 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .chip { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; align-self: flex-start; }
 .chip.original { background: var(--chip); color: var(--text); }
 .chip.broll { background: var(--cyan); color: #000; }

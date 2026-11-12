@@ -10,7 +10,7 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Rápido',
     description: 'Sin pausas, zoom de golpe frecuente, subtítulos palabra a palabra en mayúsculas.',
     pacing: { maxPause: 0.2, pad: 0.06, punchZoomEvery: 4 },
-    captions: { wordsPerLine: 3, uppercase: true },
+    captions: { wordsPerLine: 3, uppercase: true, effect: 'pop' },
   }),
   p({
     id: 'con-ritmo',
@@ -24,28 +24,28 @@ export const BUILTIN_PRESETS: Preset[] = [
     name: 'Sobrio',
     description: 'Ritmo natural, sin zooms, subtítulos por frase en minúsculas.',
     pacing: { maxPause: 0.6, pad: 0.12, punchZoomEvery: 0 },
-    captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontWeight: 700, fontSize: 64, highlightColor: '#FFFFFF', fontFamily: 'Inter' },
+    captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontWeight: 700, fontSize: 64, highlightColor: '#FFFFFF', fontFamily: 'Inter', effect: 'subrayado', emphasis: false },
   }),
   p({
     id: 'testimonio',
     name: 'Testimonio',
     description: 'Deja respirar a la persona: frases completas, sin zooms.',
     pacing: { maxPause: 0.5, pad: 0.12, punchZoomEvery: 0, removeRetakes: true },
-    captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontFamily: 'Inter', fontWeight: 700, fontSize: 62, highlightColor: '#FFFFFF', y: 0.72 },
+    captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontFamily: 'Inter', fontWeight: 700, fontSize: 62, highlightColor: '#FFFFFF', y: 0.72, emphasis: false },
   }),
   p({
     id: 'antes-despues',
     name: 'Antes / después',
     description: 'Cortes secos y zoom en cada cambio, resaltado cian.',
     pacing: { maxPause: 0.18, pad: 0.05, punchZoomEvery: 3 },
-    captions: { wordsPerLine: 2, uppercase: true, fontFamily: 'Anton', fontWeight: 400, fontSize: 92, highlightColor: '#25F4EE' },
+    captions: { wordsPerLine: 2, uppercase: true, fontFamily: 'Anton', fontWeight: 400, fontSize: 92, highlightColor: '#25F4EE', effect: 'caja' },
   }),
   p({
     id: 'oferta-cta',
     name: 'Oferta con CTA',
     description: 'Directo y grande, resaltado amarillo, pensado para historias.',
     pacing: { maxPause: 0.25, pad: 0.06, punchZoomEvery: 5 },
-    captions: { wordsPerLine: 3, uppercase: true, fontFamily: 'Poppins', fontWeight: 800, fontSize: 80, highlightColor: '#FACC15' },
+    captions: { wordsPerLine: 3, uppercase: true, fontFamily: 'Poppins', fontWeight: 800, fontSize: 80, highlightColor: '#FACC15', effect: 'caja' },
   }),
 ];
 

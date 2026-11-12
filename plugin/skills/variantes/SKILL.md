@@ -6,12 +6,24 @@ description: Propone 2–4 versiones distintas de una escena de un reel (texto c
 # Variantes de una escena
 
 1. Llama `leer_proyecto` para ver la escena y `leer_transcripcion` si necesitas lo que se dice en ella.
-2. Propón de 2 a 4 variantes **realmente distintas**, del mismo mensaje y sin cambiar lo que dice la persona:
-   - **Texto con color**: `visual: "original"` con una frase corta (≤ 6 palabras) y color de acento (el del kit del cliente, o `#FE2C55`).
-   - **Texto sobrio**: `visual: "original"` sin texto en pantalla; deja hablar a la persona.
-   - **Tarjeta de texto**: `visual: "texto"`. La frase ocupa toda la pantalla sobre el color de marca mientras sigue la voz.
-   - **B-roll**: `visual: "broll"` con una búsqueda concreta en `broll` (p. ej. "person editing video on laptop").
-   - **Motion graphics**: `visual: "motion"` con la plantilla en `motion` (barras, contador, lista, logo). Solo con datos que el usuario dio; si faltan, se muestra `[DATO]` y hay que decirlo.
+2. Propón de 2 a 4 variantes. Cada una es una **idea completa** que tenga sentido para lo que se dice en la escena, no un ajuste suelto. "Otra transición" o "ponerle un texto" no son variantes. Una idea combina:
+   - **Texto** (≤ 6 palabras, de lo que dijo la persona) y su **palabra clave** (`palabra_clave`): la que carga el significado.
+   - **Forma del texto** (`estilo_texto`):
+     - `gigante`: la clave enorme, el resto pequeño. Para ganchos y cifras.
+     - `marcador`: trazo de marcador detrás de la clave. Para remarcar un beneficio.
+     - `resaltado`: la clave en color y más grande. Uso general.
+     - `subrayado`: sobrio y elegante.
+     - `neon`: tono nocturno o tecnológico.
+     - `banda`: franja de titular. Para b-roll o anuncios.
+     - `caja`: recuadro de color. El más simple.
+   - **Imagen** (`imagen`): `bn` para lo serio o el problema, `calido` para lo cercano o comida, `frio` para producto y tecnología, `contraste` para energía.
+   - **Cámara** (`camara`): `acercar` cuando la persona dice algo importante o personal; `alejar` para cerrar una idea.
+   - **Tipo** (`visual`): `original`, `texto` (tarjeta a pantalla completa), `broll` (con una búsqueda concreta) o `motion` (barras, contador, lista, logo; solo con datos que dio el usuario).
+
+   Escribe en `notas` una frase que diga **por qué** esa idea le va a la escena. Ejemplos de ideas distintas para "pierdes horas cada semana":
+   - *Golpe en blanco y negro*: `bn`, texto "Pierdes horas", clave "horas", estilo `gigante`, zoom.
+   - *Cercano*: sin texto, `acercar`, deja que lo diga mirando a cámara.
+   - *Dato*: `motion` contador con las horas reales del usuario (si las dio; si no, `[DATO]`).
 3. Guárdalas con `generar_variantes` y muéstralas como lista: letra, etiqueta, texto en pantalla y qué cambia.
 4. Cuando el usuario elija, aplícala con `elegir_variante`. Con "como estaba" usa la variante `original`.
 5. Si pide "otras", genera un set nuevo sin repetir las anteriores.

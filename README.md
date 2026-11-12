@@ -97,6 +97,22 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## Textos y subtítulos
+
+**Texto en pantalla** de cada escena, en siete estilos: recuadro de color, palabra clave en color, marcador (un trazo que se pinta detrás de la clave), palabra gigante, subrayado, neón y banda de titular.
+
+- La **palabra clave** se remarca sola (un número si lo hay; si no, la palabra con significado más larga) o la eliges tú.
+- Posición arriba o al centro.
+- **Color**: muestras rápidas, rueda para cualquier color y código hexadecimal.
+
+**Subtítulos**:
+
+- La palabra que suena se marca de cuatro formas: cambia de color, caja de color detrás, salta y crece, o subrayado.
+- «Remarcar la palabra más importante» de cada línea (más grande y en color).
+- Color de letras y de resaltado (con rueda), tipografía, tamaño, mayúsculas y borde.
+
+**Imagen y cámara** por escena: blanco y negro, cálido, frío o alto contraste; cámara quieta, que se acerca o que se aleja.
+
 ## Variantes automáticas
 
 Al seleccionar un clip hay siempre **tres variantes al instante**, sin esperar a Claude:
@@ -104,12 +120,11 @@ Al seleccionar un clip hay siempre **tres variantes al instante**, sin esperar a
 - En el Editor, en el panel derecho («Variantes para este clip»): se aplican con un toque.
 - En la pantalla Variantes: con vista previa, «Otras 3» y «Pedir variantes a Claude» para opciones más creativas.
 
-Salen de reglas (`packages/schema/src/suggest.ts`): lo que se dice en la escena, su papel y el estilo del reel.
+Cada variante es una idea completa (texto, forma del texto, palabra clave, imagen y cámara), no un ajuste suelto. Salen de reglas (`packages/schema/src/suggest.ts`): lo que se dice en la escena, su papel y el estilo del reel.
 
 - Los textos se sacan de lo que dijo la persona; no se inventa nada. Los datos que falten se ven como `[DATO]`.
 - Según el papel: gancho con golpe, lista de puntos en un beneficio, dato grande en una prueba, cierre con la marca en el llamado a la acción.
-- En un montaje sin voz, las variantes cambian el movimiento: zoom de golpe, barrido, destello, texto encima.
-- Una variante puede cambiar texto, color, tipo de imagen, zoom y transición de entrada.
+- En un montaje sin voz, las ideas van por la imagen: acercamiento lento, blanco y negro con golpe, cinemático cálido, título gigante.
 
 Desde Claude: `sugerir_variantes` (las de reglas) y `generar_variantes` (las que propone Claude).
 

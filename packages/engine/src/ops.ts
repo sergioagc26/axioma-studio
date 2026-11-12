@@ -70,7 +70,7 @@ export async function buildStoryboard(dir: string, drafts: SceneDraft[]) {
   return writeProject(dir, project);
 }
 
-export type ScenePatch = Partial<Pick<Scene, 'role' | 'title' | 'onScreenText' | 'textColor' | 'visual' | 'punchZoom' | 'brollFile' | 'motionTemplate'>> & {
+export type ScenePatch = Partial<Pick<Scene, 'role' | 'title' | 'onScreenText' | 'textColor' | 'visual' | 'punchZoom' | 'brollFile' | 'motionTemplate' | 'textStyle' | 'textKeyword' | 'textPosition' | 'look' | 'camera'>> & {
   phrases?: string[];
 };
 
@@ -78,7 +78,8 @@ export async function editScene(dir: string, sceneId: string, patch: ScenePatch)
   const project = await readProject(dir);
   const scene = findScene(project, sceneId);
   const { phrases: ids, ...rest } = patch;
-  Object.assign(scene, rest);
+  // Solo se cambian los campos que vienen con valor.
+  Object.assign(scene, Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)));
   if (rest.onScreenText === '') scene.onScreenText = undefined;
   if (ids) {
     const phrases = await getPhrases(dir);

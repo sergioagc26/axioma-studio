@@ -1,4 +1,5 @@
-import type { CaptionStyle, Project, Scene, Transcript } from './project.ts';
+import type { Camera, CaptionStyle, Look, Project, Scene, TextStyle, Transcript } from './project.ts';
+import { keywordOf } from './suggest.ts';
 import { findTransition, type TransitionSpec } from './transitions.ts';
 
 export type MotionSpec = { template: string; data: Record<string, any>; text?: string };
@@ -16,6 +17,10 @@ export type TimelineClip = {
   /** Punto de interés del recorte (0–1), normalmente la cara. */
   focusX: number;
   focusY: number;
+  look: Look;
+  camera: Camera;
+  /** Posición de este tramo dentro de su escena (para el movimiento de cámara continuo). */
+  sceneFrames: number;
   visual: Scene['visual'];
   brollSrc?: string;
   motion?: MotionSpec;
@@ -30,7 +35,10 @@ export type TimelineClip = {
 
 export type TimelineWord = { text: string; startFrame: number; endFrame: number };
 
-export type TimelineOverlay = { sceneId: string; text: string; color?: string; fromFrame: number; durationInFrames: number };
+export type TimelineOverlay = {
+  sceneId: string; text: string; color?: string; fromFrame: number; durationInFrames: number;
+  style: TextStyle; keyword: string; position: 'arriba' | 'centro';
+};
 
 export type Brand = { primary: string; secondary: string; text: string; name?: string; logoSrc?: string };
 
@@ -131,6 +139,9 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         clips.push({
           focusX: focus.x,
           focusY: focus.y,
+          look: scene.look,
+          camera: scene.camera,
+          sceneFrames: 0,
           sceneId: scene.id,
           fromFrame: from,
           durationInFrames: to - from,
@@ -160,11 +171,17 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         sceneId: scene.id,
         text,
         color: activeColor(scene),
+        style: scene.textStyle,
+        keyword: scene.textKeyword || keywordOf(text),
+        position: scene.textPosition,
         fromFrame: toFrame(sceneStart),
         durationInFrames: toFrame(acc) - toFrame(sceneStart),
       });
     }
   }
+
+  // Duración total de cada escena en frames, para que el movimiento de cámara sea continuo entre sus tramos.
+  for (const c of clips) c.sceneFrames = clips.filter((x) => x.sceneId === c.sceneId).reduce((a, x) => a + x.durationInFrames, 0);
 
   // Transiciones: se resuelven al final, cuando ya se conoce el clip anterior.
   const sourceFrames = toFrame(project.source.duration);
