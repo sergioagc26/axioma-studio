@@ -146,3 +146,7 @@ details.grp > .col { padding-bottom: 12px; gap: 10px; }
 .posgrid { display: grid; grid-template-columns: repeat(3, 22px); gap: 4px; padding: 6px; border-radius: 8px; background: var(--panel2); aspect-ratio: 9 / 13; align-content: space-between; }
 .posgrid button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); padding: 0; }
 .posgrid button.on { background: var(--pink); border-color: var(--pink); }
+
+/* Pantalla con varias secciones que se desplaza entera */
+.scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.scroll > footer { position: sticky; bottom: 0; }

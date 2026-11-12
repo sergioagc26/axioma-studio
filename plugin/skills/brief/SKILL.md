@@ -7,6 +7,16 @@ description: Hace las 5–7 preguntas del brief antes de editar un reel (formato
 
 Objetivo: saber lo justo para editar bien. Son como máximo 7 preguntas y casi siempre menos.
 
+## Antes: la marca
+
+Llama `leer_kit`. Si el cliente no tiene sector, pregunta primero por la marca (una sola vez por cliente) y guárdalo con `guardar_kit`:
+
+- A qué se dedica (`sector`): gimnasio, comida rápida, restaurante, moda, tecnología, educación, salud, negocios, inmobiliaria, entretenimiento, servicios u otro.
+- Cómo habla (`personalidad`): enérgica, divertida, elegante, cercana, seria o rebelde.
+- Sus dos colores, si los tiene.
+
+Eso decide subtítulos, títulos, letra, imagen y efectos: no elijas esos estilos a mano si la marca ya los define.
+
 ## Preguntas (en este orden, saltando lo que ya sepas)
 
 | Clave | Pregunta | Opciones típicas |

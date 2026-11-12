@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { PERSONALITIES, SECTORS } from '@snz/schema';
 import type { Ctx } from '../App.tsx';
 import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -36,6 +37,22 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const q = QUESTIONS[i];
   const value = project.brief[q.key] ?? '';
   const answered = QUESTIONS.filter((x) => project.brief[x.key]).length;
+
+  const [brand, setBrand] = useState({ name: '', sector: '', personality: '', primary: '#FE2C55', secondary: '#25F4EE' });
+  useEffect(() => {
+    const k = store.kit;
+    if (k) setBrand({ name: k.name, sector: k.sector ?? '', personality: k.personality ?? '', primary: k.colors.primary, secondary: k.colors.secondary });
+  }, [store.kit]);
+  /** Guarda el perfil de la marca y viste el reel con su estilo. */
+  const saveBrand = async () => {
+    try {
+      const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'marca', ...brand, name: brand.name || project.client || 'Mi marca' }) });
+      store.setKit(d.kit);
+      store.replace(d.project);
+      await store.reloadExtras();
+      ctx.toast(d.why ? `Marca guardada. Su estilo: ${d.why}.` : 'Marca guardada.');
+    } catch (e: any) { ctx.toast(e.message); }
+  };
 
   const [building, setBuilding] = useState('');
   /** Arma la edición según el brief y lleva al editor. */
@@ -75,6 +92,36 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       </nav>
 
       <main className="card col" style={{ flex: '999 1 480px', minWidth: 0, gap: 18, padding: 26, borderRadius: 20 }}>
+        <details className="grp" open={!store.kit?.sector}>
+          <summary>{store.kit?.sector ? `Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : 'Primero, tu marca'}</summary>
+          <div className="col">
+            <span className="small muted">Cada marca se ve distinta: un gimnasio no lleva los mismos subtítulos que una hamburguesería. Esto se pregunta una sola vez por cliente y decide subtítulos, títulos, letra, imagen y efectos.</span>
+            <div className="row" style={{ alignItems: 'flex-end' }}>
+              <label className="field" style={{ flex: '1 1 150px' }}>Nombre de la marca
+                <input value={brand.name} onChange={(e) => setBrand({ ...brand, name: e.target.value })} placeholder={project.client ?? 'Mi marca'} />
+              </label>
+              <label className="field" style={{ flex: '1 1 170px' }}>¿A qué se dedica?
+                <select value={brand.sector} onChange={(e) => setBrand({ ...brand, sector: e.target.value })}>
+                  <option value="">Elige…</option>
+                  {SECTORS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              </label>
+              <label className="field" style={{ flex: '1 1 140px' }}>¿Cómo habla?
+                <select value={brand.personality} onChange={(e) => setBrand({ ...brand, personality: e.target.value })}>
+                  <option value="">Elige…</option>
+                  {PERSONALITIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                </select>
+              </label>
+              <label className="field">Color principal
+                <input type="color" value={brand.primary} onChange={(e) => setBrand({ ...brand, primary: e.target.value })} style={{ width: 64, padding: 2 }} />
+              </label>
+              <label className="field">Secundario
+                <input type="color" value={brand.secondary} onChange={(e) => setBrand({ ...brand, secondary: e.target.value })} style={{ width: 64, padding: 2 }} />
+              </label>
+              <button className="btn primary" disabled={!brand.sector} onClick={saveBrand}>Guardar marca</button>
+            </div>
+          </div>
+        </details>
         <span className="small" style={{ fontWeight: 700, color: 'var(--pinkText)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Pregunta {i + 1}</span>
         <h1 style={{ fontSize: 30, lineHeight: 1.15 }}>{q.title}</h1>
         <p className="muted" style={{ margin: 0, maxWidth: 560 }}>{q.help}</p>

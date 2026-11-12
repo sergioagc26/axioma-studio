@@ -6,7 +6,7 @@ import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@snz/schema';
 import { readFaces } from './faces.ts';
-import { readKit } from './kit.ts';
+import { learnFromExport, readKit } from './kit.ts';
 import { allTransitions } from './transitions.ts';
 import { normalizeMix } from './media.ts';
 import { P, REMOTION_ENTRY } from './paths.ts';
@@ -87,6 +87,9 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       await rename(raw, out);
     }
     opts.onProgress?.(1);
+    // La marca aprende con qué diseño se exporta.
+    const titles = project.scenes.filter((x) => x.onScreenText).map((x) => x.textStyle);
+    await learnFromExport(project.client, project.captions.design, titles.sort((a, b) => titles.filter((x) => x === b).length - titles.filter((x) => x === a).length)[0]).catch(() => {});
     return { out, durationInFrames: timeline.durationInFrames, fps: timeline.fps };
   } finally {
     await server.close();

@@ -144,7 +144,7 @@ export const App: React.FC = () => {
         : route.screen === 'brief' ? <Brief ctx={ctx} />
         : route.screen === 'storyboard' ? <Storyboard ctx={ctx} />
         : route.screen === 'editor' ? <Editor ctx={ctx} />
-        : route.screen === 'variantes' ? <Variantes ctx={ctx} />
+        : route.screen === 'variantes' ? <div className="scroll"><Variantes ctx={ctx} /></div>
         : route.screen === 'audio' ? <Audio ctx={ctx} />
         : <Referencias ctx={ctx} />}
 

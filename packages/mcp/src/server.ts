@@ -3,7 +3,7 @@ import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { APP_NAME, FONT_FAMILIES } from '@snz/schema';
+import { APP_NAME, FONT_FAMILIES, applyVariant, motionGallery } from '@snz/schema';
 import * as E from '@snz/engine';
 
 const log = (msg: string) => console.error(`[${APP_NAME}] ${msg}`);
@@ -24,7 +24,7 @@ async function resolveProject(ref?: string): Promise<string> {
 const proyecto = z.string().optional().describe('Id o carpeta del proyecto. Si se omite, el más reciente.');
 const role = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
 const visual = z.enum(['original', 'broll', 'motion', 'texto']);
-const textStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda']);
+const textStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado']);
 const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
 const camera = z.enum(['ninguno', 'acercar', 'alejar']);
 
@@ -256,11 +256,12 @@ export function createServer() {
     posicion_y: z.number().min(0.1).max(0.9).optional().describe('0 arriba, 1 abajo. Zona segura: 0.2–0.75'),
     efecto: z.enum(['color', 'caja', 'pop', 'subrayado']).optional().describe('Cómo se marca la palabra que suena: color · caja detrás · pop (crece) · subrayado'),
     remarcar_clave: z.boolean().optional().describe('Remarca siempre la palabra más importante de cada línea'),
+    diseno: z.enum(['clasico', 'impacto', 'bloque', 'cinta', 'neon', 'elegante']).optional().describe('clasico = básico; los demás son llamativos: impacto (enormes e inclinadas), bloque (línea en bloque de color), cinta (cada palabra en su tira), neon, elegante (cursiva fina)'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const patch = Object.fromEntries(Object.entries({
       mode: a.modo, wordsPerLine: a.palabras_por_linea, fontFamily: a.fuente, fontSize: a.tamano,
-      color: a.color, highlightColor: a.color_resaltado, uppercase: a.mayusculas, y: a.posicion_y, effect: a.efecto, emphasis: a.remarcar_clave,
+      color: a.color, highlightColor: a.color_resaltado, uppercase: a.mayusculas, y: a.posicion_y, effect: a.efecto, emphasis: a.remarcar_clave, design: a.diseno,
     }).filter(([, v]) => v !== undefined));
     await E.setCaptions(dir, patch);
     return E.summarize(await E.readProject(dir), dir);
@@ -330,12 +331,17 @@ export function createServer() {
     fuente_titulos: z.enum(FONT_FAMILIES).optional(),
     fuente_texto: z.enum(FONT_FAMILIES).optional(),
     logo: z.string().optional().describe('Ruta absoluta del logo (PNG o SVG)'),
+    sector: z.enum(['gimnasio', 'comida-rapida', 'restaurante', 'moda', 'tecnologia', 'educacion', 'salud', 'negocios', 'inmobiliaria', 'entretenimiento', 'servicios', 'otro']).optional().describe('A qué se dedica la marca: decide el estilo de subtítulos, títulos, imagen y efectos'),
+    personalidad: z.enum(['energica', 'divertida', 'elegante', 'cercana', 'seria', 'rebelde']).optional(),
+    aplicar: z.boolean().default(true).describe('Vestir el proyecto con el estilo de la marca'),
   }, async (a) => {
     const p = await E.readProject(await resolveProject(a.proyecto));
     const kit = await E.saveKit(p.client, {
       name: a.nombre, primary: a.color_primario, secondary: a.color_secundario, text: a.color_texto,
-      heading: a.fuente_titulos, body: a.fuente_texto, logo: a.logo,
+      heading: a.fuente_titulos, body: a.fuente_texto, logo: a.logo, sector: a.sector, personality: a.personalidad,
     });
+    const applied = a.aplicar ? await E.applyBrandStyle(await resolveProject(a.proyecto)) : null;
+    if (applied) return `Kit guardado y estilo de marca aplicado (${applied.why}).\n${JSON.stringify(kit, null, 2)}`;
     return `Kit guardado para ${p.client ?? 'personal'}:\n${JSON.stringify(kit, null, 2)}`;
   });
 
@@ -495,8 +501,26 @@ export function createServer() {
     return E.summarize(await E.setBroll(dir, a.escena, file, { license: 'Pexels License', source: 'Pexels', author: item.author, url: item.url }), dir);
   });
 
-  tool('poner_motion', 'Convierte una escena en motion graphics a pantalla completa (la voz sigue sonando). Plantillas: barras {items:[{label,value}], unidad?} · contador {valor, prefijo?, sufijo?, etiqueta?} · lista {items:[texto]} · logo {texto?} · texto (usa el texto en pantalla). Usa solo datos que dio el usuario: lo que falte se muestra como [DATO].', {
-    proyecto, escena: z.string(), plantilla: z.enum(['barras', 'contador', 'lista', 'logo', 'texto']), datos: z.record(z.string(), z.any()).default({}),
+  tool('sugerir_motion', 'Lista todos los motion graphics que se pueden armar SOLOS con lo que se dice en una escena (pregunta, porcentaje, número, antes y después, pasos, lista con vistos, palabras en movimiento, frase destacada…), ya llenos con las cifras y frases reales. Aplica uno con `aplicar`.', {
+    proyecto, escena: z.string(), aplicar: z.string().optional().describe('Id de la idea a aplicar, p. ej. m2'),
+  }, async ({ proyecto, escena, aplicar }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.readProject(dir);
+    const s = p.scenes.find((x) => x.id === escena);
+    if (!s) throw new Error(`No existe la escena ${escena}.`);
+    const ideas = motionGallery(p, s, await E.readTranscript(dir));
+    if (aplicar) {
+      const v = ideas.find((x) => x.id === aplicar);
+      if (!v) throw new Error(`No existe la idea ${aplicar}. Ideas: ${ideas.map((x) => x.id).join(', ')}.`);
+      applyVariant(s, v);
+      s.chosenVariant = undefined;
+      return E.summarize(await E.writeProject(dir, p), dir);
+    }
+    return ideas.map((v) => `${v.id} · ${v.label} — ${v.notes}${v.motionData ? ` · datos: ${JSON.stringify(v.motionData)}` : ''}`).join('\n');
+  });
+
+  tool('poner_motion', 'Convierte una escena en motion graphics a pantalla completa (la voz sigue sonando). Antes prueba sugerir_motion, que los arma solos. Plantillas: barras {items:[{label,value}], unidad?} · contador {valor, prefijo?, sufijo?, etiqueta?} · porcentaje {valor, etiqueta?} · lista {items:[texto]} · checklist {items} · pasos {items} · comparacion {izquierda, derecha, tituloIzquierda?, tituloDerecha?} · pregunta {pregunta} · cita {texto, autor?} · palabras (cada palabra enorme cuando se dice) · logo {texto?} · texto (usa el texto en pantalla). Usa solo datos que dio el usuario: lo que falte se muestra como [DATO].', {
+    proyecto, escena: z.string(), plantilla: z.enum(['barras', 'contador', 'porcentaje', 'lista', 'checklist', 'pasos', 'comparacion', 'pregunta', 'cita', 'palabras', 'logo', 'texto']), datos: z.record(z.string(), z.any()).default({}),
   }, async ({ proyecto, escena, plantilla, datos }) => {
     const dir = await resolveProject(proyecto);
     return E.summarize(await E.setMotion(dir, escena, plantilla, datos), dir);

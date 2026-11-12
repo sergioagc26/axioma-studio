@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
-  CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, getPreset, outputDuration, recommendTransitions, sceneLength, suggestVariants,
+  CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, brandStyle, getPreset, outputDuration, recommendTransitions, sceneLength, suggestVariants,
   type Asset, type Preset,
 } from '@snz/schema';
 import { analyzePhrases, applyPunchZooms, phrasesToRanges, type Phrase } from './cuts.ts';
@@ -282,6 +282,8 @@ const slugifyName = (name: string) => {
   return path.basename(name, path.extname(name)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + ext;
 };
 
+export { writeProject } from './store.ts';
+
 export async function setMusic(dir: string, file: string | null, opts: { license?: string; source?: string; volume?: number } = {}) {
   const project = await readProject(dir);
   if (file === null) {
@@ -421,4 +423,34 @@ export async function setAutoSfx(dir: string, on: boolean) {
   const project = await readProject(dir);
   project.audio.sfxAuto = on;
   return writeProject(dir, project);
+}
+
+/**
+ * Viste el proyecto con el estilo de la marca (según su sector y personalidad):
+ * subtítulos, títulos, letra, imagen, transiciones y efectos.
+ */
+export async function applyBrandStyle(dir: string): Promise<{ project: Project; why: string } | null> {
+  const project = await readProject(dir);
+  const kit = await readKit(project.client);
+  const brand = brandStyle(kit);
+  if (!brand) return null;
+  project.captions = CaptionStyle.parse({ ...project.captions, ...brand.captions, ...kit!.captions });
+  const st = brand.style;
+  for (const s of project.scenes) {
+    if (st.textStyle) s.textStyle = st.textStyle;
+    if (st.textFont) s.textFont = st.textFont;
+    if (st.textAnim) s.textAnim = st.textAnim;
+    if (st.look) s.look = st.look;
+    if (st.camera) s.camera = st.camera;
+    s.textColor = undefined; // los textos toman el color de la marca
+  }
+  if (st.transitions) {
+    for (const a of recommendTransitions(project)) {
+      const s = project.scenes.find((x) => x.id === a.sceneId);
+      if (s) s.transition = a.transition ? { id: st.flashes ? 'destello' : a.transition } : undefined;
+    }
+  }
+  if (st.sfxAuto) await ensureProjectSfx(dir, ['whoosh', 'pop', 'impacto']);
+  project.audio.sfxAuto = Boolean(st.sfxAuto);
+  return { project: await writeProject(dir, project), why: brand.why };
 }

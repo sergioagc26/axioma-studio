@@ -1,7 +1,7 @@
-import { outputDuration, sceneLength, shortPhrases, speechOf, type Project, type Scene } from '@snz/schema';
+import { applyVariant, motionIdeas, outputDuration, sceneLength, shortPhrases, speechOf, type Project, type Scene } from '@snz/schema';
 import { applyPunchZooms } from './cuts.ts';
 import { buildMontage } from './montage.ts';
-import { applyPreset, saveVersion, setAutoSfx } from './ops.ts';
+import { applyBrandStyle, applyPreset, saveVersion, setAutoSfx } from './ops.ts';
 import { cutProject } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
@@ -113,15 +113,38 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
     }
   }
 
+  // 5b. Motion graphics hechos con lo que se dice: uno cada tres o cuatro escenas del medio.
+  if (talk) {
+    let placed = 0;
+    project.scenes.forEach((s, i) => {
+      if (i === 0 || i === project.scenes.length - 1 || i % 3 !== 2) return;
+      const idea = motionIdeas(speechOf(s, transcript), s, false).find((m) => ['pregunta', 'porcentaje', 'contador', 'comparacion', 'pasos', 'checklist'].includes(m.motionTemplate ?? ''));
+      if (!idea) return;
+      applyVariant(s, { ...idea, id: 'a' });
+      s.chosenVariant = undefined;
+      placed++;
+    });
+    if (placed) summary.push(`Motion graphics: ${placed} hechos con tus cifras y frases.`);
+  }
+
   applyPunchZooms(project.scenes, project.pacing.punchZoomEvery);
   project.briefAppliedAt = new Date().toISOString();
   await writeProject(dir, project);
+
+  // 5c. El estilo de la marca manda sobre el del tono.
+  const brand = await applyBrandStyle(dir);
+  if (brand) {
+    summary.push(`Estilo de la marca: ${brand.why}.`);
+    const p2 = await readProject(dir);
+    if (p2.scenes[0] && talk) p2.scenes[0].textStyle = brand.project.scenes[0]?.textStyle === 'apilado' ? 'apilado' : 'gigante';
+    await writeProject(dir, p2);
+  }
 
   // 6. Transiciones y efectos
   const { advice } = await applyRecommendedTransitions(dir);
   const withFx = advice.filter((a) => a.transition).length;
   summary.push(`Transiciones: ${withFx} con efecto y ${advice.length - withFx} con corte seco.`);
-  const fast = presetId === 'rapido';
+  const fast = presetId === 'rapido' || Boolean(brand?.project.audio.sfxAuto);
   await setAutoSfx(dir, fast);
   if (fast) summary.push('Efectos de sonido automáticos en transiciones y textos.');
 

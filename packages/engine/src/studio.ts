@@ -17,6 +17,7 @@ import { SFX, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
 import { analyzeReference, listReferences, presetFromReference, referencesDir } from './reference.ts';
 import { applyBrief } from './brief.ts';
+import { readKit, saveKit } from './kit.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -171,7 +172,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const project = await readProject(dir);
     const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
-    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()), sfx: Object.entries(SFX).map(([sid, d]) => ({ id: sid, name: d.name, description: d.description })), voices: await ttsProviders() });
+    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir), extras: await timelineExtras(dir, project, media), assistant: Boolean(claudeBin()), kit: await readKit(project.client), sfx: Object.entries(SFX).map(([sid, d]) => ({ id: sid, name: d.name, description: d.description })), voices: await ttsProviders() });
   }
 
   if (p === '/api/project' && method === 'PUT') {
@@ -185,6 +186,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const b = await readBody(req);
     if (b.op === 'preset') return json(res, { project: await ops.applyPreset(dir, b.presetId) });
+    if (b.op === 'marca') {
+      // Guarda el perfil de la marca y viste el proyecto con su estilo.
+      const project = await readProject(dir);
+      const kit = await saveKit(project.client, { name: b.name || undefined, sector: b.sector || undefined, personality: b.personality || undefined, primary: b.primary || undefined, secondary: b.secondary || undefined });
+      const applied = await ops.applyBrandStyle(dir);
+      return json(res, { kit, project: applied?.project ?? project, why: applied?.why ?? null });
+    }
     if (b.op === 'aplicar-brief') {
       // Arma la edición según las respuestas del brief.
       const job = startJob('crear', async (j) => {

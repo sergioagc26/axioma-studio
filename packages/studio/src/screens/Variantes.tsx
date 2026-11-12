@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { applyVariant, suggestVariants, type SceneVariant } from '@snz/schema';
+import { applyVariant, motionGallery, suggestVariants, type SceneVariant } from '@snz/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL, VISUAL_LABEL } from '../SceneFrame.tsx';
 import { VariantPreview } from '../VariantPreview.tsx';
@@ -26,6 +26,8 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     () => (scene && !scene.variants.length ? suggestVariants(project, scene, store.transcript, round) : []),
     [project, scene, store.transcript, round],
   );
+  // Todos los motion graphics que se pueden armar solos con lo que se dice en este clip.
+  const gallery = useMemo(() => (scene ? motionGallery(project, scene, store.transcript) : []), [project, scene, store.transcript]);
   if (!scene) return <div className="page"><p className="muted">No hay escenas.</p></div>;
   const idx = project.scenes.indexOf(scene);
   const saved = scene.variants.length > 0;
@@ -93,7 +95,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         ))}
       </section>
 
-      <div className="cols">
+      <div className="cols" style={{ flex: 'none', overflow: 'visible' }}>
         <div className="col" style={{ flex: '1 1 200px', maxWidth: 230 }}>
           <span className="small muted" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>Actual</span>
           <VariantPreview project={project} sceneId={scene.id} variant={null} transcript={store.transcript} store={store} style={{ borderRadius: 14 }} />
@@ -133,6 +135,23 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           })}
         </div>
       </div>
+
+      <section className="page" style={{ flex: 'none', paddingTop: 0 }}>
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <h2 style={{ fontSize: 20 }}>Motion graphics para este clip</h2>
+          <span className="muted small">{gallery.length} hechos solos con lo que dices aquí: tus cifras, tus frases, tus pasos. Elige uno.</span>
+        </div>
+        <div className="vgrid" style={{ flex: 'none', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))' }}>
+          {gallery.map((v) => (
+            <article key={v.id} className="card col vcard">
+              <VariantPreview project={project} sceneId={scene.id} variant={v} transcript={store.transcript} store={store} />
+              <h3 style={{ fontSize: 14, fontFamily: 'inherit', fontWeight: 600 }}>{v.label.replace('Motion graphics · ', '')}</h3>
+              <span className="muted small" style={{ minHeight: 34 }}>{v.notes}</span>
+              <button className="btn rect" style={{ height: 40 }} onClick={() => store.update((p) => { applyVariant(p.scenes[idx], v); p.scenes[idx].chosenVariant = undefined; })}>Usar</button>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <footer className="tl" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <label className="row" style={{ flex: '1 1 420px', flexWrap: 'nowrap' }}>

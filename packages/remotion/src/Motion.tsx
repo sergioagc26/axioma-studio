@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { Brand, MotionSpec } from '@snz/schema';
 
-export const MOTION_TEMPLATES = ['barras', 'contador', 'lista', 'logo', 'texto'] as const;
+export const MOTION_TEMPLATES = ['barras', 'contador', 'porcentaje', 'lista', 'checklist', 'pasos', 'comparacion', 'pregunta', 'cita', 'palabras', 'logo', 'texto'] as const;
 
 const BG = '#0B0B0D';
 
@@ -86,6 +86,91 @@ export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: str
           : <div style={{ fontFamily: font, fontWeight: 800, fontSize: 120, color: brand.primary, textAlign: 'center', padding: '0 60px' }}>{orMark(brand.name, '[MARCA]')}</div>}
         {d.texto ? <div style={{ fontFamily: font, fontWeight: 700, fontSize: 52, color: brand.text, textAlign: 'center', padding: '0 80px' }}>{d.texto}</div> : null}
       </div>
+    );
+  } else if (spec.template === 'porcentaje') {
+    const has = typeof d.valor === 'number';
+    const v = has ? Math.min(100, Math.max(0, d.valor)) : 0;
+    const p = interpolate(enter(6), [0, 1], [0, v / 100], { extrapolateRight: 'clamp' });
+    const R = 250, C = 2 * Math.PI * R;
+    body = (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 30 }}>
+        <div style={{ position: 'relative', width: 600, height: 600 }}>
+          <svg width={600} height={600} viewBox="0 0 600 600" aria-hidden="true">
+            <circle cx={300} cy={300} r={R} fill="none" stroke="#26262B" strokeWidth={54} />
+            <circle cx={300} cy={300} r={R} fill="none" stroke={brand.primary} strokeWidth={54} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - p)} transform="rotate(-90 300 300)" />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font, fontWeight: 800, fontSize: 170, color: brand.text }}>{has ? `${Math.round(p * 100)}%` : '[DATO]'}</div>
+        </div>
+        <div style={{ fontFamily: font, fontWeight: 700, fontSize: 50, color: brand.text, textAlign: 'center', padding: '0 80px' }}>{orMark(d.etiqueta, '')}</div>
+      </div>
+    );
+  } else if (spec.template === 'checklist' || spec.template === 'pasos') {
+    const items: string[] = Array.isArray(d.items) && d.items.length ? d.items : ['[PUNTO 1]', '[PUNTO 2]', '[PUNTO 3]'];
+    const steps = spec.template === 'pasos';
+    // Cada punto entra repartido a lo largo de la escena.
+    const gapF = Math.max(8, Math.min(26, Math.round(fps * 0.7)));
+    body = (
+      <div style={{ width: '82%', display: 'flex', flexDirection: 'column', gap: 34, position: 'relative' }}>
+        {steps ? <div style={{ position: 'absolute', left: 43, top: 44, bottom: 44, width: 6, borderRadius: 3, background: '#2A2A30' }} /> : null}
+        {items.slice(0, 5).map((it, i) => {
+          const e = enter(6 + i * gapF);
+          const done = enter(14 + i * gapF);
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 28, opacity: Math.max(0.25, e), transform: `translateY(${interpolate(e, [0, 1], [24, 0])}px)`, position: 'relative' }}>
+              <div style={{ width: 92, height: 92, borderRadius: 46, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: done > 0.5 ? brand.primary : '#26262B', color: done > 0.5 ? '#000' : brand.text, fontFamily: font, fontWeight: 800, fontSize: 46, transform: `scale(${interpolate(done, [0, 1], [0.8, 1])})` }}>
+                {steps ? i + 1 : done > 0.5 ? '✓' : ''}
+              </div>
+              <div style={{ fontFamily: font, fontWeight: 700, fontSize: 52, lineHeight: 1.1, color: brand.text }}>{it}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  } else if (spec.template === 'comparacion') {
+    const col = (title: string, text: unknown, good: boolean, delay: number) => {
+      const e = enter(delay);
+      return (
+        <div style={{ flex: 1, borderRadius: 34, padding: '46px 34px', background: good ? brand.primary : '#1E1E22', color: good ? '#000' : brand.text, display: 'flex', flexDirection: 'column', gap: 22, alignItems: 'center', textAlign: 'center', opacity: e, transform: `translateX(${interpolate(e, [0, 1], [good ? 80 : -80, 0])}px) scale(${good ? interpolate(enter(delay + 8), [0, 1], [0.94, 1.04]) : 1})` }}>
+          <div style={{ fontFamily: font, fontWeight: 800, fontSize: 84, lineHeight: 1 }}>{good ? '✓' : '✕'}</div>
+          <div style={{ fontFamily: font, fontWeight: 700, fontSize: 30, opacity: 0.75, textTransform: 'uppercase', letterSpacing: 2 }}>{title}</div>
+          <div style={{ fontFamily: font, fontWeight: 800, fontSize: 50, lineHeight: 1.1 }}>{orMark(text, '[TEXTO]')}</div>
+        </div>
+      );
+    };
+    body = <div style={{ width: '88%', display: 'flex', gap: 26, alignItems: 'stretch' }}>{col(d.tituloIzquierda ?? 'Antes', d.izquierda, false, 6)}{col(d.tituloDerecha ?? 'Ahora', d.derecha, true, 18)}</div>;
+  } else if (spec.template === 'pregunta') {
+    const e = enter(2);
+    const wob = Math.sin(frame / 7) * 6;
+    body = (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 30 }}>
+        <div style={{ fontFamily: font, fontWeight: 800, fontSize: 420, lineHeight: 0.85, color: brand.primary, transform: `scale(${interpolate(e, [0, 1], [0.3, 1])}) rotate(${wob}deg)` }}>?</div>
+        <div style={{ fontFamily: font, fontWeight: 800, fontSize: 76, lineHeight: 1.08, color: brand.text, textAlign: 'center', padding: '0 70px', textTransform: upper ? 'uppercase' : 'none', opacity: enter(10) }}>{orMark(d.pregunta, '[TU PREGUNTA]')}</div>
+      </div>
+    );
+  } else if (spec.template === 'cita') {
+    const e = enter(4);
+    body = (
+      <div style={{ width: '82%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 300, lineHeight: 0.7, color: brand.primary, transform: `scale(${interpolate(e, [0, 1], [0.5, 1])})`, transformOrigin: 'left top' }}>“</div>
+        <div style={{ fontFamily: font, fontWeight: 800, fontSize: 78, lineHeight: 1.12, color: brand.text, opacity: enter(8), transform: `translateY(${interpolate(enter(8), [0, 1], [30, 0])}px)` }}>{orMark(d.texto, '[TU FRASE]')}</div>
+        <div style={{ height: 12, width: `${interpolate(enter(18), [0, 1], [0, 46])}%`, borderRadius: 6, background: brand.secondary, marginTop: 30 }} />
+        {d.autor ? <div style={{ fontFamily: font, fontWeight: 700, fontSize: 40, color: brand.text, opacity: 0.8, marginTop: 14 }}>{d.autor}</div> : null}
+      </div>
+    );
+  } else if (spec.template === 'palabras') {
+    // Tipografía en movimiento: cada palabra aparece enorme justo cuando se dice.
+    const ws = spec.words ?? [];
+    const i = Math.max(0, ws.findIndex((w, k) => frame >= w.startFrame && frame < (ws[k + 1]?.startFrame ?? Infinity)));
+    const w = ws[i];
+    const prev = ws[i - 1];
+    const hit = w ? spring({ frame: frame - w.startFrame, fps, config: { damping: 10, stiffness: 260 }, durationInFrames: 7 }) : 0;
+    const colors = [brand.text, brand.primary, brand.secondary];
+    const size = w ? Math.min(250, Math.max(110, 1500 / Math.max(4, w.text.length))) : 150;
+    return (
+      <AbsoluteFill style={{ backgroundColor: BG, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 26, paddingBottom: '10%' }}>
+        <div style={{ fontFamily: font, fontWeight: 800, fontSize: 60, color: brand.text, opacity: 0.35, textTransform: 'uppercase', height: 70 }}>{prev?.text ?? ''}</div>
+        <div style={{ fontFamily: font, fontWeight: 800, fontSize: size, lineHeight: 1, color: colors[i % 3], textTransform: 'uppercase', textAlign: 'center', padding: '0 40px', transform: `scale(${interpolate(hit, [0, 1], [0.6, 1])}) rotate(${i % 2 ? 2 : -2}deg)` }}>{w?.text ?? orMark(spec.text, '')}</div>
+      </AbsoluteFill>
     );
   } else {
     // 'texto': tarjeta de texto a pantalla completa.

@@ -5,6 +5,8 @@ description: Propone 2–4 versiones distintas de una escena de un reel (texto c
 
 # Variantes de una escena
 
+Para motion graphics, llama primero `sugerir_motion`: arma solos los que salen de lo que se dice (pregunta, porcentaje, número, antes y después, pasos, listas, palabras en movimiento, cita) y se aplican con su id. Solo si ninguno sirve, arma uno a mano con `poner_motion`.
+
 La app ya da cuatro variantes automáticas por clip (motion graphics, b-roll, color y tipografía) con `sugerir_variantes`. Usa esta skill cuando el usuario quiere algo que esas no cubren. Marca cada variante con su tipo y procura cubrir tipos distintos.
 
 1. Llama `leer_proyecto` para ver la escena y `leer_transcripcion` si necesitas lo que se dice en ella.

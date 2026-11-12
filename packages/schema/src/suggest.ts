@@ -78,6 +78,57 @@ const TYPO: [NonNullable<SceneVariant['textStyle']>, string, NonNullable<SceneVa
   ['subrayado', 'Oswald', 'barrido', 'Subrayado'],
 ];
 
+const firstWords = (c: string, n: number) => clean(c.split(/\s+/).slice(0, n).join(' '));
+
+/**
+ * Todos los motion graphics que se pueden armar con lo que se dice en una
+ * escena. Cada uno se llena con las palabras, cifras y frases reales: no se
+ * inventa ningún dato. Van del más específico al más general.
+ */
+export function motionIdeas(speech: string, scene: Scene, first: boolean): Draft[] {
+  const tr = (id: string) => (first ? undefined : id);
+  const phrases = shortPhrases(speech);
+  const clauses = speech.split(/[,.;:!?…]+/).map(clean).filter((c) => c.split(/\s+/).length >= 2);
+  const text = scene.onScreenText ?? phrases[0];
+  const out: Draft[] = [];
+  const add = (label: string, motionTemplate: string, motionData: Record<string, unknown>, notes: string, extra: Partial<Draft> = {}) =>
+    out.push({ label: `Motion graphics · ${label}`, category: 'motion', visual: 'motion', motionTemplate, motionData, transition: tr('golpe'), notes, ...extra });
+
+  const question = speech.match(/¿[^?]{4,90}\?/)?.[0] ?? (/\?\s*$/.test(speech.trim()) ? clean(clauses[clauses.length - 1] ?? '') + '?' : null);
+  if (question) add('pregunta', 'pregunta', { pregunta: question }, 'Tu pregunta en grande con un signo animado. Engancha.');
+
+  const pct = speech.match(/(\d+(?:[.,]\d+)?)\s*(?:%|por ciento)/);
+  const num = speech.match(/\d+(?:[.,]\d+)?/);
+  const labelFor = (n: string) => firstWords((speech.split(/[.!?…]/).find((c) => c.includes(n)) ?? '').replace(n, '').replace(/%|por ciento/, ''), 5);
+  if (pct) add('porcentaje', 'porcentaje', { valor: Number(pct[1].replace(',', '.')), etiqueta: labelFor(pct[1]) }, `El ${pct[1]} % que dices, en un anillo que se llena.`);
+  else if (num) add('número animado', 'contador', { valor: Number(num[0].replace(',', '.')), etiqueta: labelFor(num[0]) }, `El ${num[0]} que dices, grande y contando hacia arriba.`);
+
+  // Contraste: "antes… ahora", "sin… con", "no… sino".
+  const a = clauses.find((c) => /\b(antes|sin|no)\b/i.test(c));
+  const b = clauses.find((c) => c !== a && /\b(ahora|despues|después|con|sino|pero)\b/i.test(c));
+  if (a && b) add('antes y después', 'comparacion', { izquierda: firstWords(a, 6), derecha: firstWords(b.replace(/^(pero|sino)\s+/i, ''), 6) }, 'Dos columnas que contrastan lo que dices: lo malo y lo bueno.', { transition: tr('deslizar-arriba') });
+
+  if (phrases.length >= 2) {
+    const items = phrases.slice(0, 4);
+    if (/\b(primero|segundo|tercero|paso|pasos|luego|despues|después)\b/i.test(speech)) add('pasos', 'pasos', { items }, 'Tus pasos numerados, avanzando uno por uno.', { transition: tr('deslizar-arriba') });
+    add('lista con vistos', 'checklist', { items }, 'Tus ideas con un visto que se marca en cada una.', { transition: tr('deslizar-arriba') });
+    add('lista', 'lista', { items: items.slice(0, 3) }, 'Tus ideas de esta parte, entrando una por una.', { transition: tr('deslizar-arriba'), onScreenText: keywordOf(speech) || undefined });
+  }
+  if (speech) {
+    add('palabras en movimiento', 'palabras', {}, 'Cada palabra aparece enorme justo cuando la dices. Muy llamativo.');
+    const quote = clauses.find((c) => c.split(/\s+/).length <= 10) ?? firstWords(speech, 10);
+    if (quote) add('frase destacada', 'cita', { texto: quote }, 'Tu frase como una cita, con comillas grandes.', { transition: tr('fundido') });
+  }
+  if (scene.role === 'cta') out.unshift({ label: 'Motion graphics · cierre con marca', category: 'motion', visual: 'motion', motionTemplate: 'logo', motionData: { texto: text }, transition: tr('destello'), notes: 'El nombre o logo de la marca con el llamado a la acción.' });
+  out.push({ label: 'Motion graphics · tarjeta de texto', category: 'motion', visual: 'texto', onScreenText: text ?? '[TU TEXTO]', transition: tr('golpe'), notes: 'La frase a pantalla completa sobre el color de la marca mientras sigue el audio.' });
+  return out;
+}
+
+/** Galería completa de motion graphics para una escena (ids m1, m2…). */
+export function motionGallery(project: Project, scene: Scene, transcript: Transcript | null): SceneVariant[] {
+  return motionIdeas(speechOf(scene, transcript), scene, project.scenes[0]?.id === scene.id).map((v, i) => ({ ...v, id: `m${i + 1}` }));
+}
+
 /**
  * Cuatro variantes para una escena, una de cada tipo, para comparar de verdad:
  *   a) Motion graphics · b) B-roll · c) Color · d) Tipografía.
@@ -96,15 +147,7 @@ export function suggestVariants(project: Project, scene: Scene, transcript: Tran
   const out: Draft[] = [];
 
   // a) Motion graphics: con lo que se dijo, sin inventar datos.
-  const num = speech.match(/\d+(?:[.,]\d+)?/);
-  const motion: Draft[] = [];
-  if (num) {
-    const label = clean(speech.split(/[.!?…]/).find((c) => c.includes(num[0])) ?? '').replace(num[0], '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 5).join(' ');
-    motion.push({ label: 'Motion graphics · número animado', category: 'motion', visual: 'motion', motionTemplate: 'contador', motionData: { valor: Number(num[0].replace(',', '.')), etiqueta: label }, onScreenText: undefined, transition: tr('golpe'), notes: `El ${num[0]} que dices, grande y contando hacia arriba.` });
-  }
-  if (phrases.length >= 2) motion.push({ label: 'Motion graphics · lista', category: 'motion', visual: 'motion', motionTemplate: 'lista', motionData: { items: phrases.slice(0, 3) }, onScreenText: keywordOf(speech) || undefined, transition: tr('deslizar-arriba'), notes: 'Tus ideas de esta parte, entrando una por una.' });
-  if (scene.role === 'cta') motion.unshift({ label: 'Motion graphics · cierre con marca', category: 'motion', visual: 'motion', motionTemplate: 'logo', motionData: { texto: text === '[TU TEXTO]' ? undefined : text }, transition: tr('destello'), notes: 'El nombre o logo de la marca con el llamado a la acción.' });
-  motion.push({ label: 'Motion graphics · tarjeta de texto', category: 'motion', visual: 'texto', onScreenText: text, transition: tr('golpe'), notes: 'La frase a pantalla completa sobre el color de la marca mientras sigue el audio.' });
+  const motion = motionIdeas(speech, scene, first);
   out.push(motion[round % motion.length]);
 
   // b) B-roll: un clip del proyecto si ya hay; si no, se pide uno.

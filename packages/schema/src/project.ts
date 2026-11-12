@@ -41,13 +41,21 @@ export const CaptionStyle = z.object({
   stroke: z.boolean().default(true),
   /** Cómo se marca la palabra que suena: color, caja detrás, salto (crece) o subrayado. */
   effect: z.enum(['color', 'caja', 'pop', 'subrayado']).default('color'),
+  /**
+   * Diseño de los subtítulos. `clasico` es el básico; los demás son los llamativos:
+   * impacto (palabras enormes inclinadas), bloque (línea dentro de un bloque de color),
+   * cinta (cada palabra en su tira), neon (brillo) y elegante (serif fina en cursiva).
+   */
+  design: z.enum(['clasico', 'impacto', 'bloque', 'cinta', 'neon', 'elegante']).default('clasico'),
   /** Remarca siempre la palabra más importante de cada línea (más grande y en color). */
   emphasis: z.boolean().default(true),
 });
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
 /** Formas de mostrar el texto en pantalla de una escena. */
-export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta']);
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado']);
+/** Estilos de texto básicos; el resto son los llamativos. */
+export const BASIC_TEXT_STYLES = ['caja', 'resaltado', 'subrayado', 'banda', 'etiqueta', 'contorno'] as const;
 /** Cómo entra el texto en pantalla. */
 export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido']);
 export type TextAnim = z.infer<typeof TextAnim>;
@@ -181,6 +189,12 @@ export const BrandKit = z.object({
   colors: z.object({ primary: z.string(), secondary: z.string(), text: z.string() }),
   fonts: z.object({ heading: z.string(), body: z.string() }),
   logo: z.string().optional(),
+  /** A qué se dedica la marca: decide el estilo (un gimnasio no se ve como una hamburguesería). */
+  sector: z.string().optional(),
+  /** Cómo habla la marca: enérgica, divertida, elegante, cercana, seria o rebelde. */
+  personality: z.string().optional(),
+  /** Lo que la app va aprendiendo: cuántas veces se exportó con cada diseño. */
+  learned: z.record(z.string(), z.number()).default({}),
   /** Ajustes de subtítulos propios del cliente (solo los que se indiquen). */
   captions: z.record(z.string(), z.any()).default({}),
 });

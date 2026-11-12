@@ -51,7 +51,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
 - **Skills** (`plugin/skills/`): `editar-reel`, `montaje`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 56 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Servidor MCP** (`packages/mcp`): 57 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -102,6 +102,44 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## La marca primero
+
+Cada cliente tiene un **perfil de marca**, que se pregunta una sola vez (arriba del brief, o con `guardar_kit`): nombre, a qué se dedica, cómo habla y sus dos colores. El sector y la personalidad deciden el estilo completo, para que cada marca se vea distinta:
+
+| Sector | Subtítulos | Títulos | Imagen |
+| --- | --- | --- | --- |
+| Gimnasio y deporte | Impacto, letra Anton | Sombra retro | Alto contraste, destellos |
+| Comida rápida | Tiras de color, Poppins | Tiras de color | Cálida, todo salta |
+| Restaurante y café | Elegante (cursiva) | Subrayado | Cálida, fundidos |
+| Moda y belleza | Elegante | Palabras apiladas | Cámara lenta |
+| Tecnología | Neón, Space Grotesk | Glitch | Fría |
+| Educación | Bloque | Rodeado a mano | Normal |
+| Salud | Clásico con subrayado | Etiqueta | Fría y limpia |
+| Negocios | Impacto, Montserrat | Marcador | Normal |
+
+También hay inmobiliaria, entretenimiento y servicios profesionales. La **personalidad** matiza: elegante quita destellos y pone cursiva; rebelde pone glitch y contraste; divertida hace que todo entre saltando; seria quita efectos de más.
+
+La marca **aprende**: cada exportación anota el diseño de subtítulos y de títulos usado, y cuando uno se repite tres veces pasa a ser el de la marca.
+
+## Motion graphics automáticos
+
+En la pestaña Variantes, «Motion graphics para este clip» muestra todos los que se pueden armar solos con lo que se dice ahí, ya llenos y con su fotograma real. Sin Claude.
+
+| Plantilla | Cuándo aparece | Con qué se llena |
+| --- | --- | --- |
+| Pregunta | Hay una pregunta | La pregunta dicha |
+| Porcentaje | Se dice «80 %» o «80 por ciento» | La cifra, en un anillo que se llena |
+| Número animado | Se dice una cifra | La cifra, contando hacia arriba |
+| Antes y después | Hay contraste (antes/ahora, sin/con, no/sino) | Las dos frases |
+| Pasos | Se dice primero, luego, después, paso | Las frases, numeradas |
+| Lista con vistos, lista | Hay dos o más ideas | Las frases |
+| Palabras en movimiento | Siempre que hay voz | Cada palabra, enorme, cuando se dice |
+| Frase destacada | Siempre que hay voz | Una frase corta, como cita |
+| Cierre con marca | En el llamado a la acción | Nombre o logo de la marca |
+| Tarjeta de texto, barras | Siempre / con datos puestos a mano | El texto de la escena |
+
+Nunca se inventa un dato. Al crear la edición desde el brief se colocan algunos en el medio del reel. Desde Claude: `sugerir_motion`.
+
 ## El brief manda
 
 El brief es lo primero. Al terminar de responderlo, «Crear mi edición» (o `aplicar_brief`) arma el reel con las respuestas:
@@ -134,14 +172,18 @@ El editor **estudia lo que se dice** y recomienda uno, con el motivo («El video
 
 ## Textos y subtítulos
 
-**Texto en pantalla** de cada escena, en once estilos: recuadro de color, palabra clave en color, marcador (un trazo que se pinta detrás de la clave), palabra gigante, subrayado, neón, banda de titular, contorno, degradado, sombra retro y etiqueta.
+**Texto en pantalla** de cada escena, en dos niveles:
+
+- **Básicos**: recuadro de color, palabra clave en color, subrayado, banda de titular, etiqueta y contorno.
+- **Llamativos**: marcador, palabra gigante, neón, degradado, sombra retro, tiras de color, sello, glitch, rodeado a mano y palabras apiladas.
+
 
 - La **palabra clave** se remarca sola (un número si lo hay; si no, la palabra con significado más larga) o la eliges tú.
 - **Tamaño** (50–200 %), **tipografía** propia del texto y **animación de entrada** (sube, salta, desliza, aparece, se revela).
 - **Posición libre**: una rejilla de nueve posiciones y barras horizontal y vertical.
 - **Color**: muestras rápidas, rueda para cualquier color y código hexadecimal.
 
-**Subtítulos**:
+**Subtítulos**, también en dos niveles: el diseño **Clásico** (básico) y los **llamativos**: Impacto (palabras enormes e inclinadas), Bloque (la línea dentro de un bloque de color), Tiras de color, Neón y Elegante (cursiva fina).
 
 - La palabra que suena se marca de cuatro formas: cambia de color, caja de color detrás, salta y crece, o subrayado.
 - «Remarcar la palabra más importante» de cada línea (más grande y en color).

@@ -12,6 +12,7 @@ import { loadFont as loadOswald } from '@remotion/google-fonts/Oswald';
 import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlack';
 import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import { ease, isKeyword, keywordOf, layerStyle } from '@snz/schema';
+import { loadFont as loadPlayfair } from '@remotion/google-fonts/PlayfairDisplay';
 import type { Timeline, TimelineClip, TimelineOverlay } from '@snz/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
 import { MotionGraphic } from './Motion.tsx';
@@ -25,6 +26,7 @@ const FONTS: Record<string, () => { fontFamily: string }> = {
   'Bebas Neue': () => loadBebas('normal', { weights: ['400'], subsets: ['latin', 'latin-ext'] }),
   Oswald: () => loadOswald('normal', { weights: ['600', '700'], subsets: ['latin', 'latin-ext'] }),
   'Archivo Black': () => loadArchivoBlack('normal', { weights: ['400'], subsets: ['latin', 'latin-ext'] }),
+  'Playfair Display': () => loadPlayfair('italic', { weights: ['600', '700'], subsets: ['latin', 'latin-ext'] }),
   'DM Sans': () => loadDMSans('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),
 };
 
@@ -169,58 +171,71 @@ const onColor = (hex: string) => {
   return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? '#000' : '#fff';
 };
 
-const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({ chunk, font, t }) => {
+const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({ chunk, font: baseFont, t }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const s = t.captions;
+  const serif = useFont('Playfair Display');
+  const d = s.design;
+  const font = d === 'elegante' ? serif : baseFont;
   const pop = spring({ frame, fps, config: { damping: 12, stiffness: 220 }, durationInFrames: 8 });
-  const scale = interpolate(pop, [0, 1], [0.86, 1]);
   const abs = chunk.startFrame + frame;
-  const stroke = Math.round(s.fontSize / 9);
+  const size = s.fontSize * (d === 'impacto' ? 1.3 : d === 'elegante' ? 0.86 : d === 'cinta' ? 0.92 : 1);
+  const stroke = Math.round(size / (d === 'impacto' ? 6.5 : 9));
+  const hl = s.highlightColor;
+  const upper = d === 'elegante' ? false : d === 'impacto' || d === 'cinta' || d === 'bloque' ? true : s.uppercase;
   // La palabra más importante de la línea se remarca siempre (si la línea tiene más de una palabra).
   const key = s.emphasis && chunk.words.length > 1 ? keywordOf(chunk.words.map((w) => w.text).join(' ')) : '';
+  const plain = d === 'bloque' || d === 'cinta' || d === 'neon' || d === 'elegante'; // diseños sin borde negro
+  const tapes = [hl, '#FFFFFF', t.brand.secondary];
+
+  const box: React.CSSProperties = {
+    position: 'absolute', top: `${s.y * 100}%`, left: '7%', right: '7%',
+    transform: `translateY(-50%) scale(${interpolate(pop, [0, 1], [0.86, 1])})${d === 'bloque' ? ' rotate(-2deg)' : ''}`,
+    textAlign: 'center', fontFamily: font, fontWeight: d === 'elegante' ? 600 : s.fontWeight, fontStyle: d === 'elegante' ? 'italic' : undefined,
+    fontSize: size, lineHeight: d === 'cinta' ? 1.45 : 1.18, letterSpacing: d === 'elegante' ? '0.01em' : undefined,
+    color: d === 'neon' ? hl : s.color, textTransform: upper ? 'uppercase' : 'none',
+    WebkitTextStroke: s.stroke && !plain ? `${stroke}px #000` : undefined, paintOrder: 'stroke fill',
+    textShadow: d === 'neon' ? `0 0 14px ${hl}, 0 0 40px ${hl}, 0 3px 8px rgba(0,0,0,0.9)` : d === 'elegante' ? '0 3px 14px rgba(0,0,0,0.75)' : plain ? 'none' : '0 6px 18px rgba(0,0,0,0.45)',
+  };
   return (
     <AbsoluteFill style={{ alignItems: 'center' }}>
-      <div
-        style={{
-          position: 'absolute',
-          top: `${s.y * 100}%`,
-          left: '7%',
-          right: '7%',
-          transform: `translateY(-50%) scale(${scale})`,
-          textAlign: 'center',
-          fontFamily: font,
-          fontWeight: s.fontWeight,
-          fontSize: s.fontSize,
-          lineHeight: 1.18,
-          color: s.color,
-          textTransform: s.uppercase ? 'uppercase' : 'none',
-          WebkitTextStroke: s.stroke ? `${stroke}px #000` : undefined,
-          paintOrder: 'stroke fill',
-          textShadow: '0 6px 18px rgba(0,0,0,0.45)',
-        }}
-      >
-        {chunk.words.map((w, i) => {
-          const start = w.startFrame;
-          const end = chunk.words[i + 1]?.startFrame ?? chunk.endFrame;
-          const active = s.mode === 'word' && abs >= start && abs < end;
-          const strong = isKeyword(w.text, key);
-          const hit = active ? spring({ frame: abs - start, fps, config: { damping: 10, stiffness: 260 }, durationInFrames: 6 }) : 0;
-          const style: React.CSSProperties = { display: 'inline-block', margin: '0 0.12em' };
-          if (strong) { style.color = s.highlightColor; style.fontSize = '1.14em'; }
-          if (active) {
-            if (s.effect === 'caja') {
-              Object.assign(style, { backgroundColor: s.highlightColor, color: onColor(s.highlightColor), WebkitTextStroke: '0', textShadow: 'none', borderRadius: '0.18em', padding: '0 0.18em', margin: '0 0.02em', transform: `scale(${interpolate(hit, [0, 1], [0.9, 1])})` });
-            } else if (s.effect === 'pop') {
-              Object.assign(style, { color: s.highlightColor, transform: `scale(${interpolate(hit, [0, 1], [1, 1.2])}) translateY(${interpolate(hit, [0, 1], [0, -4])}px)` });
-            } else if (s.effect === 'subrayado') {
-              Object.assign(style, { boxShadow: `0 ${Math.round(s.fontSize / 7)}px 0 ${s.highlightColor}`, transform: 'translateY(-2px)' });
+      <div style={box}>
+        <span style={d === 'bloque' ? { display: 'inline-block', backgroundColor: hl, color: onColor(hl), padding: '0.12em 0.4em', borderRadius: '0.16em', boxShadow: '0 10px 0 rgba(0,0,0,0.35)' } : undefined}>
+          {chunk.words.map((w, i) => {
+            const start = w.startFrame;
+            const end = chunk.words[i + 1]?.startFrame ?? chunk.endFrame;
+            const active = s.mode === 'word' && abs >= start && abs < end;
+            const strong = isKeyword(w.text, key);
+            const hit = active ? spring({ frame: abs - start, fps, config: { damping: 10, stiffness: 260 }, durationInFrames: 6 }) : 0;
+            const style: React.CSSProperties = { display: 'inline-block', margin: '0 0.12em' };
+
+            if (d === 'cinta') {
+              // Cada palabra en su propia tira de color, torcida y alternando.
+              const bg = tapes[i % tapes.length];
+              Object.assign(style, { backgroundColor: bg, color: onColor(bg), padding: '0.02em 0.28em', margin: '0.06em 0.05em', borderRadius: '0.1em', boxShadow: '0 6px 0 rgba(0,0,0,0.35)', transform: `rotate(${i % 2 ? 2.5 : -2.5}deg) scale(${active ? interpolate(hit, [0, 1], [1, 1.16]) : 1})` });
+            } else if (d === 'bloque') {
+              if (active) Object.assign(style, { backgroundColor: onColor(hl), color: hl, borderRadius: '0.14em', padding: '0 0.16em', margin: '0 0.02em' });
+              else if (strong) style.textDecoration = 'underline';
+            } else if (d === 'impacto') {
+              // Palabras enormes, inclinadas; la que suena crece y cambia de color.
+              Object.assign(style, { transform: `rotate(${i % 2 ? 2 : -2}deg) scale(${active ? interpolate(hit, [0, 1], [1, 1.22]) : 1})`, color: active || strong ? hl : undefined });
+            } else if (d === 'neon') {
+              if (active) Object.assign(style, { color: '#fff', transform: `scale(${interpolate(hit, [0, 1], [1, 1.12])})` });
+            } else if (d === 'elegante') {
+              if (active || strong) Object.assign(style, { boxShadow: `0 ${Math.max(3, Math.round(size / 14))}px 0 ${hl}` });
             } else {
-              style.color = s.highlightColor;
+              if (strong) { style.color = hl; style.fontSize = '1.14em'; }
+              if (active) {
+                if (s.effect === 'caja') Object.assign(style, { backgroundColor: hl, color: onColor(hl), WebkitTextStroke: '0', textShadow: 'none', borderRadius: '0.18em', padding: '0 0.18em', margin: '0 0.02em', transform: `scale(${interpolate(hit, [0, 1], [0.9, 1])})` });
+                else if (s.effect === 'pop') Object.assign(style, { color: hl, transform: `scale(${interpolate(hit, [0, 1], [1, 1.2])}) translateY(${interpolate(hit, [0, 1], [0, -4])}px)` });
+                else if (s.effect === 'subrayado') Object.assign(style, { boxShadow: `0 ${Math.round(size / 7)}px 0 ${hl}`, transform: 'translateY(-2px)' });
+                else style.color = hl;
+              }
             }
-          }
-          return <span key={i} style={style}>{w.text}</span>;
-        })}
+            return <span key={i} style={style}>{w.text}</span>;
+          })}
+        </span>
       </div>
     </AbsoluteFill>
   );
@@ -295,6 +310,60 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     );
   }
 
+  if (overlay.style === 'cinta') {
+    // Cada palabra en su tira de color, torcidas y entrando una tras otra.
+    const tapes = [color, '#FFFFFF', t.brand.secondary];
+    return (
+      <AbsoluteFill>
+        <div style={{ ...wrap, opacity: 1, fontSize: 70 * k, lineHeight: 1.5 }}>
+          {words.map((w, i) => {
+            const e = spring({ frame: frame - i * 3, fps, config: { damping: 12, stiffness: 220 }, durationInFrames: 10 });
+            const bg = isKey(w) ? color : tapes[(i + 1) % tapes.length];
+            return <span key={i} style={{ display: 'inline-block', backgroundColor: bg, color: onColor(bg), padding: '0.02em 0.3em', margin: '0.08em 0.06em', borderRadius: '0.1em', boxShadow: '0 8px 0 rgba(0,0,0,0.4)', fontSize: isKey(w) ? '1.2em' : undefined, transform: `rotate(${i % 2 ? 3 : -3}deg) scale(${e})` }}>{w}</span>;
+          })}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (overlay.style === 'sello') {
+    // Sello de tinta: cae grande y se asienta torcido.
+    const e = spring({ frame, fps, config: { damping: 9, stiffness: 240 }, durationInFrames: 10 });
+    return (
+      <AbsoluteFill>
+        <div style={{ ...wrap, width: 'auto', maxWidth: '80%', opacity: Math.min(1, e * 1.5), transform: `translate(-50%, -50%) rotate(-8deg) scale(${interpolate(e, [0, 1], [2.2, 1])})`, padding: `${20 * k}px ${40 * k}px`, border: `${10 * k}px solid ${color}`, outline: `${4 * k}px solid ${color}`, outlineOffset: 8 * k, borderRadius: 18, color, fontSize: 74 * k, textTransform: 'uppercase', textShadow: '0 6px 16px rgba(0,0,0,0.6)', backgroundColor: 'rgba(0,0,0,0.25)' }}>
+          {overlay.text}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (overlay.style === 'glitch') {
+    // Letras blancas con dos sombras de color que tiemblan.
+    const j = (n: number) => Math.round(Math.sin(frame * 1.7 + n) * 7 * (frame < 14 || frame % 40 < 5 ? 1 : 0.25));
+    return (
+      <AbsoluteFill>
+        <div style={{ ...wrap, fontSize: 82 * k, color: '#fff', textTransform: 'uppercase', textShadow: `${j(0) - 6}px ${j(1)}px 0 ${color}, ${6 - j(2)}px ${j(3)}px 0 ${t.brand.secondary}, 0 8px 20px rgba(0,0,0,0.7)` }}>
+          {words.map((w, i) => <span key={i} style={isKey(w) ? { fontSize: '1.2em', display: 'inline-block', margin: '0 0.08em' } : undefined}>{w}{gap(i)}</span>)}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (overlay.style === 'apilado') {
+    // Una palabra por línea, cada una del ancho del bloque; la clave en color.
+    return (
+      <AbsoluteFill>
+        <div style={{ ...wrap, width: '70%', opacity: 1, ...outline, lineHeight: 0.98, textTransform: 'uppercase' }}>
+          {words.map((w, i) => {
+            const e = spring({ frame: frame - i * 3, fps, config: { damping: 13, stiffness: 200 }, durationInFrames: 10 });
+            return <div key={i} style={{ fontSize: Math.min(210, Math.max(54, 900 / Math.max(3, w.length))) * k, color: isKey(w) ? color : '#fff', opacity: e, transform: `translateX(${interpolate(e, [0, 1], [i % 2 ? 90 : -90, 0])}px)` }}>{w}</div>;
+          })}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   // Estilos de letra suelta: cada uno define el aspecto base y cómo se ve la palabra clave.
   const base: React.CSSProperties =
     overlay.style === 'neon' ? { color, textShadow: `0 0 18px ${color}, 0 0 46px ${color}, 0 4px 10px rgba(0,0,0,0.8)` }
@@ -322,6 +391,18 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
               <span key={i} style={{ ...inline, position: 'relative' }}>
                 {w}
                 <span style={{ position: 'absolute', left: 0, right: 0, bottom: -10, height: 12 * k, borderRadius: 6, backgroundColor: color, transformOrigin: 'left center', transform: `scaleX(${Math.min(1, Math.max(0, kw))})` }} />
+              </span>
+            );
+          }
+          if (overlay.style === 'trazo') {
+            // Un óvalo dibujado a mano rodea la palabra clave.
+            const len = 640;
+            return (
+              <span key={i} style={{ ...inline, position: 'relative', padding: '0 0.2em' }}>
+                {w}
+                <svg viewBox="0 0 200 80" preserveAspectRatio="none" style={{ position: 'absolute', left: '-6%', top: '-18%', width: '112%', height: '136%', overflow: 'visible' }} aria-hidden="true">
+                  <path d="M12 44 C8 14 60 4 104 5 C150 6 194 16 190 42 C186 70 130 77 92 76 C48 75 10 68 16 36" fill="none" stroke={color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" strokeDasharray={len} strokeDashoffset={len * (1 - Math.min(1, Math.max(0, kw)))} />
+                </svg>
               </span>
             );
           }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { FONT_FAMILIES, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene } from '@snz/schema';
+import { BASIC_TEXT_STYLES, FONT_FAMILIES, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene } from '@snz/schema';
 import { Reel } from '@snz/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -20,6 +20,20 @@ const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['degradado', 'Degradado', 'Letras con degradado entre el color elegido y el secundario de la marca.'],
   ['sombra', 'Sombra retro', 'Letras blancas con una sombra dura de color, estilo cartel.'],
   ['etiqueta', 'Etiqueta', 'Una píldora oscura con un punto de color; discreta, para b-roll o datos.'],
+  ['cinta', 'Tiras de color', 'Cada palabra en su tira torcida, entrando una tras otra. Divertido.'],
+  ['sello', 'Sello', 'Cae como un sello de tinta y queda torcido. Para ofertas y avisos.'],
+  ['glitch', 'Glitch', 'Letras con sombras de color que tiemblan. Rebelde y digital.'],
+  ['trazo', 'Rodeado a mano', 'Un óvalo dibujado a mano rodea la palabra clave.'],
+  ['apilado', 'Palabras apiladas', 'Una palabra por línea, cada una a todo el ancho. Editorial.'],
+];
+const BASIC = new Set<string>(BASIC_TEXT_STYLES);
+const DESIGNS: [string, string, string][] = [
+  ['clasico', 'Clásico', 'El básico: letras con borde y la palabra que suena marcada.'],
+  ['impacto', 'Impacto', 'Palabras enormes e inclinadas; la que suena crece.'],
+  ['bloque', 'Bloque', 'La línea dentro de un bloque de color, un poco torcido.'],
+  ['cinta', 'Tiras de color', 'Cada palabra en su tira, alternando colores.'],
+  ['neon', 'Neón', 'Letras con brillo; la que suena se enciende en blanco.'],
+  ['elegante', 'Elegante', 'Cursiva fina con subrayado. Sobrio.'],
 ];
 
 const TEXT_ANIMS: [Scene['textAnim'], string][] = [['subir', 'Sube'], ['pop', 'Salta'], ['deslizar', 'Desliza'], ['fundido', 'Aparece'], ['barrido', 'Se revela']];
@@ -299,6 +313,13 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <button className={project.captions.mode === 'word' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'word'; })}>Palabra a palabra</button>
             <button className={project.captions.mode === 'phrase' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'phrase'; })}>Frase completa</button>
           </div>
+          <label className="field">Diseño de los subtítulos
+            <select value={project.captions.design} onChange={(e) => store.update((p) => { p.captions.design = e.target.value as typeof p.captions.design; })}>
+              <optgroup label="Básico"><option value="clasico">Clásico</option></optgroup>
+              <optgroup label="Llamativos">{DESIGNS.slice(1).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</optgroup>
+            </select>
+          </label>
+          <span className="small muted">{DESIGNS.find(([id]) => id === project.captions.design)?.[2]}</span>
           <label className="field">Cómo se marca la palabra que suena
             <select value={project.captions.effect} onChange={(e) => store.update((p) => { p.captions.effect = e.target.value as typeof p.captions.effect; })}>
               <option value="color">Cambia de color</option><option value="caja">Caja de color detrás</option><option value="pop">Salta y crece</option><option value="subrayado">Subrayado</option>
@@ -407,7 +428,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </div>
             <label className="field">Estilo del texto
               <select value={scene.textStyle} onChange={(e) => edit((s) => { s.textStyle = e.target.value as Scene['textStyle']; })}>
-                {TEXT_STYLES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                <optgroup label="Básicos">{TEXT_STYLES.filter(([id]) => BASIC.has(id)).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</optgroup>
+                <optgroup label="Llamativos">{TEXT_STYLES.filter(([id]) => !BASIC.has(id)).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</optgroup>
               </select>
             </label>
             <span className="small muted">{TEXT_STYLES.find(([id]) => id === scene.textStyle)?.[2]}</span>

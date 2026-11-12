@@ -36,7 +36,11 @@ export function effectiveRanges(scene: Pick<Scene, 'ranges' | 'trimStart' | 'tri
 /** Duración de una escena en la salida (con su recorte). */
 export const sceneLength = (scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'>) => effectiveRanges(scene).reduce((a, r) => a + r.end - r.start, 0);
 
-export type MotionSpec = { template: string; data: Record<string, any>; text?: string };
+export type MotionSpec = {
+  template: string; data: Record<string, any>; text?: string;
+  /** Palabras que se dicen en la escena, en frames desde su inicio (para tipografía en movimiento). */
+  words?: TimelineWord[];
+};
 
 /** Un tramo del video fuente colocado en la línea de tiempo de salida. */
 export type TimelineClip = {
@@ -222,6 +226,13 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
 
   // Duración total de cada escena en frames, para que el movimiento de cámara sea continuo entre sus tramos.
   for (const c of clips) c.sceneFrames = clips.filter((x) => x.sceneId === c.sceneId).reduce((a, x) => a + x.durationInFrames, 0);
+
+  // Las escenas con gráficos reciben sus palabras, medidas desde el inicio de la escena.
+  for (const c of clips) {
+    if (!c.motion) continue;
+    const start = c.fromFrame - c.sceneOffsetFrames;
+    c.motion = { ...c.motion, words: words.filter((w) => w.startFrame >= start && w.startFrame < start + c.sceneFrames).map((w) => ({ text: w.text, startFrame: w.startFrame - start, endFrame: w.endFrame - start })) };
+  }
 
   // Transiciones: se resuelven al final, cuando ya se conoce el clip anterior.
   const sourceFrames = toFrame(project.source.duration);
