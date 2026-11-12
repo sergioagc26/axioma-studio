@@ -6,6 +6,7 @@ import {
   type Project, type Preset,
 } from '@snz/schema';
 import { analyzePhrases, applyPunchZooms, phrasesToRanges, type Phrase } from './cuts.ts';
+import { kitCaptions, readKit } from './kit.ts';
 import { P, WORKSPACE } from './paths.ts';
 import { readAnalysis } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
@@ -136,7 +137,7 @@ export async function applyPreset(dir: string, presetId: string) {
   const preset: Preset = getPreset(presetId, await listPresets(project.client));
   project.presetId = preset.id;
   project.pacing = Pacing.parse(preset.pacing);
-  project.captions = CaptionStyle.parse(preset.captions);
+  project.captions = CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(project.client)) });
   applyPunchZooms(project.scenes, project.pacing.punchZoomEvery);
   return writeProject(dir, project);
 }

@@ -26,7 +26,31 @@ export const BUILTIN_PRESETS: Preset[] = [
     pacing: { maxPause: 0.6, pad: 0.12, punchZoomEvery: 0 },
     captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontWeight: 700, fontSize: 64, highlightColor: '#FFFFFF', fontFamily: 'Inter' },
   }),
+  p({
+    id: 'testimonio',
+    name: 'Testimonio',
+    description: 'Deja respirar a la persona: frases completas, sin zooms.',
+    pacing: { maxPause: 0.5, pad: 0.12, punchZoomEvery: 0, removeRetakes: true },
+    captions: { mode: 'phrase', wordsPerLine: 6, uppercase: false, fontFamily: 'Inter', fontWeight: 700, fontSize: 62, highlightColor: '#FFFFFF', y: 0.72 },
+  }),
+  p({
+    id: 'antes-despues',
+    name: 'Antes / después',
+    description: 'Cortes secos y zoom en cada cambio, resaltado cian.',
+    pacing: { maxPause: 0.18, pad: 0.05, punchZoomEvery: 3 },
+    captions: { wordsPerLine: 2, uppercase: true, fontFamily: 'Anton', fontWeight: 400, fontSize: 92, highlightColor: '#25F4EE' },
+  }),
+  p({
+    id: 'oferta-cta',
+    name: 'Oferta con CTA',
+    description: 'Directo y grande, resaltado amarillo, pensado para historias.',
+    pacing: { maxPause: 0.25, pad: 0.06, punchZoomEvery: 5 },
+    captions: { wordsPerLine: 3, uppercase: true, fontFamily: 'Poppins', fontWeight: 800, fontSize: 80, highlightColor: '#FACC15' },
+  }),
 ];
+
+/** Fuentes disponibles en el render (Google Fonts). */
+export const FONT_FAMILIES = ['Montserrat', 'Inter', 'Space Grotesk', 'Poppins', 'Anton', 'Bebas Neue', 'Oswald', 'Archivo Black', 'DM Sans'] as const;
 
 export function getPreset(id: string, extra: Preset[] = []): Preset {
   const found = [...extra, ...BUILTIN_PRESETS].find((x) => x.id === id);

@@ -95,6 +95,10 @@ export const Preset = z.object({
   description: z.string().default(''),
   pacing: Pacing.default(Pacing.parse({})),
   captions: CaptionStyle.default(CaptionStyle.parse({})),
+  /** Colores de la referencia o del cliente (informativo). */
+  palette: z.array(z.string()).optional(),
+  /** Id de la referencia de la que salió el preset. */
+  reference: z.string().optional(),
 });
 export type Preset = z.infer<typeof Preset>;
 

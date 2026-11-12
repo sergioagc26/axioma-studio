@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Transcript, getPreset } from '@snz/schema';
 import { P, projectDir, slugify } from './paths.ts';
+import { kitCaptions, readKit } from './kit.ts';
 import { probe } from './media.ts';
 
 export async function readProject(dir: string): Promise<Project> {
@@ -57,7 +58,7 @@ export async function createProject(opts: { input: string; name?: string; client
     source: { file: original, duration: info.duration, width: info.width, height: info.height, fps: info.fps, rotation: info.rotation },
     presetId: preset.id,
     pacing: Pacing.parse(preset.pacing),
-    captions: CaptionStyle.parse(preset.captions),
+    captions: CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(opts.client)) }),
   });
   await writeProject(dir, project);
   return { dir, project, info };

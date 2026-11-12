@@ -8,6 +8,7 @@ import { detectSilences, extractWav16k, makeMaster, makeProxy, probe, processVoi
 export interface Analysis {
   silences: Range[];
 }
+import { kitCaptions, readKit } from './kit.ts';
 import { P } from './paths.ts';
 import { listPresets } from './presets.ts';
 import { renderProject } from './render.ts';
@@ -84,7 +85,7 @@ export async function cutProject(dir: string, presetId?: string): Promise<CutRep
     const preset = getPreset(presetId, await listPresets(project.client));
     project.presetId = preset.id;
     project.pacing = Pacing.parse(preset.pacing);
-    project.captions = CaptionStyle.parse(preset.captions);
+    project.captions = CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(project.client)) });
   }
   const { silences } = (await readAnalysis(dir)) ?? (await analyzeAudio(dir));
   const { scenes, report } = autoCut(transcript.words, project.pacing, project.source.duration, silences);

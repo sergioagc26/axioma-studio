@@ -30,7 +30,7 @@ export async function allPresets(client?: string): Promise<Preset[]> {
 /** Guarda un preset del cliente partiendo de uno existente. */
 export async function savePreset(
   client: string | undefined,
-  input: { name: string; description?: string; base?: string; pacing?: Partial<Pacing>; captions?: Partial<CaptionStyle> },
+  input: { name: string; description?: string; base?: string; pacing?: Partial<Pacing>; captions?: Partial<CaptionStyle>; palette?: string[]; reference?: string },
 ): Promise<Preset> {
   const base = (await allPresets(client)).find((p) => p.id === (input.base ?? 'con-ritmo')) ?? BUILTIN_PRESETS[0];
   const preset = Preset.parse({
@@ -38,10 +38,18 @@ export async function savePreset(
     name: input.name,
     description: input.description ?? '',
     pacing: Pacing.parse({ ...base.pacing, ...input.pacing }),
-    captions: CaptionStyle.parse({ ...base.captions, ...input.captions }),
+    captions: CaptionStyle.parse({ ...base.captions, ...input.captions, ...fontWeightFor(input.captions?.fontFamily) }),
+    palette: input.palette,
+    reference: input.reference,
   });
   const dir = presetsDir(client);
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, `${preset.id}.json`), JSON.stringify(preset, null, 2));
   return preset;
+}
+
+/** Las fuentes de un solo peso (Anton, Bebas…) necesitan 400 para no verse falsas. */
+function fontWeightFor(font?: string): Partial<CaptionStyle> {
+  if (!font) return {};
+  return ['Anton', 'Bebas Neue', 'Archivo Black'].includes(font) ? { fontWeight: 400 } : { fontWeight: font === 'Oswald' ? 700 : 800 };
 }

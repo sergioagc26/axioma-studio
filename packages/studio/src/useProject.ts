@@ -46,6 +46,7 @@ export interface ProjectStore {
   project: Project | null;
   transcript: Transcript | null;
   presets: Preset[];
+  setPresets: (p: Preset[]) => void;
   error: string | null;
   saving: boolean;
   /** Cambia el proyecto: guarda, y queda en el historial de deshacer. */
@@ -143,5 +144,5 @@ export function useProject(id: string | null): ProjectStore {
   const undo = useCallback(() => step(past.current, future.current), [save]);
   const redo = useCallback(() => step(future.current, past.current), [save]);
 
-  return { project, transcript, presets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
+  return { project, transcript, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
 }

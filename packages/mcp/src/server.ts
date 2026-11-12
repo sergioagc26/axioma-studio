@@ -3,7 +3,7 @@ import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { APP_NAME } from '@snz/schema';
+import { APP_NAME, FONT_FAMILIES } from '@snz/schema';
 import * as E from '@snz/engine';
 
 const log = (msg: string) => console.error(`[${APP_NAME}] ${msg}`);
@@ -207,7 +207,7 @@ export function createServer() {
     proyecto,
     modo: z.enum(['word', 'phrase']).optional(),
     palabras_por_linea: z.number().int().min(1).max(8).optional(),
-    fuente: z.enum(['Montserrat', 'Inter', 'Space Grotesk']).optional(),
+    fuente: z.enum(FONT_FAMILIES).optional(),
     tamano: z.number().min(30).max(140).optional(),
     color: z.string().optional(),
     color_resaltado: z.string().optional(),
@@ -233,11 +233,15 @@ export function createServer() {
     subtitulos: z.object({
       modo: z.enum(['word', 'phrase']).optional(),
       palabras_por_linea: z.number().int().optional(),
-      fuente: z.string().optional(),
+      fuente: z.enum(FONT_FAMILIES).optional(),
+      tamano: z.number().min(30).max(140).optional(),
       color: z.string().optional(),
       color_resaltado: z.string().optional(),
       mayusculas: z.boolean().optional(),
+      posicion_y: z.number().min(0.1).max(0.9).optional(),
     }).optional(),
+    referencia: z.string().optional().describe('Id de la referencia analizada de la que sale el preset'),
+    paleta: z.array(z.string()).optional(),
   }, async (a) => {
     const p = await E.readProject(await resolveProject(a.proyecto));
     const s = a.subtitulos ?? {};
@@ -245,9 +249,51 @@ export function createServer() {
     const preset = await E.savePreset(p.client, {
       name: a.nombre, description: a.descripcion, base: a.base,
       pacing: clean({ maxPause: a.pausa_maxima, punchZoomEvery: a.zoom_cada }),
-      captions: clean({ mode: s.modo, wordsPerLine: s.palabras_por_linea, fontFamily: s.fuente, color: s.color, highlightColor: s.color_resaltado, uppercase: s.mayusculas }),
+      captions: clean({ mode: s.modo, wordsPerLine: s.palabras_por_linea, fontFamily: s.fuente, fontSize: s.tamano, color: s.color, highlightColor: s.color_resaltado, uppercase: s.mayusculas, y: s.posicion_y }),
+      palette: a.paleta, reference: a.referencia,
     });
     return `Preset guardado: ${preset.id} (${preset.name}) para ${p.client ?? 'personal'}.`;
+  });
+
+  tool(
+    'analizar_referencia',
+    'Analiza el ESTILO de un video de referencia (ritmo de cortes, tempo, paleta) y extrae 8 fotogramas. Después mira 3–4 fotogramas con tu herramienta de lectura de imágenes para describir subtítulos (posición, mayúsculas, palabras por línea, color de resaltado) y elegir la fuente más parecida de la lista disponible. Luego guarda el estilo con guardar_preset. Nunca copies el contenido (textos, clips, música) de la referencia.',
+    { video: z.string().describe('Ruta absoluta del video de referencia'), proyecto, nombre: z.string().optional() },
+    async ({ video, proyecto, nombre }) => {
+      const p = await E.readProject(await resolveProject(proyecto));
+      const { dir, report } = await E.analyzeReference(video, { client: p.client, name: nombre });
+      return `${E.formatReport(report, dir)}\n\nFuentes disponibles: ${FONT_FAMILIES.join(', ')}.`;
+    },
+  );
+
+  tool('listar_referencias', 'Referencias ya analizadas del cliente del proyecto.', { proyecto }, async ({ proyecto }) => {
+    const p = await E.readProject(await resolveProject(proyecto));
+    const list = await E.listReferences(p.client);
+    return list.length ? list.map((r) => `${r.id} · ${r.name} · plano medio ${r.avgShot.toFixed(2)} s · ${r.palette.join(' ')}`).join('\n') : 'No hay referencias analizadas.';
+  });
+
+  tool('leer_kit', 'Kit de marca del cliente del proyecto (colores, fuentes, logo).', { proyecto }, async ({ proyecto }) => {
+    const p = await E.readProject(await resolveProject(proyecto));
+    const kit = await E.readKit(p.client);
+    return kit ? JSON.stringify(kit, null, 2) : `El cliente ${p.client ?? 'personal'} no tiene kit. Créalo con guardar_kit.`;
+  });
+
+  tool('guardar_kit', 'Crea o actualiza el kit de marca del cliente. Sus colores y fuente se imponen sobre cualquier preset en los proyectos nuevos y al aplicar presets.', {
+    proyecto,
+    nombre: z.string().optional(),
+    color_primario: z.string().optional().describe('Color de acento y de resaltado de subtítulos'),
+    color_secundario: z.string().optional(),
+    color_texto: z.string().optional(),
+    fuente_titulos: z.enum(FONT_FAMILIES).optional(),
+    fuente_texto: z.enum(FONT_FAMILIES).optional(),
+    logo: z.string().optional().describe('Ruta absoluta del logo (PNG o SVG)'),
+  }, async (a) => {
+    const p = await E.readProject(await resolveProject(a.proyecto));
+    const kit = await E.saveKit(p.client, {
+      name: a.nombre, primary: a.color_primario, secondary: a.color_secundario, text: a.color_texto,
+      heading: a.fuente_titulos, body: a.fuente_texto, logo: a.logo,
+    });
+    return `Kit guardado para ${p.client ?? 'personal'}:\n${JSON.stringify(kit, null, 2)}`;
   });
 
   tool('leer_peticiones', 'Peticiones de cambio escritas en el studio.', { proyecto, todas: z.boolean().default(false) }, async ({ proyecto, todas }) => {

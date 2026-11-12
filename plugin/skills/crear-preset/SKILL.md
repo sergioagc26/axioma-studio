@@ -1,6 +1,6 @@
 ---
 name: crear-preset
-description: Crea o ajusta un preset de edición (ritmo de cortes y estilo de subtítulos) para un cliente a partir de comentarios como "más rápido, letras amarillas, sin mayúsculas". Úsala cuando el usuario pida "guarda este estilo", "crea un preset", "que siempre quede así" o describa cómo quiere que se vean sus reels.
+description: Crea o ajusta un preset de edición (ritmo de cortes y estilo de subtítulos) o el kit de marca de un cliente, a partir de comentarios ("más rápido, letras amarillas") o de un video de referencia. Úsala cuando el usuario pida "guarda este estilo", "crea un preset", "que siempre quede así", "quiero que se vea como este video", pase un video de referencia o hable de los colores y fuentes de un cliente.
 ---
 
 # Crear un preset
@@ -32,4 +32,23 @@ Un preset guarda dos cosas:
    Se guarda en la carpeta del cliente del proyecto.
 4. Confirma con el id del preset y cómo usarlo ("la próxima vez di: usa el preset cre-amarillo").
 
-Crear presets desde un video de referencia llega en la fase 4 (`analizar_referencia`). Mientras tanto, pide al usuario que describa el estilo de la referencia y créalo con estos pasos.
+## Desde un video de referencia
+
+1. Llama `analizar_referencia` con la ruta del video. Devuelve el ritmo de cortes, el tempo, la paleta, los valores sugeridos y 8 fotogramas.
+2. Mira 3 o 4 fotogramas con tu herramienta de lectura de imágenes y anota **solo el estilo** de los subtítulos:
+   - posición (arriba, centro, tercio inferior → `posicion_y`);
+   - mayúsculas o no;
+   - cuántas palabras por línea;
+   - si resalta una palabra y con qué color;
+   - la fuente más parecida de la lista disponible.
+3. Resume el reporte al usuario en 4–5 líneas y pregunta qué quiere tomar: ritmo, color, tipografía o todo.
+4. Guarda con `guardar_preset`, usando los valores sugeridos más lo que viste, y pasa `referencia` y `paleta`.
+5. Ofrece aplicarlo al proyecto (`aplicar_preset`) y renderizar.
+
+Nunca copies textos, clips ni música de la referencia. Si la fuente exacta no está en la lista, dilo y usa la más parecida.
+
+El mismo análisis sirve para los reels propios del usuario que mejor funcionaron.
+
+## Kit de marca
+
+Si el usuario da los colores o la fuente de un cliente, guárdalos con `guardar_kit`. El kit manda sobre los presets: su color primario es el resaltado de los subtítulos y su fuente de títulos es la de los subtítulos, en proyectos nuevos y cada vez que se aplica un preset. Consulta el kit con `leer_kit` antes de proponer colores.

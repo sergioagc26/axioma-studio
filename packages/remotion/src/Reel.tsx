@@ -5,6 +5,12 @@ import {
 import { loadFont as loadMontserrat } from '@remotion/google-fonts/Montserrat';
 import { loadFont as loadInter } from '@remotion/google-fonts/Inter';
 import { loadFont as loadSpaceGrotesk } from '@remotion/google-fonts/SpaceGrotesk';
+import { loadFont as loadPoppins } from '@remotion/google-fonts/Poppins';
+import { loadFont as loadAnton } from '@remotion/google-fonts/Anton';
+import { loadFont as loadBebas } from '@remotion/google-fonts/BebasNeue';
+import { loadFont as loadOswald } from '@remotion/google-fonts/Oswald';
+import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlack';
+import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import type { Timeline, TimelineClip, TimelineOverlay } from '@snz/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
 
@@ -12,6 +18,12 @@ const FONTS: Record<string, () => { fontFamily: string }> = {
   Montserrat: () => loadMontserrat('normal', { weights: ['700', '800', '900'], subsets: ['latin', 'latin-ext'] }),
   Inter: () => loadInter('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),
   'Space Grotesk': () => loadSpaceGrotesk('normal', { weights: ['600', '700'], subsets: ['latin', 'latin-ext'] }),
+  Poppins: () => loadPoppins('normal', { weights: ['700', '800'], subsets: ['latin', 'latin-ext'] }),
+  Anton: () => loadAnton('normal', { weights: ['400'], subsets: ['latin', 'latin-ext'] }),
+  'Bebas Neue': () => loadBebas('normal', { weights: ['400'], subsets: ['latin', 'latin-ext'] }),
+  Oswald: () => loadOswald('normal', { weights: ['600', '700'], subsets: ['latin', 'latin-ext'] }),
+  'Archivo Black': () => loadArchivoBlack('normal', { weights: ['400'], subsets: ['latin', 'latin-ext'] }),
+  'DM Sans': () => loadDMSans('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),
 };
 
 function useFont(name: string): string {

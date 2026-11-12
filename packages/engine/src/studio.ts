@@ -10,7 +10,8 @@ import { ffmpeg } from './exec.ts';
 import * as ops from './ops.ts';
 import { P, REPO_ROOT } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
-import { allPresets } from './presets.ts';
+import { allPresets, savePreset } from './presets.ts';
+import { analyzeReference, listReferences, referencesDir } from './reference.ts';
 import { renderProject } from './render.ts';
 import { safeJoin, sendFile } from './server.ts';
 import { createProject, readProject, readTranscript, writeProject } from './store.ts';
@@ -20,7 +21,7 @@ const DIST = path.join(REPO_ROOT, 'packages', 'studio', 'dist');
 
 interface Job {
   id: string;
-  kind: 'crear' | 'render';
+  kind: 'crear' | 'render' | 'referencia';
   status: 'running' | 'done' | 'error';
   message: string;
   progress: number;
@@ -139,6 +140,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     const b = await readBody(req);
     if (b.op === 'preset') return json(res, { project: await ops.applyPreset(dir, b.presetId) });
+    if (b.op === 'guardar-preset') {
+      const project = await readProject(dir);
+      const preset = await savePreset(project.client, b.preset);
+      const applied = b.aplicar ? await ops.applyPreset(dir, preset.id) : project;
+      return json(res, { preset, project: applied, presets: await allPresets(project.client) });
+    }
     if (b.op === 'peticion') return json(res, { project: await ops.addRequest(dir, String(b.text ?? '').slice(0, 2000), b.sceneId) });
     if (b.op === 'version') return json(res, { name: await ops.saveVersion(dir, b.label) });
     if (b.op === 'render') {
@@ -150,6 +157,38 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, job);
     }
     return json(res, { error: `Operación desconocida: ${b.op}` }, 400);
+  }
+
+  if (p === '/api/references' && method === 'GET') {
+    const project = await readProject(await findDir(id));
+    return json(res, await listReferences(project.client));
+  }
+
+  if (p === '/api/references' && method === 'POST') {
+    const project = await readProject(await findDir(id));
+    const filename = path.basename(url.searchParams.get('filename') ?? 'referencia.mp4');
+    const tmpDir = path.join(os.tmpdir(), `snz-ref-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const tmp = path.join(tmpDir, filename);
+    await pipe(req, createWriteStream(tmp));
+    const job = startJob('referencia', async (j) => {
+      j.message = 'Analizando ritmo, música y colores…';
+      try {
+        const { report } = await analyzeReference(tmp, { client: project.client });
+        return { report };
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+    return json(res, job);
+  }
+
+  if (p.startsWith('/ref/')) {
+    // /ref/<cliente>/<referencia>/frames/01.jpg
+    const [, , client, ...rest] = p.split('/').map(decodeURIComponent);
+    const file = safeJoin(referencesDir(client), rest.join(path.sep));
+    if (!file || !sendFile(req, res, file)) res.writeHead(404).end();
+    return;
   }
 
   if (p === '/api/events') {

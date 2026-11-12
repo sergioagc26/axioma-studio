@@ -10,3 +10,5 @@ export * from './transcribe.ts';
 export { doctor } from './doctor.ts';
 export { installClaude } from './claude.ts';
 export * from './studio.ts';
+export * from './reference.ts';
+export * from './kit.ts';
