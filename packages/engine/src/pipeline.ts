@@ -105,6 +105,9 @@ export async function editVideo(
   await prepareMedia(dir, log);
   const t = await transcribeProject(dir, log);
   log(`  ${t.words.length} palabras`);
+  if (!t.words.length) {
+    throw new Error('No se detectó voz en el video. Esta app edita videos donde una persona habla; para un video sin voz no hay nada que cortar ni subtitular.');
+  }
   const report = await cutProject(dir);
   log(
     `Cortes: ${report.sourceDuration.toFixed(1)} s → ${report.outputDuration.toFixed(1)} s ` +

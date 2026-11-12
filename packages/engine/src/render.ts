@@ -47,13 +47,15 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       format: opts.format ? FORMATS[opts.format] : undefined,
     });
     const serveUrl = await getBundle();
-    const composition = await selectComposition({ serveUrl, id: 'Reel', inputProps: timeline });
+    // Con el computador muy ocupado, el navegador del render puede tardar en abrir: se reintenta.
+    const composition = await retryBrowser(() => selectComposition({ serveUrl, id: 'Reel', inputProps: timeline, timeoutInMilliseconds: 120_000 }));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const suffix = opts.format && opts.format !== '9:16' ? `-${opts.format.replace(':', 'x')}` : '';
     const out = opts.out ?? path.join(dir, P.renders, `${project.id}-${stamp}${suffix}.mp4`);
     const raw = out.replace(/\.mp4$/i, '') + '.sin-nivelar.mp4';
-    await renderMedia({
+    await retryBrowser(() => renderMedia({
       serveUrl,
+      timeoutInMilliseconds: 120_000,
       composition,
       inputProps: timeline,
       codec: 'h264',
@@ -63,7 +65,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       outputLocation: raw,
       concurrency: Math.max(1, Math.min(8, Math.floor(os.cpus().length / 2))),
       onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
-    });
+    }));
     // Con música la mezcla sube de volumen: se nivela el resultado final.
     if (timeline.musicSrc) {
       await normalizeMix(raw, out, project.audio.targetLufs);
@@ -75,5 +77,18 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     return { out, durationInFrames: timeline.durationInFrames, fps: timeline.fps };
   } finally {
     await server.close();
+  }
+}
+
+/** Reintenta hasta 3 veces cuando el navegador interno no llega a abrir. */
+async function retryBrowser<T>(fn: () => Promise<T>): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (i >= 2 || !/connect to the browser|Timed out.*browser|browser.*closed/i.test(msg)) throw e;
+      await new Promise((r) => setTimeout(r, 5000));
+    }
   }
 }

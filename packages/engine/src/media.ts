@@ -7,6 +7,8 @@ export interface ProbeInfo {
   fps: number;
   rotation: number;
   hasAudio: boolean;
+  /** Video HDR (HLG o PQ), típico del iPhone: hay que pasarlo a color estándar. */
+  hdr: boolean;
 }
 
 export async function probe(file: string): Promise<ProbeInfo> {
@@ -26,6 +28,7 @@ export async function probe(file: string): Promise<ProbeInfo> {
     fps: d ? n / d : n,
     rotation,
     hasAudio: j.streams.some((s: any) => s.codec_type === 'audio'),
+    hdr: ['arib-std-b67', 'smpte2084'].includes(v.color_transfer),
   };
 }
 
@@ -37,8 +40,11 @@ export async function makeMaster(input: string, out: string, fps: number, info: 
   const scale = info.width <= info.height ? 'scale=1080:-2' : 'scale=-2:1080';
   await ffmpeg([
     '-i', input,
-    '-vf', `${scale},fps=${fps},format=yuv420p`,
+    // HDR → color estándar (BT.709). Sin esto los colores salen lavados.
+    '-vf', `${scale},fps=${fps},${info.hdr ? 'colorspace=all=bt709:iall=bt2020:itrc=bt2020-10:format=yuv420p' : 'format=yuv420p'}`,
+    '-map', '0:v:0', '-map', '0:a:0?',
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-g', String(Math.round(fps)),
+    ...(info.hdr ? ['-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709'] : []),
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000',
     '-movflags', '+faststart',
     out,
