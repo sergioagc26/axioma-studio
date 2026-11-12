@@ -30,3 +30,5 @@ export * from './env.ts';
 export * from './clips.ts';
 export * from './depth.ts';
 export * from './colormatch.ts';
+export * from './llm.ts';
+export * from './localedit.ts';

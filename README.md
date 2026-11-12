@@ -102,6 +102,24 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## IA local (gratis, sin internet)
+
+Si Claude no está conectado, la app usa un modelo de lenguaje que corre en tu computador con [Ollama](https://ollama.com):
+
+```bash
+brew install ollama
+brew services start ollama
+ollama pull qwen3:8b
+```
+
+Ocupa unos 5 GB y la app lo detecta sola (arriba aparece «IA local lista»). Con él:
+
+- Los botones de «Pedir a Claude» editan por chat: el modelo propone cambios de una lista cerrada (textos, cámara, color, subtítulos, acabados, escenas…) y la app los valida antes de aplicarlos. Antes guarda una versión.
+- «Editar todo con IA» escribe el gancho de la pantalla a partir de lo que dices.
+- En la ventana de exportar, «Redactar con IA local» escribe título, descripción y hashtags.
+
+Otro modelo: define `AXIOMA_LLM` (por ejemplo `AXIOMA_LLM=qwen2.5:7b`).
+
 ## Modo automático
 
 La app edita sola, sin preguntas. Hay tres formas de usarlo:

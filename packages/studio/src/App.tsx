@@ -43,7 +43,8 @@ export const App: React.FC = () => {
   const [lufs, setLufs] = useState(-14);
   // ¿Claude tiene sesión iniciada? null = todavía comprobando.
   const [claude, setClaude] = useState<boolean | null>(null);
-  useEffect(() => { api('/api/claude').then((d) => setClaude(d.conectado)).catch(() => setClaude(false)); }, []);
+  const [local, setLocal] = useState(false);
+  useEffect(() => { api('/api/claude').then((d) => { setClaude(d.conectado); setLocal(Boolean(d.local)); }).catch(() => setClaude(false)); }, []);
   const connect = async () => {
     try {
       await api('/api/claude', { method: 'POST' });
@@ -99,12 +100,15 @@ export const App: React.FC = () => {
     return () => removeEventListener('keydown', on);
   }, [store.undo, store.redo]);
 
-  const pubText = project ? publishText(publishPack(project, store.transcript, store.kit?.sector)) : '';
+  const [pubAi, setPubAi] = useState<string | null>(null);
+  const [pubBusy, setPubBusy] = useState(false);
+  const pubText = pubAi ?? (project ? publishText(publishPack(project, store.transcript, store.kit?.sector)) : '');
   const openExport = () => {
     if (!project) return;
     setCalidad(project.export.quality);
     setCarpeta(project.export.folder ?? '');
     setLufs(project.audio.targetLufs <= -15 ? -16 : -14);
+    setPubAi(null);
     setExportOpen(true);
   };
   const pickFolder = async () => {
@@ -162,6 +166,7 @@ export const App: React.FC = () => {
             <button className="btn rect" title="Abre una terminal: escribe /login y vuelve aquí" onClick={connect}>Conectar Claude</button>
           )}
           {claude === true && <span className="pill">Claude conectado</span>}
+          {claude === false && local && <span className="pill" title="Los pedidos de cambios los hace la IA de tu computador (Ollama)">IA local lista</span>}
           <button className="btn rect" onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
             Tema {theme === 'oscuro' ? 'claro' : 'oscuro'}
           </button>
@@ -218,6 +223,12 @@ export const App: React.FC = () => {
             <span className="small muted">Se recuerda para la próxima vez. Vacío = dentro del proyecto.</span>
             <span className="small muted">Texto para publicar (también se guarda junto al video como .txt)</span>
             <textarea className="input" readOnly rows={6} style={{ resize: 'vertical', fontFamily: 'inherit' }} value={pubText} />
+            {local && (
+              <button className="btn rect" style={{ alignSelf: 'flex-start' }} disabled={pubBusy} onClick={async () => {
+                setPubBusy(true);
+                try { setPubAi(publishText(await api(`/api/publicar?id=${encodeURIComponent(project.id)}`, { method: 'POST' }))); } catch (e: any) { toast(e.message); } finally { setPubBusy(false); }
+              }}>{pubBusy ? 'Escribiendo…' : 'Redactar con IA local'}</button>
+            )}
             <button className="btn rect" style={{ alignSelf: 'flex-start' }} onClick={() => { navigator.clipboard?.writeText(pubText).then(() => toast('Texto copiado.')).catch(() => toast('No se pudo copiar; selecciónalo y cópialo a mano.')); }}>Copiar texto</button>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setExportOpen(false)}>Cancelar</button>

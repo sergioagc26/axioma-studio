@@ -23,11 +23,11 @@ describe.skipIf(!hasFixture)('studio: API y sincronización', () => {
     child = spawn(process.execPath, [path.join(repo, 'node_modules', 'tsx', 'dist', 'cli.mjs'), path.join(repo, 'packages', 'engine', 'src', 'cli.ts'), 'studio', '--no-open'], {
       env: { ...process.env, SE_WORKSPACE: ws, SE_STUDIO_PORT: String(port) }, stdio: 'ignore',
     });
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 180; i++) { // hasta 45 s: con el computador ocupado tarda en arrancar
       try { await get('/api/ping'); return; } catch { await new Promise((r) => setTimeout(r, 250)); }
     }
     throw new Error('El studio no arrancó');
-  }, 30_000);
+  }, 60_000);
 
   afterAll(() => {
     child?.kill();

@@ -20,7 +20,10 @@ import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
-import { autoEdit } from './auto.ts';
+import { autoEdit, planAutoEdit } from './auto.ts';
+import { speechOf } from '@axioma/schema';
+import { llmPublish, llmReady } from './llm.ts';
+import { localEdit } from './localedit.ts';
 import { createClipProject, projectClips } from './clips.ts';
 import { matchSceneColors } from './colormatch.ts';
 import { buildCutout } from './matte.ts';
@@ -112,9 +115,21 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/pexels' && method === 'GET') return json(res, { results: await searchBroll(String(url.searchParams.get('q') ?? '').slice(0, 80), 9) });
   if (p === '/api/sonidos' && method === 'GET') return json(res, { results: await searchSounds(String(url.searchParams.get('q') ?? '').slice(0, 80)) });
   if (p === '/api/elegir-carpeta' && method === 'POST') return json(res, { folder: await pickFolder() });
+  if (p === '/api/publicar' && method === 'POST') {
+    // Texto para publicar redactado por la IA local.
+    const dir = await findDir(id);
+    if (!(await llmReady())) return json(res, { error: 'La IA local no está instalada o no está abierta.' }, 400);
+    const pr = await readProject(dir);
+    const t = await readTranscript(dir);
+    const speech = pr.scenes.map((s) => speechOf(s, t)).join(' ');
+    const kit = await readKit(pr.client);
+    const cta = /digo en el video/i.test(pr.brief.cta ?? '') ? undefined : pr.brief.cta;
+    return json(res, await llmPublish(speech, { sector: kit?.sector, cta }));
+  }
+  if (p === '/api/plan' && method === 'GET') return json(res, { plan: await planAutoEdit(await findDir(id)) });
   if (p === '/api/clips' && method === 'GET') return json(res, { clips: await projectClips(await findDir(id)) });
   if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
-  if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1') });
+  if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1'), local: await llmReady() });
   if (p === '/api/claude' && method === 'POST') { await openClaudeLogin(); return json(res, { ok: true }); }
 
   if (p === '/api/projects' && method === 'GET') {
@@ -310,6 +325,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
           const r = await askClaude(project.id, text, (m) => { j.message = m; });
           return { text: r.text, tools: r.tools };
         } catch (e) {
+          // Sin Claude, lo hace la IA local (Ollama) si está instalada.
+          if (e instanceof AssistantError && e.code !== 'fallo' && (await llmReady())) {
+            j.message = 'La IA local está editando…';
+            const r = await localEdit(dir, text, b.sceneId);
+            return { text: r.applied.length ? `${r.text} (${r.applied.join('; ')}). Queda una versión guardada de antes.` : r.text, local: true };
+          }
           if (e instanceof AssistantError && e.code !== 'fallo') {
             await ops.addRequest(dir, text, b.sceneId);
             return { text: e.message, saved: true, code: e.code };

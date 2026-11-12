@@ -362,6 +362,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const trend = sector ? TRENDS[sector] ?? TRENDS.otro : null;
   const hasRef = store.presets.some((p) => p.reference);
   const [auto, setAuto] = useState('');
+  const [plan, setPlan] = useState<string[] | null>(null);
   /** Edita todo el video de una vez: referencia + tendencia + lo que se ve. */
   const autoEdit = async () => {
     setAuto('Editando todo el video…');
@@ -492,7 +493,20 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               ))}
             </div>
             <span className="small muted">Intensidad: cuántos textos, zooms, gráficos y sonidos pone la IA.</span>
-            <button className="btn primary" disabled={Boolean(auto)} onClick={autoEdit}>{auto || 'Editar todo con IA'}</button>
+            {plan ? (
+              <div className="col" style={{ gap: 6 }}>
+                <strong className="small">Esto es lo que voy a hacer:</strong>
+                <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{plan.map((l) => <li key={l}>{l}</li>)}</ul>
+                <div className="row" style={{ gap: 6 }}>
+                  <button className="btn primary" disabled={Boolean(auto)} onClick={() => { setPlan(null); autoEdit(); }}>{auto || 'Editar así'}</button>
+                  <button className="btn ghost" onClick={() => setPlan(null)}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <button className="btn primary" disabled={Boolean(auto)} onClick={async () => {
+                try { setPlan((await api<{ plan: string[] }>(`/api/plan?id=${encodeURIComponent(project.id)}`)).plan); } catch { autoEdit(); }
+              }}>{auto || 'Editar todo con IA'}</button>
+            )}
             <span className="small muted">
               Un solo botón: corta, pone gancho, textos, zooms, gráficos, transiciones y sonidos.
               {hasRef ? ' Sigue tu referencia guardada' : ' Sin referencia guardada'}{trend ? ` y lo que funciona en ${SECTORS.find(([id]) => id === sector)?.[1]?.toLowerCase()}.` : '.'} Queda una versión guardada de lo anterior.

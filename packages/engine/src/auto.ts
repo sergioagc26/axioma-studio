@@ -8,6 +8,7 @@ import { listPresets } from './presets.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { readVision } from './vision.ts';
 import { envValue } from './env.ts';
+import { llmHook, llmReady } from './llm.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
 import { keywords, speechOf } from '@axioma/schema';
 import { mkdir, rm } from 'node:fs/promises';
@@ -42,19 +43,10 @@ export function skipGreeting(project: { scenes: { ranges: { start: number; end: 
   return words.slice(0, n).map((w) => w.text).join(' ').replace(/[,.!¡¿?]+$/g, '');
 }
 
-/**
- * Edita el reel completo sin preguntar nada. Decide con lo que ya sabe:
- * 1. la referencia guardada del cliente (su ritmo, subtítulos y textos mandan);
- * 2. lo que está funcionando en su nicho (la marca, o lo que se ve en el video);
- * 3. lo que se ve y se oye en el video, si no hay ninguna de las dos.
- * Corta, pone gancho, textos, zooms, cámara, gráficos, transiciones y sonidos.
- * Antes guarda una versión por si se quiere volver.
- */
-export async function autoEdit(dir: string, opts: { referenceId?: string } = {}): Promise<{ summary: string[] }> {
-  let project = await readProject(dir);
-  const summary: string[] = [];
-  await saveVersion(dir, 'antes-de-editar-con-ia');
-
+/** Decide con qué estilo editar: referencia del cliente, tendencia del nicho o lo que se ve y se oye. */
+async function decideStyle(dir: string, project: Awaited<ReturnType<typeof readProject>>, referenceId?: string) {
+  const lines: string[] = [];
+  const opts = { referenceId };
   const kit = await readKit(project.client);
   const vision = await readVision(dir).catch(() => null);
   const own = await listPresets(project.client);
@@ -76,16 +68,16 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   let base: Preset;
   if (ref) {
     base = ref;
-    summary.push(`Seguí tu referencia «${ref.name}»: su ritmo de cortes, subtítulos y estilo de textos.`);
+    lines.push(`Seguí tu referencia «${ref.name}»: su ritmo de cortes, subtítulos y estilo de textos.`);
   } else if (trend) {
     base = getPreset(trend.preset, own);
-    summary.push(`No hay referencia guardada: usé lo que funciona en ${sectorName ?? 'tu nicho'} (${kit?.sector ? 'el nicho de tu marca' : rec0.reason.replace(/\.$/, '')}).`);
+    lines.push(`No hay referencia guardada: usé lo que funciona en ${sectorName ?? 'tu nicho'} (${kit?.sector ? 'el nicho de tu marca' : rec0.reason.replace(/\.$/, '')}).`);
   } else {
     const rec = recommendPreset(project, transcript0, vision);
     base = getPreset(rec.id, own);
-    summary.push(`Sin referencia ni marca: elegí el estilo «${base.name}». ${rec.reason}`);
+    lines.push(`Sin referencia ni marca: elegí el estilo «${base.name}». ${rec.reason}`);
   }
-  if (trend) summary.push(`Tendencia aplicada (${TRENDS_DATE}): ${trend.points.join('; ').toLowerCase()}.`);
+  if (trend) lines.push(`Tendencia aplicada (${TRENDS_DATE}): ${trend.points.join('; ').toLowerCase()}.`);
 
   // Mezcla: la receta de edición sale de la tendencia; lo que define la referencia manda.
   const recipe = getPreset(trend?.preset ?? base.id, own).style ?? {};
@@ -94,6 +86,56 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     captions: { ...base.captions, ...(ref ? {} : trend?.captions ?? {}) },
     style: { ...recipe, ...(trend?.style ?? {}), ...(base.style ?? {}), ...(ref ? {} : trend?.style ?? {}) },
   });
+
+  return { kit, ref, trend, base, merged, lines, transcript0 };
+}
+
+/**
+ * Plan de la edición con IA, sin aplicar nada: qué estilo, qué tendencia y qué hará con el
+ * reel. Se muestra antes de «Editar todo con IA» para que el usuario lo apruebe.
+ */
+export async function planAutoEdit(dir: string): Promise<string[]> {
+  const project = await readProject(dir);
+  const { trend, merged, lines, transcript0 } = await decideStyle(dir, project);
+  const st = merged.style ?? {};
+  const level = project.intensity ?? 'media';
+  // En el plan se habla en futuro.
+  const plan = lines.map((l) => l.replace(/^Seguí/, 'Seguiré').replace(/usé lo que/, 'usaré lo que').replace(/elegí el estilo/, 'elegiré el estilo').replace(/^Tendencia aplicada/, 'Aplicaré la tendencia'));
+  plan.push(`Intensidad ${level}: ${level === 'suave' ? 'pocos textos, sin zooms de golpe ni sonidos' : level === 'fuerte' ? 'textos en muchas escenas, zooms, gráficos frecuentes y sonidos' : `${st.texts === 'muchos' ? 'textos en una de cada dos escenas' : 'textos en una de cada tres escenas'}${st.zoomText ? ', zoom cuando aparece un texto' : ''}${st.motionEvery ? `, un gráfico cada ${st.motionEvery} escenas con tus cifras y frases` : ''}`}.`);
+  if (project.kind === 'hablado') {
+    plan.push('Cortaré silencios largos, muletillas y tomas repetidas.');
+    const probe = { scenes: project.scenes.map((s) => ({ ranges: s.ranges.map((r) => ({ ...r })) })) };
+    const g = skipGreeting(probe, transcript0);
+    if (g) plan.push(`Quitaré el saludo del inicio («${g}») para abrir con el gancho.`);
+    const asked = (project.brief.duracion ?? '').match(/\d+/g)?.map(Number) ?? [];
+    if (asked.length) plan.push(`Lo dejaré en máximo ${Math.max(...asked)} s, como pediste en el brief.`);
+    if (await envValue('PEXELS_API_KEY')) plan.push('Pondré b-roll de Pexels en algunas escenas del medio, elegido por lo que dices.');
+  } else {
+    plan.push(`Montaje con cortes al ritmo${trend ? `, de unos ${trend.seconds} s` : ''}.`);
+  }
+  if (st.transitions) plan.push(`Transiciones recomendadas${st.flashes ? ' con destellos' : ''}${st.sfxAuto ? ' y efectos de sonido' : ''}.`);
+  const cta = /digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim();
+  if (cta) plan.push(`Cierre con tu llamado a la acción: «${cta}».`);
+  plan.push('Antes guardaré una versión para que puedas volver atrás.');
+  return plan;
+}
+
+/**
+ * Edita el reel completo sin preguntar nada. Decide con lo que ya sabe:
+ * 1. la referencia guardada del cliente (su ritmo, subtítulos y textos mandan);
+ * 2. lo que está funcionando en su nicho (la marca, o lo que se ve en el video);
+ * 3. lo que se ve y se oye en el video, si no hay ninguna de las dos.
+ * Corta, pone gancho, textos, zooms, cámara, gráficos, transiciones y sonidos.
+ * Antes guarda una versión por si se quiere volver.
+ */
+export async function autoEdit(dir: string, opts: { referenceId?: string } = {}): Promise<{ summary: string[] }> {
+  let project = await readProject(dir);
+  const summary: string[] = [];
+  await saveVersion(dir, 'antes-de-editar-con-ia');
+
+  const { kit, ref, trend, base, merged, lines, transcript0 } = await decideStyle(dir, project, opts.referenceId);
+  void kit; void transcript0;
+  summary.push(...lines);
 
   // 1. Corte con el ritmo elegido.
   if (project.kind === 'montaje') {
@@ -143,6 +185,21 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
       } catch { /* sin internet o sin resultados: la escena queda con el video original */ }
     }
     if (put) { project = await writeProject(dir, project); summary.push(`B-roll de Pexels en ${put} escenas, elegido por lo que dices en cada una.`); }
+  }
+
+  // 2c. Gancho redactado por la IA local (si está instalada), fiel a lo que se dice.
+  if (project.kind === 'hablado' && project.scenes[0]?.onScreenText && (await llmReady())) {
+    const first = project.scenes[0];
+    const said = speechOf(first, await readTranscript(dir).catch(() => null));
+    try {
+      const hook = await llmHook(said);
+      if (hook) {
+        first.onScreenText = hook;
+        first.autoText = hook;
+        project = await writeProject(dir, project);
+        summary.push(`Gancho escrito por la IA local: «${hook}».`);
+      }
+    } catch { /* sin IA local se queda el gancho sacado de lo que se dice */ }
   }
 
   // 3. Cierre con el llamado a la acción del brief, si lo hay.
