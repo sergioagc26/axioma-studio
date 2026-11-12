@@ -7,6 +7,12 @@ import { cutProject } from './pipeline.ts';
 import { listPresets } from './presets.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { readVision } from './vision.ts';
+import { mkdir, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { createMontage, detectShots } from './montage.ts';
+import { prepareMedia, transcribeProject } from './pipeline.ts';
+import { renderProject } from './render.ts';
+import { createProject } from './store.ts';
 
 /**
  * Edita el reel completo sin preguntar nada. Decide con lo que ya sabe:
@@ -28,7 +34,10 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
 
   // Nicho: el de la marca; si no hay, el que corresponde a lo que se ve.
   const seen = VISION_TOPICS.find((t) => t.id === vision?.topic);
-  const sector = kit?.sector || seen?.sector || null;
+  // Sin marca, el nicho sale de lo que se dice (si el tema es claro) y, si no, de lo que se ve.
+  const rec0 = recommendPreset(project, transcript0, vision);
+  const heard = Object.entries(TRENDS).find(([, t]) => t.preset === rec0.id)?.[0];
+  const sector = kit?.sector || heard || seen?.sector || null;
   const trend = sector ? TRENDS[sector] ?? TRENDS.otro : null;
   const sectorName = SECTORS.find(([id]) => id === sector)?.[1];
 
@@ -42,7 +51,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     summary.push(`Seguí tu referencia «${ref.name}»: su ritmo de cortes, subtítulos y estilo de textos.`);
   } else if (trend) {
     base = getPreset(trend.preset, own);
-    summary.push(`No hay referencia guardada: usé lo que funciona en ${sectorName ?? 'tu nicho'} (${kit?.sector ? 'el nicho de tu marca' : `en la imagen se ve ${seen?.label}`}).`);
+    summary.push(`No hay referencia guardada: usé lo que funciona en ${sectorName ?? 'tu nicho'} (${kit?.sector ? 'el nicho de tu marca' : rec0.reason.replace(/\.$/, '')}).`);
   } else {
     const rec = recommendPreset(project, transcript0, vision);
     base = getPreset(rec.id, own);
@@ -69,7 +78,8 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     await cutProject(dir, base.id);
     project = await readProject(dir);
     const asked = (project.brief.duracion ?? '').match(/\d+/g)?.map(Number) ?? [];
-    const max = asked.length ? Math.max(...asked) : /dure/i.test(project.brief.duracion ?? '') ? null : trend?.seconds ?? null;
+    // Solo se acorta si el brief pidió una duración: quitar partes por cuenta propia rompe el mensaje.
+    const max = asked.length ? Math.max(...asked) : null;
     summary.push('Corté silencios largos, muletillas y tomas repetidas.');
     if (max && outputDuration(project) > max) {
       summary.push(fitDuration(project, max));
@@ -99,4 +109,35 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   const trans = project.scenes.filter((s) => s.transition).length;
   summary.push(`Quedó en ${outputDuration(project).toFixed(0)} s y ${project.scenes.length} escenas: ${texts} textos en pantalla, ${motions} gráficos animados y ${trans} transiciones${project.audio.sfxAuto ? ', con efectos de sonido' : ''}.`);
   return { summary };
+}
+
+/**
+ * De un archivo de video a un reel terminado, sin intervención: crea el proyecto,
+ * lo prepara, lo transcribe, lo edita con `autoEdit` y lo exporta. Si el video no
+ * tiene voz, lo arma como montaje. Es lo que usa el modo automático.
+ */
+export async function autoVideo(input: string, opts: { client?: string; outFolder?: string; render?: boolean } = {}, log: (m: string) => void = console.log) {
+  let { dir } = await createProject({ input, client: opts.client });
+  log(`Proyecto: ${dir}`);
+  await prepareMedia(dir, log);
+  const t = await transcribeProject(dir, log);
+  if (!t.words.length) {
+    // Sin voz: se rehace como montaje de tomas.
+    log('  sin voz: se arma como montaje');
+    await rm(dir, { recursive: true, force: true });
+    ({ dir } = await createMontage({ inputs: [input], client: opts.client }));
+    await prepareMedia(dir, log);
+    await detectShots(dir);
+  }
+  const { summary } = await autoEdit(dir);
+  for (const line of summary) log(`  ${line}`);
+  let out: string | undefined;
+  if (opts.render !== false) {
+    log('Exportando…');
+    const name = path.basename(input, path.extname(input)).replace(/[^\p{L}\p{N} _-]+/gu, '').trim() || 'reel';
+    if (opts.outFolder) await mkdir(opts.outFolder, { recursive: true });
+    ({ out } = await renderProject(dir, opts.outFolder ? { out: path.join(opts.outFolder, `${name}-editado.mp4`) } : {}));
+    log(`Listo: ${out}`);
+  }
+  return { dir, out, summary };
 }

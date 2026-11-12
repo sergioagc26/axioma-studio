@@ -21,6 +21,7 @@ import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
 import { autoEdit } from './auto.ts';
+import { buildCutout } from './matte.ts';
 import { brandFor, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -132,6 +133,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Detectando tomas y armando el montaje…';
         await detectShots(dir);
         await buildMontage(dir, { duration: b.duration || undefined });
+        if (b.auto) { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await autoEdit(dir)).summary }; }
         return { id: project.id };
       } finally {
         for (const [t, f] of uploads) if (folders.includes(f)) { uploads.delete(t); await rm(f, { recursive: true, force: true }); }
@@ -162,6 +164,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         await transcribeProject(dir, log);
         j.progress = 0.9;
         await cutProject(dir);
+        // Edición automática al subir: el video llega al editor ya editado.
+        if (url.searchParams.get('auto') === '1') { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await autoEdit(dir)).summary }; }
         return { id: project.id };
       } finally {
         await rm(tmpDir, { recursive: true, force: true });
@@ -289,10 +293,19 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'peticion') return json(res, { project: await ops.addRequest(dir, String(b.text ?? '').slice(0, 2000), b.sceneId) });
     if (b.op === 'version') return json(res, { name: await ops.saveVersion(dir, b.label) });
+    if (b.op === 'recortar-fondo') {
+      // Recorta a la persona de todo el video (una sola vez por proyecto).
+      const job = startJob('ia', async (j) => {
+        j.message = 'Recortando a la persona…';
+        await buildCutout(dir, (pr, msg) => { j.progress = pr; j.message = msg; });
+        return {};
+      });
+      return json(res, job);
+    }
     if (b.op === 'broll-idea') {
       const job = startJob('ia', async (j) => {
         j.message = 'Creando la imagen…';
-        await ops.setBrollFromIdea(dir, String(b.sceneId ?? ''), String(b.idea ?? ''));
+        await ops.setBrollFromIdea(dir, String(b.sceneId ?? ''), String(b.idea ?? ''), Boolean(b.fondo));
         return {};
       });
       return json(res, job);
@@ -358,6 +371,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'broll.mp4'));
     await pipe(req, createWriteStream(tmp));
     try {
+      if (url.searchParams.get('fondo') === '1') return json(res, { project: await ops.setBackdropFile(dir, url.searchParams.get('scene') ?? '', tmp) });
       return json(res, { project: await ops.setBroll(dir, url.searchParams.get('scene') ?? '', tmp, { license: url.searchParams.get('license') ?? '', source: 'subido en el studio' }) });
     } finally {
       await rm(tmpDir, { recursive: true, force: true });

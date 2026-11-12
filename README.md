@@ -102,6 +102,26 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## Modo automático
+
+La app edita sola, sin preguntas. Hay tres formas de usarlo:
+
+- **Al subir un video** en la pantalla de proyectos, con la casilla «Automático» marcada: llega al editor ya editado.
+- **Botón «Editar todo con IA»** en el editor, sobre un proyecto que ya existe.
+- **Carpeta vigilada**, sin abrir la app:
+
+```bash
+npm run se -- auto "/ruta/a/mis-videos" --vigilar --client "Mi marca"
+```
+
+Cada video que dejes en esa carpeta se corta, se viste y se exporta a `editados/` (o a la carpeta de `--salida`). Sin `--vigilar` edita los que haya y termina. Los videos sin voz se arman como montaje.
+
+Para decidir el estilo usa, en este orden: la referencia guardada del cliente, lo que funciona en el nicho de su marca (guía incluida en la app, no consulta internet) y lo que se ve y se oye en el video.
+
+## Quitar o cambiar el fondo
+
+En el editor, «Recortar a la persona (sin pantalla verde)» procesa el video una sola vez (tarda unos minutos, todo en este computador). Después cada escena puede llevar detrás un color, un degradado, el propio video desenfocado, una imagen o un video subido, o un fondo creado desde una idea.
+
 ## Lo más reciente
 
 - **La app ve el video.** Un modelo de visión local (CLIP, en `.modelos/`, ~160 MB la primera vez) mira seis fotogramas y reconoce de qué trata: gente entrenando, comida, alguien hablando, una pantalla, un producto, etc. Eso pesa en el estilo recomendado, propone el sector de la marca y ordena los aspectos de imagen de las variantes. El video no sale del computador.

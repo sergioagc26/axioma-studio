@@ -187,6 +187,19 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         // Una imagen como b-roll: el movimiento de cámara de la escena la anima.
         /\.(jpe?g|png|webp)(\?|$)/i.test(clip.brollSrc) ? <Img src={clip.brollSrc} style={cover} />
         : <OffthreadVideo src={clip.brollSrc} trimBefore={clip.sceneOffsetFrames} muted style={cover} />
+      ) : clip.backdrop && t.cutoutSrc ? (
+        // Persona recortada sobre otro fondo: color, degradado, el video desenfocado o una imagen.
+        <>
+          {clip.backdrop === 'desenfoque' ? <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(28px) brightness(0.55)', transform: 'scale(1.2)' }} />
+            : clip.backdrop === 'imagen' && clip.backdropSrc ? (/\.(jpe?g|png|webp)(\?|$)/i.test(clip.backdropSrc)
+              ? <Img src={clip.backdropSrc} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${1.05 + 0.08 * (frame / Math.max(1, clip.durationInFrames))})` }} />
+              : <OffthreadVideo src={clip.backdropSrc} trimBefore={clip.sceneOffsetFrames} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)
+            : <AbsoluteFill style={{ background: clip.backdrop === 'claro' ? '#F4F1EA' : clip.backdrop === 'marca' ? t.brand.primary : clip.backdrop === 'degradado' ? `linear-gradient(${150 + 40 * Math.sin((clip.fromFrame + frame) / 45)}deg, ${t.brand.primary}, ${t.brand.secondary})` : '#0B0B0F' }} />}
+          <AbsoluteFill>
+            <OffthreadVideo src={t.cutoutSrc} transparent trimBefore={clip.sourceStartFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }} />
+          </AbsoluteFill>
+          {!t.voiceSrc && t.originalVolume > 0 ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} /> : null}
+        </>
       ) : (
         <OffthreadVideo
           src={t.videoSrc}
@@ -304,7 +317,7 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
     : G.shadow === 'doble' ? `0.05em 0.05em 0 ${hl}, 0.1em 0.1em 0 ${sec}, 0.15em 0.15em 0 #000`
     : G.shadow === 'neon' ? `0 0 14px ${hl}, 0 0 40px ${hl}, 0 3px 8px rgba(0,0,0,0.9)`
     : G.shadow === 'halo' ? `0 0 12px rgba(255,255,255,0.9), 0 0 36px ${hl}, 0 0 70px ${hl}`
-    : G.shadow === 'volumen' ? Array.from({ length: 8 }, (_, i) => `${(i + 1) * 0.012}em ${(i + 1) * 0.012}em 0 ${hl}`).join(', ') + ', 0.14em 0.16em 14px rgba(0,0,0,0.6)'
+    : G.shadow === 'volumen' ? Array.from({ length: 8 }, (_, i) => `${(i + 1) * 0.012}em ${(i + 1) * 0.012}em 0 ${i < 4 ? sec : '#000'}`).join(', ') + ', 0.14em 0.16em 14px rgba(0,0,0,0.6)'
     : G.shadow === 'larga' ? Array.from({ length: 14 }, (_, i) => `${(i + 1) * 0.012}em ${(i + 1) * 0.012}em 0 rgba(0,0,0,${0.55 - i * 0.03})`).join(', ')
     : 'none';
   // La palabra más importante de la línea se remarca siempre (si la línea tiene más de una palabra).
@@ -367,7 +380,7 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
     else if (f.line === 'puntos') style.borderBottom = `${th(10)}px dotted ${hl}`;
     else if (f.line === 'arriba') style.boxShadow = `0 -${th(9)}px 0 ${hl}`;
     else if (f.line === 'ambas') style.boxShadow = `0 ${th(12)}px 0 ${hl}, 0 -${th(12)}px 0 ${hl}`;
-    else if (f.line === 'marcador') { Object.assign(style, { backgroundImage: `linear-gradient(transparent 48%, ${hl} 48%, ${hl} 92%, transparent 92%)`, backgroundClip: 'border-box', WebkitBackgroundClip: 'border-box', padding: '0 0.12em', margin: '0 0.02em' }); if (style.color === 'transparent') style.color = '#fff'; }
+    else if (f.line === 'marcador') { Object.assign(style, { backgroundImage: `linear-gradient(transparent 48%, ${hl} 48%, ${hl} 92%, transparent 92%)`, backgroundClip: 'border-box', WebkitBackgroundClip: 'border-box', padding: '0 0.12em', margin: '0 0.02em' }); style.color = onColor(hl); style.WebkitTextStroke = '0'; style.textShadow = 'none'; }
     else if (f.line === 'circulo') Object.assign(style, { outline: `${th(14)}px solid ${hl}`, outlineOffset: '0.04em', borderRadius: 999, padding: '0 0.2em' });
     else if (f.line === 'recuadro') Object.assign(style, { outline: `${th(14)}px solid ${hl}`, outlineOffset: '0.02em', borderRadius: '0.1em', padding: '0 0.14em' });
     if (f.glow) style.textShadow = `0 0 12px ${c ?? hl}, 0 0 34px ${hl}`;

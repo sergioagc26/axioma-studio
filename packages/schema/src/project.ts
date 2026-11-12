@@ -167,6 +167,10 @@ export const Scene = z.object({
   }).default({ background: 'oscuro', scale: 1 }),
   /** Tamaño del video dentro del cuadro (1 = llena la pantalla; menos deja ver un fondo desenfocado). */
   videoScale: z.number().min(0.4).max(2.5).default(1),
+  /** Fondo detrás de la persona recortada (necesita el recorte del proyecto). 'ninguno' = el video tal cual. */
+  backdrop: z.enum(['ninguno', 'oscuro', 'claro', 'marca', 'degradado', 'desenfoque', 'imagen']).default('ninguno'),
+  /** Imagen o video del proyecto que va de fondo cuando backdrop es 'imagen'. */
+  backdropFile: z.string().optional(),
   /** Giro del texto en grados y separación entre letras. */
   textRotate: z.number().min(-20).max(20).default(0),
   textSpacing: z.number().min(-0.05).max(0.4).default(0),

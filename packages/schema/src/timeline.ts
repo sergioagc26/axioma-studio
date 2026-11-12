@@ -64,6 +64,9 @@ export type TimelineClip = {
   camera: Camera;
   cameraAmount: number;
   videoScale: number;
+  /** Fondo detrás de la persona recortada. */
+  backdrop?: string;
+  backdropSrc?: string;
   /** Posición de este tramo dentro de su escena (para el movimiento de cámara continuo). */
   sceneFrames: number;
   visual: Scene['visual'];
@@ -96,6 +99,8 @@ export type Timeline = {
   fps: number;
   durationInFrames: number;
   videoSrc: string;
+  /** El mismo video con la persona recortada y fondo transparente. */
+  cutoutSrc?: string;
   /** Si existe, se usa en lugar del audio del video. */
   voiceSrc?: string;
   musicSrc?: string;
@@ -128,6 +133,10 @@ export interface TimelineUrls {
   format?: { width: number; height: number };
   /** Voz en off y sus palabras (en tiempo de salida) para los subtítulos. */
   voiceover?: { src: string; words: Transcript['words'] };
+  /** Video con la persona recortada, si ya se hizo. */
+  cutout?: string;
+  /** Parte del cuadro que ocupa la persona, dos veces por segundo. */
+  cutoutCoverage?: number[];
   /** Posición de la cara a lo largo del video fuente. */
   faces?: FacePoint[];
   /** Transiciones propias del cliente (además de las incluidas). */
@@ -151,6 +160,13 @@ export type FormatId = keyof typeof FORMATS;
  * tiempo en frames. Los límites se redondean sobre el tiempo acumulado para que
  * no se acumule desfase entre clips.
  */
+/** ¿Hay una persona en este tramo? Sin ella no se cambia el fondo: el cuadro quedaría vacío. */
+function hasPerson(cov: number[] | undefined, start: number, end: number): boolean {
+  if (!cov?.length) return true;
+  const part = cov.slice(Math.floor(start * 2), Math.max(Math.floor(start * 2) + 1, Math.ceil(end * 2)));
+  return part.length ? part.reduce((a, b) => a + b, 0) / part.length >= 0.2 : true;
+}
+
 export function buildTimeline(project: Project, transcript: Transcript | null, urls: TimelineUrls): Timeline {
   const { fps } = project.format;
   const { width, height } = urls.format ?? project.format;
@@ -194,6 +210,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
           camera: scene.camera,
           cameraAmount: scene.cameraAmount,
           videoScale: scene.videoScale,
+          backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, r.start, r.end) ? scene.backdrop : undefined,
+          backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,
           sceneFrames: 0,
           sceneId: scene.id,
           fromFrame: from,
@@ -304,6 +322,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     originalVolume: project.audio.originalVolume,
     voiceoverSrc: urls.voiceover?.src,
     videoSrc: urls.video,
+    cutoutSrc: urls.cutout,
     voiceSrc: urls.voice,
     musicSrc: urls.music,
     musicVolume: project.audio.musicVolume,

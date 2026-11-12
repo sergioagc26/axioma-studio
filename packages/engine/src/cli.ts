@@ -1,4 +1,5 @@
-import { readdir } from 'node:fs/promises';
+import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { autoVideo } from './auto.ts';
 import path from 'node:path';
 import { Command } from 'commander';
 import { APP_NAME, BUILTIN_PRESETS } from '@snz/schema';
@@ -91,6 +92,45 @@ program
   .action(async (dir, texto, o) => {
     const p = await setVoiceover(path.resolve(dir), texto, { provider: o.proveedor, voice: o.voz });
     console.log(`Voz en off: ${p.audio.voiceover?.provider} · ${p.audio.voiceover?.duration.toFixed(1)} s`);
+  });
+
+program
+  .command('auto')
+  .argument('<ruta>', 'un video o una carpeta con videos')
+  .option('-c, --client <cliente>', 'cliente (su marca y sus referencias guían la edición)')
+  .option('-s, --salida <carpeta>', 'carpeta donde dejar los videos terminados')
+  .option('-v, --vigilar', 'quedarse mirando la carpeta y editar cada video nuevo que llegue')
+  .description('Modo automático: edita solo cada video (corte, gancho, textos, gráficos, sonidos) y lo exporta')
+  .action(async (ruta, o) => {
+    const target = path.resolve(ruta);
+    const isDir = (await stat(target)).isDirectory();
+    const folder = isDir ? target : path.dirname(target);
+    const salida = path.resolve(o.salida ?? path.join(folder, 'editados'));
+    const logFile = path.join(folder, '.editados.json');
+    const done: Record<string, string> = await readFile(logFile, 'utf8').then((x) => JSON.parse(x)).catch(() => ({}));
+    const pending = async () => (isDir ? (await readdir(target)).filter((f) => /\.(mp4|mov|m4v)$/i.test(f) && !f.startsWith('.')).sort().map((f) => path.join(target, f)) : [target])
+      .filter((f) => isDir ? !done[path.basename(f)] : true);
+    const one = async (file: string) => {
+      console.log(`\n▶ ${path.basename(file)}`);
+      try {
+        // Si el archivo todavía se está copiando, se espera a que deje de crecer.
+        let size = -1;
+        for (;;) { const now = (await stat(file)).size; if (now === size) break; size = now; await new Promise((r) => setTimeout(r, 2000)); }
+        const r = await autoVideo(file, { client: o.client, outFolder: salida });
+        done[path.basename(file)] = r.out ?? r.dir;
+      } catch (e) {
+        done[path.basename(file)] = `ERROR: ${e instanceof Error ? e.message : e}`;
+        console.log(`✗ ${done[path.basename(file)]}`);
+      }
+      if (isDir) await writeFile(logFile, JSON.stringify(done, null, 2));
+    };
+    for (const f of await pending()) await one(f);
+    if (!o.vigilar || !isDir) { console.log(`\nTerminado. Videos en: ${salida}`); return; }
+    console.log(`\nVigilando ${target}. Deja ahí un video y se edita solo. Ctrl+C para salir.`);
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 8000));
+      for (const f of await pending()) await one(f);
+    }
   });
 
 program

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { sceneLength, speechOf } from '@snz/schema';
 import type { Brand, BrandKit, VisionReport, FacePoint, Preset, Project, Scene, Transcript, TransitionSpec } from '@snz/schema';
 
-export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; transitions: TransitionSpec[] }
+export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; transitions: TransitionSpec[]; cutout?: string; cutoutCoverage?: number[] }
 
 export interface Job { id: string; status: 'running' | 'done' | 'error'; message: string; progress: number; result?: Record<string, any> }
 

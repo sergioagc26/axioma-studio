@@ -32,6 +32,7 @@ export const P = {
   voiceoverWords: 'voiceover.json',
   master: path.join('media', 'master.mp4'),
   proxy: path.join('proxies', 'proxy.mp4'),
+  cutout: path.join('proxies', 'recorte.webm'),
   wav16k: path.join('media', 'audio-16k.wav'),
   voice: path.join('media', 'voz.wav'),
   renders: 'renders',

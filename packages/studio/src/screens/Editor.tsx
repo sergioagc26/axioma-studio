@@ -192,6 +192,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     asset: media,
     brand: store.brand,
     voiceover: store.extras?.voiceover,
+    cutout: store.extras?.cutout,
+    cutoutCoverage: store.extras?.cutoutCoverage,
     faces: store.extras?.faces,
     transitions: store.extras?.transitions,
   }), [project, store.transcript, store.brand, store.extras]);
@@ -370,6 +372,41 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       await store.reloadExtras();
       ctx.toast((done.result?.summary as string[]).join(' '));
     } catch (e: any) { ctx.toast(`No se pudo editar: ${e.message}`); } finally { setAuto(''); }
+  };
+
+  const [cutting, setCutting] = useState('');
+  const reloadProject = async () => {
+    const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
+    store.replace(d.project);
+    await store.reloadExtras();
+  };
+  /** Recorta a la persona de todo el video; después cada escena puede cambiar de fondo. */
+  const cutBackground = async () => {
+    setCutting('Recortando a la persona…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'recortar-fondo' }) });
+      await waitJob(job, (j) => setCutting(j.message || 'Recortando a la persona…'));
+      await reloadProject();
+      ctx.toast('Persona recortada. Elige el fondo de cada escena en «Fondo detrás de la persona».');
+    } catch (e: any) { ctx.toast(`No se pudo recortar: ${e.message}`); } finally { setCutting(''); }
+  };
+  const uploadBackdrop = async (file: File) => {
+    try {
+      const d = await api(`/api/broll?id=${encodeURIComponent(project.id)}&scene=${scene?.id ?? ""}&fondo=1&filename=${encodeURIComponent(file.name)}&license=propia`, { method: 'POST', body: file });
+      store.replace(d.project);
+      ctx.toast('Fondo puesto detrás de la persona.');
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+  const backdropFromIdea = async () => {
+    const idea = window.prompt('¿Qué fondo quieres? Ej.: oficina moderna de noche con luces de ciudad');
+    if (!idea || idea.trim().length < 3) return;
+    setCutting('Creando el fondo…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'broll-idea', sceneId: scene?.id, idea, fondo: true }) });
+      await waitJob(job, (j) => setCutting(j.message || 'Creando el fondo…'));
+      await reloadProject();
+      ctx.toast('Fondo creado y puesto detrás de la persona.');
+    } catch (e: any) { ctx.toast(`No se pudo crear el fondo: ${e.message}`); } finally { setCutting(''); }
   };
 
   const applyPreset = async (presetId: string) => {
@@ -651,6 +688,30 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 </select>
               </label>
             </div>
+            <label className="field">Fondo detrás de la persona
+              <select value={scene.backdrop} disabled={!store.extras?.cutout} onChange={(e) => edit((s) => { s.backdrop = e.target.value as Scene['backdrop']; })}>
+                <option value="ninguno">El del video (sin cambios)</option>
+                <option value="desenfoque">Mi video desenfocado</option>
+                <option value="oscuro">Oscuro</option>
+                <option value="claro">Claro</option>
+                <option value="marca">Color de la marca</option>
+                <option value="degradado">Degradado en movimiento</option>
+                <option value="imagen" disabled={!scene.backdropFile}>Imagen o video{scene.backdropFile ? '' : ' (súbelo o créalo abajo)'}</option>
+              </select>
+            </label>
+            {!store.extras?.cutout ? (
+              <>
+                <button className="btn rect" disabled={Boolean(cutting)} onClick={cutBackground}>{cutting || 'Recortar a la persona (sin pantalla verde)'}</button>
+                <span className="small muted">Se hace una sola vez por video y tarda unos minutos. Después eliges el fondo de cada escena.</span>
+              </>
+            ) : (
+              <div className="row" style={{ flexWrap: 'wrap' }}>
+                <label className="btn rect" style={{ cursor: 'pointer', height: 34 }}>Subir fondo
+                  <input type="file" accept="video/*,image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadBackdrop(f); e.target.value = ''; }} />
+                </label>
+                <button className="btn rect" style={{ height: 34 }} disabled={Boolean(cutting)} onClick={backdropFromIdea}>{cutting || 'Crear fondo desde una idea'}</button>
+              </div>
+            )}
             <Slider label="Tamaño del video" value={scene.videoScale} min={0.4} max={2.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.videoScale = v; })} />
             <span className="small muted">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
             <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />

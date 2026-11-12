@@ -366,7 +366,7 @@ export async function setBroll(dir: string, sceneId: string, file: string, info:
  * B-roll desde una idea: se crea la imagen y se anima con un movimiento de cámara
  * lento para que no quede quieta. Queda guardada en el proyecto como cualquier otro recurso.
  */
-export async function setBrollFromIdea(dir: string, sceneId: string, idea: string) {
+export async function setBrollFromIdea(dir: string, sceneId: string, idea: string, asBackdrop = false) {
   const before = await readProject(dir);
   const { width, height } = before.format;
   // Tamaño proporcional al reel, sin pasar del lado mayor que acepta el generador.
@@ -376,6 +376,14 @@ export async function setBrollFromIdea(dir: string, sceneId: string, idea: strin
     const project = await readProject(dir);
     const scene = findScene(project, sceneId);
     scene.brollFile = await importAsset(dir, project, file, 'broll', { source: `Creada con IA a partir de la idea: ${idea.trim().slice(0, 120)}`, license: 'Generada con IA (Pollinations)' });
+    if (asBackdrop) {
+      // La imagen va detrás de la persona recortada, no en su lugar.
+      scene.backdropFile = scene.brollFile;
+      scene.brollFile = undefined;
+      scene.backdrop = 'imagen';
+      scene.visual = 'original';
+      return await writeProject(dir, project);
+    }
     scene.visual = 'broll';
     scene.chosenVariant = undefined;
     if (scene.camera === 'ninguno') scene.camera = 'acercar';
@@ -383,6 +391,15 @@ export async function setBrollFromIdea(dir: string, sceneId: string, idea: strin
   } finally {
     await rm(path.dirname(file), { recursive: true, force: true });
   }
+}
+
+/** Pone un archivo (imagen o video) como fondo detrás de la persona recortada. */
+export async function setBackdropFile(dir: string, sceneId: string, file: string) {
+  const project = await readProject(dir);
+  const scene = findScene(project, sceneId);
+  scene.backdropFile = await importAsset(dir, project, file, 'broll', { source: 'subido en el studio', license: 'propia' });
+  scene.backdrop = 'imagen';
+  return writeProject(dir, project);
 }
 
 export async function setMotion(dir: string, sceneId: string, template: string, data: Record<string, unknown>) {

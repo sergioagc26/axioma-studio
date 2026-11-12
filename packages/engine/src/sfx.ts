@@ -36,7 +36,7 @@ export const SFX: Record<string, { name: string; description: string; filter: st
   chispa: { name: 'Chispa', description: 'Destello brillante de notas agudas.', filter: "aevalsrc='0.3*sin(2*PI*(2000+1500*floor(t/0.06))*t)*exp(-25*mod(t\\,0.06))':d=0.42" },
   glitch: { name: 'Glitch', description: 'Interferencia digital entrecortada.', filter: "aevalsrc='0.5*(random(0)*2-1)*lt(mod(t\\,0.06)\\,0.03)':d=0.3,highpass=f=1200" },
   teclado: { name: 'Teclado', description: 'Tecleo rápido para textos que se escriben.', filter: "aevalsrc='0.8*(random(0)*2-1)*exp(-300*mod(t\\,0.09))':d=0.54,highpass=f=1200" },
-  gong: { name: 'Gong', description: 'Campana grave y larga para un anuncio.', filter: "aevalsrc='0.5*(sin(2*PI*196*t)+0.6*sin(2*PI*392.5*t)+0.3*sin(2*PI*590*t))*exp(-1.6*t)':d=2.2" },
+  gong: { name: 'Gong', description: 'Campana grave y larga para un anuncio.', filter: "aevalsrc='0.5*(sin(2*PI*196*t)+0.6*sin(2*PI*392.5*t)+0.3*sin(2*PI*590*t))*exp(-3*t)':d=1.4" },
   'subida-ruido': { name: 'Subida de aire', description: 'Ruido que crece antes de un cambio fuerte.', filter: "anoisesrc=d=1.4:c=white:a=0.5,highpass=f=800,afade=t=in:d=1.3:curve=exp" },
   rebobinar: { name: 'Rebobinar', description: 'Tono tembloroso que sube, para volver atrás.', filter: "aevalsrc='0.35*sin(2*PI*(400+1400*t)*t)*sin(2*PI*28*t)':d=0.5" },
 };

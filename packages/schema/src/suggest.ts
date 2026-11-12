@@ -10,6 +10,9 @@ export function speechOf(scene: Scene, transcript: Transcript | null): string {
 }
 
 const STOP = new Set('a al algo ante como con cual cuando de del desde donde el ella ellos en entre era es esa ese eso esta este esto hay la las le les lo los mas me mi mis muy ni no nos o para pero por que se si sin sobre su sus te ti tu tus un una uno unos y ya yo'.split(' '));
+/** Palabras que no pueden abrir ni cerrar un texto en pantalla: enlaces y muletillas. */
+const WEAK = new Set([...STOP, ...'aunque porque mientras tambien ademas entonces pues mismo misma cada todo toda todos todas hasta solo aqui ahi asi luego despues antes habia he ha han fue ser estar esta estoy estaba tenia tengo tiene voy va vamos puede pueden quien cuyo otro otra nunca siempre casi mucho poco tan tanto'.split(' ')]);
+const LEAD = new Set('aunque pero porque pues entonces y o que ademas tambien mientras'.split(' '));
 const norm = (w: string) => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zñ0-9]/g, '');
 const clean = (s: string) => s.replace(/^[\s,.;:¡!¿?"'-]+|[\s,.;:"'-]+$/g, '');
 
@@ -20,15 +23,22 @@ export function shortPhrases(speech: string): string[] {
   const cut: string[] = []; // recortes de frases largas: van después de las frases completas
   for (const c of clauses) {
     const words = c.split(/\s+/);
-    if (words.length >= 2 && words.length <= 6) out.push(c);
+    // Un conector al inicio («aunque», «pero», «porque»…) sobra en un texto en pantalla.
+    while (words.length > 2 && LEAD.has(norm(words[0]))) words.shift();
+    if (words.length >= 2 && words.length <= 6) out.push(words.join(' '));
     else if (words.length > 6) {
-      // De una frase larga se toma el tramo de 4 palabras con más palabras con significado.
-      let best = 0, at = 0;
-      for (let i = 0; i + 4 <= words.length; i++) {
-        const score = words.slice(i, i + 4).filter((w) => !STOP.has(norm(w))).length + (i === 0 ? 0.5 : 0);
-        if (score > best) { best = score; at = i; }
+      // De una frase larga se toma un tramo de 3 a 5 palabras que se lea solo: no empieza ni
+      // termina en una palabra de enlace, y se prefiere el arranque de la frase y los números.
+      let best = -1, pick = '';
+      for (let len = 5; len >= 3; len--) {
+        for (let i = 0; i + len <= words.length; i++) {
+          const w = words.slice(i, i + len);
+          if (WEAK.has(norm(w[0])) || WEAK.has(norm(w[len - 1]))) continue;
+          const score = w.filter((x) => !WEAK.has(norm(x))).length / len + (i === 0 ? 0.6 : 0) + (w.some((x) => /\d/.test(x)) ? 0.5 : 0) + len * 0.05;
+          if (score > best) { best = score; pick = w.join(' '); }
+        }
       }
-      cut.push(clean(words.slice(at, at + 4).join(' ')));
+      if (pick) cut.push(clean(pick));
     }
   }
   // Primero las que tienen más palabras con significado.

@@ -12,6 +12,8 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [job, setJob] = useState<Job | null>(null);
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  // Automático: el video se edita solo al subirlo y se abre directo en el editor.
+  const [auto, setAuto] = useState(true);
 
   useEffect(() => { api<Item[]>('/api/projects').then(setItems).catch((e) => ctx.toast(e.message)); }, []);
 
@@ -25,9 +27,10 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         setJob({ id: '', status: 'running', message: `Subiendo video ${i + 1} de ${videos.length}…`, progress: (i / videos.length) * 0.2 });
         tokens.push((await api<{ token: string }>(`/api/upload?filename=${encodeURIComponent(f.name)}`, { method: 'POST', body: f })).token);
       }
-      const started = await api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset }) });
+      const started = await api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset, auto }) });
       const done = await waitJob(started, setJob);
-      ctx.go('storyboard', { p: done.result?.id, s: null });
+      if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
+      ctx.go(auto ? 'editor' : 'storyboard', { p: done.result?.id, s: null });
     } catch (e: any) {
       ctx.toast(`No se pudo crear: ${e.message}`);
     } finally {
@@ -44,11 +47,13 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     if (!/\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name)) return ctx.toast('Sube un video (.mp4 o .mov).');
     const q = new URLSearchParams({ filename: file.name, preset });
     if (client.trim()) q.set('client', client.trim());
+    if (auto) q.set('auto', '1');
     try {
       setJob({ id: '', status: 'running', message: 'Subiendo el video…', progress: 0 });
       const started = await api<Job>(`/api/projects?${q}`, { method: 'POST', body: file });
       const done = await waitJob(started, setJob);
-      ctx.go('brief', { p: done.result?.id, s: null });
+      if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
+      ctx.go(auto ? 'editor' : 'brief', { p: done.result?.id, s: null });
     } catch (e: any) {
       ctx.toast(`No se pudo crear: ${e.message}`);
     } finally {
@@ -91,6 +96,10 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 </select>
               </label>
             </div>
+            <label className="row" style={{ justifyContent: 'center' }}>
+              <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+              <span><strong>Automático:</strong> que la app lo edite todo sola al subirlo</span>
+            </label>
             <button className="btn primary" onClick={() => input.current?.click()}>{kind === 'montaje' ? 'Elegir videos' : 'Elegir video'}</button>
             <input ref={input} type="file" accept="video/*" multiple={kind === 'montaje'} hidden onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
           </>

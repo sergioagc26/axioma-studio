@@ -1,3 +1,4 @@
+import { cutoutCoverage } from './matte.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm } from 'node:fs/promises';
 import os from 'node:os';
@@ -40,7 +41,7 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
   const voiceover = vo && existsSync(path.join(dir, vo.file))
     ? { src: asset(vo.file), words: existsSync(wordsFile) ? (JSON.parse(await readFile(wordsFile, 'utf8')).words as Transcript['words']) : [] }
     : undefined;
-  return { voiceover, faces: await readFaces(dir), transitions: await allTransitions(project.client) };
+  return { voiceover, faces: await readFaces(dir), transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir) };
 }
 
 export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void } = {}) {
