@@ -55,6 +55,23 @@ Claude hace el brief, crea el proyecto, arma el storyboard con las frases del vi
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
+## Studio (Fase 3)
+
+```bash
+npm run studio
+```
+
+Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herramienta `abrir_studio`.
+
+- **Proyectos**: arrastra un video para crear un reel nuevo.
+- **Brief**: las 7 preguntas. El ritmo cambia el preset.
+- **Storyboard**: tarjetas arrastrables; la línea de tiempo se actualiza sola.
+- **Editor**: vista previa real (Remotion Player), presets, subtítulos, inspector de escena, línea de tiempo y zonas seguras.
+- **Variantes**: elegir entre las versiones que propone Claude y dejarle peticiones.
+- Tema oscuro y claro, deshacer y rehacer (⌘Z / ⇧⌘Z), espacio para reproducir y flechas para cambiar de escena.
+- Lo que cambia Claude aparece en vivo (Server-Sent Events) y lo que cambias tú se guarda validado en `project.json`. Si los dos editan a la vez, gana el último guardado.
+- Solo escucha en `127.0.0.1` y rechaza escrituras desde otras páginas.
+
 ## Cómo funciona el corte automático
 
 1. whisper.cpp 1.9.5 transcribe con alineación DTW (`-nfa`, porque la atención flash desactiva DTW).
@@ -72,6 +89,7 @@ Claude hace el brief, crea el proyecto, arma el storyboard con las frases del vi
 - `packages/engine`: CLI `se`, FFmpeg, whisper, cortes, render.
 - `packages/remotion`: composición `Reel`, con subtítulos palabra por palabra, texto en pantalla y zoom de golpe.
 - `packages/mcp`: servidor MCP que expone el engine a Claude.
+- `packages/studio`: interfaz web (Vite + React).
 - `plugin/`: plugin de Claude Code con las skills.
 - `scripts/`: setup para Mac y Windows.
 
@@ -87,6 +105,6 @@ npm run typecheck
 
 ## Siguiente
 
-- **Fase 3**: studio con las pantallas de los mockups.
+- **Fase 4**: kits de marca y plantillas desde un video de referencia.
 
 El objetivo completo y la definición de terminado están en `docs/PROMPT-OBJETIVO.md`.

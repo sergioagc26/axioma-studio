@@ -9,3 +9,4 @@ export * from './store.ts';
 export * from './transcribe.ts';
 export { doctor } from './doctor.ts';
 export { installClaude } from './claude.ts';
+export * from './studio.ts';

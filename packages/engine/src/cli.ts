@@ -7,6 +7,7 @@ import { REPO_ROOT } from './paths.ts';
 import { measureLufs, probe } from './media.ts';
 import { cutProject, editVideo, prepareMedia, transcribeProject } from './pipeline.ts';
 import { renderProject } from './render.ts';
+import { openBrowser, startStudio, studioUrl } from './studio.ts';
 import { ensureWhisper } from './transcribe.ts';
 
 const program = new Command();
@@ -37,6 +38,17 @@ program
     console.log(`✓ ${mcpFile}\n✓ ${settingsFile}`);
     console.log('\nAbre Claude Code (o el Code tab de Claude) en esta carpeta y acepta el plugin "snz-studio".');
     console.log(`Para usarlo desde cualquier carpeta: /plugin marketplace add "${REPO_ROOT}" y luego /plugin install snz-studio@snz-studio`);
+  });
+
+program
+  .command('studio')
+  .argument('[proyecto]', 'id del proyecto a abrir')
+  .option('--no-open', 'no abrir el navegador')
+  .description('Abre la interfaz (storyboard, editor, variantes)')
+  .action(async (id, o) => {
+    const url = studioUrl(await startStudio(), id ? 'storyboard' : 'proyectos', id);
+    console.log(`Studio: ${url}\nCtrl+C para cerrarlo.`);
+    if (o.open) openBrowser(url);
   });
 
 program

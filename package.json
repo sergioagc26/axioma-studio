@@ -10,7 +10,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "remotion:studio": "remotion studio packages/remotion/src/index.ts",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node scripts/setup.mjs",
+    "build:studio": "npm run build -w @snz/studio",
+    "studio": "tsx packages/engine/src/cli.ts studio"
   },
   "engines": {
     "node": ">=20"

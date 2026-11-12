@@ -275,6 +275,15 @@ export function createServer() {
     return `Estado: ${estado}.`;
   });
 
+  tool('abrir_studio', 'Abre la interfaz visual (storyboard, editor, variantes) en el navegador y devuelve la dirección. Los cambios hechos allí se ven con leer_proyecto.', {
+    proyecto, pantalla: z.enum(['brief', 'storyboard', 'editor', 'variantes', 'referencias']).default('storyboard'),
+  }, async ({ proyecto, pantalla }) => {
+    const p = await E.readProject(await resolveProject(proyecto));
+    const url = E.studioUrl(await E.startStudio(), pantalla, p.id);
+    E.openBrowser(url);
+    return `Studio abierto: ${url}`;
+  });
+
   tool('renderizar', 'Renderiza el reel a MP4 (1080×1920). Tarda aproximadamente lo que dura el video.', { proyecto }, async ({ proyecto }) => {
     const dir = await resolveProject(proyecto);
     let last = -1;

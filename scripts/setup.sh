@@ -17,6 +17,7 @@ if ! need make || ! need cc; then
 fi
 
 npm install
+npm run build:studio
 npm run se -- setup
 npm run se -- instalar-claude
 mkdir -p workspace
