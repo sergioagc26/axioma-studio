@@ -1,0 +1,76 @@
+import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import {
+  downloadWhisperModel, installWhisperCpp, toCaptions, transcribe as whisperTranscribe, type WhisperModel,
+} from '@remotion/install-whisper-cpp';
+import type { Transcript, Word } from '@snz/schema';
+import { WHISPER_DIR, WHISPER_MODELS, WHISPER_VERSION } from './paths.ts';
+
+export const DEFAULT_MODEL: WhisperModel = (process.env.SE_WHISPER_MODEL as WhisperModel) ?? 'small';
+
+/** Instala whisper.cpp y descarga el modelo si faltan. */
+export async function ensureWhisper(model: WhisperModel = DEFAULT_MODEL, log = console.log) {
+  if (!existsSync(WHISPER_DIR)) log(`Instalando whisper.cpp ${WHISPER_VERSION} (solo la primera vez, tarda unos minutos)…`);
+  await installWhisperCpp({ version: WHISPER_VERSION, to: WHISPER_DIR, printOutput: false });
+  await mkdir(WHISPER_MODELS, { recursive: true });
+  await downloadWhisperModel({ model, folder: WHISPER_MODELS, printOutput: false });
+}
+
+/** Transcribe un WAV 16 kHz mono con tiempos por palabra. */
+export async function transcribeWav(
+  wav: string,
+  { model = DEFAULT_MODEL, language = 'es', onProgress }: { model?: WhisperModel; language?: string; onProgress?: (p: number) => void } = {},
+): Promise<Transcript> {
+  await ensureWhisper(model);
+  const out = await whisperTranscribe({
+    inputPath: wav,
+    whisperPath: WHISPER_DIR,
+    whisperCppVersion: WHISPER_VERSION,
+    model,
+    modelFolder: WHISPER_MODELS,
+    tokenLevelTimestamps: true,
+    splitOnWord: true,
+    language: language as any,
+    printOutput: false,
+    onProgress,
+    // La atención flash (activa por defecto desde 1.8) desactiva la alineación DTW.
+    additionalArgs: ['-nfa'],
+  });
+  const { captions } = toCaptions({ whisperCppOutput: out });
+  const items = captions
+    .map((c) => ({ ...c, text: c.text.trim() }))
+    .filter((c) => c.text && !/^\[.*\]$/.test(c.text)); // [música], [BLANK_AUDIO]…
+  // Con DTW, `timestampMs` marca cuándo suena cada palabra con mucha más precisión
+  // que `startMs`. El final de una palabra es el inicio de la siguiente (luego se
+  // recorta contra los silencios detectados por FFmpeg).
+  const words: Word[] = items.map((c, i) => {
+    const start = (c.timestampMs ?? c.startMs) / 1000;
+    const next = items[i + 1];
+    const nextStart = next ? (next.timestampMs ?? next.startMs) / 1000 : c.endMs / 1000;
+    return {
+      text: c.text,
+      start,
+      end: Math.max(start + 0.05, Math.min(nextStart, start + 1.2)),
+      prob: typeof c.confidence === 'number' ? Math.min(1, Math.max(0, c.confidence)) : undefined,
+    };
+  });
+  return { language, model, words };
+}
+
+/** Texto compacto para Claude: una línea por frase con su tiempo de inicio. */
+export function compactTranscript(t: Transcript): string {
+  const lines: string[] = [];
+  let cur: string[] = [];
+  let start = 0;
+  for (let i = 0; i < t.words.length; i++) {
+    const w = t.words[i];
+    if (!cur.length) start = w.start;
+    cur.push(w.text);
+    const next = t.words[i + 1];
+    if (!next || /[.!?…]$/.test(w.text) || next.start - w.end > 0.7) {
+      lines.push(`[${start.toFixed(2)}] ${cur.join(' ')}`);
+      cur = [];
+    }
+  }
+  return lines.join('\n');
+}

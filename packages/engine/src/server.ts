@@ -1,0 +1,48 @@
+import { createReadStream, statSync } from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import path from 'node:path';
+
+const TYPES: Record<string, string> = {
+  '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.wav': 'audio/wav', '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+};
+
+/**
+ * Servidor de archivos local (solo 127.0.0.1) con soporte de Range, para que
+ * Remotion lea el video del proyecto sin copiarlo dentro del bundle.
+ */
+export async function serveFolder(root: string): Promise<{ url: (rel: string) => string; close: () => Promise<void> }> {
+  const base = path.resolve(root);
+  const server = http.createServer((req, res) => {
+    try {
+      const rel = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
+      const file = path.resolve(base, '.' + rel);
+      if (file !== base && !file.startsWith(base + path.sep)) {
+        res.writeHead(403).end();
+        return;
+      }
+      const st = statSync(file);
+      const type = TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
+      const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*' };
+      const range = req.headers.range?.match(/bytes=(\d*)-(\d*)/);
+      if (range) {
+        const start = range[1] ? Number(range[1]) : st.size - Number(range[2]);
+        const end = range[1] && range[2] ? Number(range[2]) : st.size - 1;
+        res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
+        createReadStream(file, { start, end }).pipe(res);
+      } else {
+        res.writeHead(200, { ...headers, 'Content-Length': st.size });
+        createReadStream(file).pipe(res);
+      }
+    } catch {
+      res.writeHead(404).end();
+    }
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: (rel) => `http://127.0.0.1:${port}/${rel.split(path.sep).map(encodeURIComponent).join('/')}`,
+    close: () => new Promise((r) => { server.closeAllConnections(); server.close(() => r()); }),
+  };
+}

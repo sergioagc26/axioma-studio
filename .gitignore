@@ -1,0 +1,7 @@
+node_modules/
+workspace/
+dist/
+out/
+.whisper/
+*.log
+.DS_Store
