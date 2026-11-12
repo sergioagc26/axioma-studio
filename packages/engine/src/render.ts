@@ -12,6 +12,7 @@ import { allTransitions } from './transitions.ts';
 import { normalizeMix } from './media.ts';
 import { ensureUsedSfx } from './sfx.ts';
 import { depthPath, ensureProjectDepth } from './depth.ts';
+import { gradedMaster } from './lut.ts';
 import { publishPack, publishText } from '@axioma/schema';
 import { P, REMOTION_ENTRY } from './paths.ts';
 import { serveFolder } from './server.ts';
@@ -57,7 +58,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
   try {
     const has = (rel?: string) => Boolean(rel && existsSync(path.join(dir, rel)));
     const timeline = buildTimeline(project, transcript, {
-      video: server.url(P.master),
+      video: server.url(gradedMaster(dir, project)),
       voice: has(project.audio.processedVoice) ? server.url(project.audio.processedVoice!) : undefined,
       music: has(project.audio.music) ? server.url(project.audio.music!) : undefined,
       asset: (rel) => server.url(rel),

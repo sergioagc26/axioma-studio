@@ -195,7 +195,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
 
   const timeline = useMemo(() => buildTimeline(project, store.transcript, {
-    video: media(project.source.proxy ?? 'media/master.mp4'),
+    video: project.finish.lut ? `${media('proxies/proxy-lut.mp4')}?v=${encodeURIComponent(project.finish.lut.name + project.finish.lut.strength)}` : media(project.source.proxy ?? 'media/master.mp4'),
     voice: project.audio.processedVoice ? media(project.audio.processedVoice) : undefined,
     music: project.audio.music ? media(project.audio.music) : undefined,
     asset: media,
@@ -408,6 +408,40 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     sc.ranges = [...sc.ranges, { start: Math.max(0, r.start - 0.08), end: r.end + 0.08 }].sort((a, b) => a.start - b.start);
   });
   const [cutting, setCutting] = useState('');
+  const [grading, setGrading] = useState('');
+  const [pendingLut, setPendingLut] = useState('');
+  const [luts, setLuts] = useState<{ id: string; name: string; description: string }[]>([]);
+  useEffect(() => { api('/api/luts').then(setLuts).catch(() => {}); }, []);
+  const [lutStrength, setLutStrength] = useState(project.finish.lut?.strength ?? 0.8);
+  /** Aplica un LUT incluido ('' lo quita) o cambia la fuerza del actual. */
+  const setLut = async (lut: string, fuerza = lutStrength) => {
+    try {
+      if (!lut && !project.finish.lut) return;
+      setGrading('Aplicando el color…');
+      if (lut !== 'actual') setPendingLut(lut);
+      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(lut === '' ? { op: 'quitar-lut' } : { op: 'lut', lut: lut === 'actual' ? undefined : lut, fuerza }) });
+      if (d.project) store.replace(d.project);
+      else { await waitJob(d, (j) => setGrading(j.message || 'Aplicando el color…')); await reloadProject(); ctx.toast('Color aplicado a todo el video.'); }
+    } catch (e: any) { ctx.toast(`No se pudo aplicar el LUT: ${e.message}`); } finally { setGrading(''); setPendingLut(''); }
+  };
+  const uploadLut = async (file: File) => {
+    setGrading('Subiendo el LUT…');
+    try {
+      const job = await api<Job>(`/api/lut?id=${encodeURIComponent(project.id)}&filename=${encodeURIComponent(file.name)}&fuerza=${lutStrength}`, { method: 'POST', body: file });
+      await waitJob(job, (j) => setGrading(j.message || 'Aplicando el color…'));
+      await reloadProject();
+      ctx.toast(`LUT «${file.name.replace(/\.cube$/i, '')}» aplicado.`);
+    } catch (e: any) { ctx.toast(`No se pudo usar ese LUT: ${e.message}`); } finally { setGrading(''); }
+  };
+  const hasTeaser = project.scenes[0]?.id === 'adelanto';
+  const teaser = async (on: boolean) => {
+    try {
+      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: on ? 'adelanto' : 'quitar-adelanto' }) });
+      store.replace(d.project);
+      ctx.toast(on ? `Adelanto puesto: «${d.teaser.text}»` : 'Adelanto quitado.');
+      player.current?.seekTo(0);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
   const reloadProject = async () => {
     const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
     store.replace(d.project);
@@ -530,6 +564,11 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </details>
             )}
           </div>
+          <div className="col" style={{ padding: 12, borderRadius: 14, background: 'var(--panel2)', gap: 6, marginBottom: 10 }}>
+            <button className="btn rect" style={{ height: 34 }} onClick={() => teaser(true)}>{hasTeaser ? 'Cambiar la frase del adelanto' : 'Poner la frase más fuerte en el primer segundo'}</button>
+            {hasTeaser && <button className="btn ghost" style={{ height: 30 }} onClick={() => teaser(false)}>Quitar el adelanto</button>}
+            <span className="small muted">{hasTeaser ? `Abre con: «${sceneSpeech(project.scenes[0], store.transcript).slice(0, 90)}»` : 'Como hacen los creadores grandes: el reel abre con tu mejor frase y luego empieza la historia. La escena original sigue en su sitio.'}</span>
+          </div>
           {longVideo && (
             <details className="grp" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !clips) findClips(); }}>
               <summary>Clips para redes</summary>
@@ -628,6 +667,24 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 } catch (e: any) { ctx.toast(e.message); }
               }}>Igualar el color entre escenas</button>
               <span className="small muted">Ajusta brillo y color de las tomas que se salen, para que todo parezca del mismo rodaje.</span>
+              <div className="col" style={{ gap: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
+                <span className="small"><b>LUT de color</b> · {project.finish.lut ? project.finish.lut.name : 'ninguno'}</span>
+                <select value={grading && pendingLut ? pendingLut : project.finish.lut?.builtin ?? (project.finish.lut ? 'propio' : '')} disabled={!!grading} onChange={(e) => e.target.value !== 'propio' && setLut(e.target.value)}>
+                  <option value="">Sin LUT (color original)</option>
+                  {luts.map((l) => <option key={l.id} value={l.id}>{l.name} — {l.description}</option>)}
+                  {project.finish.lut && !project.finish.lut.builtin && <option value="propio">{project.finish.lut.name} (tuyo)</option>}
+                </select>
+                {project.finish.lut && (
+                  <label className="col small" style={{ gap: 2 }}>Fuerza: {Math.round(lutStrength * 100)} %
+                    <input type="range" min={0.2} max={1} step={0.05} value={lutStrength} disabled={!!grading} onChange={(e) => setLutStrength(Number(e.target.value))} onPointerUp={() => setLut('actual', lutStrength)} onKeyUp={() => setLut('actual', lutStrength)} />
+                  </label>
+                )}
+                <label className="btn rect" style={{ height: 34, justifyContent: 'center', cursor: 'pointer' }}>
+                  Subir mi LUT (.cube)
+                  <input type="file" accept=".cube" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLut(f); e.target.value = ''; }} />
+                </label>
+                {grading ? <span className="small">{grading}</span> : <span className="small muted">Se aplica solo al video: textos, subtítulos y gráficos mantienen tus colores.</span>}
+              </div>
               <span className="small muted">La calidad y la carpeta se eligen al pulsar «Exportar».</span>
             </div>
           </details>

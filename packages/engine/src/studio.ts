@@ -26,6 +26,8 @@ import { llmPublish, llmReady } from './llm.ts';
 import { localEdit } from './localedit.ts';
 import { createClipProject, projectClips } from './clips.ts';
 import { matchSceneColors } from './colormatch.ts';
+import { BUILTIN_LUTS, applyLut, removeLut } from './lut.ts';
+import { addTeaser, removeTeaser } from './teaser.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -287,6 +289,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const applied = await ops.applyBrandStyle(dir);
       return json(res, { kit, project: applied?.project ?? project, why: applied?.why ?? null });
     }
+    if (b.op === 'lut') {
+      // LUT incluido (o solo cambiar la fuerza). '' lo quita.
+      if (!b.lut && !b.fuerza) return json(res, { project: await removeLut(dir) });
+      const job = startJob('ia', async (j) => {
+        await applyLut(dir, { builtin: b.lut || undefined, strength: Number(b.fuerza) || undefined }, (m) => { j.message = m; });
+        return {};
+      });
+      return json(res, job);
+    }
+    if (b.op === 'quitar-lut') return json(res, { project: await removeLut(dir) });
+    if (b.op === 'adelanto') { const r = await addTeaser(dir); return json(res, { project: r.project, teaser: r.teaser }); }
+    if (b.op === 'quitar-adelanto') return json(res, { project: await removeTeaser(dir) });
     if (b.op === 'igualar-color') { const r = await matchSceneColors(dir); return json(res, { project: r.project, changed: r.changed }); }
     if (b.op === 'crear-imagenes') {
       // Carrusel, post o historia a partir del reel.
@@ -480,6 +494,29 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       try {
         const p2 = await ops.setVoiceoverFile(dir, tmp);
         if (p2.kind === 'montaje') await buildMontage(dir, {});
+        return {};
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+    return json(res, job);
+  }
+
+  if (p === '/api/luts' && method === 'GET') {
+    return json(res, Object.entries(BUILTIN_LUTS).map(([id, l]) => ({ id, name: l.name, description: l.description })));
+  }
+
+  if (p === '/api/lut' && method === 'POST') {
+    // Sube un LUT propio (.cube) y lo aplica a todo el video.
+    const dir = await findDir(id);
+    const tmpDir = path.join(os.tmpdir(), `axioma-lut-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const name = path.basename(url.searchParams.get('filename') ?? 'lut.cube');
+    const tmp = path.join(tmpDir, 'lut.cube');
+    await pipe(req, createWriteStream(tmp));
+    const job = startJob('ia', async (j) => {
+      try {
+        await applyLut(dir, { file: tmp, name, strength: Number(url.searchParams.get('fuerza')) || 0.8 }, (m) => { j.message = m; });
         return {};
       } finally {
         await rm(tmpDir, { recursive: true, force: true });

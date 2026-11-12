@@ -355,6 +355,8 @@ export const Project = z.object({
     halation: z.boolean().default(false),
     /** Barras de cine arriba y abajo. */
     letterbox: z.boolean().default(false),
+    /** LUT de color aplicado a todo el video (incluido o .cube propio). */
+    lut: z.object({ name: z.string(), strength: z.number().min(0.1).max(1).default(0.8), builtin: z.string().optional() }).optional(),
   }).default({ progressBar: false, grain: false, vignette: false, keywordZoom: true, halation: false, letterbox: false }),
   /** Cómo y dónde se exporta. */
   export: z.object({

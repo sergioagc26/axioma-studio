@@ -18,7 +18,7 @@ const CLOSE = /\b(por eso|asi que|en resumen|recuerda|siguem?e|comenta|escribeme
 const STOP = new Set('a al de del el la las los lo en y o que se un una es por con para mi tu su no si me te le ya muy mas pero como cuando este esta eso esto hay era fue ser listo vamos bueno entonces cosas cosa digamos sabes saben tambien porque pues verdad aqui ahora algo todo todos nada hacer tiene tengo puede quiero'.split(' '));
 
 /** Frases del video: cortadas por puntuación o por pausas largas. */
-function sentences(t: Transcript) {
+export function sentences(t: Transcript) {
   const out: { start: number; end: number; text: string }[] = [];
   let cur: typeof t.words = [];
   t.words.forEach((w, i) => {
@@ -30,6 +30,21 @@ function sentences(t: Transcript) {
     }
   });
   return out;
+}
+
+/** Qué tanto atrapa una frase como gancho (0–100 aprox.) y por qué. */
+export function hookScore(text: string): { hook: number; reasons: string[] } {
+  const first = norm(text);
+  const reasons: string[] = [];
+  let hook = 30;
+  if (/\?$/.test(text) || /^(por que|como|que pasaria|sabias)/.test(first)) { hook += 25; reasons.push('empieza con una pregunta'); }
+  if (/\d/.test(text)) { hook += 20; reasons.push('el gancho tiene una cifra'); }
+  const strong = (first.match(new RegExp(STRONG, 'g')) ?? []).length;
+  if (strong) { hook += Math.min(30, strong * 12); reasons.push('palabras que llaman la atención al inicio'); }
+  if (text.split(/\s+/).length <= 12) hook += 10;
+  if (WEAK_START.test(first)) { hook -= 30; reasons.push('arranca con un conector (le falta contexto)'); }
+  if (GREETING.test(first)) { hook -= 30; reasons.push('arranca con un saludo'); }
+  return { hook, reasons };
 }
 
 /**
@@ -49,16 +64,7 @@ export function findClips(t: Transcript, opts: { min?: number; max?: number; cou
       const dur = ss[j].end - ss[i].start;
       if (dur > max) break;
       if (dur < min) continue;
-      const first = norm(ss[i].text);
-      const reasons: string[] = [];
-      let hook = 30;
-      if (/\?$/.test(ss[i].text) || /^(por que|como|que pasaria|sabias)/.test(first)) { hook += 25; reasons.push('empieza con una pregunta'); }
-      if (/\d/.test(ss[i].text)) { hook += 20; reasons.push('el gancho tiene una cifra'); }
-      const strong = (first.match(new RegExp(STRONG, 'g')) ?? []).length;
-      if (strong) { hook += Math.min(30, strong * 12); reasons.push('palabras que llaman la atención al inicio'); }
-      if (ss[i].text.split(/\s+/).length <= 12) hook += 10;
-      if (WEAK_START.test(first)) { hook -= 30; reasons.push('arranca con un conector (le falta contexto)'); }
-      if (GREETING.test(first)) { hook -= 30; reasons.push('arranca con un saludo'); }
+      const { hook, reasons } = hookScore(ss[i].text);
 
       const last = ss[j];
       let flow = 40;

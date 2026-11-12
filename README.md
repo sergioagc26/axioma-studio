@@ -150,6 +150,14 @@ Para decidir el estilo usa, en este orden: la referencia guardada del cliente, l
 
 En el editor, «Recortar a la persona (sin pantalla verde)» procesa el video una sola vez (tarda unos minutos, todo en este computador). Después cada escena puede llevar detrás un color, un degradado, el propio video desenfocado, una imagen o un video subido, o un fondo creado desde una idea.
 
+## Color con LUT
+
+En «Acabados del reel», «LUT de color» trae seis looks incluidos (Teal & Orange, Película cálida, Moderno apagado, Noche azul, Vivo para redes y Blanco y negro de cine) y acepta tu propio archivo `.cube` (el formato de Resolve, Premiere y Final Cut). Se aplica solo al video, con la fuerza que elijas; textos, subtítulos y gráficos conservan los colores de la marca. Tarda unos segundos porque se graba una copia corregida del video (`media/master-lut.mp4`).
+
+## Adelanto: la mejor frase en el primer segundo
+
+«Poner la frase más fuerte en el primer segundo» busca, entre lo que quedó en el corte, la frase corta que más atrapa (pregunta, cifra, palabras fuertes) y la pone al inicio con un zoom y un golpe de sonido; luego empieza el reel normal. Se puede cambiar o quitar.
+
 ## Lo más reciente
 
 - **La app ve el video.** Un modelo de visión local (CLIP, en `.modelos/`, ~160 MB la primera vez) mira seis fotogramas y reconoce de qué trata: gente entrenando, comida, alguien hablando, una pantalla, un producto, etc. Eso pesa en el estilo recomendado, propone el sector de la marca y ordena los aspectos de imagen de las variantes. El video no sale del computador.
