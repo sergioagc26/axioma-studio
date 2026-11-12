@@ -68,6 +68,8 @@ export const Scene = z.object({
   textColor: z.string().optional(),
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
+  /** Datos de la plantilla de motion graphics (los pone el usuario; nunca inventados). */
+  motionData: z.record(z.string(), z.any()).optional(),
   /** Zoom de golpe al inicio de la escena. */
   punchZoom: z.boolean().default(false),
   variants: z.array(SceneVariant).default([]),
@@ -108,7 +110,8 @@ export const BrandKit = z.object({
   colors: z.object({ primary: z.string(), secondary: z.string(), text: z.string() }),
   fonts: z.object({ heading: z.string(), body: z.string() }),
   logo: z.string().optional(),
-  captions: CaptionStyle.partial().default({}),
+  /** Ajustes de subtítulos propios del cliente (solo los que se indiquen). */
+  captions: z.record(z.string(), z.any()).default({}),
 });
 export type BrandKit = z.infer<typeof BrandKit>;
 
@@ -122,8 +125,21 @@ export const SourceMedia = z.object({
   height: z.number().int(),
   fps: z.number(),
   rotation: z.number().default(0),
+  /** Punto de interés horizontal (0 izquierda, 1 derecha) al recortar a vertical. */
+  focusX: z.number().min(0).max(1).default(0.5),
 });
 export type SourceMedia = z.infer<typeof SourceMedia>;
+
+/** Recurso externo usado en el proyecto, con su licencia. */
+export const Asset = z.object({
+  file: z.string(),
+  kind: z.enum(['broll', 'musica', 'logo', 'otro']),
+  source: z.string(),
+  license: z.string(),
+  author: z.string().optional(),
+  url: z.string().optional(),
+});
+export type Asset = z.infer<typeof Asset>;
 
 export const Request = z.object({
   id: z.string(),
@@ -159,6 +175,7 @@ export const Project = z.object({
     music: z.string().optional(),
     musicVolume: z.number().min(0).max(1).default(0.18),
   }).default({ denoise: true, targetLufs: -16, musicVolume: 0.18 }),
+  assets: z.array(Asset).default([]),
   approval: z.enum(['borrador', 'en_revision', 'aprobado']).default('borrador'),
   requests: z.array(Request).default([]),
 });

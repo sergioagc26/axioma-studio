@@ -330,10 +330,80 @@ export function createServer() {
     return `Studio abierto: ${url}`;
   });
 
-  tool('renderizar', 'Renderiza el reel a MP4 (1080×1920). Tarda aproximadamente lo que dura el video.', { proyecto }, async ({ proyecto }) => {
+  tool('poner_musica', 'Pone música de fondo desde un archivo local. Baja sola bajo la voz (ducking) y la mezcla final queda a -16 LUFS. La licencia es obligatoria. Con archivo "" se quita la música.', {
+    proyecto,
+    archivo: z.string().describe('Ruta absoluta del audio, o "" para quitar la música'),
+    licencia: z.string().optional().describe('p. ej. "propia", "Artlist", "YouTube Audio Library"'),
+    volumen: z.number().min(0).max(1).optional().describe('Volumen bajo la voz (por defecto 0,18)'),
+  }, async ({ proyecto, archivo, licencia, volumen }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.setMusic(dir, archivo || null, { license: licencia, volume: volumen });
+    return p.audio.music ? `Música: ${p.audio.music} · volumen ${p.audio.musicVolume}` : 'Música quitada.';
+  });
+
+  tool('buscar_broll', 'Busca b-roll vertical en Pexels (licencia Pexels, uso comercial gratuito). Necesita PEXELS_API_KEY en .env.', {
+    busqueda: z.string().describe('En inglés suele dar mejores resultados, p. ej. "person editing video on laptop"'),
+  }, async ({ busqueda }) => {
+    const list = await E.searchBroll(busqueda);
+    return list.length ? list.map((v) => `${v.id} · ${v.duration} s · ${v.width}×${v.height} · ${v.author} · ${v.url}`).join('\n') : 'Sin resultados.';
+  });
+
+  tool('usar_broll', 'Pone b-roll en una escena (la voz sigue sonando). Usa un id de buscar_broll o un archivo local con su licencia.', {
+    proyecto,
+    escena: z.string(),
+    pexels_id: z.number().optional(),
+    busqueda: z.string().optional().describe('La misma búsqueda con la que encontraste el id'),
+    archivo: z.string().optional().describe('Ruta absoluta de un video local'),
+    licencia: z.string().optional().describe('Obligatoria para archivos locales'),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    if (a.archivo) return E.summarize(await E.setBroll(dir, a.escena, a.archivo, { license: a.licencia ?? '' }), dir);
+    if (!a.pexels_id || !a.busqueda) throw new Error('Indica un archivo local, o pexels_id junto con la búsqueda.');
+    const item = (await E.searchBroll(a.busqueda, 15)).find((v) => v.id === a.pexels_id);
+    if (!item) throw new Error(`El video ${a.pexels_id} no aparece en la búsqueda "${a.busqueda}".`);
+    const file = await E.downloadBroll(dir, item);
+    return E.summarize(await E.setBroll(dir, a.escena, file, { license: 'Pexels License', source: 'Pexels', author: item.author, url: item.url }), dir);
+  });
+
+  tool('poner_motion', 'Convierte una escena en motion graphics a pantalla completa (la voz sigue sonando). Plantillas: barras {items:[{label,value}], unidad?} · contador {valor, prefijo?, sufijo?, etiqueta?} · lista {items:[texto]} · logo {texto?} · texto (usa el texto en pantalla). Usa solo datos que dio el usuario: lo que falte se muestra como [DATO].', {
+    proyecto, escena: z.string(), plantilla: z.enum(['barras', 'contador', 'lista', 'logo', 'texto']), datos: z.record(z.string(), z.any()).default({}),
+  }, async ({ proyecto, escena, plantilla, datos }) => {
+    const dir = await resolveProject(proyecto);
+    return E.summarize(await E.setMotion(dir, escena, plantilla, datos), dir);
+  });
+
+  tool('poner_logo', 'Guarda el logo del cliente en el proyecto para la plantilla "logo".', { proyecto, archivo: z.string() }, async ({ proyecto, archivo }) => {
+    await E.setLogo(await resolveProject(proyecto), archivo);
+    return 'Logo guardado.';
+  });
+
+  tool('ajustar_encuadre', 'Mueve el punto de interés horizontal al recortar un video horizontal a vertical (0 izquierda, 0.5 centro, 1 derecha).', {
+    proyecto, foco_x: z.number().min(0).max(1),
+  }, async ({ proyecto, foco_x }) => {
+    await E.setFocus(await resolveProject(proyecto), foco_x);
+    return `Encuadre: ${foco_x}`;
+  });
+
+  tool('listar_versiones', 'Versiones guardadas del proyecto, más recientes primero.', { proyecto }, async ({ proyecto }) => {
+    const v = await E.listVersions(await resolveProject(proyecto));
+    return v.length ? v.join('\n') : 'No hay versiones guardadas.';
+  });
+
+  tool('comparar_version', 'Compara una versión guardada con el estado actual.', { proyecto, version: z.string() }, async ({ proyecto, version }) =>
+    E.compareVersion(await resolveProject(proyecto), version));
+
+  tool('restaurar_version', 'Vuelve a una versión guardada. Antes guarda la actual como respaldo.', { proyecto, version: z.string() }, async ({ proyecto, version }) => {
+    const dir = await resolveProject(proyecto);
+    return E.summarize(await E.restoreVersion(dir, version), dir);
+  });
+
+  tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
+    proyecto, formato: z.enum(['9:16', '4:5', '1:1']).default('9:16'),
+  }, async ({ proyecto, formato }) => {
     const dir = await resolveProject(proyecto);
     let last = -1;
     const { out } = await E.renderProject(dir, {
+      format: formato,
       onProgress: (p) => {
         const pct = Math.floor(p * 4) * 25;
         if (pct !== last) log(`render ${(last = pct)}%`);

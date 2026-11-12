@@ -21,7 +21,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     video: media(project.source.proxy ?? 'media/master.mp4'),
     voice: project.audio.processedVoice ? media(project.audio.processedVoice) : undefined,
     music: project.audio.music ? media(project.audio.music) : undefined,
-  }), [project, store.transcript]);
+    asset: media,
+    brand: store.brand,
+  }), [project, store.transcript, store.brand]);
 
   /** Inicio y duración (en frames) de cada escena en la salida. */
   const spans = useMemo(() => project.scenes.map((s) => {

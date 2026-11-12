@@ -13,6 +13,7 @@ import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlac
 import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import type { Timeline, TimelineClip, TimelineOverlay } from '@snz/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
+import { MotionGraphic } from './Motion.tsx';
 
 const FONTS: Record<string, () => { fontFamily: string }> = {
   Montserrat: () => loadMontserrat('normal', { weights: ['700', '800', '900'], subsets: ['latin', 'latin-ext'] }),
@@ -40,7 +41,7 @@ export const Reel: React.FC<Timeline> = (t) => {
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {t.clips.map((c, i) => (
         <Sequence key={i} from={c.fromFrame} durationInFrames={c.durationInFrames} premountFor={t.fps}>
-          <Clip clip={c} t={t} />
+          <Clip clip={c} t={t} font={font} />
         </Sequence>
       ))}
       {t.overlays.map((o, i) => (
@@ -53,28 +54,64 @@ export const Reel: React.FC<Timeline> = (t) => {
           <Caption chunk={ch} font={font} t={t} />
         </Sequence>
       ))}
-      {t.musicSrc ? <Audio src={t.musicSrc} volume={t.musicVolume} loop /> : null}
+      {t.musicSrc ? <Music t={t} /> : null}
     </AbsoluteFill>
   );
 };
 
-const Clip: React.FC<{ clip: TimelineClip; t: Timeline }> = ({ clip, t }) => {
+const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ clip, t, font }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const zoom = clip.punchZoom
     ? interpolate(spring({ frame, fps, config: { damping: 14, stiffness: 180 } }), [0, 1], [1.18, 1.08])
     : 1;
+  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${zoom})` };
+  // El audio siempre es la voz del video original, aunque la imagen sea otra.
+  const voice = t.voiceSrc
+    ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} />
+    : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} /> : null;
   return (
     <AbsoluteFill>
-      <OffthreadVideo
-        src={t.videoSrc}
-        trimBefore={clip.sourceStartFrame}
-        muted={Boolean(t.voiceSrc)}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${zoom})` }}
-      />
-      {t.voiceSrc ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} /> : null}
+      {clip.motion ? (
+        <MotionGraphic spec={clip.motion} brand={t.brand} font={font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} />
+      ) : clip.brollSrc ? (
+        <OffthreadVideo src={clip.brollSrc} trimBefore={clip.sceneOffsetFrames} muted style={cover} />
+      ) : (
+        <OffthreadVideo
+          src={t.videoSrc}
+          trimBefore={clip.sourceStartFrame}
+          muted={Boolean(t.voiceSrc)}
+          style={{ ...cover, objectPosition: `${t.focusX * 100}% 50%` }}
+        />
+      )}
+      {voice}
     </AbsoluteFill>
   );
+};
+
+/**
+ * Música con ducking: baja al volumen base mientras hay voz y sube (hasta 2,5×)
+ * en los huecos sin palabras, con rampas de 0,25 s para que no se note el salto.
+ */
+const Music: React.FC<{ t: Timeline }> = ({ t }) => {
+  const speech = useMemo(() => {
+    const a = new Uint8Array(t.durationInFrames + 1);
+    const pad = Math.round(0.15 * t.fps);
+    for (const w of t.words) for (let f = Math.max(0, w.startFrame - pad); f <= Math.min(t.durationInFrames, w.endFrame + pad); f++) a[f] = 1;
+    return a;
+  }, [t.words, t.durationInFrames, t.fps]);
+  const ramp = Math.max(1, Math.round(0.25 * t.fps));
+  const volume = (f: number) => {
+    // Distancia (en frames) hasta la voz más cercana, limitada a la rampa.
+    let dist = ramp;
+    for (let k = 0; k <= ramp; k++) {
+      if (speech[Math.min(t.durationInFrames, f + k)] || speech[Math.max(0, f - k)]) { dist = k; break; }
+    }
+    const up = Math.min(0.6, t.musicVolume * 2.5);
+    const fadeOut = interpolate(f, [t.durationInFrames - t.fps, t.durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    return interpolate(dist, [0, ramp], [t.musicVolume, up]) * fadeOut;
+  };
+  return <Audio src={t.musicSrc!} volume={volume} loop />;
 };
 
 const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({ chunk, font, t }) => {

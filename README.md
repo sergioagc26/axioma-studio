@@ -51,7 +51,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
 - **Skills** (`plugin/skills/`): `editar-reel`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 27 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Servidor MCP** (`packages/mcp`): 37 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -85,6 +85,21 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 
   Solo se guarda el estilo: el video de referencia no se conserva.
 
+## Recursos y extras (Fase 5)
+
+- **Música**: `poner_musica` con un archivo local y su licencia. Baja sola bajo la voz y la mezcla final se nivela a -16 LUFS.
+- **B-roll**: una escena puede mostrar otro video mientras sigue la voz.
+  - Con clave de Pexels en `.env` (`PEXELS_API_KEY=…`): `buscar_broll` y `usar_broll`.
+  - Sin clave: `usar_broll` con un archivo local y su licencia.
+- **Motion graphics** (`poner_motion`): barras, contador, lista, logo y tarjeta de texto. Los datos los pones tú; lo que falte se ve como `[DATO]`.
+- **Formatos**: 9:16, 4:5 y 1:1, desde `renderizar`, el studio o `se render -f 4:5`.
+- **Encuadre**: `ajustar_encuadre` mueve el recorte de un video horizontal. Es manual: no hay seguimiento automático de la cara.
+- **Versiones**: guardar, listar, comparar y restaurar. Estados `borrador → en_revision → aprobado`.
+- **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
+- Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
+
+No incluido todavía: voz en off (Piper o ElevenLabs) y seguimiento automático de la cara.
+
 ## Cómo funciona el corte automático
 
 1. whisper.cpp 1.9.5 transcribe con alineación DTW (`-nfa`, porque la atención flash desactiva DTW).
@@ -116,8 +131,12 @@ npm run typecheck
 - **Remotion**: gratis para uso individual y para equipos de hasta 3 personas, también en uso comercial. No se puede vender Remotion en sí. Ver remotion.dev/license.
 - **Codecs**: H.264/AAC tienen patentes de terceros que la licencia de Remotion no cubre.
 
-## Siguiente
+## Guía
 
-- **Fase 5**: música con ducking, b-roll, motion graphics, otros formatos y modo lote.
+Paso a paso sin tecnicismos: `docs/TU-PRIMER-REEL.md`.
+
+## Cambiar el nombre
+
+El nombre visible sale de `APP_NAME` en `packages/schema/src/project.ts`. El nombre del plugin y del servidor MCP (`snz-studio`) está en `plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `packages/engine/src/claude.ts` y `packages/mcp/src/server.ts`.
 
 El objetivo completo y la definición de terminado están en `docs/PROMPT-OBJETIVO.md`.

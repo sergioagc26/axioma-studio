@@ -9,3 +9,4 @@ plugin/.mcp.json
 .claude/settings.local.json
 packages/studio/dist/
 .claude/launch.json
+.env

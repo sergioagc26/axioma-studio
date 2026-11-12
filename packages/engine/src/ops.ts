@@ -1,9 +1,9 @@
-import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
-  CaptionStyle, Pacing, Scene, SceneVariant, getPreset, outputDuration,
-  type Project, type Preset,
+  CaptionStyle, Pacing, Project, Scene, SceneVariant, getPreset, outputDuration,
+  type Asset, type Preset,
 } from '@snz/schema';
 import { analyzePhrases, applyPunchZooms, phrasesToRanges, type Phrase } from './cuts.ts';
 import { kitCaptions, readKit } from './kit.ts';
@@ -229,4 +229,87 @@ function findScene(project: Project, id: string): Scene {
   const s = project.scenes.find((x) => x.id === id);
   if (!s) throw new Error(`No existe la escena ${id}. Escenas: ${project.scenes.map((x) => x.id).join(', ') || 'ninguna'}.`);
   return s;
+}
+
+/** Copia un recurso al proyecto y registra su licencia. */
+async function importAsset(dir: string, project: Project, file: string, kind: Asset['kind'], info: { source: string; license: string; author?: string; url?: string }): Promise<string> {
+  const src = path.resolve(file);
+  if (!existsSync(src)) throw new Error(`No existe el archivo: ${src}`);
+  if (!info.license.trim()) throw new Error('Indica la licencia del recurso (p. ej. "propia", "Pexels", "comprada en Artlist").');
+  const sub = kind === 'broll' ? 'broll' : kind === 'musica' ? 'musica' : 'marca';
+  const rel = `media/${sub}/${slugifyName(path.basename(src))}`;
+  await mkdir(path.join(dir, 'media', sub), { recursive: true });
+  if (path.resolve(dir, rel) !== src) await copyFile(src, path.join(dir, rel));
+  project.assets = [...project.assets.filter((a) => a.file !== rel), { file: rel, kind, ...info }];
+  return rel;
+}
+
+const slugifyName = (name: string) => {
+  const ext = path.extname(name).toLowerCase();
+  return path.basename(name, path.extname(name)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + ext;
+};
+
+export async function setMusic(dir: string, file: string | null, opts: { license?: string; source?: string; volume?: number } = {}) {
+  const project = await readProject(dir);
+  if (file === null) {
+    project.audio.music = undefined;
+  } else {
+    project.audio.music = await importAsset(dir, project, file, 'musica', { source: opts.source ?? 'archivo local', license: opts.license ?? '' });
+  }
+  if (opts.volume !== undefined) project.audio.musicVolume = opts.volume;
+  return writeProject(dir, project);
+}
+
+export async function setBroll(dir: string, sceneId: string, file: string, info: { license: string; source?: string; author?: string; url?: string }) {
+  const project = await readProject(dir);
+  const scene = findScene(project, sceneId);
+  scene.brollFile = await importAsset(dir, project, file, 'broll', { source: info.source ?? 'archivo local', license: info.license, author: info.author, url: info.url });
+  scene.visual = 'broll';
+  scene.chosenVariant = undefined;
+  return writeProject(dir, project);
+}
+
+export async function setMotion(dir: string, sceneId: string, template: string, data: Record<string, unknown>) {
+  const project = await readProject(dir);
+  const scene = findScene(project, sceneId);
+  scene.visual = template === 'texto' ? 'texto' : 'motion';
+  scene.motionTemplate = template === 'texto' ? undefined : template;
+  scene.motionData = data;
+  scene.chosenVariant = undefined;
+  return writeProject(dir, project);
+}
+
+export async function setLogo(dir: string, file: string) {
+  const project = await readProject(dir);
+  await importAsset(dir, project, file, 'logo', { source: 'cliente', license: 'propia' });
+  return writeProject(dir, project);
+}
+
+export async function setFocus(dir: string, focusX: number) {
+  const project = await readProject(dir);
+  project.source.focusX = Math.min(1, Math.max(0, focusX));
+  return writeProject(dir, project);
+}
+
+export async function listVersions(dir: string): Promise<string[]> {
+  const v = path.join(dir, P.versions);
+  return existsSync(v) ? (await readdir(v)).filter((f) => f.endsWith('.json')).sort().reverse() : [];
+}
+
+/** Diferencias entre una versión guardada y el estado actual. */
+export async function compareVersion(dir: string, name: string): Promise<string> {
+  const old = Project.parse(JSON.parse(await readFile(path.join(dir, P.versions, path.basename(name)), 'utf8')));
+  const cur = await readProject(dir);
+  const line = (p: Project) => `${p.scenes.length} escenas · ${outputDuration(p).toFixed(1)} s · preset ${p.presetId} · ${p.approval}`;
+  const texts = (p: Project) => p.scenes.map((s) => `${s.id}:${s.visual}:${s.onScreenText ?? ''}`);
+  const a = texts(old), b = texts(cur);
+  const changed = b.filter((x) => !a.includes(x)).length + a.filter((x) => !b.includes(x)).length;
+  return [`Versión ${name}: ${line(old)}`, `Actual: ${line(cur)}`, `Orden: ${old.scenes.map((s) => s.id).join(' ')} → ${cur.scenes.map((s) => s.id).join(' ')}`, `Escenas con cambios de texto o tipo: ${changed}`].join('\n');
+}
+
+/** Vuelve a una versión guardada (antes guarda la actual como respaldo). */
+export async function restoreVersion(dir: string, name: string) {
+  const old = Project.parse(JSON.parse(await readFile(path.join(dir, P.versions, path.basename(name)), 'utf8')));
+  await saveVersion(dir, 'antes-de-restaurar');
+  return writeProject(dir, old);
 }

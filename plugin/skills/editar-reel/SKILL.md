@@ -43,6 +43,10 @@ Con las frases que devuelve `crear_proyecto` (o `leer_transcripcion`):
 
 Llama `armar_storyboard` y muéstrale al usuario el resultado como lista: escena, rol, duración, texto en pantalla. Agrega una línea con la duración total.
 
+## 4b. Opciones de gancho
+
+Si el gancho no es claro, propone 3 opciones sacadas de frases que la persona sí dijo (con el id de la frase) y deja que elija. No escribas ganchos que no estén en el video.
+
 ## 5. Revisar y renderizar
 
 - Pregunta si quiere cambios antes de renderizar, o renderiza directo si pidió rapidez.
@@ -53,7 +57,15 @@ Llama `armar_storyboard` y muéstrale al usuario el resultado como lista: escena
   - "otra opción para esta escena" → skill `variantes`;
   - "más rápido" → `aplicar_preset`;
   - "letras más grandes" → `ajustar_subtitulos`.
+- Otros pedidos:
+  - "ponle música" → `poner_musica` (pide el archivo y su licencia);
+  - "ponle b-roll" o "un gráfico" → skill `variantes`, y luego `usar_broll` o `poner_motion`;
+  - "también en 4:5" o "cuadrado" → `renderizar` con `formato`;
+  - "ábrelo para verlo" → `abrir_studio`;
+  - "vuelve a como estaba" → `listar_versiones`, `comparar_version` y `restaurar_version`.
+- Si el video es horizontal y la persona queda cortada, mueve el encuadre con `ajustar_encuadre`.
 - Después de cambios importantes, `guardar_version`.
+- Varios videos de una vez: dile al usuario que corra `npm run se -- lote <carpeta>` y luego afina cada proyecto contigo.
 - Si hay peticiones del studio (`leer_peticiones`), atiéndelas y márcalas con `responder_peticion`.
 
 ## 6. Aprobación

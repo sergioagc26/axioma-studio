@@ -34,6 +34,7 @@ export const App: React.FC = () => {
   });
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [render, setRender] = useState<Job | null>(null);
+  const [formato, setFormato] = useState('9:16');
   const store = useProject(route.p);
   const { project } = store;
 
@@ -80,7 +81,7 @@ export const App: React.FC = () => {
     if (!project) return;
     try {
       const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render' }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato }),
       });
       const done = await waitJob(job, setRender);
       toast(`Exportado: ${done.result?.file}`);
@@ -123,6 +124,11 @@ export const App: React.FC = () => {
           <button className="btn rect" onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
             Tema {theme === 'oscuro' ? 'claro' : 'oscuro'}
           </button>
+          {project && (
+            <select className="input" aria-label="Formato de exportación" value={formato} onChange={(e) => setFormato(e.target.value)} style={{ minHeight: 40 }}>
+              <option>9:16</option><option>4:5</option><option>1:1</option>
+            </select>
+          )}
           {project && (
             <button className="btn primary" disabled={Boolean(render) || !project.scenes.length} onClick={exportar}>
               {render ? `Exportando ${Math.round(render.progress * 100)}%` : 'Exportar MP4'}

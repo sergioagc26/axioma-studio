@@ -102,3 +102,15 @@ export async function measureLufs(file: string): Promise<number> {
   const m = JSON.parse(stderr.slice(stderr.lastIndexOf('{'), stderr.lastIndexOf('}') + 1));
   return Number(m.input_i);
 }
+
+/**
+ * Nivela la mezcla final (voz + música) al objetivo sin recodificar el video.
+ * Dos pasadas de loudnorm, igual que con la voz.
+ */
+export async function normalizeMix(input: string, out: string, targetLufs: number) {
+  const target = `I=${targetLufs}:TP=-1.5:LRA=11`;
+  const { stderr } = await ffmpeg(['-i', input, '-vn', '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-']);
+  const m = JSON.parse(stderr.slice(stderr.lastIndexOf('{'), stderr.lastIndexOf('}') + 1));
+  const second = `${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
+  await ffmpeg(['-i', input, '-c:v', 'copy', '-af', `loudnorm=${second}`, '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-movflags', '+faststart', out]);
+}

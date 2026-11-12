@@ -12,7 +12,7 @@ import { P, REPO_ROOT } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
 import { allPresets, savePreset } from './presets.ts';
 import { analyzeReference, listReferences, referencesDir } from './reference.ts';
-import { renderProject } from './render.ts';
+import { brandFor, renderProject } from './render.ts';
 import { safeJoin, sendFile } from './server.ts';
 import { createProject, readProject, readTranscript, writeProject } from './store.ts';
 
@@ -126,7 +126,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/project' && method === 'GET') {
     const dir = await findDir(id);
     const project = await readProject(dir);
-    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client) });
+    const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
+    return json(res, { project, transcript: await readTranscript(dir), presets: await allPresets(project.client), brand: await brandFor(project, media, dir) });
   }
 
   if (p === '/api/project' && method === 'PUT') {
@@ -151,7 +152,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'render') {
       const job = startJob('render', async (j) => {
         j.message = 'Renderizando…';
-        const { out } = await renderProject(dir, { onProgress: (x) => { j.progress = x; } });
+        const { out } = await renderProject(dir, { format: b.formato, onProgress: (x) => { j.progress = x; } });
         return { file: path.relative(dir, out).split(path.sep).join('/') };
       });
       return json(res, job);

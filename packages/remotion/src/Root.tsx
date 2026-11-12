@@ -13,6 +13,8 @@ const empty: Timeline = {
   musicVolume: 0.18,
   sourceWidth: 1080,
   sourceHeight: 1920,
+  focusX: 0.5,
+  brand: { primary: '#FE2C55', secondary: '#25F4EE', text: '#FFFFFF' },
   clips: [],
   words: [
     { text: 'Esto', startFrame: 0, endFrame: 15 },

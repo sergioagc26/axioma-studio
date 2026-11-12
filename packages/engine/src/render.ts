@@ -1,9 +1,12 @@
 import { existsSync } from 'node:fs';
+import { rename, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { buildTimeline } from '@snz/schema';
+import { FORMATS, buildTimeline, type Brand, type FormatId, type Project } from '@snz/schema';
+import { readKit } from './kit.ts';
+import { normalizeMix } from './media.ts';
 import { P, REMOTION_ENTRY } from './paths.ts';
 import { serveFolder } from './server.ts';
 import { readProject, readTranscript } from './store.ts';
@@ -15,22 +18,40 @@ export function getBundle() {
   return bundled;
 }
 
-export async function renderProject(dir: string, opts: { out?: string; onProgress?: (p: number) => void } = {}) {
+/** Colores, nombre y logo del kit del cliente para las plantillas. */
+export async function brandFor(project: Project, asset: (rel: string) => string, dir: string): Promise<Brand> {
+  const kit = await readKit(project.client);
+  const logo = project.assets.find((a) => a.kind === 'logo')?.file;
+  return {
+    primary: kit?.colors.primary ?? project.captions.highlightColor,
+    secondary: kit?.colors.secondary ?? '#25F4EE',
+    text: kit?.colors.text ?? '#FFFFFF',
+    name: kit?.name ?? project.client,
+    logoSrc: logo && existsSync(path.join(dir, logo)) ? asset(logo) : undefined,
+  };
+}
+
+export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; onProgress?: (p: number) => void } = {}) {
   const project = await readProject(dir);
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
   const transcript = await readTranscript(dir);
   const server = await serveFolder(dir);
   try {
+    const has = (rel?: string) => Boolean(rel && existsSync(path.join(dir, rel)));
     const timeline = buildTimeline(project, transcript, {
       video: server.url(P.master),
-      voice: project.audio.processedVoice && existsSync(path.join(dir, project.audio.processedVoice))
-        ? server.url(project.audio.processedVoice) : undefined,
-      music: project.audio.music ? server.url(project.audio.music) : undefined,
+      voice: has(project.audio.processedVoice) ? server.url(project.audio.processedVoice!) : undefined,
+      music: has(project.audio.music) ? server.url(project.audio.music!) : undefined,
+      asset: (rel) => server.url(rel),
+      brand: await brandFor(project, server.url, dir),
+      format: opts.format ? FORMATS[opts.format] : undefined,
     });
     const serveUrl = await getBundle();
     const composition = await selectComposition({ serveUrl, id: 'Reel', inputProps: timeline });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const out = opts.out ?? path.join(dir, P.renders, `${project.id}-${stamp}.mp4`);
+    const suffix = opts.format && opts.format !== '9:16' ? `-${opts.format.replace(':', 'x')}` : '';
+    const out = opts.out ?? path.join(dir, P.renders, `${project.id}-${stamp}${suffix}.mp4`);
+    const raw = out.replace(/\.mp4$/i, '') + '.sin-nivelar.mp4';
     await renderMedia({
       serveUrl,
       composition,
@@ -39,10 +60,18 @@ export async function renderProject(dir: string, opts: { out?: string; onProgres
       crf: 18,
       audioBitrate: '192k',
       pixelFormat: 'yuv420p',
-      outputLocation: out,
+      outputLocation: raw,
       concurrency: Math.max(1, Math.min(8, Math.floor(os.cpus().length / 2))),
-      onProgress: ({ progress }) => opts.onProgress?.(progress),
+      onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
     });
+    // Con música la mezcla sube de volumen: se nivela el resultado final.
+    if (timeline.musicSrc) {
+      await normalizeMix(raw, out, project.audio.targetLufs);
+      await rm(raw, { force: true });
+    } else {
+      await rename(raw, out);
+    }
+    opts.onProgress?.(1);
     return { out, durationInFrames: timeline.durationInFrames, fps: timeline.fps };
   } finally {
     await server.close();

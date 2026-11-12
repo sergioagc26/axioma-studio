@@ -1,3 +1,4 @@
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
 import { APP_NAME, BUILTIN_PRESETS } from '@snz/schema';
@@ -64,6 +65,30 @@ program
   });
 
 program
+  .command('lote')
+  .argument('<carpeta>', 'carpeta con varios videos')
+  .option('-c, --client <cliente>', 'cliente (carpeta)')
+  .option('-p, --preset <id>', 'preset', 'rapido')
+  .option('--no-render', 'solo preparar y cortar')
+  .description('Edita todos los videos de una carpeta, uno tras otro')
+  .action(async (folder, o) => {
+    const dir = path.resolve(folder);
+    const files = (await readdir(dir)).filter((f) => /\.(mp4|mov|m4v)$/i.test(f)).sort();
+    if (!files.length) throw new Error(`No hay videos (.mp4, .mov) en ${dir}`);
+    const results: string[] = [];
+    for (const [i, f] of files.entries()) {
+      console.log(`\n[${i + 1}/${files.length}] ${f}`);
+      try {
+        const r = await editVideo(path.join(dir, f), { client: o.client, preset: o.preset, render: o.render });
+        results.push(`✓ ${f} → ${r.out ?? r.dir}`);
+      } catch (e) {
+        results.push(`✗ ${f}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    console.log(`\nResumen del lote:\n${results.join('\n')}`);
+  });
+
+program
   .command('prepare')
   .argument('<carpeta>', 'carpeta del proyecto')
   .action(async (dir) => { await prepareMedia(path.resolve(dir)); });
@@ -83,8 +108,9 @@ program
   .command('render')
   .argument('<carpeta>', 'carpeta del proyecto')
   .option('-o, --out <archivo>', 'archivo de salida')
+  .option('-f, --formato <formato>', '9:16, 4:5 o 1:1', '9:16')
   .action(async (dir, o) => {
-    const { out } = await renderProject(path.resolve(dir), { out: o.out, onProgress: (p) => process.stdout.write(`\r  render ${Math.round(p * 100)}%`) });
+    const { out } = await renderProject(path.resolve(dir), { out: o.out, format: o.formato, onProgress: (p) => process.stdout.write(`\r  render ${Math.round(p * 100)}%`) });
     console.log(`\nListo: ${out}`);
   });
 
