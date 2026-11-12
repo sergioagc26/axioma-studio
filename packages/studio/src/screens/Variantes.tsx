@@ -89,7 +89,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <span className="small muted" style={{ fontWeight: 700 }}>{v.id.toUpperCase()}</span>
                   <span className={`chip ${v.visual}`} style={{ alignSelf: 'auto' }}>{VISUAL_LABEL[v.visual]}</span>
                 </div>
-                <SceneFrame projectId={project.id} scene={scene} transcript={store.transcript} text={v.onScreenText ?? null} color={v.textColor} />
+                <SceneFrame projectId={project.id} scene={scene} transcript={store.transcript} text={v.onScreenText ?? null} color={v.textColor} visual={v.visual} />
                 <h2 style={{ fontSize: 15, fontFamily: 'inherit', fontWeight: 600 }}>{v.label}</h2>
                 <span className="muted small" style={{ minHeight: 34 }}>{v.notes ?? v.brollFile ?? v.motionTemplate ?? ''}</span>
                 <button className={`btn rect ${on ? 'primary' : ''}`} style={{ height: 44 }} onClick={() => store.update((p) => choose(p.scenes[idx], v))}>{on ? 'Seleccionada' : 'Elegir'}</button>

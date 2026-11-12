@@ -58,11 +58,15 @@ const json = (res: http.ServerResponse, data: unknown, status = 200) => {
   res.end(JSON.stringify(data));
 };
 
-async function thumb(dir: string, t: number): Promise<string> {
-  const out = path.join(dir, 'proxies', 'thumbs', `${Math.round(t * 1000)}.jpg`);
+async function thumb(dir: string, t: number, rel?: string | null): Promise<string> {
+  // Sin `rel`, la miniatura sale del proxy; con `rel`, de un archivo del proyecto (b-roll).
+  const src = rel ? safeJoin(dir, rel) : path.join(dir, P.proxy);
+  if (!src || !existsSync(src)) throw Object.assign(new Error('No existe el archivo.'), { status: 404 });
+  const tag = rel ? path.basename(rel).replace(/[^\w.-]+/g, '_') + '-' : '';
+  const out = path.join(dir, 'proxies', 'thumbs', `${tag}${Math.round(t * 1000)}.jpg`);
   if (!existsSync(out)) {
     await mkdir(path.dirname(out), { recursive: true });
-    await ffmpeg(['-ss', t.toFixed(3), '-i', path.join(dir, P.proxy), '-frames:v', '1', '-vf', 'scale=270:-2', '-q:v', '5', out]);
+    await ffmpeg(['-ss', t.toFixed(3), '-i', src, '-frames:v', '1', '-vf', 'scale=270:-2', '-q:v', '5', out]);
   }
   return out;
 }
@@ -217,7 +221,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (p === '/api/thumb') {
     const dir = await findDir(id);
-    if (!sendFile(req, res, await thumb(dir, Math.max(0, Number(url.searchParams.get('t') ?? 0))))) res.writeHead(404).end();
+    if (!sendFile(req, res, await thumb(dir, Math.max(0, Number(url.searchParams.get('t') ?? 0)), url.searchParams.get('file')))) res.writeHead(404).end();
     return;
   }
 

@@ -45,6 +45,13 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     return () => p.removeEventListener('frameupdate', on);
   }, [timeline.durationInFrames > 0]);
 
+  // Al abrir el editor en una escena (o cambiarla desde otra pantalla), la vista previa salta a ella.
+  useEffect(() => {
+    const s = spans.find((x) => x.id === ctx.sceneId);
+    const f = player.current?.getCurrentFrame() ?? 0;
+    if (s && (f < s.from || f >= s.from + s.dur)) player.current?.seekTo(s.from);
+  }, [ctx.sceneId]);
+
   const select = (id: string) => {
     const s = spans.find((x) => x.id === id);
     if (s) player.current?.seekTo(s.from);
