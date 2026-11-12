@@ -152,7 +152,18 @@ const STRONG_MOTION = ['pregunta', 'porcentaje', 'contador', 'comparacion', 'pas
  * había puesto el estilo anterior.
  */
 async function dressEdit(dir: string, project: Project, st: NonNullable<Preset['style']>) {
+  // (st se reasigna según la intensidad)
   const transcript = project.kind === 'hablado' ? await readTranscript(dir).catch(() => null) : null;
+  // La intensidad sube o baja la densidad de todo lo que pone el estilo.
+  const level = project.intensity ?? 'media';
+  st = level === 'suave'
+    ? { ...st, texts: st.texts === 'muchos' ? 'pocos' : st.texts === 'pocos' ? 'ninguno' : st.texts, zoomText: false, motionEvery: st.motionEvery ? st.motionEvery * 2 : 0, cameras: ['acercar', 'ninguno'], sfxAuto: false }
+    : level === 'fuerte'
+      ? { ...st, texts: 'muchos', zoomText: true, motionEvery: Math.max(2, (st.motionEvery || 4) - 1), sfxAuto: true }
+      : st;
+  if (level !== 'media' && st.sfxAuto !== undefined) project.audio.sfxAuto = st.sfxAuto;
+  // Suave: solo el gancho lleva zoom de golpe.
+  if (level === 'suave') project.scenes.forEach((sc, i) => { sc.punchZoom = i === 0 && sc.punchZoom; });
   const mode = st.texts ?? 'pocos';
   const n = project.scenes.length;
   project.scenes.forEach((s, i) => {

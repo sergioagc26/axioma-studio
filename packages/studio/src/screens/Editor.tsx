@@ -374,6 +374,28 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(`No se pudo editar: ${e.message}`); } finally { setAuto(''); }
   };
 
+  // Partes con voz que quedaron fuera del reel (para recuperarlas una por una).
+  const removed = useMemo(() => {
+    const words = store.transcript?.words ?? [];
+    const kept = project.scenes.flatMap((sc) => effectiveRanges(sc, project.source.duration));
+    const inside = (t: number) => kept.some((r) => t >= r.start && t < r.end);
+    const out: { start: number; end: number; text: string }[] = [];
+    for (const w of words) {
+      const mid = (w.start + w.end) / 2;
+      if (inside(mid)) continue;
+      const last = out[out.length - 1];
+      if (last && w.start - last.end < 0.6) { last.end = w.end; last.text += ` ${w.text}`; }
+      else out.push({ start: w.start, end: w.end, text: w.text });
+    }
+    return out;
+  }, [project, store.transcript]);
+  /** Devuelve una parte quitada a la escena que va justo antes en el tiempo. */
+  const restore = (r: { start: number; end: number }) => store.update((p) => {
+    const ordered = p.scenes.map((sc, i) => ({ i, at: sc.ranges[0]?.start ?? 0 }));
+    const before = ordered.filter((x) => x.at <= r.start).sort((a, b) => b.at - a.at)[0] ?? ordered[0];
+    const sc = p.scenes[before.i];
+    sc.ranges = [...sc.ranges, { start: Math.max(0, r.start - 0.08), end: r.end + 0.08 }].sort((a, b) => a.start - b.start);
+  });
   const [cutting, setCutting] = useState('');
   const reloadProject = async () => {
     const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
@@ -431,6 +453,14 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <div className="editor">
         <aside className="side l">
           <div className="col" style={{ padding: 12, borderRadius: 14, background: 'var(--pinkSoft)', gap: 8, marginBottom: 10 }}>
+            <div className="seg" style={{ gridTemplateColumns: '1fr 1fr 1fr' }} role="group" aria-label="Intensidad de la edición">
+              {(['suave', 'media', 'fuerte'] as const).map((lv) => (
+                <button key={lv} className={project.intensity === lv ? 'on' : ''} aria-pressed={project.intensity === lv} onClick={() => store.update((p) => { p.intensity = lv; })}>
+                  {lv === 'suave' ? 'Suave' : lv === 'media' ? 'Media' : 'Fuerte'}
+                </button>
+              ))}
+            </div>
+            <span className="small muted">Intensidad: cuántos textos, zooms, gráficos y sonidos pone la IA.</span>
             <button className="btn primary" disabled={Boolean(auto)} onClick={autoEdit}>{auto || 'Editar todo con IA'}</button>
             <span className="small muted">
               Un solo botón: corta, pone gancho, textos, zooms, gráficos, transiciones y sonidos.
@@ -469,6 +499,19 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </span>
             </button>
           ))}
+            </div>
+          </details>
+          <details className="grp">
+            <summary>Partes quitadas ({removed.length})</summary>
+            <div className="col">
+              <span className="small muted">Lo que el corte automático quitó: pausas largas, muletillas y tomas repetidas. Si quitó algo que querías, recupéralo.</span>
+              {removed.length === 0 && <span className="small muted">No se quitó nada con voz.</span>}
+              {removed.slice(0, 40).map((r) => (
+                <div key={r.start} className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap', padding: '6px 8px', borderRadius: 8, background: 'var(--panel2)' }}>
+                  <span className="small" style={{ minWidth: 0 }}><s style={{ opacity: 0.7 }}>{r.text}</s> <span className="muted">· {(r.end - r.start).toFixed(1)} s</span></span>
+                  <button className="btn rect" style={{ height: 30, flex: 'none' }} onClick={() => restore(r)}>Recuperar</button>
+                </div>
+              ))}
             </div>
           </details>
           <details className="grp">

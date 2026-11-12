@@ -158,9 +158,11 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * clip.videoScale})`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
   const pos = coverPosition(t, clip.focusX, clip.focusY);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
+  // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
+  const fadeVol = (f: number) => t.originalVolume * Math.min(1, (f + 1) / 2, (clip.durationInFrames - f) / 2);
   const voice = t.originalVolume <= 0 ? null
-    : t.voiceSrc ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} />
-    : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} /> : null;
+    : t.voiceSrc ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} />
+    : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} /> : null;
   // Transición de entrada: la escena anterior sigue debajo mientras la nueva entra animada.
   const tr = clip.transition && frame < clip.transition.frames ? clip.transition : null;
   const p = tr ? ease(tr.spec.easing, frame / tr.frames) : 1;
@@ -198,14 +200,14 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
           <AbsoluteFill>
             <OffthreadVideo src={t.cutoutSrc} transparent trimBefore={clip.sourceStartFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }} />
           </AbsoluteFill>
-          {!t.voiceSrc && t.originalVolume > 0 ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={t.originalVolume} /> : null}
+          {!t.voiceSrc && t.originalVolume > 0 ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} /> : null}
         </>
       ) : (
         <OffthreadVideo
           src={t.videoSrc}
           trimBefore={clip.sourceStartFrame}
           muted={Boolean(t.voiceSrc) || t.originalVolume <= 0}
-          volume={t.originalVolume}
+          volume={fadeVol}
           style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }}
         />
       )}

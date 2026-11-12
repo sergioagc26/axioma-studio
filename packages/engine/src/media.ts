@@ -81,7 +81,9 @@ export async function processVoice(input: string, out: string, { denoise, denois
   const pre = [
     'highpass=f=80',
     ...(denoise ? [`afftdn=nr=${nr}:nf=-25`] : []),
-    ...(enhance ? ['equalizer=f=220:t=q:w=1:g=-2', 'equalizer=f=3200:t=q:w=1:g=3', 'acompressor=threshold=-20dB:ratio=3:attack=5:release=90:makeup=2'] : []),
+    // Voz de estudio: quita barro (220 Hz), da presencia (3,2 kHz) y aire (10 kHz), suaviza las «s»
+    // y comprime con suavidad para que el volumen sea parejo, como en los editores profesionales.
+    ...(enhance ? ['equalizer=f=220:t=q:w=1:g=-2', 'equalizer=f=3200:t=q:w=1:g=3', 'treble=g=2:f=10000', 'deesser=i=0.4:m=0.5:f=0.5', 'acompressor=threshold=-20dB:ratio=3:attack=5:release=90:makeup=2'] : []),
   ].join(',');
   const target = `I=${targetLufs}:TP=-1.5:LRA=11`;
   const { stderr } = await ffmpeg(['-i', input, '-vn', '-af', `${pre},loudnorm=${target}:print_format=json`, '-f', 'null', '-']);

@@ -52,6 +52,7 @@ export function isRetake(a: Word[], b: Word[]): boolean {
 /** Convierte palabras conservadas en tramos, cortando pausas largas. */
 export function wordsToRanges(words: Word[], pacing: Pacing, duration: number): Range[] {
   const ranges: Range[] = [];
+  let prev: Word | null = null;
   for (const w of words) {
     const start = Math.max(0, w.start - pacing.pad);
     const end = Math.min(duration, w.end + pacing.pad);
@@ -59,8 +60,15 @@ export function wordsToRanges(words: Word[], pacing: Pacing, duration: number): 
     if (last && w.start - (last.end - pacing.pad) <= pacing.maxPause) {
       last.end = Math.max(last.end, end);
     } else {
+      // Se corta la pausa, pero respetando la puntuación: tras un punto queda un respiro
+      // un poco más largo que tras una coma, para que el ritmo no suene a máquina.
+      if (last && prev) {
+        const extra = /[.!?…]$/.test(prev.text) ? 0.14 : /[,;:]$/.test(prev.text) ? 0.07 : 0;
+        if (extra) last.end = Math.min(last.end + extra, start - 0.02, duration);
+      }
       ranges.push({ start: last ? Math.max(start, last.end) : start, end });
     }
+    prev = w;
   }
   return ranges.filter((r) => r.end - r.start > 0.05);
 }

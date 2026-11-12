@@ -310,6 +310,8 @@ export const Project = z.object({
   /** Cuándo se armó la edición a partir del brief. */
   briefAppliedAt: z.string().optional(),
   presetId: z.string().default('rapido'),
+  /** Cuánto se edita al aplicar un estilo o editar con IA: más o menos textos, zooms, gráficos y sonidos. */
+  intensity: z.enum(['suave', 'media', 'fuerte']).default('media'),
   pacing: Pacing,
   captions: CaptionStyle,
   scenes: z.array(Scene).default([]),

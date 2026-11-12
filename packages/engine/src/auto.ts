@@ -7,12 +7,40 @@ import { cutProject } from './pipeline.ts';
 import { listPresets } from './presets.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { readVision } from './vision.ts';
+import { envValue } from './env.ts';
+import { downloadBroll, searchBroll } from './pexels.ts';
+import { keywords, speechOf } from '@axioma/schema';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { createMontage, detectShots } from './montage.ts';
 import { prepareMedia, transcribeProject } from './pipeline.ts';
 import { renderProject } from './render.ts';
 import { createProject } from './store.ts';
+
+const GREETING = /^(hola|holaa+|buenas|buenos|buen|que|qué|bienvenidos|bienvenidas|bienvenido|bienvenida|hey|ey)$/;
+const GREETING_TAIL = new Set(['a', 'todos', 'todas', 'amigos', 'amigas', 'chicos', 'chicas', 'gente', 'tal', 'dias', 'días', 'tardes', 'noches', 'como', 'cómo', 'estan', 'están', 'mi', 'este', 'al', 'canal', 'nuevo', 'video', 'de', 'nuevo,', 'que', 'qué']);
+const plain = (w: string) => w.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zñ]/g, '');
+
+/**
+ * Si el reel empieza con un saludo («hola a todos», «qué tal amigos», «bienvenidos al canal»),
+ * mueve el inicio de la primera escena justo después. Devuelve el saludo quitado o ''.
+ */
+export function skipGreeting(project: { scenes: { ranges: { start: number; end: number }[] }[] }, transcript: { words: { text: string; start: number; end: number }[] } | null): string {
+  const first = project.scenes[0];
+  if (!first || !transcript) return '';
+  const r0 = first.ranges[0];
+  const words = transcript.words.filter((w) => (w.start + w.end) / 2 >= r0.start && (w.start + w.end) / 2 < r0.end).slice(0, 8);
+  if (!words.length || !GREETING.test(plain(words[0].text))) return '';
+  // «qué» solo cuenta si va seguido de «tal».
+  if (/^qu[eé]$/i.test(plain(words[0].text)) && plain(words[1]?.text ?? '') !== 'tal') return '';
+  let n = 1;
+  while (n < words.length && GREETING_TAIL.has(plain(words[n].text)) && !/[.!?]$/.test(words[n - 1].text)) n++;
+  const cutAt = words[n - 1].end + 0.05;
+  const rest = first.ranges.reduce((a, r) => a + Math.max(0, r.end - Math.max(r.start, cutAt)), 0);
+  if (rest < 1.2) return ''; // la escena quedaría casi vacía
+  r0.start = Math.min(cutAt, r0.end - 0.3);
+  return words.slice(0, n).map((w) => w.text).join(' ').replace(/[,.!¡¿?]+$/g, '');
+}
 
 /**
  * Edita el reel completo sin preguntar nada. Decide con lo que ya sabe:
@@ -77,6 +105,9 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   } else {
     await cutProject(dir, base.id);
     project = await readProject(dir);
+    // Abrir con el gancho, no con el saludo: los mejores reels no empiezan con «hola a todos».
+    const greeting = skipGreeting(project, await readTranscript(dir).catch(() => null));
+    if (greeting) { project = await writeProject(dir, project); summary.push(`Quité el saludo del inicio («${greeting}») para abrir directo con el gancho.`); }
     const asked = (project.brief.duracion ?? '').match(/\d+/g)?.map(Number) ?? [];
     // Solo se acorta si el brief pidió una duración: quitar partes por cuenta propia rompe el mensaje.
     const max = asked.length ? Math.max(...asked) : null;
@@ -90,6 +121,29 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   // 2. La edición: gancho, textos, zoom, cámara, gráficos, transiciones, sonidos y acabados.
   project = await applyPresetObject(dir, merged);
   project.presetId = base.id;
+
+  // 2b. B-roll automático de Pexels (si hay clave): una de cada cuatro escenas del medio,
+  // nunca el gancho ni el cierre, y solo donde no hay texto ni gráfico.
+  if (project.kind === 'hablado' && (await envValue('PEXELS_API_KEY'))) {
+    const transcript = await readTranscript(dir).catch(() => null);
+    let put = 0;
+    for (const [i, s] of project.scenes.entries()) {
+      if (i === 0 || i === project.scenes.length - 1 || i % 4 !== 2 || s.visual !== 'original' || s.onScreenText) continue;
+      const words = keywords(speechOf(s, transcript), 2);
+      if (!words.length) continue;
+      try {
+        const found = (await searchBroll(words.join(' '), 3))[0] ?? (await searchBroll(words[0], 3))[0];
+        if (!found) continue;
+        const file = await downloadBroll(dir, found);
+        const rel = path.relative(dir, file).split(path.sep).join('/');
+        s.brollFile = rel;
+        s.visual = 'broll';
+        project.assets = [...project.assets.filter((a) => a.file !== rel), { file: rel, kind: 'broll', source: 'Pexels', license: 'Pexels (uso comercial gratuito)', author: found.author, url: found.url }];
+        put++;
+      } catch { /* sin internet o sin resultados: la escena queda con el video original */ }
+    }
+    if (put) { project = await writeProject(dir, project); summary.push(`B-roll de Pexels en ${put} escenas, elegido por lo que dices en cada una.`); }
+  }
 
   // 3. Cierre con el llamado a la acción del brief, si lo hay.
   const cta = /digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim();

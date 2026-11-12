@@ -15,7 +15,8 @@ async function pexelsKey(): Promise<string> {
 
 /** Busca videos verticales en Pexels (licencia Pexels: uso comercial gratuito). */
 export async function searchBroll(query: string, perPage = 6): Promise<BrollResult[]> {
-  const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${perPage}`, {
+  // locale=es-ES: Pexels entiende la búsqueda en español.
+  const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${perPage}&locale=es-ES`, {
     headers: { Authorization: await pexelsKey() },
   });
   if (!r.ok) throw new Error(`Pexels respondió ${r.status}. Revisa la clave.`);
