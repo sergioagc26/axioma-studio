@@ -10,6 +10,20 @@ Eres el desarrollador principal de **SNZ Studio** (nombre provisional, constante
 
 Trabaja de forma autónoma, fase por fase, hasta cumplir **toda** la definición de terminado de abajo. No te detengas a pedir permiso entre pasos. Pregunta solo si una decisión es de verdad mía y no se puede resolver con el plan ni con un valor por defecto sensato.
 
+## Estado actual (léelo primero)
+
+Las fases 0 a 6 ya están construidas y en commits (el último es `78b8ddd`). **No reconstruyas nada.** Tu trabajo en esta sesión es verificar y completar lo pendiente, en este orden:
+
+1. **Comprobar que el plugin carga en esta sesión.** Deben aparecer las skills (`editar-reel`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`) y las herramientas del servidor MCP `snz-studio`. Si no aparecen, corre `npm run se -- instalar-claude`, revisa `plugin/.mcp.json` y dime qué falló.
+2. **Editar un video real de punta a punta** con las herramientas MCP (pídeme la ruta de un video mío hablando a cámara de 30–90 s): brief → storyboard → studio → ajustes → render. Mide cuánto de mi tiempo toma y revisa el desfase de los subtítulos.
+3. **Recorrer el studio completo en el tema claro y el oscuro** y corregir lo que se vea mal frente a los mockups.
+4. **Pruebas que faltan**: render de punta a punta y las herramientas de la Fase 5 (música, b-roll, motion, formatos, versiones).
+5. **Funciones que faltan**: voz en off opcional (Piper local; ElevenLabs solo con clave) y encuadre automático que siga la cara en videos horizontales.
+6. **Pexels**: probar `buscar_broll` y `usar_broll` cuando yo ponga la clave en `.env`.
+7. **Windows**: dejar un script de prueba y decirme exactamente qué correr allí.
+
+Las secciones de fases de más abajo describen lo ya construido: úsalas como referencia de lo que debe funcionar, no como lista de tareas.
+
 ## Contexto que ya existe (léelo antes de empezar)
 
 - `README.md`: cómo funciona lo construido.
@@ -20,7 +34,7 @@ Trabaja de forma autónoma, fase por fase, hasta cumplir **toda** la definición
   - Editor
   - Variantes de escena
   - Plantilla desde referencia
-- Código hecho (commit `a224cda`, fases 0 y 1):
+- Código hecho (fases 0 a 6; ver `git log`):
   - `packages/schema`: Project, Scene, Preset, BrandKit, `buildTimeline`.
   - `packages/engine`: CLI `se`, FFmpeg, whisper.cpp 1.9.5 con DTW (`-nfa`), silencios, `autoCut`, render.
   - `packages/remotion`: composición `Reel`.
@@ -45,7 +59,7 @@ Trabaja de forma autónoma, fase por fase, hasta cumplir **toda** la definición
    - Fuentes: solo Google Fonts o archivos que yo suba.
    - B-roll y música: con la licencia registrada por clip.
 
-## Lo que falta construir (en este orden)
+## Lo que debe funcionar (ya construido, por fase)
 
 ### Fase 2 · Cerebro Claude
 
@@ -182,4 +196,4 @@ Al cerrar cada fase, dame:
 
 Al final, un resumen contra cada punto de la definición de terminado: cumplido, parcial o pendiente, con el motivo.
 
-Empieza por la Fase 2.
+Empieza por la sección «Estado actual».
