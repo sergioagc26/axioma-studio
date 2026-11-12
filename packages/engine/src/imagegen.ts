@@ -23,7 +23,7 @@ export async function generateImage(idea: string, size: { width: number; height:
     throw new Error(`El generador de imágenes no respondió bien (código ${res.status}). Inténtalo de nuevo en un momento.`);
   }
   const ext = (res.headers.get('content-type') ?? '').includes('png') ? 'png' : 'jpg';
-  const dir = path.join(os.tmpdir(), `snz-idea-${Date.now()}`);
+  const dir = path.join(os.tmpdir(), `axioma-idea-${Date.now()}`);
   await mkdir(dir, { recursive: true });
   const slug = clean.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'imagen';
   const file = path.join(dir, `idea-${slug}-${seed % 10000}.${ext}`);

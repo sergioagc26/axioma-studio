@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { BUILTIN_PRESETS, CaptionStyle, Pacing, Preset } from '@snz/schema';
+import { BUILTIN_PRESETS, CaptionStyle, Pacing, Preset } from '@axioma/schema';
 import { WORKSPACE, slugify } from './paths.ts';
 
 const presetsDir = (client?: string) => path.join(WORKSPACE, 'clientes', slugify(client ?? 'personal'), 'presets');

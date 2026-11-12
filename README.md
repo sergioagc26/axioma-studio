@@ -1,4 +1,4 @@
-# SNZ Studio (nombre provisional)
+# Axioma Studio
 
 Editor de reels 9:16 con IA para videos hablando a cámara. Claude (tu suscripción) dirige la edición; el trabajo pesado corre en tu computador con herramientas gratuitas (FFmpeg, whisper.cpp, Remotion).
 
@@ -44,7 +44,7 @@ Cada proyecto vive en `workspace/clientes/<cliente>/proyectos/<fecha-nombre>/`.
 npm run se -- instalar-claude
 ```
 
-Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acepta el plugin `snz-studio` y escribe, por ejemplo:
+Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acepta el plugin `axioma-studio` y escribe, por ejemplo:
 
 > edita este video para CRE: /ruta/al/video.mp4
 
@@ -282,7 +282,7 @@ Cada escena puede tener una **transición de entrada** (cómo se pasa de la ante
 Los botones «Pedir variantes a Claude», «Pedir a Claude» y «Crear con Claude» del studio le hablan a Claude directamente, sin pasar por el chat. El resultado aparece solo en la pantalla.
 
 - Usa Claude Code (paquete oficial `@anthropic-ai/claude-code`, incluido) en modo no interactivo, con tu suscripción. No usa la API de pago.
-- Solo tiene permiso para las herramientas de este programa (`mcp__snz-studio`).
+- Solo tiene permiso para las herramientas de este programa (`mcp__axioma-studio`).
 - **Hay que iniciar sesión una vez** en este computador:
 
   ```bash
@@ -363,6 +363,6 @@ Paso a paso sin tecnicismos: `docs/TU-PRIMER-REEL.md`.
 
 ## Cambiar el nombre
 
-El nombre visible sale de `APP_NAME` en `packages/schema/src/project.ts`. El nombre del plugin y del servidor MCP (`snz-studio`) está en `plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `packages/engine/src/claude.ts` y `packages/mcp/src/server.ts`.
+El nombre visible sale de `APP_NAME` en `packages/schema/src/project.ts`. El nombre del plugin y del servidor MCP (`axioma-studio`) está en `plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `packages/engine/src/claude.ts` y `packages/mcp/src/server.ts`.
 
 El objetivo completo y la definición de terminado están en `docs/PROMPT-OBJETIVO.md`.

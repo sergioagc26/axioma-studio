@@ -1,9 +1,9 @@
 {
-  "name": "snz-studio",
-  "owner": { "name": "SNZ" },
+  "name": "axioma-studio",
+  "owner": { "name": "Axioma Studio" },
   "plugins": [
     {
-      "name": "snz-studio",
+      "name": "axioma-studio",
       "source": "./plugin",
       "description": "Editor de reels 9:16 con IA que corre en tu computador."
     }

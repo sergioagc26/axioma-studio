@@ -1,4 +1,4 @@
-# Prompt objetivo: construir SNZ Studio completo y funcional
+# Prompt objetivo: construir Axioma Studio completo y funcional
 
 > Copia todo lo que está debajo de la línea en una sesión nueva de Claude Code abierta en la carpeta `programa de edicion`.
 
@@ -6,7 +6,7 @@
 
 ## Rol y objetivo
 
-Eres el desarrollador principal de **SNZ Studio** (nombre provisional, constante `APP_NAME`), un editor de reels e historias 9:16 con IA para videos hablando a cámara. Tu objetivo es dejar la aplicación **completa y funcional**: recibe un video grabado con el celular y entrega un reel editado listo para revisar y exportar en unos 10 minutos de trabajo humano.
+Eres el desarrollador principal de **Axioma Studio**, un editor de reels e historias 9:16 con IA para videos hablando a cámara. Tu objetivo es dejar la aplicación **completa y funcional**: recibe un video grabado con el celular y entrega un reel editado listo para revisar y exportar en unos 10 minutos de trabajo humano.
 
 Trabaja de forma autónoma, fase por fase, hasta cumplir **toda** la definición de terminado de abajo. No te detengas a pedir permiso entre pasos. Pregunta solo si una decisión es de verdad mía y no se puede resolver con el plan ni con un valor por defecto sensato.
 
@@ -14,7 +14,7 @@ Trabaja de forma autónoma, fase por fase, hasta cumplir **toda** la definición
 
 Las fases 0 a 6 ya están construidas y en commits (el último es `78b8ddd`). **No reconstruyas nada.** Tu trabajo en esta sesión es verificar y completar lo pendiente, en este orden:
 
-1. **Comprobar que el plugin carga en esta sesión.** Deben aparecer las skills (`editar-reel`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`) y las herramientas del servidor MCP `snz-studio`. Si no aparecen, corre `npm run se -- instalar-claude`, revisa `plugin/.mcp.json` y dime qué falló.
+1. **Comprobar que el plugin carga en esta sesión.** Deben aparecer las skills (`editar-reel`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`) y las herramientas del servidor MCP `axioma-studio`. Si no aparecen, corre `npm run se -- instalar-claude`, revisa `plugin/.mcp.json` y dime qué falló.
 2. **Editar un video real de punta a punta** con las herramientas MCP (pídeme la ruta de un video mío hablando a cámara de 30–90 s): brief → storyboard → studio → ajustes → render. Mide cuánto de mi tiempo toma y revisa el desfase de los subtítulos.
 3. **Recorrer el studio completo en el tema claro y el oscuro** y corregir lo que se vea mal frente a los mockups.
 4. **Pruebas que faltan**: render de punta a punta y las herramientas de la Fase 5 (música, b-roll, motion, formatos, versiones).

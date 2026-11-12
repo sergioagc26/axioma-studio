@@ -2,9 +2,9 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { Project, applyVariant, buildTimeline, getPreset, shortPhrases, suggestVariants } from '@snz/schema';
+import { Project, applyVariant, buildTimeline, getPreset, shortPhrases, suggestVariants } from '@axioma/schema';
 
-const ws = mkdtempSync(path.join(os.tmpdir(), 'snz-audio-'));
+const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-audio-'));
 vi.stubEnv('SE_WORKSPACE', ws);
 const { SFX, sfxFile } = await import('../src/sfx.ts');
 const { mediaDuration } = await import('../src/media.ts');

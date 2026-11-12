@@ -1,4 +1,4 @@
-import { applyVariant, motionIdeas, outputDuration, sceneLength, shortPhrases, speechOf, type Project, type Scene } from '@snz/schema';
+import { applyVariant, motionIdeas, outputDuration, sceneLength, shortPhrases, speechOf, type Project, type Scene } from '@axioma/schema';
 import { applyPunchZooms } from './cuts.ts';
 import { buildMontage } from './montage.ts';
 import { applyBrandStyle, applyPreset, saveVersion, setAutoSfx } from './ops.ts';

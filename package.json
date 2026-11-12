@@ -1,5 +1,5 @@
 {
-  "name": "snz-studio",
+  "name": "axioma-studio",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -11,7 +11,7 @@
     "test": "vitest run",
     "remotion:studio": "remotion studio packages/remotion/src/index.ts",
     "setup": "node scripts/setup.mjs",
-    "build:studio": "npm run build -w @snz/studio",
+    "build:studio": "npm run build -w @axioma/studio",
     "studio": "tsx packages/engine/src/cli.ts studio"
   },
   "engines": {

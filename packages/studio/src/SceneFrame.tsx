@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Scene, Transcript } from '@snz/schema';
+import type { Scene, Transcript } from '@axioma/schema';
 import { sceneSpeech } from './useProject.ts';
 
 export const VISUAL_LABEL: Record<Scene['visual'], string> = {

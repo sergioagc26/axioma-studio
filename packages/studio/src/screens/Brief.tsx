@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PERSONALITIES, SECTORS, VISION_TOPICS } from '@snz/schema';
+import { PERSONALITIES, SECTORS, VISION_TOPICS } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
 import { ROLE_LABEL } from '../SceneFrame.tsx';

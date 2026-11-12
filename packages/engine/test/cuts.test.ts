@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Pacing } from '@snz/schema';
+import { Pacing } from '@axioma/schema';
 import { autoCut, isRetake, snapWordsToSpeech, splitPhrases, subtractSilences, wordsToRanges } from '../src/cuts.ts';
 
 const W = (text: string, start: number, end: number) => ({ text, start, end });

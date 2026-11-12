@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@snz/schema';
-import { Reel } from '@snz/remotion/src/Reel.tsx';
+import { BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@axioma/schema';
+import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
 import { api, applyPunchZooms, askAssistant, sceneSpeech, waitJob, type Job } from '../useProject.ts';

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@snz/schema';
+import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@axioma/schema';
 import { readFaces } from './faces.ts';
 import { learnFromExport, readKit } from './kit.ts';
 import { allTransitions } from './transitions.ts';

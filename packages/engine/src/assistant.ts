@@ -22,7 +22,7 @@ export function claudeBin(): string | null {
 }
 
 const RULES = [
-  'Eres el editor dentro de la app SNZ Studio. Trabajas SOLO con las herramientas del servidor MCP "snz-studio" sobre el proyecto indicado.',
+  'Eres el editor dentro de la app Axioma Studio. Trabajas SOLO con las herramientas del servidor MCP "axioma-studio" sobre el proyecto indicado.',
   'Reglas: no inventes cifras, testimonios ni datos (usa [DATO] si falta algo); no cambies lo que dijo la persona; textos en pantalla de máximo 6 palabras; nunca marques el proyecto como aprobado; no renderices salvo que se pida.',
   'Haz el cambio directamente con las herramientas y termina con UNA o DOS frases en español, sin tecnicismos, diciendo qué cambiaste.',
 ].join('\n');
@@ -53,7 +53,7 @@ export function askClaude(projectId: string, request: string, onStep: (msg: stri
     '-p', prompt,
     '--output-format', 'stream-json', '--verbose',
     '--mcp-config', mcp, '--strict-mcp-config',
-    '--allowedTools', 'mcp__snz-studio',
+    '--allowedTools', 'mcp__axioma-studio',
     '--append-system-prompt', RULES,
     '--max-turns', '20',
   ];
@@ -82,7 +82,7 @@ export function askClaude(projectId: string, request: string, onStep: (msg: stri
           if (ev.type === 'assistant') {
             for (const c of ev.message?.content ?? []) {
               if (c.type === 'tool_use') {
-                const name = String(c.name).replace(/^mcp__snz-studio__/, '');
+                const name = String(c.name).replace(/^mcp__axioma-studio__/, '');
                 tools.push(name);
                 onStep(`Claude: ${name.replace(/_/g, ' ')}…`);
               }

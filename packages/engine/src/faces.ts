@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { FacePoint } from '@snz/schema';
+import type { FacePoint } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
 import { P } from './paths.ts';
 

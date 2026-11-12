@@ -12,7 +12,7 @@ const fixture = path.join(repo, 'workspace', 'clientes', 'personal', 'proyectos'
 
 // Usa una copia del proyecto de prueba en un workspace temporal.
 const hasFixture = existsSync(path.join(fixture, 'transcript.json'));
-const ws = mkdtempSync(path.join(os.tmpdir(), 'snz-ws-'));
+const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-ws-'));
 const dir = path.join(ws, 'clientes', 'personal', 'proyectos', 'prueba');
 let client: Client;
 

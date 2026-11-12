@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Scene, getPreset } from '@snz/schema';
+import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Scene, getPreset } from '@axioma/schema';
 import { applyPunchZooms } from './cuts.ts';
 import { ffmpeg } from './exec.ts';
 import { kitCaptions, readKit } from './kit.ts';

@@ -2,7 +2,7 @@ import React from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Scene } from '@snz/schema';
+import type { Scene } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL, SceneFrame, VISUAL_LABEL } from '../SceneFrame.tsx';
 import { applyPunchZooms, sceneDuration } from '../useProject.ts';

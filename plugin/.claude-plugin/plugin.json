@@ -1,6 +1,6 @@
 {
-  "name": "snz-studio",
+  "name": "axioma-studio",
   "version": "0.2.0",
   "description": "Editor de reels 9:16 con IA: Claude edita tus videos hablando a cámara (cortes, subtítulos, ritmo, variantes) y los renderiza en tu computador.",
-  "author": { "name": "SNZ" }
+  "author": { "name": "Axioma Studio" }
 }

@@ -1,4 +1,4 @@
-import { Preset, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@snz/schema';
+import { Preset, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@axioma/schema';
 import { fitDuration } from './brief.ts';
 import { readKit } from './kit.ts';
 import { buildMontage } from './montage.ts';

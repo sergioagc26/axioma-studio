@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { BUILTIN_TRANSITIONS, Project, buildTimeline, ease, getPreset, layerStyle, recommendTransitions } from '@snz/schema';
+import { BUILTIN_TRANSITIONS, Project, buildTimeline, ease, getPreset, layerStyle, recommendTransitions } from '@axioma/schema';
 
-const ws = mkdtempSync(path.join(os.tmpdir(), 'snz-tr-'));
+const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-tr-'));
 vi.stubEnv('SE_WORKSPACE', ws);
 const { allTransitions, saveTransition } = await import('../src/transitions.ts');
 const { AssistantError, askClaude } = await import('../src/assistant.ts');
@@ -96,9 +96,9 @@ describe('asistente dentro de la app', () => {
   it('informa los pasos y devuelve el resultado', async () => {
     fake(`
       const args = process.argv.slice(2);
-      if (!args.includes('--strict-mcp-config') || !args.includes('mcp__snz-studio')) process.exit(3);
+      if (!args.includes('--strict-mcp-config') || !args.includes('mcp__axioma-studio')) process.exit(3);
       const out = (o) => console.log(JSON.stringify(o));
-      out({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'mcp__snz-studio__generar_variantes' }] } });
+      out({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'mcp__axioma-studio__generar_variantes' }] } });
       out({ type: 'result', is_error: false, result: 'Listo: ' + args[args.indexOf('-p') + 1].split('\\n')[0] });
     `);
     const steps: string[] = [];

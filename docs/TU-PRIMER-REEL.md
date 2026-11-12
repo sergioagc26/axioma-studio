@@ -19,7 +19,7 @@ Al final verás una lista con ✓. Si algo sale con ✗, la misma línea dice c�
 
 ## 2. Abrir Claude en la carpeta
 
-Abre la app de Claude, entra a la pestaña **Code** y elige la carpeta del programa. La primera vez te pedirá aceptar el plugin `snz-studio`: acéptalo.
+Abre la app de Claude, entra a la pestaña **Code** y elige la carpeta del programa. La primera vez te pedirá aceptar el plugin `axioma-studio`: acéptalo.
 
 ## 3. Pedir el reel
 

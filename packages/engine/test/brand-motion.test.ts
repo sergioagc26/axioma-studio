@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { BrandKit, Project, Scene, brandStyle, buildTimeline, getPreset, motionGallery, motionIdeas } from '@snz/schema';
+import { BrandKit, Project, Scene, brandStyle, buildTimeline, getPreset, motionGallery, motionIdeas } from '@axioma/schema';
 
-const ws = mkdtempSync(path.join(os.tmpdir(), 'snz-brand-'));
+const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-brand-'));
 vi.stubEnv('SE_WORKSPACE', ws);
 const { saveKit, readKit, learnFromExport, kitCaptions } = await import('../src/kit.ts');
 afterAll(() => rmSync(ws, { recursive: true, force: true }));

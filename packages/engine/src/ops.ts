@@ -4,7 +4,7 @@ import path from 'node:path';
 import {
   CaptionStyle, Pacing, Project, Scene, SceneVariant, applyVariant, brandStyle, getPreset, motionIdeas, shortPhrases, speechOf, outputDuration, recommendTransitions, sceneLength, suggestVariants,
   type Asset, type Preset,
-} from '@snz/schema';
+} from '@axioma/schema';
 import { analyzePhrases, applyPunchZooms, phrasesToRanges, type Phrase } from './cuts.ts';
 import { kitCaptions, readKit } from './kit.ts';
 import { P, WORKSPACE } from './paths.ts';

@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Transcript, getPreset } from '@snz/schema';
+import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Transcript, getPreset } from '@axioma/schema';
 import { P, projectDir, slugify } from './paths.ts';
 import { kitCaptions, readKit } from './kit.ts';
 import { probe } from './media.ts';

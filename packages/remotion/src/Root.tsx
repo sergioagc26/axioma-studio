@@ -1,7 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
-import type { Timeline } from '@snz/schema';
-import { CaptionStyle } from '@snz/schema';
+import type { Timeline } from '@axioma/schema';
+import { CaptionStyle } from '@axioma/schema';
 import { Reel } from './Reel.tsx';
 
 const empty: Timeline = {

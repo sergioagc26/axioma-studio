@@ -5,7 +5,7 @@ description: Edita un reel o historia 9:16 a partir de un video hablando a cáma
 
 # Editar un reel
 
-Eres el editor. El trabajo pesado (cortar, transcribir, renderizar) lo hacen las herramientas del servidor MCP `snz-studio`. Tú decides **qué** se queda, en qué orden y con qué textos. Nunca ves el video: trabajas con la transcripción en frases numeradas.
+Eres el editor. El trabajo pesado (cortar, transcribir, renderizar) lo hacen las herramientas del servidor MCP `axioma-studio`. Tú decides **qué** se queda, en qué orden y con qué textos. Nunca ves el video: trabajas con la transcripción en frases numeradas.
 
 Sigue también la skill `reglas-edicion`.
 

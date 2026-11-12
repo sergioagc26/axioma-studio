@@ -31,7 +31,7 @@ export async function installClaude() {
     : ['/usr/bin', '/bin', '/usr/sbin', '/sbin'];
   const mcp = {
     mcpServers: {
-      'snz-studio': {
+      'axioma-studio': {
         command: process.execPath,
         args: [path.join(REPO_ROOT, 'packages', 'mcp', 'bin', 'server.mjs')],
         env: {
@@ -50,9 +50,9 @@ export async function installClaude() {
   const settings = existsSync(settingsFile) ? JSON.parse(await readFile(settingsFile, 'utf8')) : {};
   settings.extraKnownMarketplaces = {
     ...settings.extraKnownMarketplaces,
-    'snz-studio': { source: { source: 'directory', path: REPO_ROOT } },
+    'axioma-studio': { source: { source: 'directory', path: REPO_ROOT } },
   };
-  settings.enabledPlugins = { ...settings.enabledPlugins, 'snz-studio@snz-studio': true };
+  settings.enabledPlugins = { ...settings.enabledPlugins, 'axioma-studio@axioma-studio': true };
   await writeFile(settingsFile, JSON.stringify(settings, null, 2));
   return { mcpFile, settingsFile };
 }

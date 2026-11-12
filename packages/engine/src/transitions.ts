@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { BUILTIN_TRANSITIONS, TransitionSpec, findTransition, recommendTransitions, type TransitionAdvice } from '@snz/schema';
+import { BUILTIN_TRANSITIONS, TransitionSpec, findTransition, recommendTransitions, type TransitionAdvice } from '@axioma/schema';
 import { WORKSPACE, slugify } from './paths.ts';
 import { readProject, writeProject } from './store.ts';
 

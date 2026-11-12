@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CaptionStyle, Pacing, getPreset, type Range } from '@snz/schema';
+import { CaptionStyle, Pacing, getPreset, type Range } from '@axioma/schema';
 import { autoCut, snapWordsToSpeech, type CutReport } from './cuts.ts';
 import { detectSilences, extractWav16k, makeMaster, makeProxy, probe, processVoice } from './media.ts';
 

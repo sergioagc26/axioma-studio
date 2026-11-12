@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const APP_NAME = 'SNZ Studio';
+export const APP_NAME = 'Axioma Studio';
 export const SCHEMA_VERSION = 1;
 
 /** Una palabra transcrita, con tiempos en segundos del archivo fuente. */

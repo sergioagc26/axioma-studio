@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import type { Brand, MotionSpec } from '@snz/schema';
+import type { Brand, MotionSpec } from '@axioma/schema';
 
 export const MOTION_TEMPLATES = ['barras', 'contador', 'porcentaje', 'lista', 'checklist', 'pasos', 'comparacion', 'pregunta', 'cita', 'palabras', 'logo', 'texto'] as const;
 

@@ -1,4 +1,4 @@
-import { Scene, sceneLength, type Pacing, type Range, type Word } from '@snz/schema';
+import { Scene, sceneLength, type Pacing, type Range, type Word } from '@axioma/schema';
 
 /** Muletillas puras. No incluye palabras reales como "este" o "bueno". */
 const FILLERS = new Set(['eh', 'ehh', 'eeh', 'em', 'emm', 'mm', 'mmm', 'hmm', 'ah', 'ahh', 'uh', 'um', 'ehm']);

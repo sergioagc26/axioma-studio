@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import {
   downloadWhisperModel, installWhisperCpp, toCaptions, transcribe as whisperTranscribe, type WhisperModel,
 } from '@remotion/install-whisper-cpp';
-import type { Transcript, Word } from '@snz/schema';
+import type { Transcript, Word } from '@axioma/schema';
 import { WHISPER_DIR, WHISPER_MODELS, WHISPER_VERSION } from './paths.ts';
 
 export const DEFAULT_MODEL: WhisperModel = (process.env.SE_WHISPER_MODEL as WhisperModel) ?? 'small';

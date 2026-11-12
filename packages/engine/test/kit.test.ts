@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { CaptionStyle, FORMATS, Project, buildTimeline, getPreset } from '@snz/schema';
+import { CaptionStyle, FORMATS, Project, buildTimeline, getPreset } from '@axioma/schema';
 
-const ws = mkdtempSync(path.join(os.tmpdir(), 'snz-kit-'));
+const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-kit-'));
 vi.stubEnv('SE_WORKSPACE', ws);
 const { kitCaptions, readKit, saveKit } = await import('../src/kit.ts');
 const { savePreset, allPresets } = await import('../src/presets.ts');

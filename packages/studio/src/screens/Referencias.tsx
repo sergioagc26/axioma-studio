@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FONT_FAMILIES } from '@snz/schema';
+import { FONT_FAMILIES } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 

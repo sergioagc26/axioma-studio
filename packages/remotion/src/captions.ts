@@ -1,4 +1,4 @@
-import type { TimelineWord } from '@snz/schema';
+import type { TimelineWord } from '@axioma/schema';
 
 export interface CaptionChunk {
   words: TimelineWord[];

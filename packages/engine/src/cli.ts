@@ -2,7 +2,7 @@ import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { autoVideo } from './auto.ts';
 import path from 'node:path';
 import { Command } from 'commander';
-import { APP_NAME, BUILTIN_PRESETS } from '@snz/schema';
+import { APP_NAME, BUILTIN_PRESETS } from '@axioma/schema';
 import { installClaude } from './claude.ts';
 import { doctor } from './doctor.ts';
 import { REPO_ROOT } from './paths.ts';
@@ -39,8 +39,8 @@ program
   .action(async () => {
     const { mcpFile, settingsFile } = await installClaude();
     console.log(`✓ ${mcpFile}\n✓ ${settingsFile}`);
-    console.log('\nAbre Claude Code (o el Code tab de Claude) en esta carpeta y acepta el plugin "snz-studio".');
-    console.log(`Para usarlo desde cualquier carpeta: /plugin marketplace add "${REPO_ROOT}" y luego /plugin install snz-studio@snz-studio`);
+    console.log('\nAbre Claude Code (o el Code tab de Claude) en esta carpeta y acepta el plugin "axioma-studio".');
+    console.log(`Para usarlo desde cualquier carpeta: /plugin marketplace add "${REPO_ROOT}" y luego /plugin install axioma-studio@axioma-studio`);
   });
 
 program

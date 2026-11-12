@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { BrandKit, brandStyle, type CaptionStyle } from '@snz/schema';
+import { BrandKit, brandStyle, type CaptionStyle } from '@axioma/schema';
 import { WORKSPACE, slugify } from './paths.ts';
 
 const kitFile = (client?: string) => path.join(WORKSPACE, 'clientes', slugify(client ?? 'personal'), 'kit.json');

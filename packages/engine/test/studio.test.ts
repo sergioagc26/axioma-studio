@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const fixture = path.join(repo, 'workspace', 'clientes', 'personal', 'proyectos', '2026-11-12-prueba-sintetica');
 const hasFixture = existsSync(path.join(fixture, 'transcript.json'));
-const ws = mkdtempSync(path.join(os.tmpdir(), 'snz-studio-'));
+const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-studio-'));
 const dir = path.join(ws, 'clientes', 'personal', 'proyectos', 'prueba');
 const port = 4800 + Math.floor(Math.random() * 150);
 const base = `http://127.0.0.1:${port}`;

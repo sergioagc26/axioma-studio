@@ -3,12 +3,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { FORMATS, Project, buildTimeline, focusFor, getPreset } from '@snz/schema';
+import { FORMATS, Project, buildTimeline, focusFor, getPreset } from '@axioma/schema';
 
-const ws = mkdtempSync(path.join(os.tmpdir(), 'snz-montaje-'));
+const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-montaje-'));
 vi.stubEnv('SE_WORKSPACE', ws);
 const E = await import('../src/index.ts');
-const { coverPosition } = await import('@snz/remotion/src/Reel.tsx');
+const { coverPosition } = await import('@axioma/remotion/src/Reel.tsx');
 
 const clip = (name: string, color: string, audio: boolean) => {
   const out = path.join(ws, name);

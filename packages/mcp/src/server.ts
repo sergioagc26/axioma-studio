@@ -3,8 +3,8 @@ import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { APP_NAME, FONT_FAMILIES, applyVariant, motionGallery } from '@snz/schema';
-import * as E from '@snz/engine';
+import { APP_NAME, FONT_FAMILIES, applyVariant, motionGallery } from '@axioma/schema';
+import * as E from '@axioma/engine';
 
 const log = (msg: string) => console.error(`[${APP_NAME}] ${msg}`);
 const text = (t: string) => ({ content: [{ type: 'text' as const, text: t }] });
@@ -29,7 +29,7 @@ const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
 const camera = z.enum(['ninguno', 'acercar', 'alejar']);
 
 export function createServer() {
-  const server = new McpServer({ name: 'snz-studio', version: '0.2.0' });
+  const server = new McpServer({ name: 'axioma-studio', version: '0.2.0' });
 
   /** Registra una herramienta con manejo de errores uniforme. */
   const tool = <S extends z.ZodRawShape>(

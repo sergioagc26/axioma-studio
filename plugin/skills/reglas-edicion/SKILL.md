@@ -1,6 +1,6 @@
 ---
 name: reglas-edicion
-description: Reglas de edición que siempre aplican al editar reels con snz-studio (gancho, zonas seguras, datos reales, aprobación). Consúltala junto con editar-reel, variantes o crear-preset.
+description: Reglas de edición que siempre aplican al editar reels con axioma-studio (gancho, zonas seguras, datos reales, aprobación). Consúltala junto con editar-reel, variantes o crear-preset.
 ---
 
 # Reglas de edición

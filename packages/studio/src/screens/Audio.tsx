@@ -1,6 +1,6 @@
 import { BankKey, useBankKey } from '../Bank.tsx';
 import React, { useRef, useState } from 'react';
-import type { Project } from '@snz/schema';
+import type { Project } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';

@@ -1,5 +1,5 @@
-{ "name": "@snz/studio", "version": "0.1.0", "private": true, "type": "module",
+{ "name": "@axioma/studio", "version": "0.1.0", "private": true, "type": "module",
   "scripts": { "build": "vite build", "dev": "vite" },
-  "dependencies": { "@snz/schema": "*", "@snz/remotion": "*", "@remotion/player": "4.0.543", "remotion": "4.0.543",
+  "dependencies": { "@axioma/schema": "*", "@axioma/remotion": "*", "@remotion/player": "4.0.543", "remotion": "4.0.543",
     "react": "^19.3.1", "react-dom": "^19.3.1", "@dnd-kit/core": "^6", "@dnd-kit/sortable": "^10", "@dnd-kit/utilities": "^3" },
   "devDependencies": { "vite": "^7", "@vitejs/plugin-react": "^5", "@types/react-dom": "^19" } }

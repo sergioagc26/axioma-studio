@@ -5,7 +5,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { pipeline as pipe } from 'node:stream/promises';
-import { APP_NAME, Project } from '@snz/schema';
+import { APP_NAME, Project } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
 import * as ops from './ops.ts';
 import { P, REPO_ROOT, WORKSPACE } from './paths.ts';
@@ -124,7 +124,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/upload' && method === 'POST') {
     // Sube un archivo a una carpeta temporal; devuelve una ficha para usarlo después.
     const token = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`;
-    const folder = path.join(os.tmpdir(), `snz-up-${token}`);
+    const folder = path.join(os.tmpdir(), `axioma-up-${token}`);
     await mkdir(folder, { recursive: true });
     await pipe(req, createWriteStream(path.join(folder, path.basename(url.searchParams.get('filename') ?? 'video.mp4'))));
     uploads.set(token, folder);
@@ -157,7 +157,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/projects' && method === 'POST') {
     // Subida de un video: el cuerpo es el archivo.
     const filename = path.basename(url.searchParams.get('filename') ?? 'video.mp4');
-    const tmpDir = path.join(os.tmpdir(), `snz-upload-${Date.now()}`);
+    const tmpDir = path.join(os.tmpdir(), `axioma-upload-${Date.now()}`);
     await mkdir(tmpDir, { recursive: true });
     const tmp = path.join(tmpDir, filename);
     await pipe(req, createWriteStream(tmp));
@@ -357,7 +357,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/music' && method === 'POST') {
     // Sube la música de fondo. La licencia es obligatoria.
     const dir = await findDir(id);
-    const tmpDir = path.join(os.tmpdir(), `snz-music-${Date.now()}`);
+    const tmpDir = path.join(os.tmpdir(), `axioma-music-${Date.now()}`);
     await mkdir(tmpDir, { recursive: true });
     const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'musica.mp3'));
     await pipe(req, createWriteStream(tmp));
@@ -371,7 +371,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/voz' && method === 'POST') {
     // Voz grabada con el micrófono en el studio: pasa a ser la voz en off.
     const dir = await findDir(id);
-    const tmpDir = path.join(os.tmpdir(), `snz-voz-${Date.now()}`);
+    const tmpDir = path.join(os.tmpdir(), `axioma-voz-${Date.now()}`);
     await mkdir(tmpDir, { recursive: true });
     const tmp = path.join(tmpDir, 'grabacion.webm');
     await pipe(req, createWriteStream(tmp));
@@ -391,7 +391,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/broll' && method === 'POST') {
     // Sube un clip y lo pone como b-roll de una escena. La licencia es obligatoria.
     const dir = await findDir(id);
-    const tmpDir = path.join(os.tmpdir(), `snz-broll-${Date.now()}`);
+    const tmpDir = path.join(os.tmpdir(), `axioma-broll-${Date.now()}`);
     await mkdir(tmpDir, { recursive: true });
     const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'broll.mp4'));
     await pipe(req, createWriteStream(tmp));
@@ -418,7 +418,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/references' && method === 'POST') {
     const project = await readProject(await findDir(id));
     const filename = path.basename(url.searchParams.get('filename') ?? 'referencia.mp4');
-    const tmpDir = path.join(os.tmpdir(), `snz-ref-${Date.now()}`);
+    const tmpDir = path.join(os.tmpdir(), `axioma-ref-${Date.now()}`);
     await mkdir(tmpDir, { recursive: true });
     const tmp = path.join(tmpDir, filename);
     await pipe(req, createWriteStream(tmp));

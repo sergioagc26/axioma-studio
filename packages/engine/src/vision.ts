@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { VisionReport } from '@snz/schema';
-import { VISION_TOPICS } from '@snz/schema';
+import type { VisionReport } from '@axioma/schema';
+import { VISION_TOPICS } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
 import { P, REPO_ROOT } from './paths.ts';
 

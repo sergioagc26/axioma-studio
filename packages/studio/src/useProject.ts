@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sceneLength, speechOf } from '@snz/schema';
-import type { Brand, BrandKit, VisionReport, FacePoint, Preset, Project, Scene, Transcript, TransitionSpec } from '@snz/schema';
+import { sceneLength, speechOf } from '@axioma/schema';
+import type { Brand, BrandKit, VisionReport, FacePoint, Preset, Project, Scene, Transcript, TransitionSpec } from '@axioma/schema';
 
 export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; transitions: TransitionSpec[]; cutout?: string; cutoutCoverage?: number[] }
 

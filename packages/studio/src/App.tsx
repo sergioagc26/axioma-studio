@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { APP_NAME } from '@snz/schema';
+import { APP_NAME } from '@axioma/schema';
 import { api, useProject, waitJob, type Job, type ProjectStore } from './useProject.ts';
 import { Audio } from './screens/Audio.tsx';
 import { Brief } from './screens/Brief.tsx';

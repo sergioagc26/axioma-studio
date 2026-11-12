@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Thumbnail } from '@remotion/player';
-import { applyVariant, buildTimeline, type Project, type SceneVariant, type Transcript } from '@snz/schema';
-import { Reel } from '@snz/remotion/src/Reel.tsx';
+import { applyVariant, buildTimeline, type Project, type SceneVariant, type Transcript } from '@axioma/schema';
+import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { ProjectStore } from './useProject.ts';
 
 /**

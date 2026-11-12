@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { applyVariant, motionGallery, suggestVariants, type SceneVariant, VISION_TOPICS } from '@snz/schema';
+import { applyVariant, motionGallery, suggestVariants, type SceneVariant, VISION_TOPICS } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL, VISUAL_LABEL } from '../SceneFrame.tsx';
 import { VariantPreview } from '../VariantPreview.tsx';
