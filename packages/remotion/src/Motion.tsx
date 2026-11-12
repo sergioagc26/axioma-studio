@@ -22,11 +22,25 @@ const Title: React.FC<{ text?: string; font: string; color: string; upper: boole
  * - logo:     { texto? }  (usa el logo o el nombre del kit)
  * - texto:    usa el texto en pantalla de la escena
  */
-export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: string; upper: boolean; offset: number }> = ({ spec, brand, font, upper, offset }) => {
+export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: string; upper: boolean; offset: number }> = ({ spec, brand: baseBrand, font, upper, offset }) => {
+  // Aspecto del gráfico: se cambia sin tocar su contenido.
+  const st = spec.style ?? { background: 'oscuro', scale: 1 };
+  const primary = st.primary ?? baseBrand.primary;
+  const secondary = st.secondary ?? baseBrand.secondary;
+  const light = st.background === 'claro';
+  const brand: Brand = { ...baseBrand, primary: st.background === 'marca' ? secondary : primary, secondary: st.background === 'marca' ? '#000000' : secondary, text: light ? '#111113' : st.background === 'marca' ? '#000000' : baseBrand.text };
+  const panel = light || st.background === 'marca' ? 'rgba(0,0,0,0.14)' : st.background === 'video' ? 'rgba(255,255,255,0.16)' : '#26262B';
   const frame = useCurrentFrame() + offset;
   const { fps } = useVideoConfig();
   const enter = (delay = 0) => spring({ frame: frame - delay, fps, config: { damping: 16, stiffness: 140 } });
   const d = spec.data ?? {};
+  const bg = st.background === 'claro' ? '#F4F4F5'
+    : st.background === 'marca' ? primary
+    // Degradado que gira despacio entre los dos colores de la marca, oscurecido para que el texto se lea.
+    : st.background === 'degradado' ? `linear-gradient(${(frame * 1.2) % 360}deg, ${primary}, #0B0B0D 55%, ${secondary})`
+    // "video": el propio video desenfocado se ve detrás (lo pone el clip); aquí solo se oscurece.
+    : st.background === 'video' ? 'rgba(0,0,0,0.5)'
+    : BG;
 
   let body: React.ReactNode = null;
   if (spec.template === 'barras') {
@@ -43,7 +57,7 @@ export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: str
                 <span>{orMark(it.label, '[ETIQUETA]')}</span>
                 <span>{has ? `${it.value}${d.unidad ?? ''}` : '[DATO]'}</span>
               </div>
-              <div style={{ height: 44, borderRadius: 22, background: '#26262B', overflow: 'hidden' }}>
+              <div style={{ height: 44, borderRadius: 22, background: panel, overflow: 'hidden' }}>
                 <div style={{ width: `${w * 100}%`, height: '100%', borderRadius: 22, background: i % 2 ? brand.secondary : brand.primary }} />
               </div>
             </div>
@@ -111,13 +125,13 @@ export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: str
     const gapF = Math.max(8, Math.min(26, Math.round(fps * 0.7)));
     body = (
       <div style={{ width: '82%', display: 'flex', flexDirection: 'column', gap: 34, position: 'relative' }}>
-        {steps ? <div style={{ position: 'absolute', left: 43, top: 44, bottom: 44, width: 6, borderRadius: 3, background: '#2A2A30' }} /> : null}
+        {steps ? <div style={{ position: 'absolute', left: 43, top: 44, bottom: 44, width: 6, borderRadius: 3, background: panel }} /> : null}
         {items.slice(0, 5).map((it, i) => {
           const e = enter(6 + i * gapF);
           const done = enter(14 + i * gapF);
           return (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 28, opacity: Math.max(0.25, e), transform: `translateY(${interpolate(e, [0, 1], [24, 0])}px)`, position: 'relative' }}>
-              <div style={{ width: 92, height: 92, borderRadius: 46, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: done > 0.5 ? brand.primary : '#26262B', color: done > 0.5 ? '#000' : brand.text, fontFamily: font, fontWeight: 800, fontSize: 46, transform: `scale(${interpolate(done, [0, 1], [0.8, 1])})` }}>
+              <div style={{ width: 92, height: 92, borderRadius: 46, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', background: done > 0.5 ? brand.primary : panel, color: done > 0.5 ? '#000' : brand.text, fontFamily: font, fontWeight: 800, fontSize: 46, transform: `scale(${interpolate(done, [0, 1], [0.8, 1])})` }}>
                 {steps ? i + 1 : done > 0.5 ? '✓' : ''}
               </div>
               <div style={{ fontFamily: font, fontWeight: 700, fontSize: 52, lineHeight: 1.1, color: brand.text }}>{it}</div>
@@ -130,7 +144,7 @@ export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: str
     const col = (title: string, text: unknown, good: boolean, delay: number) => {
       const e = enter(delay);
       return (
-        <div style={{ flex: 1, borderRadius: 34, padding: '46px 34px', background: good ? brand.primary : '#1E1E22', color: good ? '#000' : brand.text, display: 'flex', flexDirection: 'column', gap: 22, alignItems: 'center', textAlign: 'center', opacity: e, transform: `translateX(${interpolate(e, [0, 1], [good ? 80 : -80, 0])}px) scale(${good ? interpolate(enter(delay + 8), [0, 1], [0.94, 1.04]) : 1})` }}>
+        <div style={{ flex: 1, borderRadius: 34, padding: '46px 34px', background: good ? brand.primary : panel, color: good ? '#000' : brand.text, display: 'flex', flexDirection: 'column', gap: 22, alignItems: 'center', textAlign: 'center', opacity: e, transform: `translateX(${interpolate(e, [0, 1], [good ? 80 : -80, 0])}px) scale(${good ? interpolate(enter(delay + 8), [0, 1], [0.94, 1.04]) : 1})` }}>
           <div style={{ fontFamily: font, fontWeight: 800, fontSize: 84, lineHeight: 1 }}>{good ? '✓' : '✕'}</div>
           <div style={{ fontFamily: font, fontWeight: 700, fontSize: 30, opacity: 0.75, textTransform: 'uppercase', letterSpacing: 2 }}>{title}</div>
           <div style={{ fontFamily: font, fontWeight: 800, fontSize: 50, lineHeight: 1.1 }}>{orMark(text, '[TEXTO]')}</div>
@@ -167,7 +181,7 @@ export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: str
     const colors = [brand.text, brand.primary, brand.secondary];
     const size = w ? Math.min(250, Math.max(110, 1500 / Math.max(4, w.text.length))) : 150;
     return (
-      <AbsoluteFill style={{ backgroundColor: BG, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 26, paddingBottom: '10%' }}>
+      <AbsoluteFill style={{ background: bg, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 26, paddingBottom: '10%' }}>
         <div style={{ fontFamily: font, fontWeight: 800, fontSize: 60, color: brand.text, opacity: 0.35, textTransform: 'uppercase', height: 70 }}>{prev?.text ?? ''}</div>
         <div style={{ fontFamily: font, fontWeight: 800, fontSize: size, lineHeight: 1, color: colors[i % 3], textTransform: 'uppercase', textAlign: 'center', padding: '0 40px', transform: `scale(${interpolate(hit, [0, 1], [0.6, 1])}) rotate(${i % 2 ? 2 : -2}deg)` }}>{w?.text ?? orMark(spec.text, '')}</div>
       </AbsoluteFill>
@@ -176,8 +190,8 @@ export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: str
     // 'texto': tarjeta de texto a pantalla completa.
     const e = enter(2);
     return (
-      <AbsoluteFill style={{ backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontFamily: font, fontWeight: 800, fontSize: 124, lineHeight: 1.02, color: '#000', textAlign: 'center', padding: '0 70px', textTransform: upper ? 'uppercase' : 'none', transform: `scale(${interpolate(e, [0, 1], [0.85, 1])})` }}>
+      <AbsoluteFill style={{ background: st.background === 'oscuro' ? primary : bg, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontFamily: font, fontWeight: 800, fontSize: 124, lineHeight: 1.02, color: st.background === 'oscuro' || st.background === 'marca' || light ? '#000' : '#fff', textAlign: 'center', padding: '0 70px', textTransform: upper ? 'uppercase' : 'none', transform: `scale(${interpolate(e, [0, 1], [0.85, 1]) * st.scale})` }}>
           {spec.text}
         </div>
       </AbsoluteFill>
@@ -185,9 +199,11 @@ export const MotionGraphic: React.FC<{ spec: MotionSpec; brand: Brand; font: str
   }
 
   return (
-    <AbsoluteFill style={{ backgroundColor: BG, alignItems: 'center', justifyContent: 'center', gap: 70, paddingBottom: '18%' }}>
-      {spec.template !== 'logo' && <Title text={spec.text} font={font} color={brand.text} upper={upper} />}
-      {body}
+    <AbsoluteFill style={{ background: bg }}>
+      <AbsoluteFill style={{ alignItems: 'center', justifyContent: 'center', gap: 70, paddingBottom: '18%', transform: `scale(${st.scale})` }}>
+        {spec.template !== 'logo' && <Title text={spec.text} font={font} color={brand.text} upper={upper} />}
+        {body}
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };

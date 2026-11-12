@@ -89,6 +89,9 @@ export const Reel: React.FC<Timeline> = (t) => {
           <Caption chunk={ch} font={font} t={t} />
         </Sequence>
       ))}
+      {t.finish.vignette ? <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%)', pointerEvents: 'none' }} /> : null}
+      {t.finish.grain ? <Grain /> : null}
+      {t.finish.progressBar ? <Progress t={t} /> : null}
       {t.voiceoverSrc ? <Audio src={t.voiceoverSrc} /> : null}
       {t.sfx.map((e, i) => (
         <Sequence key={`fx${i}`} from={e.fromFrame}>
@@ -100,9 +103,35 @@ export const Reel: React.FC<Timeline> = (t) => {
   );
 };
 
+/** Grano de película: ruido que cambia en cada fotograma, muy sutil. */
+const Grain: React.FC = () => {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{ opacity: 0.13, mixBlendMode: 'overlay', pointerEvents: 'none' }}>
+      <svg width="100%" height="100%" aria-hidden="true">
+        <filter id="grano"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves={2} seed={frame % 24} /><feColorMatrix type="saturate" values="0" /></filter>
+        <rect width="100%" height="100%" filter="url(#grano)" />
+      </svg>
+    </AbsoluteFill>
+  );
+};
+
+/** Barra de progreso arriba, con el color de la marca. */
+const Progress: React.FC<{ t: Timeline }> = ({ t }) => {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 12, background: 'rgba(255,255,255,0.22)' }}>
+        <div style={{ height: '100%', width: `${(frame / Math.max(1, t.durationInFrames - 1)) * 100}%`, background: t.brand.primary, borderRadius: '0 6px 6px 0' }} />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ clip, t, font }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const mfont = useFont(clip.motion?.style?.font ?? '');
   const zoom = clip.punchZoom
     ? interpolate(spring({ frame, fps, config: { damping: 14, stiffness: 180 } }), [0, 1], [1.18, 1.08])
     : 1;
@@ -125,7 +154,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
     case 'temblor': drift = 1 + amt * 0.5; dx = Math.sin(abs * 0.9) * amt * 9; dy = Math.cos(abs * 1.3) * amt * 9; break;
   }
   const filter = [LOOKS[clip.look], clip.adjust].filter(Boolean).join(' ') || undefined;
-  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift})`, filter };
+  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * clip.videoScale})`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
   const pos = coverPosition(t, clip.focusX, clip.focusY);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   const voice = t.originalVolume <= 0 ? null
@@ -144,8 +173,15 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         </AbsoluteFill>
       ) : null}
       <AbsoluteFill style={inStyle}>
+      {clip.videoScale < 1 && !clip.motion && !clip.brollSrc ? (
+        // Video más pequeño que el cuadro: detrás va el mismo video desenfocado, como fondo.
+        <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.6)', transform: 'scale(1.2)' }} />
+      ) : null}
+      {clip.motion?.style?.background === 'video' ? (
+        <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(26px) saturate(1.2)', transform: 'scale(1.18)' }} />
+      ) : null}
       {clip.motion ? (
-        <MotionGraphic spec={clip.motion} brand={t.brand} font={font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} />
+        <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
       ) : clip.brollSrc ? (
         <OffthreadVideo src={clip.brollSrc} trimBefore={clip.sceneOffsetFrames} muted style={cover} />
       ) : (
@@ -236,7 +272,8 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
   const pop = spring({ frame, fps, config: { damping: 12, stiffness: 220 }, durationInFrames: 8 });
   const abs = chunk.startFrame + frame;
   const size = s.fontSize * (d === 'impacto' ? 1.3 : d === 'elegante' ? 0.86 : d === 'cinta' ? 0.92 : 1);
-  const stroke = Math.round(size / (d === 'impacto' ? 6.5 : 9));
+  const stroke = Math.round((size / (d === 'impacto' ? 6.5 : 9)) * s.strokeScale);
+  const la = s.lineAnim;
   const hl = s.highlightColor;
   const upper = d === 'elegante' ? false : d === 'impacto' || d === 'cinta' || d === 'bloque' ? true : s.uppercase;
   // La palabra más importante de la línea se remarca siempre (si la línea tiene más de una palabra).
@@ -246,17 +283,18 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
 
   const box: React.CSSProperties = {
     position: 'absolute', top: `${s.y * 100}%`, left: '7%', right: '7%',
-    transform: `translateY(-50%) scale(${interpolate(pop, [0, 1], [0.86, 1])})${d === 'bloque' ? ' rotate(-2deg)' : ''}`,
+    transform: `translateY(${la === 'subir' ? `calc(-50% + ${interpolate(pop, [0, 1], [40, 0])}px)` : '-50%'}) translateX(${la === 'deslizar' ? interpolate(pop, [0, 1], [-80, 0]) : 0}px) scale(${la === 'pop' ? interpolate(pop, [0, 1], [0.86, 1]) : 1})${d === 'bloque' ? ' rotate(-2deg)' : ''}`,
+    opacity: la === 'ninguna' ? 1 : Math.min(1, pop * 2),
     textAlign: 'center', fontFamily: font, fontWeight: d === 'elegante' ? 600 : s.fontWeight, fontStyle: d === 'elegante' ? 'italic' : undefined,
-    fontSize: size, lineHeight: d === 'cinta' ? 1.45 : 1.18, letterSpacing: d === 'elegante' ? '0.01em' : undefined,
+    fontSize: size, lineHeight: d === 'cinta' ? 1.45 : 1.18, letterSpacing: `${s.spacing + (d === 'elegante' ? 0.01 : 0)}em`,
     color: d === 'neon' ? hl : s.color, textTransform: upper ? 'uppercase' : 'none',
-    WebkitTextStroke: s.stroke && !plain ? `${stroke}px #000` : undefined, paintOrder: 'stroke fill',
+    WebkitTextStroke: s.stroke && !plain && stroke > 0 ? `${stroke}px #000` : undefined, paintOrder: 'stroke fill',
     textShadow: d === 'neon' ? `0 0 14px ${hl}, 0 0 40px ${hl}, 0 3px 8px rgba(0,0,0,0.9)` : d === 'elegante' ? '0 3px 14px rgba(0,0,0,0.75)' : plain ? 'none' : '0 6px 18px rgba(0,0,0,0.45)',
   };
   return (
     <AbsoluteFill style={{ alignItems: 'center' }}>
       <div style={box}>
-        <span style={d === 'bloque' ? { display: 'inline-block', backgroundColor: hl, color: onColor(hl), padding: '0.12em 0.4em', borderRadius: '0.16em', boxShadow: '0 10px 0 rgba(0,0,0,0.35)' } : undefined}>
+        <span style={d === 'bloque' ? { display: 'inline-block', backgroundColor: hl, color: onColor(hl), padding: '0.12em 0.4em', borderRadius: '0.16em', boxShadow: '0 10px 0 rgba(0,0,0,0.35)' } : s.plate ? { display: 'inline-block', backgroundColor: 'rgba(8,8,10,0.62)', padding: '0.16em 0.45em', borderRadius: '0.28em', backdropFilter: 'blur(6px)' } : undefined}>
           {chunk.words.map((w, i) => {
             const start = w.startFrame;
             const end = chunk.words[i + 1]?.startFrame ?? chunk.endFrame;
@@ -334,7 +372,8 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
 
   const wrap: React.CSSProperties = {
     position: 'absolute', left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: '86%', textAlign: 'center',
-    fontFamily: font, fontWeight: 800, lineHeight: 1.1, textTransform: upper ? 'uppercase' : 'none', ...anim,
+    fontFamily: font, fontWeight: 800, lineHeight: 1.1, textTransform: upper ? 'uppercase' : 'none', letterSpacing: `${overlay.spacing}em`, ...anim,
+    transform: `${anim.transform ?? 'translate(-50%, -50%)'}${overlay.rotate ? ` rotate(${overlay.rotate}deg)` : ''}`,
   };
   const outline: React.CSSProperties = { color: '#fff', WebkitTextStroke: `${Math.round(9 * k)}px #000`, paintOrder: 'stroke fill', textShadow: '0 8px 22px rgba(0,0,0,0.5)' };
 

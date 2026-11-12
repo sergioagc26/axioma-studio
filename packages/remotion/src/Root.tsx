@@ -15,6 +15,7 @@ const empty: Timeline = {
   sourceHeight: 1920,
   originalVolume: 1,
   sfx: [],
+  finish: { progressBar: false, grain: false, vignette: false },
   brand: { primary: '#FE2C55', secondary: '#25F4EE', text: '#FFFFFF' },
   clips: [],
   words: [

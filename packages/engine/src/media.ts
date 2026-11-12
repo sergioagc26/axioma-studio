@@ -43,9 +43,10 @@ export async function makeMaster(input: string, out: string, fps: number, info: 
     // HDR → color estándar (BT.709). Sin esto los colores salen lavados.
     '-vf', `${scale},fps=${fps},${info.hdr ? 'colorspace=all=bt709:iall=bt2020:itrc=bt2020-10:format=yuv420p' : 'format=yuv420p'}`,
     '-map', '0:v:0', '-map', '0:a:0?',
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-g', String(Math.round(fps)),
+    // CRF 14 y preset medio: el master casi no pierde calidad frente al original.
+    '-c:v', 'libx264', '-preset', 'medium', '-crf', '14', '-g', String(Math.round(fps)),
     ...(info.hdr ? ['-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709'] : []),
-    '-c:a', 'aac', '-b:a', '192k', '-ar', '48000',
+    '-c:a', 'aac', '-b:a', '256k', '-ar', '48000',
     '-movflags', '+faststart',
     out,
   ]);

@@ -102,6 +102,23 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## Lo más reciente
+
+- **La app ve el video.** Un modelo de visión local (CLIP, en `.modelos/`, ~160 MB la primera vez) mira seis fotogramas y reconoce de qué trata: gente entrenando, comida, alguien hablando, una pantalla, un producto, etc. Eso pesa en el estilo recomendado, propone el sector de la marca y ordena los aspectos de imagen de las variantes. El video no sale del computador.
+- **Motion graphics editables** sin regenerarlos: plantilla, fondo (oscuro, claro, color de marca, degradado en movimiento o tu video desenfocado), dos colores, tipografía, tamaño y contenido.
+- **Subtítulos**: altura, palabras a la vez, entrada de cada línea, grosor del borde, separación entre letras y placa oscura detrás.
+- **Títulos**: giro y separación entre letras, además de estilo, tamaño, letra, entrada y posición.
+- **Imagen**: 11 aspectos, brillo, contraste, color y viñeta. **Cámara**: 9 movimientos con fuerza ajustable. **Tamaño del video** dentro del cuadro.
+- **26 tipografías** agrupadas y **11 entradas** de texto.
+- **Acabados del reel**: barra de progreso, grano de película y bordes oscuros.
+- **Exportación**: calidad máxima, alta o ligera, y carpeta donde guardar. El master de edición se crea con menos compresión.
+- **Voz**: grabar con el micrófono desde la pantalla Audio; se limpia, se nivela y se subtitula.
+- **Estilos**: todos cambian subtítulos, títulos, entradas, imagen, cámara y transiciones; «Guardar lo actual como mi estilo».
+- **Variantes**: cinco por clip (gráficos, b-roll, color, tipografía y cámara).
+- **Claude**: botón «Conectar Claude» que abre la terminal lista para `/login`.
+
+Pendiente (no construido): quitar el fondo del video, creador de imágenes (carrusel, post, historia), b-roll generado a partir de una idea y estudio de tendencias por nicho. La lectura de referencias sigue siendo aproximada.
+
 ## La marca primero
 
 Cada cliente tiene un **perfil de marca**, que se pregunta una sola vez (arriba del brief, o con `guardar_kit`): nombre, a qué se dedica, cómo habla y sus dos colores. El sector y la personalidad deciden el estilo completo, para que cada marca se vea distinta:

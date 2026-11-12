@@ -52,6 +52,37 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
+  // Grabación de voz con el micrófono.
+  const [rec, setRec] = useState<MediaRecorder | null>(null);
+  const [recSecs, setRecSecs] = useState(0);
+  const startRec = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+      const r = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      const t0 = Date.now();
+      const tick = window.setInterval(() => setRecSecs(Math.round((Date.now() - t0) / 1000)), 500);
+      r.ondataavailable = (e) => chunks.push(e.data);
+      r.onstop = async () => {
+        window.clearInterval(tick);
+        stream.getTracks().forEach((t) => t.stop());
+        setRec(null); setRecSecs(0);
+        setBusy('Subiendo tu grabación…');
+        try {
+          const job = await api<Job>(`/api/voz?id=${pid}`, { method: 'POST', body: new Blob(chunks, { type: r.mimeType }) });
+          await waitJob(job, (j) => setBusy(j.message));
+          const d = await api(`/api/project?id=${pid}`);
+          store.replace(d.project);
+          await store.reloadExtras();
+          ctx.toast('Tu voz quedó como voz en off, limpia y subtitulada.');
+        } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+      };
+      r.start();
+      setRec(r);
+    } catch { ctx.toast('No se pudo usar el micrófono. Revisa que el navegador tenga permiso.'); }
+  };
+  const stopRec = () => rec?.stop();
+
   const uploadMusic = async (file: File) => {
     if (!license.trim()) return ctx.toast('Escribe primero la licencia de la música (por ejemplo: propia, Artlist, YouTube Audio Library).');
     setBusy('Subiendo la música…');
@@ -136,6 +167,12 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
         <section className="card col" style={{ gap: 12 }}>
           <h2 style={{ fontSize: 17 }}>Voz en off</h2>
+          <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--panel2)' }}>
+            <strong>Graba tu voz</strong>
+            <span className="small muted">Usa el micrófono del computador. La app limpia el ruido, nivela el volumen y pone los subtítulos.</span>
+            <button className={`btn ${rec ? 'primary' : 'rect'}`} disabled={Boolean(busy)} onClick={rec ? stopRec : startRec}>{rec ? `Detener y usar (${recSecs} s)` : '● Grabar con el micrófono'}</button>
+          </div>
+          <span className="small muted">O deja que la app la genere:</span>
           <label className="field">Texto que dirá la voz
             <textarea rows={3} value={voText} onChange={(e) => setVoText(e.target.value)} placeholder="Unas 2,5 palabras por segundo: para 15 s, 35–40 palabras." />
           </label>

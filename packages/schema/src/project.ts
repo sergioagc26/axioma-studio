@@ -49,6 +49,14 @@ export const CaptionStyle = z.object({
   design: z.enum(['clasico', 'impacto', 'bloque', 'cinta', 'neon', 'elegante']).default('clasico'),
   /** Remarca siempre la palabra más importante de cada línea (más grande y en color). */
   emphasis: z.boolean().default(true),
+  /** Placa oscura translúcida detrás de la línea, para que se lea sobre cualquier fondo. */
+  plate: z.boolean().default(false),
+  /** Grosor del borde negro (1 = normal, 0 = sin borde). */
+  strokeScale: z.number().min(0).max(2.5).default(1),
+  /** Cómo entra cada línea. */
+  lineAnim: z.enum(['pop', 'subir', 'deslizar', 'ninguna']).default('pop'),
+  /** Separación entre letras (em). */
+  spacing: z.number().min(-0.05).max(0.3).default(0),
 });
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
@@ -141,6 +149,21 @@ export const Scene = z.object({
   motionTemplate: z.string().optional(),
   /** Datos de la plantilla de motion graphics (los pone el usuario; nunca inventados). */
   motionData: z.record(z.string(), z.any()).optional(),
+  /** Aspecto del motion graphic: se cambia sin regenerarlo. */
+  motionStyle: z.object({
+    /** Fondo: oscuro, claro, color de marca, degradado animado o el propio video desenfocado. */
+    background: z.enum(['oscuro', 'claro', 'marca', 'degradado', 'video']).default('oscuro'),
+    primary: z.string().optional(),
+    secondary: z.string().optional(),
+    font: z.string().optional(),
+    /** Tamaño relativo de todo el gráfico. */
+    scale: z.number().min(0.6).max(1.5).default(1),
+  }).default({ background: 'oscuro', scale: 1 }),
+  /** Tamaño del video dentro del cuadro (1 = llena la pantalla; menos deja ver un fondo desenfocado). */
+  videoScale: z.number().min(0.4).max(2.5).default(1),
+  /** Giro del texto en grados y separación entre letras. */
+  textRotate: z.number().min(-20).max(20).default(0),
+  textSpacing: z.number().min(-0.05).max(0.4).default(0),
   /** Efectos de sonido de la escena. `offset` son segundos desde su inicio. */
   sfx: z.array(z.object({ id: z.string(), offset: z.number().min(0).default(0), volume: z.number().min(0).max(1).default(0.6) })).default([]),
   /** Transición de entrada desde la escena anterior (sin valor = corte seco). */
@@ -291,6 +314,22 @@ export const Project = z.object({
       duration: z.number(),
     }).optional(),
   }).default({ denoise: true, denoiseLevel: 'media', enhance: false, sfxAuto: false, targetLufs: -16, musicVolume: 0.18, originalVolume: 1 }),
+  /** Acabados profesionales de todo el reel. */
+  finish: z.object({
+    /** Barra de progreso arriba: ayuda a que la gente se quede hasta el final. */
+    progressBar: z.boolean().default(false),
+    /** Grano de película sutil sobre toda la imagen. */
+    grain: z.boolean().default(false),
+    /** Bordes oscuros suaves en todo el reel. */
+    vignette: z.boolean().default(false),
+  }).default({ progressBar: false, grain: false, vignette: false }),
+  /** Cómo y dónde se exporta. */
+  export: z.object({
+    /** maxima: casi sin compresión (archivos grandes); alta: la recomendada para redes; ligera: para enviar rápido. */
+    quality: z.enum(['maxima', 'alta', 'ligera']).default('alta'),
+    /** Carpeta donde guardar los videos. Sin valor, la carpeta `renders` del proyecto. */
+    folder: z.string().optional(),
+  }).default({ quality: 'alta' }),
   assets: z.array(Asset).default([]),
   approval: z.enum(['borrador', 'en_revision', 'aprobado']).default('borrador'),
   requests: z.array(Request).default([]),

@@ -644,11 +644,13 @@ export function createServer() {
 
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
     proyecto, formato: z.enum(['9:16', '4:5', '1:1']).default('9:16'),
-  }, async ({ proyecto, formato }) => {
+    calidad: z.enum(['maxima', 'alta', 'ligera']).optional().describe('Por defecto, la del proyecto (alta)'),
+  }, async ({ proyecto, formato, calidad }) => {
     const dir = await resolveProject(proyecto);
     let last = -1;
     const { out } = await E.renderProject(dir, {
       format: formato,
+      quality: calidad,
       onProgress: (p) => {
         const pct = Math.floor(p * 4) * 25;
         if (pct !== last) log(`render ${(last = pct)}%`);

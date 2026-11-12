@@ -101,8 +101,8 @@ export const App: React.FC = () => {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato }),
       });
       const done = await waitJob(job, setRender);
-      toast(`Exportado: ${done.result?.file}`);
-      window.open(`/media/${encodeURIComponent(project.id)}/${done.result?.file}`, '_blank');
+      toast(`Exportado en: ${done.result?.path}`);
+      if (done.result?.file) window.open(`/media/${encodeURIComponent(project.id)}/${done.result.file}`, '_blank');
     } catch (e: any) {
       toast(`No se pudo exportar: ${e.message}`);
     } finally {

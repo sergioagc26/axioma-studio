@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile, rename, rm } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
@@ -43,7 +43,7 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
   return { voiceover, faces: await readFaces(dir), transitions: await allTransitions(project.client) };
 }
 
-export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; onProgress?: (p: number) => void } = {}) {
+export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void } = {}) {
   const project = await readProject(dir);
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
   const transcript = await readTranscript(dir);
@@ -64,7 +64,12 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     const composition = await retryBrowser(() => selectComposition({ serveUrl, id: 'Reel', inputProps: timeline, timeoutInMilliseconds: 120_000 }));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const suffix = opts.format && opts.format !== '9:16' ? `-${opts.format.replace(':', 'x')}` : '';
-    const out = opts.out ?? path.join(dir, P.renders, `${project.id}-${stamp}${suffix}.mp4`);
+    // Carpeta elegida por el usuario, o la del proyecto.
+    const folder = project.export.folder?.trim() ? path.resolve(project.export.folder.trim().replace(/^~(?=$|\/)/, os.homedir())) : path.join(dir, P.renders);
+    await mkdir(folder, { recursive: true });
+    const out = opts.out ?? path.join(folder, `${project.id}-${stamp}${suffix}.mp4`);
+    // Calidad: cuanto menor el CRF, menos compresión. 12 es prácticamente sin pérdida visible.
+    const q = { maxima: { crf: 12, audio: '320k' }, alta: { crf: 17, audio: '256k' }, ligera: { crf: 23, audio: '160k' } }[opts.quality ?? project.export.quality];
     const raw = out.replace(/\.mp4$/i, '') + '.sin-nivelar.mp4';
     await retryBrowser(() => renderMedia({
       serveUrl,
@@ -72,8 +77,8 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       composition,
       inputProps: timeline,
       codec: 'h264',
-      crf: 18,
-      audioBitrate: '192k',
+      crf: q.crf,
+      audioBitrate: q.audio as never,
       pixelFormat: 'yuv420p',
       outputLocation: raw,
       concurrency: Math.max(1, Math.min(8, Math.floor(os.cpus().length / 2))),

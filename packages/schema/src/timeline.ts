@@ -38,6 +38,8 @@ export const sceneLength = (scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd
 
 export type MotionSpec = {
   template: string; data: Record<string, any>; text?: string;
+  /** Fondo, colores, letra y tamaño del gráfico. */
+  style?: { background: string; primary?: string; secondary?: string; font?: string; scale: number };
   /** Palabras que se dicen en la escena, en frames desde su inicio (para tipografía en movimiento). */
   words?: TimelineWord[];
 };
@@ -61,6 +63,7 @@ export type TimelineClip = {
   vignette: number;
   camera: Camera;
   cameraAmount: number;
+  videoScale: number;
   /** Posición de este tramo dentro de su escena (para el movimiento de cámara continuo). */
   sceneFrames: number;
   visual: Scene['visual'];
@@ -81,7 +84,7 @@ export type TimelineOverlay = {
   sceneId: string; text: string; color?: string; fromFrame: number; durationInFrames: number;
   style: TextStyle; keyword: string;
   /** Centro del texto (0–1), tamaño relativo, tipografía y animación de entrada. */
-  x: number; y: number; size: number; font?: string; anim: TextAnim;
+  x: number; y: number; size: number; font?: string; anim: TextAnim; rotate: number; spacing: number;
 };
 
 export type Brand = { primary: string; secondary: string; text: string; name?: string; logoSrc?: string };
@@ -108,6 +111,8 @@ export type Timeline = {
   overlays: TimelineOverlay[];
   captions: CaptionStyle;
   brand: Brand;
+  /** Acabados de todo el reel. */
+  finish: { progressBar: boolean; grain: boolean; vignette: boolean };
   /** Efectos de sonido colocados en la salida. */
   sfx: { src: string; fromFrame: number; volume: number }[];
 };
@@ -169,8 +174,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     // Solo cuenta como b-roll si es un archivo del proyecto (no una búsqueda pendiente).
     const brollSrc = visual === 'broll' && brollFile && /\.(mp4|mov|m4v|webm)$/i.test(brollFile) && urls.asset ? urls.asset(brollFile) : undefined;
     const motion: MotionSpec | undefined = visual === 'motion' && template
-      ? { template, data: scene.motionData ?? {}, text: activeText(scene) }
-      : visual === 'texto' && activeText(scene) ? { template: 'texto', data: {}, text: activeText(scene) } : undefined;
+      ? { template, data: scene.motionData ?? {}, text: activeText(scene), style: scene.motionStyle }
+      : visual === 'texto' && activeText(scene) ? { template: 'texto', data: {}, text: activeText(scene), style: scene.motionStyle } : undefined;
 
     effectiveRanges(scene, project.source.duration).forEach((r, i) => {
       const dur = Math.max(0, r.end - r.start);
@@ -188,6 +193,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
           vignette: scene.vignette,
           camera: scene.camera,
           cameraAmount: scene.cameraAmount,
+          videoScale: scene.videoScale,
           sceneFrames: 0,
           sceneId: scene.id,
           fromFrame: from,
@@ -225,6 +231,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         size: scene.textSize,
         font: scene.textFont,
         anim: scene.textAnim,
+        rotate: scene.textRotate,
+        spacing: scene.textSpacing,
         fromFrame: toFrame(sceneStart),
         durationInFrames: toFrame(acc) - toFrame(sceneStart),
       });
@@ -301,6 +309,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     overlays,
     captions: project.captions,
     sfx,
+    finish: project.finish,
     brand: urls.brand ?? { primary: project.captions.highlightColor, secondary: '#25F4EE', text: '#FFFFFF' },
   };
 }

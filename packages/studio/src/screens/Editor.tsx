@@ -48,6 +48,42 @@ const CAMERA_NAMES: [Scene['camera'], string][] = [
   ['ninguno', 'Quieta'], ['acercar', 'Se acerca'], ['alejar', 'Se aleja'], ['izquierda', 'Paneo a la izquierda'], ['derecha', 'Paneo a la derecha'],
   ['arriba', 'Paneo hacia arriba'], ['abajo', 'Paneo hacia abajo'], ['pulso', 'Pulso al ritmo'], ['temblor', 'Cámara en mano'],
 ];
+const MOTION_NAMES: [string, string][] = [
+  ['pregunta', 'Pregunta'], ['contador', 'Número animado'], ['porcentaje', 'Porcentaje'], ['comparacion', 'Antes y después'], ['pasos', 'Pasos'],
+  ['checklist', 'Lista con vistos'], ['lista', 'Lista'], ['barras', 'Barras'], ['cita', 'Frase destacada'], ['palabras', 'Palabras en movimiento'], ['logo', 'Cierre con marca'], ['texto', 'Tarjeta de texto'],
+];
+
+/** Campos para editar el contenido de un motion graphic, según su plantilla. */
+const MotionData: React.FC<{ scene: Scene; onChange: (d: Record<string, unknown>) => void }> = ({ scene, onChange }) => {
+  const d = (scene.motionData ?? {}) as Record<string, any>;
+  const tpl = scene.visual === 'texto' ? 'texto' : scene.motionTemplate;
+  const text = (key: string, label: string, placeholder = '') => (
+    <label className="field" key={key}>{label}
+      <input key={scene.id + key + tpl} defaultValue={d[key] ?? ''} placeholder={placeholder} onBlur={(e) => e.target.value !== (d[key] ?? '') && onChange({ ...d, [key]: e.target.value || undefined })} />
+    </label>
+  );
+  const num = (key: string, label: string) => (
+    <label className="field" key={key}>{label}
+      <input type="number" key={scene.id + key + tpl} defaultValue={d[key] ?? ''} placeholder="Tu dato" onBlur={(e) => onChange({ ...d, [key]: e.target.value === '' ? undefined : Number(e.target.value) })} />
+    </label>
+  );
+  const lines = (label: string) => (
+    <label className="field">{label} (uno por línea)
+      <textarea rows={4} key={scene.id + tpl} defaultValue={(Array.isArray(d.items) ? d.items : []).map((x: any) => (typeof x === 'string' ? x : `${x.label ?? ''}: ${x.value ?? ''}`)).join('\n')}
+        onBlur={(e) => { const rows = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean); onChange({ ...d, items: tpl === 'barras' ? rows.map((r) => { const [l, v] = r.split(':'); return { label: l.trim(), value: v === undefined || v.trim() === '' ? undefined : Number(v) }; }) : rows }); }} />
+    </label>
+  );
+  if (tpl === 'pregunta') return text('pregunta', 'Pregunta');
+  if (tpl === 'contador') return <>{num('valor', 'Número')}{text('prefijo', 'Antes del número', '$')}{text('sufijo', 'Después del número', ' h')}{text('etiqueta', 'Texto debajo')}</>;
+  if (tpl === 'porcentaje') return <>{num('valor', 'Porcentaje (0–100)')}{text('etiqueta', 'Texto debajo')}</>;
+  if (tpl === 'comparacion') return <>{text('tituloIzquierda', 'Título izquierdo', 'Antes')}{text('izquierda', 'Texto izquierdo')}{text('tituloDerecha', 'Título derecho', 'Ahora')}{text('derecha', 'Texto derecho')}</>;
+  if (tpl === 'cita') return <>{text('texto', 'Frase')}{text('autor', 'Autor (opcional)')}</>;
+  if (tpl === 'logo') return text('texto', 'Texto bajo el logo');
+  if (tpl === 'barras') return <>{lines('Barras, como «Etiqueta: 10»')}{text('unidad', 'Unidad', ' min')}</>;
+  if (tpl === 'lista' || tpl === 'checklist' || tpl === 'pasos') return lines('Puntos');
+  return <span className="small muted">{tpl === 'palabras' ? 'Usa las palabras que se dicen en este clip.' : 'Usa el texto en pantalla de este clip.'}</span>;
+};
+
 /** Lista de tipografías agrupada. */
 const FontOptions: React.FC = () => <>{FONT_GROUPS.map(([g, fonts]) => <optgroup key={g} label={g}>{fonts.map((f) => <option key={f}>{f}</option>)}</optgroup>)}</>;
 /** Nueve posiciones rápidas para el texto (x, y de 0 a 1), dentro de las zonas seguras. */
@@ -335,6 +371,26 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </div>
           </details>
           <details className="grp">
+            <summary>Acabados del reel</summary>
+            <div className="col">
+              <label className="row"><input type="checkbox" checked={project.finish.progressBar} onChange={(e) => store.update((p) => { p.finish.progressBar = e.target.checked; })} /> Barra de progreso arriba</label>
+              <label className="row"><input type="checkbox" checked={project.finish.grain} onChange={(e) => store.update((p) => { p.finish.grain = e.target.checked; })} /> Grano de película</label>
+              <label className="row"><input type="checkbox" checked={project.finish.vignette} onChange={(e) => store.update((p) => { p.finish.vignette = e.target.checked; })} /> Bordes oscuros en todo el reel</label>
+              <label className="field">Calidad al exportar
+                <select value={project.export.quality} onChange={(e) => store.update((p) => { p.export.quality = e.target.value as typeof p.export.quality; })}>
+                  <option value="maxima">Máxima (archivo grande, casi sin compresión)</option>
+                  <option value="alta">Alta (recomendada para redes)</option>
+                  <option value="ligera">Ligera (para enviar rápido)</option>
+                </select>
+              </label>
+              <label className="field">Carpeta donde guardar
+                <input key={project.id + 'f'} defaultValue={project.export.folder ?? ''} placeholder="Carpeta del proyecto (renders)"
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (project.export.folder ?? '')) store.update((p) => { p.export.folder = v || undefined; }); }} />
+              </label>
+              <span className="small muted">Escribe la ruta completa, por ejemplo /Users/tu-usuario/Desktop/Reels. Vacío = dentro del proyecto.</span>
+            </div>
+          </details>
+          <details className="grp">
             <summary>Subtítulos</summary>
             <div className="col">
           <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -365,6 +421,16 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </label>
           <SizeSlider value={project.captions.fontSize} onCommit={(v) => store.update((p) => { p.captions.fontSize = v; })} />
           <label className="row"><input type="checkbox" checked={project.captions.uppercase} onChange={(e) => store.update((p) => { p.captions.uppercase = e.target.checked; })} /> Mayúsculas</label>
+          <Slider label="Altura en pantalla" value={project.captions.y} min={0.15} max={0.85} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => store.update((p) => { p.captions.y = v; })} />
+          <Slider label="Palabras a la vez" value={project.captions.wordsPerLine} min={1} max={8} step={1} show={(v) => String(v)} onCommit={(v) => store.update((p) => { p.captions.wordsPerLine = Math.round(v); })} />
+          <label className="field">Cómo entra cada línea
+            <select value={project.captions.lineAnim} onChange={(e) => store.update((p) => { p.captions.lineAnim = e.target.value as typeof p.captions.lineAnim; })}>
+              <option value="pop">Salta</option><option value="subir">Sube</option><option value="deslizar">Desliza</option><option value="ninguna">Sin animación</option>
+            </select>
+          </label>
+          <Slider label="Grosor del borde" value={project.captions.strokeScale} min={0} max={2.5} step={0.05} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => store.update((p) => { p.captions.strokeScale = v; })} />
+          <Slider label="Separación entre letras" value={project.captions.spacing} min={-0.05} max={0.3} step={0.01} show={(v) => v.toFixed(2)} onCommit={(v) => store.update((p) => { p.captions.spacing = v; })} />
+          <label className="row"><input type="checkbox" checked={project.captions.plate} onChange={(e) => store.update((p) => { p.captions.plate = e.target.checked; })} /> Placa oscura detrás (se lee sobre cualquier fondo)</label>
           <label className="row"><input type="checkbox" checked={project.captions.stroke} onChange={(e) => store.update((p) => { p.captions.stroke = e.target.checked; })} /> Borde negro en las letras</label>
 
             </div>
@@ -443,6 +509,37 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </div>
               </div>
             </details>
+            {(scene.visual === 'motion' || scene.visual === 'texto') && (
+              <details className="grp" open>
+                <summary>Motion graphic</summary>
+                <div className="col">
+                  <span className="small muted">Cambia su aspecto y su contenido aquí, sin generarlo de nuevo.</span>
+                  <label className="field">Plantilla
+                    <select value={scene.visual === 'texto' ? 'texto' : scene.motionTemplate ?? 'lista'} onChange={(e) => edit((s) => { if (e.target.value === 'texto') { s.visual = 'texto'; } else { s.visual = 'motion'; s.motionTemplate = e.target.value; } })}>
+                      {MOTION_NAMES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                  </label>
+                  <label className="field">Fondo
+                    <select value={scene.motionStyle.background} onChange={(e) => edit((s) => { s.motionStyle.background = e.target.value as typeof s.motionStyle.background; })}>
+                      <option value="oscuro">Oscuro</option><option value="claro">Claro</option><option value="marca">Color de la marca</option>
+                      <option value="degradado">Degradado que se mueve</option><option value="video">Tu video desenfocado</option>
+                    </select>
+                  </label>
+                  <span className="small muted">Color principal</span>
+                  <ColorRow value={scene.motionStyle.primary ?? store.brand?.primary ?? project.captions.highlightColor} label="Color principal del gráfico" onPick={(c) => edit((s) => { s.motionStyle.primary = c; })} />
+                  <span className="small muted">Color secundario</span>
+                  <ColorRow value={scene.motionStyle.secondary ?? store.brand?.secondary ?? '#25F4EE'} label="Color secundario del gráfico" swatches={['#25F4EE', '#FACC15', '#FFFFFF', '#A78BFA']} onPick={(c) => edit((s) => { s.motionStyle.secondary = c; })} />
+                  <label className="field">Tipografía
+                    <select value={scene.motionStyle.font ?? ''} onChange={(e) => edit((s) => { s.motionStyle.font = e.target.value || undefined; })}>
+                      <option value="">Igual que los subtítulos</option>
+                      <FontOptions />
+                    </select>
+                  </label>
+                  <Slider label="Tamaño" value={scene.motionStyle.scale} min={0.6} max={1.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.motionStyle.scale = v; })} />
+                  <MotionData scene={scene} onChange={(data) => edit((s) => { s.motionData = data; })} />
+                </div>
+              </details>
+            )}
             <details className="grp" open>
               <summary>Texto en pantalla</summary>
               <div className="col">
@@ -479,6 +576,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </label>
             </div>
             <Slider label="Tamaño" value={scene.textSize} min={0.5} max={2} step={0.05} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.textSize = v; })} />
+            <Slider label="Giro" value={scene.textRotate} min={-20} max={20} step={1} show={(v) => `${v}°`} onCommit={(v) => edit((s) => { s.textRotate = v; })} />
+            <Slider label="Separación entre letras" value={scene.textSpacing} min={-0.05} max={0.4} step={0.01} show={(v) => v.toFixed(2)} onCommit={(v) => edit((s) => { s.textSpacing = v; })} />
             <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
               <div className="col" style={{ gap: 4 }}>
                 <span className="small muted">Posición</span>
@@ -507,6 +606,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 </select>
               </label>
             </div>
+            <Slider label="Tamaño del video" value={scene.videoScale} min={0.4} max={2.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.videoScale = v; })} />
+            <span className="small muted">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
             <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />
             <Slider label="Brillo" value={scene.brightness} min={0.5} max={1.6} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.brightness = v; })} />
             <Slider label="Contraste" value={scene.contrast} min={0.5} max={1.8} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.contrast = v; })} />

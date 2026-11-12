@@ -280,7 +280,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const job = startJob('render', async (j) => {
         j.message = 'Renderizando…';
         const { out } = await renderProject(dir, { format: b.formato, onProgress: (x) => { j.progress = x; } });
-        return { file: path.relative(dir, out).split(path.sep).join('/') };
+        const inside = !path.relative(dir, out).startsWith('..');
+        return { file: inside ? path.relative(dir, out).split(path.sep).join('/') : null, path: out };
       });
       return json(res, job);
     }
@@ -299,6 +300,26 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
+  }
+
+  if (p === '/api/voz' && method === 'POST') {
+    // Voz grabada con el micrófono en el studio: pasa a ser la voz en off.
+    const dir = await findDir(id);
+    const tmpDir = path.join(os.tmpdir(), `snz-voz-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const tmp = path.join(tmpDir, 'grabacion.webm');
+    await pipe(req, createWriteStream(tmp));
+    const job = startJob('audio', async (j) => {
+      j.message = 'Limpiando y subtitulando tu voz…';
+      try {
+        const p2 = await ops.setVoiceoverFile(dir, tmp);
+        if (p2.kind === 'montaje') await buildMontage(dir, {});
+        return {};
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+    return json(res, job);
   }
 
   if (p === '/api/broll' && method === 'POST') {

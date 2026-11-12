@@ -470,3 +470,22 @@ export async function saveCurrentStyle(dir: string, name: string) {
     },
   });
 }
+
+/**
+ * Usa una grabación de voz (hecha en el studio o un archivo) como voz en off:
+ * la limpia, la nivela a -16 LUFS, la transcribe y la subtitula.
+ */
+export async function setVoiceoverFile(dir: string, file: string, opts: { originalVolume?: number } = {}) {
+  const project = await readProject(dir);
+  const out = path.join(dir, P.voiceover);
+  await mkdir(path.dirname(out), { recursive: true });
+  await processVoice(file, out, { denoise: true, denoiseLevel: 'media', enhance: true, targetLufs: project.audio.targetLufs });
+  const wav = path.join(dir, 'media', 'voz-en-off-16k.wav');
+  await extractWav16k(out, wav);
+  const transcript = await transcribeWav(wav);
+  await rm(wav, { force: true });
+  await writeFile(path.join(dir, P.voiceoverWords), JSON.stringify(transcript, null, 2));
+  project.audio.voiceover = { file: P.voiceover, text: transcript.words.map((w) => w.text).join(' '), provider: 'grabada', duration: await mediaDuration(out) };
+  project.audio.originalVolume = opts.originalVolume ?? (project.kind === 'montaje' ? Math.min(project.audio.originalVolume, 0.25) : 0);
+  return writeProject(dir, project);
+}
