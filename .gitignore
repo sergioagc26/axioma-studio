@@ -12,3 +12,4 @@ packages/studio/dist/
 .env
 .sfx/
 .modelos/
+.venv*/
