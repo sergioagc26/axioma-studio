@@ -203,7 +203,8 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: `${pos.x * 100}% ${pos.y * 100}%`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
-  const fadeVol = (f: number) => t.originalVolume * Math.min(1, (f + 1) / 2, (clip.durationInFrames - f) / 2);
+  // Si solo cambia el encuadre (reencuadre al hablante), el audio sigue sin fundido.
+  const fadeVol = (f: number) => t.originalVolume * Math.min(1, clip.seamIn ? 1 : (f + 1) / 2, clip.seamOut ? 1 : (clip.durationInFrames - f) / 2);
   const voice = t.originalVolume <= 0 ? null
     : t.voiceSrc ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} />
     : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} /> : null;

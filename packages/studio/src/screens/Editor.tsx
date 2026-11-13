@@ -194,6 +194,21 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [safeNet, setSafeNet] = useState<keyof typeof SAFE>(() => /historia/i.test(project.brief.formato ?? '') ? 'historia' : /tiktok/i.test(project.brief.formato ?? '') ? 'tiktok' : /short/i.test(project.brief.formato ?? '') ? 'short' : 'reel');
   const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
 
+  // Reencuadre al hablante (videos horizontales con varias personas).
+  const [speakerBusy, setSpeakerBusy] = useState('');
+  const followSpeaker = async (on: boolean) => {
+    setSpeakerBusy(on ? 'Viendo quién habla…' : 'Volviendo al encuadre normal…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'seguir-hablante', on }) });
+      const done = await waitJob(job, (j) => setSpeakerBusy(j.message));
+      const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
+      store.replace(d.project);
+      await store.reloadExtras();
+      const r = done.result as { people?: number; turns?: number } | undefined;
+      ctx.toast(!on ? 'Encuadre normal: sigue a la cara principal.' : (r?.people ?? 0) < 2 ? 'Solo encontré una persona en cuadro: el encuadre la sigue a ella.' : `Listo: ${r?.people} personas; el encuadre cambia ${Math.max(0, (r?.turns ?? 1) - 1)} veces según quién habla.`);
+    } catch (e: any) { ctx.toast(e.message); } finally { setSpeakerBusy(''); }
+  };
+
   const timeline = useMemo(() => buildTimeline(project, store.transcript, {
     video: project.finish.lut ? `${media('proxies/proxy-lut.mp4')}?v=${encodeURIComponent(project.finish.lut.name + project.finish.lut.strength)}` : media(project.source.proxy ?? 'media/master.mp4'),
     voice: project.audio.processedVoice ? media(project.audio.processedVoice) : undefined,
@@ -204,7 +219,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     cutout: store.extras?.cutout,
     cutoutCoverage: store.extras?.cutoutCoverage,
     depth: store.extras?.depth,
-    faces: store.extras?.faces,
+    faces: store.extras?.faces, speakers: store.extras?.speakers,
     transitions: store.extras?.transitions,
   }), [project, store.transcript, store.brand, store.extras]);
 
@@ -645,6 +660,16 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               ))}
             </div>
           </details>
+          {project.source.width > project.source.height * 1.1 && (
+            <details className="grp">
+              <summary>Encuadre</summary>
+              <div className="col">
+                <label className="row"><input type="checkbox" checked={project.source.followSpeaker} disabled={Boolean(speakerBusy)} onChange={(e) => followSpeaker(e.target.checked)} /> Seguir a quien habla</label>
+                <span className="small muted">Para pódcast y entrevistas con dos o más personas: el recorte vertical pasa a la persona que está hablando (se mira quién mueve la boca). La primera vez tarda un poco.</span>
+                {speakerBusy && <span className="pill" role="status">{speakerBusy}</span>}
+              </div>
+            </details>
+          )}
           <details className="grp">
             <summary>Acabados del reel</summary>
             <div className="col">

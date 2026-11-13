@@ -170,6 +170,10 @@ En Audio, «Doblaje a otro idioma» crea una **copia** del reel en inglés, port
 
 En un montaje (videos sin voz), con música puesta, cada corte cae justo en un golpe de la canción. La app detecta el tempo, el primer golpe de cada compás y dónde sube la energía, en este computador. En Audio, «Cortar al ritmo» permite elegir: automático (cada compás en las partes suaves, cada 2 golpes en las medias y en cada golpe en las fuertes, con un destello en el golpe donde más sube la música), en cada golpe, cada 2 o cada compás. El final también cae en un golpe; con voz en off, en el primero después de que termina la voz. Subir una canción a un montaje lo vuelve a cortar solo, y el montaje automático ya usa los golpes cuando hay música. Si la canción no tiene un pulso claro, se corta parejo como antes. Claude puede hacerlo con `montaje_al_ritmo`.
 
+## Reencuadre al hablante
+
+En videos horizontales con dos o más personas (pódcast, entrevista), el editor muestra «Encuadre → Seguir a quien habla». La app detecta las caras, agrupa a cada persona por su lugar y mide cuánto se mueve su boca (menos el movimiento de los ojos, para no confundir un gesto con hablar) mientras hay voz. El recorte vertical pasa a quien habla con un corte limpio; el audio sigue sin interrupción. Para no marear, solo cambia si la otra persona lleva al menos 1 s hablando y ningún turno dura menos de 1,5 s. El análisis queda en `hablantes.json`. Claude puede hacerlo con `seguir_hablante`.
+
 ## Lo más reciente
 
 - **La app ve el video.** Un modelo de visión local (CLIP, en `.modelos/`, ~160 MB la primera vez) mira seis fotogramas y reconoce de qué trata: gente entrenando, comida, alguien hablando, una pantalla, un producto, etc. Eso pesa en el estilo recomendado, propone el sector de la marca y ordena los aspectos de imagen de las variantes. El video no sale del computador.

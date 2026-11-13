@@ -269,6 +269,8 @@ export const SourceMedia = z.object({
   focusX: z.number().min(0).max(1).default(0.5),
   /** El encuadre sigue la cara automáticamente. Si es false, manda focusX. */
   autoFocus: z.boolean().default(true),
+  /** Con dos o más personas, el encuadre va hacia quien habla (necesita hablantes.json). */
+  followSpeaker: z.boolean().default(false),
 });
 export type SourceMedia = z.infer<typeof SourceMedia>;
 

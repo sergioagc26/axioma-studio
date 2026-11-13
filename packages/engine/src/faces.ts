@@ -10,11 +10,14 @@ const require = createRequire(import.meta.url);
 const W = 180;
 const FPS = 2;
 
-let detector: Promise<(rgb: Uint8Array, h: number) => Promise<{ x: number; y: number } | null>> | null = null;
+export interface FaceBox { x: number; y: number; w: number; h: number; score: number }
+const detectors = new Map<string, Promise<(rgb: Uint8Array, w: number, h: number) => Promise<FaceBox[]>>>();
 
 /** Carga el detector una vez (TensorFlow en WebAssembly: funciona igual en Mac y Windows). */
-function getDetector() {
-  detector ??= (async () => {
+/** `inputSize` mayor y `threshold` menor encuentran caras más pequeñas u oscuras (más lento). */
+export function getDetector(inputSize = 320, threshold = 0.4) {
+  const key = `${inputSize}:${threshold}`;
+  if (!detectors.has(key)) detectors.set(key, (async () => {
     const tf = require('@tensorflow/tfjs');
     const wasm = require('@tensorflow/tfjs-backend-wasm');
     const faceapi = require('@vladmandic/face-api/dist/face-api.node-wasm.js');
@@ -22,19 +25,19 @@ function getDetector() {
     await tf.setBackend('wasm');
     await tf.ready();
     await faceapi.nets.tinyFaceDetector.loadFromDisk(path.join(path.dirname(require.resolve('@vladmandic/face-api/package.json')), 'model'));
-    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 });
-    return async (rgb: Uint8Array, h: number) => {
-      const t = tf.tensor3d(rgb, [h, W, 3]);
+    const options = new faceapi.TinyFaceDetectorOptions({ inputSize, scoreThreshold: threshold });
+    // Todas las caras del fotograma, en proporción (0–1) del cuadro.
+    return async (rgb: Uint8Array, w: number, h: number) => {
+      const t = tf.tensor3d(rgb, [h, w, 3]);
       try {
-        const found: { box: { x: number; y: number; width: number; height: number; area: number } }[] = await faceapi.detectAllFaces(t, options);
-        const b = found.sort((a, c) => c.box.area - a.box.area)[0]?.box; // la cara más grande
-        return b ? { x: (b.x + b.width / 2) / W, y: (b.y + b.height / 2) / h } : null;
+        const found: { score: number; box: { x: number; y: number; width: number; height: number } }[] = await faceapi.detectAllFaces(t, options);
+        return found.map((f) => ({ x: f.box.x / w, y: f.box.y / h, w: f.box.width / w, h: f.box.height / h, score: f.score }));
       } finally {
         t.dispose();
       }
     };
-  })();
-  return detector;
+  })());
+  return detectors.get(key)!;
 }
 
 /**
@@ -53,8 +56,8 @@ export async function analyzeFaces(dir: string, sourceWidth: number, sourceHeigh
   const detect = await getDetector();
   const pts: FacePoint[] = [];
   for (let i = 0; (i + 1) * size <= buf.length; i++) {
-    const hit = await detect(new Uint8Array(buf.buffer, buf.byteOffset + i * size, size), h);
-    if (hit) pts.push({ t: i / FPS, x: hit.x, y: hit.y });
+    const b = (await detect(new Uint8Array(buf.buffer, buf.byteOffset + i * size, size), W, h)).sort((a, c) => c.w * c.h - a.w * a.h)[0]; // la cara más grande
+    if (b) pts.push({ t: i / FPS, x: b.x + b.w / 2, y: b.y + b.h / 2 });
   }
   const med = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
   const smooth = pts.map((p, i) => {

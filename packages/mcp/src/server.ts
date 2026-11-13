@@ -521,6 +521,15 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('seguir_hablante', 'En videos horizontales con dos o más personas (pódcast, entrevista), el recorte vertical pasa a quien está hablando: detecta las caras y quién mueve la boca mientras hay voz. on=false vuelve al encuadre normal.', {
+    proyecto, on: z.boolean().default(true),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const r = await E.setFollowSpeaker(dir, a.on);
+    if (!a.on) return 'Encuadre normal.';
+    return `${r.report?.tracks.length ?? 0} personas. Turnos: ${(r.report?.turns ?? []).map((t) => `${t.start}-${t.end} s → persona ${t.track + 1}`).join(', ') || 'ninguno (una sola persona)'}.`;
+  });
+
   tool('montaje_al_ritmo', 'En un montaje con música, pone cada corte justo en un golpe de la canción (detecta tempo, compás y dónde sube la energía). densidad: auto (más cortes donde la música es fuerte), pulso, medio (cada 2) o compas (cada 4).', {
     proyecto, densidad: z.enum(['auto', 'pulso', 'medio', 'compas']).default('auto'),
     duracion: z.number().optional().describe('Segundos; por defecto lo que dura la voz en off o hasta 30 s'),

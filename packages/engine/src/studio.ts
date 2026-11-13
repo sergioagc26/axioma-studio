@@ -31,6 +31,7 @@ import { addTeaser, removeTeaser } from './teaser.ts';
 import { searchLibrary, useLibraryHit } from './library.ts';
 import { DUB_LANGUAGES, dubProject } from './dub.ts';
 import { montageToBeat } from './beats.ts';
+import { setFollowSpeaker } from './speakers.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -328,6 +329,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Preparando las imágenes…';
         const r = await createImages(dir, tipo, (m) => { j.message = m; });
         return { files: r.files, ai: r.ai };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'seguir-hablante') {
+      const job = startJob('ia', async (j) => {
+        const r = await setFollowSpeaker(dir, Boolean(b.on), (m) => { j.message = m; });
+        return { people: r.report?.tracks.length ?? 0, turns: r.report?.turns.length ?? 0 };
       });
       return json(res, job);
     }

@@ -54,6 +54,9 @@ export type TimelineClip = {
   /** Frames de la escena que ya pasaron antes de este tramo (para b-roll continuo). */
   sceneOffsetFrames: number;
   punchZoom: boolean;
+  /** El audio sigue sin corte desde el tramo anterior / hacia el siguiente (solo cambia el encuadre). */
+  seamIn?: boolean;
+  seamOut?: boolean;
   /** Punto de interés del recorte (0–1), normalmente la cara. */
   focusX: number;
   focusY: number;
@@ -146,11 +149,36 @@ export interface TimelineUrls {
   cutoutCoverage?: number[];
   /** Posición de la cara a lo largo del video fuente. */
   faces?: FacePoint[];
+  /** Turnos de quién habla (reencuadre al hablante), si está activado. */
+  speakers?: SpeakerTurn[];
   /** Transiciones propias del cliente (además de las incluidas). */
   transitions?: TransitionSpec[];
 }
 
 export type FacePoint = { t: number; x: number; y: number };
+/** Quién habla de `start` a `end` (segundos del video fuente) y dónde está su cara. */
+export type SpeakerTurn = { start: number; end: number; track: number; x: number; y: number };
+
+/**
+ * Parte un tramo del video fuente donde cambia quien habla. Cada pedazo lleva el encuadre de
+ * esa persona; pedazos de menos de 0,6 s se unen al vecino (no marea).
+ */
+export function splitBySpeaker(r: { start: number; end: number }, turns: SpeakerTurn[] | undefined): { start: number; end: number; turn?: SpeakerTurn }[] {
+  if (!turns?.length) return [r];
+  const out: { start: number; end: number; turn?: SpeakerTurn }[] = [];
+  for (const t of turns) {
+    const start = Math.max(r.start, t.start), end = Math.min(r.end, t.end);
+    if (end - start <= 0) continue;
+    const prev = out[out.length - 1];
+    if (prev && (end - start < 0.6 || prev.turn?.track === t.track)) prev.end = end;
+    else if (prev && prev.end - prev.start < 0.6) Object.assign(prev, { end, turn: t });
+    else out.push({ start, end, turn: t });
+  }
+  if (!out.length) return [r];
+  out[0].start = r.start;
+  out[out.length - 1].end = r.end;
+  return out;
+}
 
 /** Posición media de la cara en un tramo del video fuente. */
 export function focusFor(faces: FacePoint[] | undefined, start: number, end: number, fallback: { x: number; y: number }) {
@@ -229,36 +257,42 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     effectiveRanges(scene, project.source.duration).forEach((r, i) => {
       const dur = Math.max(0, r.end - r.start);
       if (dur <= 0) return;
-      const from = toFrame(acc);
-      const to = toFrame(acc + dur);
-      if (to > from) {
-        // Un encuadre fijo por tramo (media de la cara): sigue a la persona sin temblar.
-        const focus = auto ? focusFor(urls.faces, r.start, r.end, manual) : manual;
-        clips.push({
-          focusX: focus.x,
-          focusY: focus.y,
-          look: scene.look,
-          adjust: [scene.brightness !== 1 ? `brightness(${scene.brightness})` : '', scene.contrast !== 1 ? `contrast(${scene.contrast})` : '', scene.saturation !== 1 ? `saturate(${scene.saturation})` : ''].filter(Boolean).join(' ') || undefined,
-          vignette: scene.vignette,
-          camera: scene.camera,
-          cameraAmount: scene.cameraAmount,
-          videoScale: scene.videoScale,
-          backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, r.start, r.end) ? scene.backdrop : undefined,
-          backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,
-          brollDepthSrc: brollSrc && urls.depth?.includes(depthOf(brollFile!)) ? urls.asset!(depthOf(brollFile!)) : undefined,
-          backdropDepthSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.depth?.includes(depthOf(scene.backdropFile)) ? urls.asset!(depthOf(scene.backdropFile)) : undefined,
-          sceneFrames: 0,
-          sceneId: scene.id,
-          fromFrame: from,
-          durationInFrames: to - from,
-          sourceStartFrame: toFrame(r.start),
-          sceneOffsetFrames: from - toFrame(sceneStart),
-          punchZoom: scene.punchZoom && i === 0,
-          visual: brollSrc ? 'broll' : motion ? (visual as Scene['visual']) : 'original',
-          brollSrc,
-          motion,
-        });
-      }
+      // Con reencuadre al hablante, el tramo se parte donde cambia quien habla.
+      const pieces = auto && urls.speakers?.length ? splitBySpeaker(r, urls.speakers) : [r as { start: number; end: number; turn?: SpeakerTurn }];
+      pieces.forEach((pc, pi) => {
+        const from = toFrame(acc + (pc.start - r.start));
+        const to = toFrame(acc + (pc.end - r.start));
+        if (to > from) {
+          // Un encuadre fijo por tramo (media de la cara): sigue a la persona sin temblar.
+          const focus = pc.turn ? { x: pc.turn.x, y: pc.turn.y } : auto ? focusFor(urls.faces, pc.start, pc.end, manual) : manual;
+          clips.push({
+            focusX: focus.x,
+            focusY: focus.y,
+            look: scene.look,
+            adjust: [scene.brightness !== 1 ? `brightness(${scene.brightness})` : '', scene.contrast !== 1 ? `contrast(${scene.contrast})` : '', scene.saturation !== 1 ? `saturate(${scene.saturation})` : ''].filter(Boolean).join(' ') || undefined,
+            vignette: scene.vignette,
+            camera: scene.camera,
+            cameraAmount: scene.cameraAmount,
+            videoScale: scene.videoScale,
+            backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, pc.start, pc.end) ? scene.backdrop : undefined,
+            backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,
+            brollDepthSrc: brollSrc && urls.depth?.includes(depthOf(brollFile!)) ? urls.asset!(depthOf(brollFile!)) : undefined,
+            backdropDepthSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.depth?.includes(depthOf(scene.backdropFile)) ? urls.asset!(depthOf(scene.backdropFile)) : undefined,
+            sceneFrames: 0,
+            sceneId: scene.id,
+            fromFrame: from,
+            durationInFrames: to - from,
+            sourceStartFrame: toFrame(pc.start),
+            seamIn: pi > 0 || undefined,
+            seamOut: pi < pieces.length - 1 || undefined,
+            sceneOffsetFrames: from - toFrame(sceneStart),
+            punchZoom: scene.punchZoom && i === 0 && pi === 0,
+            visual: brollSrc ? 'broll' : motion ? (visual as Scene['visual']) : 'original',
+            brollSrc,
+            motion,
+          });
+        }
+      });
       if (sourceWords) {
         for (const w of sourceWords.words) {
           const mid = (w.start + w.end) / 2;

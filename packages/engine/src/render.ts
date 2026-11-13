@@ -6,6 +6,7 @@ import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@axioma/schema';
+import { readSpeakers } from './speakers.ts';
 import { readFaces } from './faces.ts';
 import { learnFromExport, readKit } from './kit.ts';
 import { allTransitions } from './transitions.ts';
@@ -45,7 +46,8 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
   const voiceover = vo && existsSync(path.join(dir, vo.file))
     ? { src: asset(vo.file), words: existsSync(wordsFile) ? (JSON.parse(await readFile(wordsFile, 'utf8')).words as Transcript['words']) : [] }
     : undefined;
-  return { voiceover, faces: await readFaces(dir), transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
+  const speakers = project.source.followSpeaker ? (await readSpeakers(dir))?.turns : undefined;
+  return { voiceover, faces: await readFaces(dir), speakers, transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
 }
 
 export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void } = {}) {
