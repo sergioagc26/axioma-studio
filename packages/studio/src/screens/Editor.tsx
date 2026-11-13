@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
+import { PresetPreview } from '../PresetPreview.tsx';
 import { reelScore, adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@axioma/schema';
 import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
@@ -721,8 +722,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           )}
           <Group id="estilos" title="Estilo" hint={store.presets.find((p) => p.id === project.presetId)?.name}>
 
-              <span className="small muted">Cada estilo es una edición ya puesta: gancho, textos sacados de lo que dices, zoom cuando aparecen, cámara, gráficos, transiciones, sonidos y subtítulos. Lo que escribiste a mano no se toca.</span>
-              <button className="btn rect" style={{ height: 34 }} onClick={saveStyle}>Guardar lo actual como mi estilo</button>
+              <button className="btn rect" style={{ height: 34 }} onClick={saveStyle} title="Guarda cómo está este reel (subtítulos, textos, ritmo) para usarlo en otros">💾 Guardar como mi estilo</button>
               {rec && rec.id !== project.presetId && (
                 <div className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--cyanSoft)', gap: 6 }}>
                   <strong className="small">Recomendado: {store.presets.find((p) => p.id === rec.id)?.name}</strong>
@@ -730,17 +730,14 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <button className="btn cyan" style={{ height: 34 }} onClick={() => applyPreset(rec.id)}>Aplicar este estilo</button>
                 </div>
               )}
-          {store.presets.map((p) => (
-            <button key={p.id} className={`tpl ${project.presetId === p.id ? 'on' : ''}`} onClick={() => applyPreset(p.id)}>
-              <span style={{ width: 30, height: 52, borderRadius: 6, background: '#1E1E22', flex: 'none', display: 'grid', placeItems: 'end center', paddingBottom: 6 }} aria-hidden="true">
-                <span style={{ width: 18, height: 4, borderRadius: 2, background: p.captions.highlightColor }} />
-              </span>
-              <span className="col" style={{ gap: 2, minWidth: 0 }}>
-                <strong>{p.name}</strong>
-                <span className="small muted">{p.description}</span>
-              </span>
-            </button>
-          ))}
+          <div className="presets">
+            {store.presets.map((p) => (
+              <button key={p.id} className={`preset ${project.presetId === p.id ? 'on' : ''}`} onClick={() => applyPreset(p.id)} title={p.description} aria-pressed={project.presetId === p.id}>
+                <span className="preset-thumb"><PresetPreview project={project} preset={p} store={store} /></span>
+                <strong className="small">{p.name}</strong>
+              </button>
+            ))}
+          </div>
                       </Group>
           <Group id="subtitulos" title="Subtítulos" hint={CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.name}>
 

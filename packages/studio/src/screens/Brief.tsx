@@ -142,8 +142,8 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
       store.replace(d.project);
       await store.reloadExtras();
-      ctx.toast(`Edición lista. ${(done.result?.summary as string[]).join(' ')}`);
-      ctx.go('editor', { s: null });
+      void done;
+      ctx.go('listo', { s: null });
     } catch (e: any) { ctx.toast(`No se pudo armar la edición: ${e.message}`); } finally { setBuilding(''); }
   };
 

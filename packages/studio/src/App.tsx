@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { APP_NAME, publishPack, publishText } from '@axioma/schema';
 import { api, useProject, waitJob, type Job, type ProjectStore } from './useProject.ts';
 import { Audio } from './screens/Audio.tsx';
@@ -11,8 +11,9 @@ import { Variantes } from './screens/Variantes.tsx';
 import { Imagenes } from './screens/Imagenes.tsx';
 import { Texto } from './screens/Texto.tsx';
 import { Calendario } from './screens/Calendario.tsx';
+import { Listo } from './screens/Listo.tsx';
 
-export type Screen = 'proyectos' | 'calendario' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
+export type Screen = 'proyectos' | 'calendario' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
 
 export interface Ctx {
   store: ProjectStore;
@@ -20,17 +21,21 @@ export interface Ctx {
   sceneId: string | null;
   go: (screen: Screen, params?: { p?: string | null; s?: string | null }) => void;
   toast: (msg: string) => void;
+  /** Abre la ventana de exportar el video. */
+  exportVideo: () => void;
 }
 
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   const q = new URLSearchParams(query);
-  const screen = (['proyectos', 'calendario', 'brief', 'storyboard', 'editor', 'texto', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
+  const screen = (['proyectos', 'calendario', 'listo', 'brief', 'storyboard', 'editor', 'texto', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
   return { screen, p: q.get('p'), s: q.get('s') };
 }
 
 // En el orden del trabajo real: casi siempre se llega al Editor (modo automático).
-const TABS: [Screen, string][] = [['editor', 'Editor'], ['texto', 'Texto'], ['storyboard', 'Storyboard'], ['variantes', 'Variantes'], ['audio', 'Audio'], ['imagenes', 'Imágenes'], ['brief', 'Brief'], ['referencias', 'Referencias']];
+// Lo de todos los días a la vista; lo avanzado, guardado en «Más».
+const TABS: [Screen, string, string][] = [['brief', '📝', 'Brief'], ['listo', '🎬', 'Resultado'], ['editor', '🎛️', 'Editor']];
+const MORE: [Screen, string, string][] = [['texto', '🔤', 'Texto'], ['storyboard', '🧩', 'Storyboard'], ['variantes', '🎲', 'Variantes'], ['audio', '🎵', 'Audio'], ['imagenes', '🖼️', 'Imágenes'], ['referencias', '⭐', 'Referencias']];
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
@@ -140,7 +145,8 @@ export const App: React.FC = () => {
     }
   };
 
-  const ctx: Ctx = { store, id: route.p, sceneId: route.s, go, toast };
+  const ctx: Ctx = { store, id: route.p, sceneId: route.s, go, toast, exportVideo: () => openExport() };
+  const moreRef = useRef<HTMLDetailsElement>(null);
   const needsProject = route.screen !== 'proyectos';
 
   return (
@@ -152,9 +158,17 @@ export const App: React.FC = () => {
         {route.p && route.screen !== 'calendario' && (
           <nav className="nav" aria-label="Vistas">
             <a href="#/proyectos" className="back">‹ Proyectos</a>
-            {TABS.map(([s, label]) => (
-              <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} aria-current={route.screen === s ? 'page' : undefined}>{label}</a>
+            {TABS.map(([s, icon, label]) => (
+              <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} aria-current={route.screen === s ? 'page' : undefined}><span aria-hidden="true">{icon}</span> {label}</a>
             ))}
+            <details className="more" ref={moreRef}>
+              <summary className={MORE.some(([s]) => s === route.screen) ? 'on' : ''}>{MORE.find(([s]) => s === route.screen)?.slice(1).join(' ') ?? '⋯ Más'}</summary>
+              <div className="more-menu">
+                {MORE.map(([s, icon, label]) => (
+                  <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} onClick={() => moreRef.current?.removeAttribute('open')}><span aria-hidden="true">{icon}</span> {label}</a>
+                ))}
+              </div>
+            </details>
           </nav>
         )}
         <div className="row spacer">
@@ -194,6 +208,7 @@ export const App: React.FC = () => {
           </div>
         )
         : route.screen === 'brief' ? <Brief ctx={ctx} />
+        : route.screen === 'listo' ? <div className="scroll"><Listo ctx={ctx} /></div>
         : route.screen === 'storyboard' ? <Storyboard ctx={ctx} />
         : route.screen === 'editor' ? <Editor ctx={ctx} />
         : route.screen === 'texto' ? <div className="scroll"><Texto ctx={ctx} /></div>

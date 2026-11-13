@@ -41,7 +41,7 @@ import { duplicateProject, trashProject } from './manage.ts';
 import { saveClientLogo } from './kit.ts';
 import { addReviewComment, approveReview, ensureReviewToken, findByToken, publicReview, resetReviewToken, reviewVideo } from './review.ts';
 import { reviewPageHtml } from './review-page.ts';
-import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack , stockMusic } from './musiclib.ts';
+import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack , autoMusic, stockMusic } from './musiclib.ts';
 import { splitIntoParts } from './series.ts';
 import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { brandbookFile, createBrandbook } from './brandbook.ts';
@@ -472,6 +472,20 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Editando todo el video…';
         const { summary } = await editEverything(dir, { referenceId: b.refId, onProgress: (m) => { j.message = m; } });
         return { summary };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'otra-musica') {
+      // Cambia la canción por otra del mismo ánimo (de la biblioteca o del banco gratuito).
+      const job = startJob('crear', async (j) => {
+        j.message = 'Buscando otra canción…';
+        const pr = await readProject(dir);
+        const before = pr.audio.music;
+        pr.audio.music = undefined;
+        await writeProject(dir, pr);
+        let text = await autoMusic(dir, before).catch(() => null);
+        if (!text) { const back = await readProject(dir); back.audio.music = before; await writeProject(dir, back); text = 'No encontré otra canción (revisa el internet o la clave de Freesound en 🔑 Claves).'; }
+        return { text };
       });
       return json(res, job);
     }

@@ -245,3 +245,24 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .bchip-input { height: 42px; width: 130px; padding: 0 14px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; color: var(--text); font-size: 15px; }
 .bchip-input.on { border: 2px solid var(--pink); background: var(--pinkSoft); width: 240px; }
 .bchip-input:focus { width: 240px; outline: none; border-style: solid; border-color: var(--pink); }
+
+/* Estilos como miniaturas reales del video (se entiende sin leer). */
+.presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.preset { display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 6px; border-radius: 12px; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; text-align: center; }
+.preset:hover { border-color: var(--muted); }
+.preset.on { border: 2px solid var(--pink); background: var(--pinkSoft); padding: 5px; }
+.preset-thumb { width: 100%; aspect-ratio: 9 / 16; border-radius: 8px; overflow: hidden; background: #000; display: block; pointer-events: none; }
+
+/* Menú: lo avanzado va guardado en «Más». */
+.nav .more { position: relative; }
+.nav .more summary { list-style: none; cursor: pointer; padding: 7px 10px; border-radius: 8px; color: var(--muted); font-weight: 500; }
+.nav .more summary::-webkit-details-marker { display: none; }
+.nav .more summary.on { background: var(--panel2); color: var(--text); font-weight: 600; }
+.nav .more summary:hover { color: var(--text); }
+.more-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: flex; flex-direction: column; gap: 2px; min-width: 190px; padding: 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 12px 32px rgba(0, 0, 0, .35); }
+.more-menu a { padding: 9px 10px; }
+
+/* Resultado: el video grande y lo que se le hizo, en iconos. */
+.listo-player { flex: 0 1 340px; width: min(340px, 100%); aspect-ratio: 9 / 16; border-radius: 20px; overflow: hidden; background: #000; }
+.done-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.done-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 12px; background: var(--panel2); text-align: center; }

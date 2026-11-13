@@ -192,15 +192,17 @@ export function stockMusic(): Promise<void> {
  * Música automática: si el reel no tiene, elige de la biblioteca la que va con su ánimo; si la
  * biblioteca no tiene suficientes de ese ánimo, baja una del banco gratuito. Varía entre las que van.
  */
-export async function autoMusic(dir: string): Promise<string | null> {
+export async function autoMusic(dir: string, avoid?: string): Promise<string | null> {
   const project = await readProject(dir);
   if (project.audio.music) return null;
   const want = wantedMood(project);
-  let fits = (await listTracks()).filter((t) => t.mood === want);
+  // La canción que se quiere cambiar no se repite.
+  const not = avoid ? path.basename(avoid) : '';
+  let fits = (await listTracks()).filter((t) => t.mood === want && t.file !== not);
   // Solo se espera a bajar una si no hay ninguna de ese ánimo; el resto se trae en segundo plano.
   if (!fits.length) { const got = await fetchBankMusic(want); if (got) fits = [got]; }
   if (fits.length < 3) void stockMusic();
-  const tracks = await listTracks();
+  const tracks = (await listTracks()).filter((t) => t.file !== not);
   if (!tracks.length) return null;
   const pick = fits.length ? fits[Math.floor(Math.random() * fits.length)] : pickTrack(project, tracks)!.track;
   await useLibraryTrack(dir, pick.file);
