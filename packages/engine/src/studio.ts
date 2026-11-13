@@ -136,6 +136,19 @@ export function lanAddresses(): string[] {
   return Object.values(os.networkInterfaces()).flat().filter((i): i is os.NetworkInterfaceInfo => Boolean(i && i.family === 'IPv4' && !i.internal)).map((i) => i.address);
 }
 
+/** ¿Es una dirección de Tailscale? (red privada entre tus equipos, funciona fuera de casa). */
+export const isTailscale = (ip: string) => { const [a, b] = ip.split('.').map(Number); return a === 100 && b >= 64 && b <= 127; };
+
+/** Enlaces para abrir la app desde otros equipos: en la misma Wi-Fi y, con Tailscale, desde cualquier lugar. */
+export async function accessLinks(): Promise<{ active: boolean; tailscale: boolean; links: { kind: 'wifi' | 'fuera'; url: string }[] }> {
+  if (!networkKey) return { active: false, tailscale: false, links: [] };
+  const ips = lanAddresses();
+  return {
+    active: true, tailscale: ips.some(isTailscale),
+    links: ips.map((ip) => ({ kind: isTailscale(ip) ? 'fuera' as const : 'wifi' as const, url: `http://${ip}:${STUDIO_PORT}/?clave=${networkKey}` })),
+  };
+}
+
 /**
  * Los equipos de la red necesitan la clave: la primera vez llega en el enlace (?clave=) y
  * queda guardada en una cookie del navegador. Este mismo computador no la necesita.
@@ -720,6 +733,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const dir = await findDir(id);
     return json(res, { ...(await suggestBrief(dir, url.searchParams.get('otra') === '1')), prompt: await buildPrompt(dir) });
   }
+  // Enlaces para abrir la app desde el portátil o el celular (misma Wi-Fi o Tailscale).
+  if (p === '/api/red' && method === 'GET') return json(res, await accessLinks());
   // Aprender de los resultados: qué le funciona a cada cliente. POST además lo deja por defecto.
   if (p === '/api/resultados' && (method === 'GET' || method === 'POST')) {
     return json(res, await learnFromResults(url.searchParams.get('cliente') || undefined, method === 'POST'));

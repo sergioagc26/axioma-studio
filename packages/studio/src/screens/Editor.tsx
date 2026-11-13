@@ -184,6 +184,11 @@ const SizeSlider: React.FC<{ value: number; onCommit: (v: number) => void }> = (
 const ROLES = Object.keys(ROLE_LABEL) as Scene['role'][];
 
 /** Grupo plegable que recuerda si lo dejaste abierto (en este navegador) y muestra su valor actual. */
+/** Un icono por panel: se reconoce de un vistazo. */
+const GROUP_ICON: Record<string, string> = {
+  sugerencias: '💡', estilos: '🎨', subtitulos: '💬', color: '🌈', herramientas: '🪄', acabados: '✨', revision: '👀', quitadas: '🗑️',
+  variantes: '🎲', motion: '📊', texto: '🔤', imagen: '🎥', fondo: '🖼️', dice: '🗣️',
+};
 const Group: React.FC<{ id: string; title: string; hint?: string; defaultOpen?: boolean; onOpen?: () => void; children: React.ReactNode }> = ({ id, title, hint, defaultOpen = false, onOpen, children }) => {
   const key = `axioma:grupo:${id}`;
   const [open, setOpen] = useState(() => {
@@ -197,7 +202,7 @@ const Group: React.FC<{ id: string; title: string; hint?: string; defaultOpen?: 
       try { localStorage.setItem(key, now ? '1' : '0'); } catch { /* sin almacenamiento: no pasa nada */ }
       if (now) onOpen?.();
     }}>
-      <summary><span className="grp-title">{title}</span>{hint ? <span className="grp-hint">{hint}</span> : null}</summary>
+      <summary><span className="grp-title">{GROUP_ICON[id] ? <span aria-hidden="true">{GROUP_ICON[id]} </span> : null}{title}</span>{hint ? <span className="grp-hint">{hint}</span> : null}</summary>
       <div className="col">{children}</div>
     </details>
   );
@@ -669,7 +674,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 try { setPlan((await api<{ plan: string[] }>(`/api/plan?id=${encodeURIComponent(project.id)}`)).plan); } catch { autoEdit(); }
               }}>{auto || 'Editar todo con IA'}</button>
             )}
-            <span className="small muted">
+            <span className="small muted help">
               Un solo botón: corta, pone gancho, textos, zooms, gráficos, transiciones y sonidos.
               {hasRef ? ' Sigue tu referencia guardada' : ' Sin referencia guardada'}{trend ? ` y lo que funciona en ${SECTORS.find(([id]) => id === sector)?.[1]?.toLowerCase()}.` : '.'} Queda una versión guardada de lo anterior.
             </span>
@@ -700,7 +705,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                     {x.tip && <span className="small muted">{x.tip}</span>}
                   </div>
                 ))}
-                <span className="small muted">Se calcula con buenas prácticas de retención (gancho, ritmo, movimiento, subtítulos, duración, cierre y audio); no predice las vistas.</span>
+                <span className="small muted help">Se calcula con buenas prácticas de retención (gancho, ritmo, movimiento, subtítulos, duración, cierre y audio); no predice las vistas.</span>
               </div>
             </details>
           )}
@@ -752,11 +757,11 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <option value="en">Inglés</option><option value="pt">Portugués</option><option value="fr">Francés</option><option value="it">Italiano</option><option value="de">Alemán</option>
             </select>
           </label>
-          {translating ? <span className="pill" role="status">{translating}</span> : project.captions.language ? <span className="small muted">La voz sigue en el idioma original; solo cambian los subtítulos. Para cambiar también la voz, usa «Doblaje» en Audio.</span> : null}
+          {translating ? <span className="pill" role="status">{translating}</span> : project.captions.language ? <span className="small muted help">La voz sigue en el idioma original; solo cambian los subtítulos. Para cambiar también la voz, usa «Doblaje» en Audio.</span> : null}
           <Stepper label={`Diseño de los subtítulos (${CAPTION_DESIGNS.length})`} items={CAPTION_DESIGNS} value={project.captions.design} onChange={(id) => store.update((p) => { p.captions.design = id; })} />
           {CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.font && <span className="small muted">Este diseño trae su propia tipografía.</span>}
           <Stepper label={`Cómo se marca la palabra que suena (${CAPTION_EFFECTS.length})`} items={CAPTION_EFFECTS} value={project.captions.effect} onChange={(id) => store.update((p) => { p.captions.effect = id; })} />
-          {CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.legacy && <span className="small muted">Este diseño trae su propia forma de remarcar; elige otro diseño para cambiarla.</span>}
+          {CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.legacy && <span className="small muted help">Este diseño trae su propia forma de remarcar; elige otro diseño para cambiarla.</span>}
           <label className="row"><input type="checkbox" checked={project.captions.emphasis} onChange={(e) => store.update((p) => { p.captions.emphasis = e.target.checked; })} /> Remarcar la palabra más importante</label>
           <span className="small muted">Color de resaltado</span>
           <ColorRow value={project.captions.highlightColor} label="Color de resaltado de subtítulos" onPick={(c) => store.update((p) => { p.captions.highlightColor = c; })} />
@@ -803,14 +808,14 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   Igualar a una imagen
                   <input type="file" accept="image/*,video/*" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) matchReference(f); e.target.value = ''; }} />
                 </label>
-                {grading ? <span className="small">{grading}</span> : <span className="small muted">Se aplica solo al video: textos, subtítulos y gráficos mantienen tus colores.</span>}
+                {grading ? <span className="small">{grading}</span> : <span className="small muted help">Se aplica solo al video: textos, subtítulos y gráficos mantienen tus colores.</span>}
               </div>
               <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
               <button className="btn rect" style={{ height: 34 }} onClick={() => store.update((p) => {
                 p.scenes.forEach((sc) => { sc.look = 'cine'; if (sc.camera === 'ninguno') sc.camera = 'acercar'; });
                 Object.assign(p.finish, { grain: true, vignette: true, halation: true });
               })}>Look de cine en un clic</button>
-              <span className="small muted">Pone en todas las escenas el color de cine, grano, bordes oscuros, brillo y la cámara acercándose despacio.</span>
+              <span className="small muted help">Pone en todas las escenas el color de cine, grano, bordes oscuros, brillo y la cámara acercándose despacio.</span>
               <button className="btn rect" style={{ height: 34 }} onClick={async () => {
                 try {
                   const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'igualar-color' }) });
@@ -818,7 +823,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   ctx.toast(d.changed ? `Color igualado en ${d.changed} escena${d.changed > 1 ? 's' : ''}.` : 'Las escenas ya tenían un color parejo.');
                 } catch (e: any) { ctx.toast(e.message); }
               }}>Igualar el color entre escenas</button>
-              <span className="small muted">Ajusta brillo y color de las tomas que se salen, para que todo parezca del mismo rodaje.</span>
+              <span className="small muted help">Ajusta brillo y color de las tomas que se salen, para que todo parezca del mismo rodaje.</span>
               </div>
           </Group>
           <Group id="herramientas" title="Herramientas de un clic" hint={hasTeaser ? 'Con adelanto' : undefined}>
@@ -832,7 +837,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               {reelLength > 66 && (
                 <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                   <strong className="small">Serie en partes</strong>
-                  <span className="small muted">Dura {Math.round(reelLength)} s: divídelo en «Parte 1, 2…» que terminan con «Sigue en la parte 2 →». Cada parte es un proyecto nuevo; este no cambia.</span>
+                  <span className="small muted help">Dura {Math.round(reelLength)} s: divídelo en «Parte 1, 2…» que terminan con «Sigue en la parte 2 →». Cada parte es un proyecto nuevo; este no cambia.</span>
                   <div className="row" style={{ flexWrap: 'nowrap' }}>
                     <select value={partMax} onChange={(e) => setPartMax(Number(e.target.value))} aria-label="Duración máxima de cada parte">
                       <option value={60}>Hasta 60 s cada una</option><option value={90}>Hasta 90 s</option><option value={180}>Hasta 3 min</option>
@@ -844,7 +849,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               {Math.min(project.source.width, project.source.height) < 1000 && (
                 <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                   <strong className="small">Calidad del video</strong>
-                  <span className="small muted">Tu video es de {project.source.width}×{project.source.height}: se agranda a 1080 quitando los bloques de la compresión (como los de WhatsApp).{project.source.quality ? '' : ' Este proyecto se preparó antes de esta mejora: elige una opción para aplicarla.'}</span>
+                  <span className="small muted help">Tu video es de {project.source.width}×{project.source.height}: se agranda a 1080 quitando los bloques de la compresión (como los de WhatsApp).{project.source.quality ? '' : ' Este proyecto se preparó antes de esta mejora: elige una opción para aplicarla.'}</span>
                   <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }} role="group" aria-label="Calidad del video">
                     {(['normal', 'nitido'] as const).map((q) => (
                       <button key={q} className={project.source.quality === q ? 'on' : ''} aria-pressed={project.source.quality === q} disabled={Boolean(improving)} onClick={() => q !== project.source.quality && setQuality(q)}>
@@ -860,7 +865,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <strong className="small">Encuadre</strong>
 
                 <label className="row"><input type="checkbox" checked={project.source.followSpeaker} disabled={Boolean(speakerBusy)} onChange={(e) => followSpeaker(e.target.checked)} /> Seguir a quien habla</label>
-                <span className="small muted">Para pódcast y entrevistas con dos o más personas: el recorte vertical pasa a la persona que está hablando (se mira quién mueve la boca). La primera vez tarda un poco.</span>
+                <span className="small muted help">Para pódcast y entrevistas con dos o más personas: el recorte vertical pasa a la persona que está hablando (se mira quién mueve la boca). La primera vez tarda un poco.</span>
                 {speakerBusy && <span className="pill" role="status">{speakerBusy}</span>}
                               </div>
               )}
@@ -868,7 +873,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                   <strong className="small">Clips para redes</strong>
 
-                <span className="small muted">Los mejores tramos de 20–60 s de este video, con puntaje de gancho (G), cierre (C) y valor (V). Cada uno se vuelve un reel nuevo ya editado.</span>
+                <span className="small muted help">Los mejores tramos de 20–60 s de este video, con puntaje de gancho (G), cierre (C) y valor (V). Cada uno se vuelve un reel nuevo ya editado.</span>
                 {clips === null && <button className="btn rect" style={{ height: 32, alignSelf: 'flex-start' }} onClick={findClips}>Buscar los mejores clips</button>}
                 {clips?.length === 0 && <span className="small muted">No encontré tramos con un gancho y un cierre claros.</span>}
                 {clips?.map((c, i) => (
@@ -907,7 +912,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   {store.brand?.logoSrc ? 'Cambiar el logo de la marca' : 'Subir el logo de la marca'}
                   <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }} />
                 </label>
-                <span className="small muted">El logo queda en la marca de {project.client ?? 'personal'}: se usa en todos sus reels (marca de agua, cierre e imágenes). Mejor PNG con fondo transparente.</span>
+                <span className="small muted help">El logo queda en la marca de {project.client ?? 'personal'}: se usa en todos sus reels (marca de agua, cierre e imágenes). Mejor PNG con fondo transparente.</span>
               </div>
               <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                 <label className="row"><input type="checkbox" checked={Boolean(project.finish.lowerThird)} onChange={(e) => store.update((p) => { p.finish.lowerThird = e.target.checked ? { name: store.kit?.name ?? store.brand?.name ?? '', role: '', at: 0.8, duration: 4 } : undefined; })} /> Rótulo con nombre y cargo</label>
@@ -927,7 +932,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <label className="row"><input type="checkbox" checked={project.finish.letterbox} onChange={(e) => store.update((p) => { p.finish.letterbox = e.target.checked; })} /> Barras de cine</label>
           </Group>
           <Group id="revision" title="Revisión del cliente" hint={project.requests.filter((r) => r.status === 'pendiente').length ? `${project.requests.filter((r) => r.status === 'pendiente').length} pendiente${project.requests.filter((r) => r.status === 'pendiente').length === 1 ? '' : 's'}` : project.approval === 'aprobado' ? 'Aprobado' : undefined}>
-              <span className="small muted">Un enlace para que tu cliente vea el último video exportado, comente en el segundo exacto y lo apruebe. Solo da acceso a este reel.</span>
+              <span className="small muted help">Un enlace para que tu cliente vea el último video exportado, comente en el segundo exacto y lo apruebe. Solo da acceso a este reel.</span>
               {review ? (
                 <div className="col" style={{ gap: 6 }}>
                   {(review.links.length ? review.links : [review.local]).map((l) => (
@@ -938,7 +943,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   ))}
                   {!review.exported && <span className="small" style={{ color: 'var(--pinkText)' }}>Todavía no hay un video exportado: el cliente verá un aviso hasta que exportes el reel.</span>}
                   {!review.network && <span className="small" style={{ color: 'var(--pinkText)' }}>La app no está abierta en modo red: el enlace solo funciona en este computador. Para que el cliente lo abra desde su equipo (misma Wi-Fi), abre la app con el ícono del Escritorio o «Abrir Axioma Studio».</span>}
-                  {review.network && <span className="small muted">Funciona en la misma Wi-Fi mientras la app esté abierta. Fuera de casa necesita una red privada como Tailscale.</span>}
+                  {review.network && <span className="small muted help">Funciona en la misma Wi-Fi mientras la app esté abierta. Fuera de casa necesita una red privada como Tailscale.</span>}
                   <button className="btn ghost" style={{ height: 28, alignSelf: 'flex-start' }} onClick={() => shareReview(true)}>Cambiar el enlace (el anterior deja de funcionar)</button>
                 </div>
               ) : <button className="btn rect" style={{ height: 34 }} onClick={() => shareReview(false)}>Crear enlace de revisión</button>}
@@ -965,7 +970,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </Group>
           <Group id="quitadas" title="Partes quitadas" hint={String(removed.length)}>
 
-              <span className="small muted">Lo que el corte automático quitó: pausas largas, muletillas y tomas repetidas. Si quitó algo que querías, recupéralo.</span>
+              <span className="small muted help">Lo que el corte automático quitó: pausas largas, muletillas y tomas repetidas. Si quitó algo que querías, recupéralo.</span>
               {removed.length === 0 && <span className="small muted">No se quitó nada con voz.</span>}
               {removed.slice(0, 40).map((r) => (
                 <div key={r.start} className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap', padding: '6px 8px', borderRadius: 8, background: 'var(--panel2)' }}>
@@ -1160,9 +1165,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <option value="0.25">A un cuarto (4×)</option>
               </select>
             </label>
-            {slowing ? <span className="pill" role="status">{slowing}</span> : (scene.speed ?? 1) < 1 ? <span className="small muted">Suave: se crean los fotogramas intermedios. La voz de esta escena no suena (va bien con música).</span> : null}
+            {slowing ? <span className="pill" role="status">{slowing}</span> : (scene.speed ?? 1) < 1 ? <span className="small muted help">Suave: se crean los fotogramas intermedios. La voz de esta escena no suena (va bien con música).</span> : null}
             <Slider label="Tamaño del video" value={scene.videoScale} min={0.4} max={2.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.videoScale = v; })} />
-            <span className="small muted">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
+            <span className="small muted help">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
             <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />
             <Slider label="Brillo" value={scene.brightness} min={0.5} max={1.6} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.brightness = v; })} />
             <Slider label="Contraste" value={scene.contrast} min={0.5} max={1.8} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.contrast = v; })} />
@@ -1190,7 +1195,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             {!store.extras?.cutout ? (
               <>
                 <button className="btn rect" disabled={Boolean(cutting)} onClick={cutBackground}>{cutting || 'Recortar a la persona (sin pantalla verde)'}</button>
-                <span className="small muted">Se hace una sola vez por video y tarda unos minutos. Después eliges el fondo de cada escena.</span>
+                <span className="small muted help">Se hace una sola vez por video y tarda unos minutos. Después eliges el fondo de cada escena.</span>
               </>
             ) : (
               <div className="row" style={{ flexWrap: 'wrap' }}>

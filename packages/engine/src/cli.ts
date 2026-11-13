@@ -10,7 +10,7 @@ import { measureLufs, probe } from './media.ts';
 import { setVoiceover } from './ops.ts';
 import { cutProject, editMontage, editVideo, prepareMedia, transcribeProject } from './pipeline.ts';
 import { renderProject } from './render.ts';
-import { lanAddresses, lanKey, openBrowser, startStudio, studioUrl } from './studio.ts';
+import { isTailscale, lanAddresses, lanKey, openBrowser, startStudio, studioUrl } from './studio.ts';
 import { ensureWhisper } from './transcribe.ts';
 
 const program = new Command();
@@ -57,9 +57,15 @@ program
       const key = await lanKey();
       const port = new URL(url).port;
       const ips = lanAddresses();
-      console.log(ips.length
-        ? `\nDesde tu portátil (misma red Wi-Fi), abre en el navegador:\n${ips.map((ip) => `  http://${ip}:${port}/?clave=${key}`).join('\n')}\nLa clave queda guardada en ese navegador. Si el Mac pregunta si permites conexiones entrantes para «node», pulsa Permitir.`
-        : '\nNo encontré una red local activa en este computador.');
+      const link = (ip: string) => `  http://${ip}:${port}/?clave=${key}`;
+      const home = ips.filter((ip) => !isTailscale(ip));
+      const away = ips.filter(isTailscale);
+      if (!ips.length) console.log('\nNo encontré una red local activa en este computador.');
+      if (home.length) console.log(`\nDesde tu portátil o celular (misma red Wi-Fi), abre en el navegador:\n${home.map(link).join('\n')}`);
+      console.log(away.length
+        ? `\nDesde fuera de casa (con Tailscale abierto en ese equipo):\n${away.map(link).join('\n')}`
+        : '\nPara usarla fuera de casa: instala Tailscale (gratis) en este computador y en tu portátil o celular, con la misma cuenta. Al volver a abrir la app aparece aquí el enlace.');
+      if (ips.length) console.log('La clave queda guardada en ese navegador. Si el Mac pregunta si permites conexiones entrantes para «node», pulsa Permitir.');
     }
     console.log('\nCtrl+C para cerrarlo.');
     if (o.open) openBrowser(url);

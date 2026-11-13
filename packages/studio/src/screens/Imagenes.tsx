@@ -55,7 +55,7 @@ export const Imagenes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </a>
             ))}
           </div>
-          <span className="small muted">Toca una imagen para descargarla. También están en la carpeta del proyecto: {set.files[0]?.split('/').slice(0, -1).join('/')}</span>
+          <span className="small muted help">Toca una imagen para descargarla. También están en la carpeta del proyecto: {set.files[0]?.split('/').slice(0, -1).join('/')}</span>
         </section>
       ))}
     </main>

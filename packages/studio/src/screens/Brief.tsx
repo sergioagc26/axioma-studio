@@ -144,6 +144,8 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       await store.reloadExtras();
       void done;
       ctx.go('listo', { s: null });
+      // El video final se exporta solo; mientras tanto se puede ver en la pantalla de resultado.
+      void ctx.exportNow();
     } catch (e: any) { ctx.toast(`No se pudo armar la edición: ${e.message}`); } finally { setBuilding(''); }
   };
 

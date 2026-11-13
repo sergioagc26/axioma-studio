@@ -148,7 +148,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <div style={{ padding: 12, borderRadius: 10, background: cur.captions.color === '#000000' ? '#EDEDED' : '#18181B', textAlign: 'center', fontFamily: `'${form.font}', sans-serif`, fontWeight: 800, fontSize: 18, color: cur.captions.color, textTransform: form.uppercase ? 'uppercase' : 'none' }}>
                     Así se ve <span style={cur.captions.box ? { background: cur.captions.highlight ?? cur.suggested.highlightColor, color: '#000', borderRadius: 4, padding: '0 4px' } : { color: cur.captions.highlight ?? cur.captions.color }}>el estilo</span>
                   </div>
-                  <span className="small muted">
+                  <span className="small muted help">
                     A {Math.round(cur.captions.y * 100)} % de alto · letras {cur.captions.color}
                     {cur.captions.highlight ? ` · resalta en ${cur.captions.highlight}${cur.captions.box ? ' con caja' : ''}` : ' · sin color de resaltado'}
                     {' '}· unas {cur.captions.wordsPerLine} palabra{cur.captions.wordsPerLine > 1 ? 's' : ''} a la vez
@@ -160,7 +160,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <article className="card col">
               <h3 style={{ fontSize: 15 }}>Imagen y cortes</h3>
               <span style={{ font: "700 20px 'Space Grotesk', sans-serif" }}>{({ normal: 'Color normal', bn: 'Blanco y negro', calido: 'Tonos cálidos', frio: 'Tonos fríos', contraste: 'Alto contraste' } as Record<string, string>)[cur.look] ?? cur.look}</span>
-              <span className="small muted">{cur.flashes ? 'Usa destellos en los cortes: las transiciones serán destellos.' : 'Sin destellos: se pondrán las transiciones que van con el ritmo.'}</span>
+              <span className="small muted help">{cur.flashes ? 'Usa destellos en los cortes: las transiciones serán destellos.' : 'Sin destellos: se pondrán las transiciones que van con el ritmo.'}</span>
             </article>
             <article className="card col" style={{ gridColumn: '1 / -1' }}>
               <h3 style={{ fontSize: 15 }}>Fotogramas</h3>
@@ -178,7 +178,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <label className="field">Nombre
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </label>
-          <span className="small muted">Se guarda todo lo detectado: ritmo de cortes, subtítulos (posición, colores, forma de resaltar), estilo de los textos, imagen, transiciones y efectos de sonido.</span>
+          <span className="small muted help">Se guarda todo lo detectado: ritmo de cortes, subtítulos (posición, colores, forma de resaltar), estilo de los textos, imagen, transiciones y efectos de sonido.</span>
           <details className="grp">
             <summary>Ajustar antes de guardar</summary>
             <div className="col">
@@ -189,7 +189,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </label>
               <label className="row"><input type="checkbox" checked={form.uppercase} onChange={(e) => { setForm({ ...form, uppercase: e.target.checked }); setTouched({ ...touched, uppercase: true }); }} /> Mayúsculas</label>
               <label className="row"><input type="checkbox" checked={form.useKit} onChange={(e) => setForm({ ...form, useKit: e.target.checked })} /> Mantener mi color de resaltado actual</label>
-              <span className="small muted">{cur.typography ? 'La tipografía y las mayúsculas las eligió la IA local mirando los fotogramas.' : 'Sin la IA de visión, la tipografía y las mayúsculas se eligen según el ritmo.'} Cámbialas aquí si no coinciden.</span>
+              <span className="small muted help">{cur.typography ? 'La tipografía y las mayúsculas las eligió la IA local mirando los fotogramas.' : 'Sin la IA de visión, la tipografía y las mayúsculas se eligen según el ritmo.'} Cámbialas aquí si no coinciden.</span>
             </div>
           </details>
           <button className="btn primary" style={{ height: 46 }} onClick={() => save(true)}>Guardar estilo y aplicarlo a este reel</button>

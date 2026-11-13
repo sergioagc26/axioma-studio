@@ -23,6 +23,11 @@ export interface Ctx {
   toast: (msg: string) => void;
   /** Abre la ventana de exportar el video. */
   exportVideo: () => void;
+  /** Exporta ya con los ajustes del proyecto, sin ventana. */
+  exportNow: () => Promise<void>;
+  /** Exportación en curso (con su avance) y la última terminada de este proyecto. */
+  exporting: Job | null;
+  lastExport: { id: string; path: string; file?: string } | null;
 }
 
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
@@ -67,6 +72,12 @@ export const App: React.FC = () => {
       }
     } catch (e: any) { setToastMsg(e.message); }
   };
+  // Ayuda: las explicaciones largas están ocultas; se muestran con el botón ❔.
+  const [help, setHelp] = useState(() => { try { return localStorage.getItem('ayuda') === '1'; } catch { return false; } });
+  useEffect(() => {
+    if (help) document.documentElement.dataset.ayuda = '1'; else delete document.documentElement.dataset.ayuda;
+    try { localStorage.setItem('ayuda', help ? '1' : '0'); } catch { /* sin almacenamiento */ }
+  }, [help]);
   const store = useProject(route.p);
   const { project } = store;
 
@@ -137,7 +148,7 @@ export const App: React.FC = () => {
       const done = await waitJob(job, setRender);
       const files = done.result?.files as { id: string; label: string }[] | undefined;
       toast(files ? (formato === 'todos' ? `Los 3 formatos exportados en ${done.result?.path}.` : `${files.length} versiones exportadas en ${done.result?.path}: ${files.map((f) => `${f.id} · ${f.label}`).join(' · ')}`) : `Exportado en: ${done.result?.path}`);
-      if (done.result?.file) window.open(`/media/${encodeURIComponent(project.id)}/${done.result.file}`, '_blank');
+      if (done.result?.file) { setLastExport({ id: project.id, path: String(done.result?.path ?? ''), file: done.result.file as string }); window.open(`/media/${encodeURIComponent(project.id)}/${done.result.file}`, '_blank'); }
     } catch (e: any) {
       toast(`No se pudo exportar: ${e.message}`);
     } finally {
@@ -145,7 +156,26 @@ export const App: React.FC = () => {
     }
   };
 
-  const ctx: Ctx = { store, id: route.p, sceneId: route.s, go, toast, exportVideo: () => openExport() };
+  /** Exporta ya, sin preguntar nada: 9:16 con la calidad y la carpeta del proyecto. Lo usa la edición automática. */
+  const [lastExport, setLastExport] = useState<{ id: string; path: string; file?: string } | null>(null);
+  const exportNow = async () => {
+    const p = store.project;
+    if (!p || render) return;
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(p.id)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato: '9:16', calidad: p.export.quality, carpeta: p.export.folder ?? '', lufs: p.audio.targetLufs <= -15 ? -16 : -14, ganchos: false }),
+      });
+      const done = await waitJob(job, setRender);
+      setLastExport({ id: p.id, path: String(done.result?.path ?? ''), file: done.result?.file as string | undefined });
+      toast(`Video exportado en: ${done.result?.path}`);
+    } catch (e: any) {
+      toast(`No se pudo exportar: ${e.message}`);
+    } finally {
+      setRender(null);
+    }
+  };
+
+  const ctx: Ctx = { store, id: route.p, sceneId: route.s, go, toast, exportVideo: () => openExport(), exportNow, exporting: render, lastExport: lastExport && lastExport.id === route.p ? lastExport : null };
   const moreRef = useRef<HTMLDetailsElement>(null);
   const needsProject = route.screen !== 'proyectos';
 
@@ -187,6 +217,7 @@ export const App: React.FC = () => {
           {claude === true ? <span className="pill" title="Los pedidos de cambios los hace Claude">● Claude</span>
             : claude === false && local ? <button className="pill" style={{ border: 0, cursor: 'pointer' }} title="Los pedidos de cambios los hace la IA de tu computador (Ollama). Clic para conectar Claude: se abre una terminal, escribe /login y vuelve aquí." onClick={connect}>● IA local</button>
             : claude === false ? <button className="btn rect" title="Abre una terminal: escribe /login y vuelve aquí" onClick={connect}>Conectar Claude</button> : null}
+          <button className="btn sq" aria-pressed={help} aria-label={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones'} title={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones de cada función'} style={help ? { borderColor: 'var(--pink)' } : undefined} onClick={() => setHelp(!help)}>❔</button>
           <button className="btn sq" aria-label={`Cambiar a tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} title={`Tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
             {theme === 'oscuro' ? '☀' : '☾'}
           </button>

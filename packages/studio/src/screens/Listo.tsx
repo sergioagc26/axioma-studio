@@ -38,7 +38,7 @@ export const Listo: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const r = await askAssistant(project.id, request.trim(), undefined, setBusy);
       await reload();
       setText('');
-      ctx.toast(r.text);
+      ctx.toast(`${r.text} Vuelve a exportar para tener el video con el cambio.`);
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
   const otherMusic = async () => {
@@ -100,7 +100,24 @@ export const Listo: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           ))}
         </div>
 
-        <button className="btn primary" style={{ height: 54, fontSize: 18 }} disabled={Boolean(busy)} onClick={ctx.exportVideo}>⬇️ Exportar video</button>
+        {ctx.exporting ? (
+          <div className="col" style={{ gap: 6 }} role="status">
+            <strong>⏳ Exportando tu video… {Math.round(ctx.exporting.progress * 100)} %</strong>
+            <div className="progress"><div style={{ width: `${Math.round(ctx.exporting.progress * 100)}%` }} /></div>
+          </div>
+        ) : ctx.lastExport ? (
+          <div className="col" style={{ gap: 8, padding: 12, borderRadius: 12, background: 'var(--cyanSoft)' }}>
+            <strong>✅ Video exportado</strong>
+            <span className="small" style={{ wordBreak: 'break-all' }}>{ctx.lastExport.path}</span>
+            <div className="row">
+              {ctx.lastExport.file && <a className="btn primary" href={`/media/${encodeURIComponent(project.id)}/${ctx.lastExport.file}`} target="_blank" rel="noreferrer">▶️ Abrir</a>}
+              {ctx.lastExport.file && <a className="btn rect" href={`/media/${encodeURIComponent(project.id)}/${ctx.lastExport.file}`} download>⬇️ Descargar</a>}
+              <button className="btn rect" disabled={Boolean(busy)} onClick={ctx.exportVideo} title="Otro formato, calidad o carpeta">⚙️ Exportar de otra forma</button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn primary" style={{ height: 54, fontSize: 18 }} disabled={Boolean(busy)} onClick={() => void ctx.exportNow()}>⬇️ Exportar video</button>
+        )}
 
         <section className="col" style={{ gap: 8 }}>
           <h2 style={{ fontSize: 16 }}>✏️ ¿Cambiamos algo?</h2>

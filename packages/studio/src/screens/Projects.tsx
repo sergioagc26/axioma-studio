@@ -68,6 +68,10 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       }
     } catch (e: any) { ctx.toast(e.message); } finally { setUpdating(''); }
   };
+  // Abrirla desde el portátil o el celular: en la misma Wi-Fi o, con Tailscale, desde cualquier lugar.
+  const [access, setAccess] = useState<{ active: boolean; tailscale: boolean; links: { kind: 'wifi' | 'fuera'; url: string }[] } | null>(null);
+  const openAccess = () => api<any>('/api/red').then(setAccess).catch((e) => ctx.toast(e.message));
+  const copy = async (url: string) => { try { await navigator.clipboard.writeText(url); ctx.toast('Enlace copiado.'); } catch { ctx.toast(url); } };
   const [preset, setPreset] = useState('rapido');
   const [kind, setKind] = useState<'hablado' | 'montaje'>('hablado');
   const [job, setJob] = useState<Job | null>(null);
@@ -150,6 +154,38 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   return (
     <main className="page projects" style={{ maxWidth: 1080, width: '100%', margin: '0 auto' }}>
       {keysOpen && <KeysPanel onClose={() => setKeysOpen(false)} toast={ctx.toast} />}
+      {access && (
+        <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setAccess(null); }}>
+          <div className="modal card col" role="dialog" aria-modal="true" aria-label="Abrir desde otros equipos" style={{ maxWidth: 480, gap: 14 }}>
+            <h2 style={{ fontSize: 20 }}>📱 Abrir desde otros equipos</h2>
+            {!access.active ? <span className="muted">La app se abrió solo para este computador. Ciérrala y ábrela con «Abrir Axioma Studio» para compartirla en tu red.</span> : (
+              <>
+                <section className="col" style={{ gap: 6 }}>
+                  <strong>🏠 En la misma Wi-Fi</strong>
+                  {access.links.filter((l) => l.kind === 'wifi').map((l) => (
+                    <div key={l.url} className="row" style={{ flexWrap: 'nowrap' }}><code className="small" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</code><button className="btn rect" onClick={() => copy(l.url)}>Copiar</button></div>
+                  ))}
+                  {!access.links.some((l) => l.kind === 'wifi') && <span className="small muted">No hay una red Wi-Fi activa en este computador.</span>}
+                </section>
+                <section className="col" style={{ gap: 6 }}>
+                  <strong>🌍 Fuera de casa</strong>
+                  {access.tailscale ? access.links.filter((l) => l.kind === 'fuera').map((l) => (
+                    <div key={l.url} className="row" style={{ flexWrap: 'nowrap' }}><code className="small" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</code><button className="btn rect" onClick={() => copy(l.url)}>Copiar</button></div>
+                  )) : (
+                    <ol className="small muted" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                      <li>Instala <a href="https://tailscale.com/download" target="_blank" rel="noreferrer">Tailscale</a> (gratis) en este computador e inicia sesión.</li>
+                      <li>Instálalo también en tu portátil o celular, con la misma cuenta.</li>
+                      <li>Vuelve a abrir esta ventana: aquí aparece el enlace para usar la app desde cualquier lugar.</li>
+                    </ol>
+                  )}
+                </section>
+                <span className="small muted">El enlace lleva tu clave: compártelo solo con tus equipos.</span>
+              </>
+            )}
+            <button className="btn" style={{ alignSelf: 'flex-end' }} onClick={() => setAccess(null)}>Cerrar</button>
+          </div>
+        </div>
+      )}
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 28 }}>Nuevo reel</h1>
         <div className="row">
@@ -159,6 +195,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             style={upd?.behind ? { borderColor: 'var(--pink)' } : undefined}>
             {updating || (upd?.behind ? `⬆️ Actualizar (${upd.behind})` : '⬆️ Actualizar')}
           </button>
+          <button className="btn rect" onClick={openAccess} title="Abrir la app desde tu portátil o celular">📱 Otros equipos</button>
           <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pixabay, Pexels, Freesound y ElevenLabs">🔑 Claves</button>
           <button className="btn rect" disabled={Boolean(backingUp || backup?.running)} onClick={backupNow}
             title={backup?.error ? backup.error : 'Copia de seguridad en iCloud Drive: se hace sola una vez al día. Clic para hacerla ahora.'}

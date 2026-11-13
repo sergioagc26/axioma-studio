@@ -187,7 +187,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <button className="btn rect" onClick={() => set((p) => { p.audio.originalVolume = p.audio.originalVolume > 0 ? 0 : 1; })}>
             {a.originalVolume > 0 ? 'Quitar el sonido original' : 'Devolver el sonido original'}
           </button>
-          {a.originalVolume === 0 && <span className="small muted">El video queda mudo: solo sonarán la música, la voz en off y los efectos.</span>}
+          {a.originalVolume === 0 && <span className="small muted help">El video queda mudo: solo sonarán la música, la voz en off y los efectos.</span>}
         </section>
 
         <section className="card col" style={{ gap: 12 }}>
@@ -228,7 +228,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               {project.kind === 'montaje' && (
                 <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--panel2)', gap: 8 }}>
                   <strong>Cortar al ritmo</strong>
-                  <span className="small muted">Cada corte cae justo en un golpe de la canción. En automático corta más seguido donde la música sube y pone un destello en el golpe más fuerte.</span>
+                  <span className="small muted help">Cada corte cae justo en un golpe de la canción. En automático corta más seguido donde la música sube y pone un destello en el golpe más fuerte.</span>
                   <div className="row" style={{ flexWrap: 'wrap' }}>
                     <select value={density} onChange={(e) => setDensity(e.target.value)} aria-label="Cada cuánto cortar">
                       <option value="auto">Automático (sigue la energía)</option>
@@ -257,7 +257,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <strong>Tu biblioteca de música</strong>
               <span className="small muted">{tracks ? `${tracks.length} canciones` : ''}</span>
             </div>
-            <span className="small muted">Súbelas una vez con su licencia; la app elige la que va con el ritmo de cada reel (tempo y energía).</span>
+            <span className="small muted help">Súbelas una vez con su licencia; la app elige la que va con el ritmo de cada reel (tempo y energía).</span>
             {tracks && tracks.length > 0 && (
               <>
                 <button className="btn primary" disabled={Boolean(busy)} onClick={() => fromLibrary()}>Elegir la que mejor va</button>
@@ -289,7 +289,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <h2 style={{ fontSize: 17 }}>Voz en off</h2>
           <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--panel2)' }}>
             <strong>Graba tu voz</strong>
-            <span className="small muted">Usa el micrófono del computador. La app limpia el ruido, nivela el volumen y pone los subtítulos.</span>
+            <span className="small muted help">Usa el micrófono del computador. La app limpia el ruido, nivela el volumen y pone los subtítulos.</span>
             <button className={`btn ${rec ? 'primary' : 'rect'}`} disabled={Boolean(busy)} onClick={rec ? stopRec : startRec}>{rec ? `Detener y usar (${recSecs} s)` : '● Grabar con el micrófono'}</button>
           </div>
           <span className="small muted">O deja que la app la genere:</span>
@@ -317,7 +317,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
         <section className="card col" style={{ gap: 12 }}>
           <h2 style={{ fontSize: 17 }}>Doblaje a otro idioma</h2>
-          <span className="small muted">Traduce lo que dices frase por frase con la IA local, genera la voz y la ajusta para que cada frase caiga en su momento. Los subtítulos y los textos en pantalla salen en el nuevo idioma. Se crea una copia: este reel no cambia. Hazlo cuando el corte ya esté listo. Los labios no se sincronizan.</span>
+          <span className="small muted help">Traduce lo que dices frase por frase con la IA local, genera la voz y la ajusta para que cada frase caiga en su momento. Los subtítulos y los textos en pantalla salen en el nuevo idioma. Se crea una copia: este reel no cambia. Hazlo cuando el corte ya esté listo. Los labios no se sincronizan.</span>
           {a.voiceover?.language ? <span className="pill line">Este reel ya es un doblaje ({a.voiceover.language})</span> : (
             <div className="row" style={{ flexWrap: 'wrap' }}>
               <select value={dubLang} onChange={(e) => setDubLang(e.target.value)} aria-label="Idioma del doblaje">
@@ -330,7 +330,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <button className="btn primary" disabled={Boolean(busy) || project.kind === 'montaje'} onClick={dub}>Crear versión doblada</button>
             </div>
           )}
-          <span className="small muted">Usa la voz elegida arriba en «Voz» (la del computador si no hay otra). Tarda alrededor de un minuto.</span>
+          <span className="small muted help">Usa la voz elegida arriba en «Voz» (la del computador si no hay otra). Tarda alrededor de un minuto.</span>
         </section>
 
         <section className="card col" style={{ gap: 12 }}>
@@ -374,7 +374,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   </span>
                 </div>
               ))}
-              <span className="small muted">Solo aparecen sonidos que se pueden usar en contenido comercial. Los que dicen «pide dar crédito» quedan anotados con su autor en el proyecto.</span>
+              <span className="small muted help">Solo aparecen sonidos que se pueden usar en contenido comercial. Los que dicen «pide dar crédito» quedan anotados con su autor en el proyecto.</span>
             </div>
           )}
           {allFx.length > 0 && (

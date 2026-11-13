@@ -6,6 +6,7 @@ import { readKit } from './kit.ts';
 import { llmJson, llmReady } from './llm.ts';
 import { localEdit } from './localedit.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
+import { readVision } from './vision.ts';
 
 /**
  * Brief inteligente, pensado para quien no sabe editar: la IA local lee lo que se dice en el
@@ -33,6 +34,12 @@ const CTA_FOR: Record<string, string> = {
   'Mensajes por DM': 'Escríbeme «INFO» por DM', Comentarios: 'Comenta «QUIERO» y te lo envío', Guardados: 'Guárdalo para cuando lo necesites',
   'Ir al link': 'Entra al link de mi perfil', Seguidores: 'Sígueme para más como esto', Compartidos: 'Envíaselo a quien lo necesita',
 };
+/** Videos sin voz: objetivo y tono que mejor van con lo que se ve. */
+const SILENT: Record<string, { objetivo: string; tono: string }> = {
+  ejercicio: { objetivo: 'Seguidores', tono: 'Inspirador' }, comida: { objetivo: 'Ir al link', tono: 'Divertido' }, producto: { objetivo: 'Mensajes por DM', tono: 'Directo' },
+  moda: { objetivo: 'Mensajes por DM', tono: 'Elegante' }, casa: { objetivo: 'Mensajes por DM', tono: 'Elegante' }, naturaleza: { objetivo: 'Guardados', tono: 'Inspirador' },
+  fiesta: { objetivo: 'Compartidos', tono: 'Divertido' }, pantalla: { objetivo: 'Guardados', tono: 'Educativo' }, otro: { objetivo: 'Seguidores', tono: 'Directo' },
+};
 const file = (dir: string) => path.join(dir, 'brief-ia.json');
 
 /** Duración sugerida según lo que dura el material ya cortado. */
@@ -48,11 +55,26 @@ export async function suggestBrief(dir: string, refresh = false): Promise<BriefH
   const kit = await readKit(project.client);
   const speech = (transcript?.words ?? []).map((w) => w.text).join(' ').replace(/\s+/g, ' ').trim();
   const base: BriefHelp = {
-    resumen: speech ? '' : 'Video sin voz: se arma como montaje al ritmo de la música.',
+    resumen: '',
     sugerido: { formato: 'Reel 9:16', ritmo: 'Que decida la app', duracion: project.kind === 'montaje' ? '15–20 s' : durationFor(outputDuration(project)) },
     preguntas: [], ia: false,
   };
-  if (!speech || !(await llmReady())) { await writeFile(file(dir), JSON.stringify(base, null, 2)); return base; }
+  if (!speech) {
+    // Sin voz no hay nada que oír: se propone según lo que la app VIO en las tomas.
+    const vision = await readVision(dir).catch(() => null);
+    const seen = SILENT[vision?.topic ?? ''] ?? SILENT.otro;
+    const label = vision?.scores[0] ? `Se ve ${vision.scores[0].label}` : 'Video sin voz';
+    const business = Boolean(kit?.sector) || ['comida', 'producto', 'ejercicio', 'moda', 'casa'].includes(vision?.topic ?? '');
+    const silent: BriefHelp = {
+      resumen: `${label}: lo armo como montaje de cortes al ritmo de la música.`,
+      sugerido: { ...base.sugerido, objetivo: seen.objetivo, publico: 'Gente que aún no me conoce', tono: seen.tono, cta: CTA_FOR[seen.objetivo] },
+      preguntas: EXTRA_CATALOG.filter((q) => (business ? ['precio', 'contacto', 'lugar'] : ['contacto']).includes(q.id)).map(({ cuando: _c, ...q }) => q),
+      ia: true,
+    };
+    await writeFile(file(dir), JSON.stringify(silent, null, 2));
+    return silent;
+  }
+  if (!(await llmReady())) { await writeFile(file(dir), JSON.stringify(base, null, 2)); return base; }
   try {
     const r = await llmJson<{ resumen: string; objetivo: string; publico: string; tono: string; cierra_con_llamado: boolean; faltan: string[] }>(
       `Eres productor de contenido para redes. Un cliente que NO sabe editar subió un video hablando a cámara. Lee lo que dice y prepara su brief de edición en español sencillo.
