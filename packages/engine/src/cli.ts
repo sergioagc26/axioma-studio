@@ -195,6 +195,16 @@ program
   });
 
 program
+  .command('copia')
+  .description('Copia de seguridad del trabajo a iCloud Drive (o a AXIOMA_BACKUP_DIR)')
+  .action(async () => {
+    const { runBackup } = await import('./backup.ts');
+    const s = await runBackup((m) => console.log(m));
+    if (s.error) throw new Error(s.error);
+    console.log(`Copia lista en ${s.dest}: ${s.copied} archivos nuevos o cambiados de ${s.files} (${Math.round((s.bytes ?? 0) / 1e6)} MB) en ${s.seconds} s.`);
+  });
+
+program
   .command('check')
   .argument('<archivo>', 'MP4 renderizado')
   .description('Muestra formato y sonoridad de un render')

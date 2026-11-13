@@ -102,6 +102,12 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## Copia de seguridad
+
+En Proyectos, **☁️ Activar copia en iCloud** hace la primera copia del trabajo (`workspace`) a iCloud Drive, en la carpeta «Axioma Studio · copia de seguridad». Desde ahí, mientras la app está abierta, se repite sola una vez al día y el botón muestra cuándo fue la última. Copia solo lo nuevo o cambiado y nunca borra nada de la copia, así que si el disco de trabajo falla, la copia queda intacta. No copia lo que la app vuelve a crear sola (vistas previas, cámara lenta) ni las claves. Otra carpeta: `AXIOMA_BACKUP_DIR=/ruta`. En la terminal: `npm run se -- copia`.
+
+Para recuperar: copia de vuelta la carpeta a `workspace/`.
+
 ## Claves de servicios
 
 En Proyectos, **🔑 Claves** muestra las tres claves opcionales, qué desbloquea cada una, si ya está puesta y el enlace para sacarla: Pixabay y Pexels (b-roll de stock, gratis; Pexels tiene pausadas las claves nuevas), Freesound (sonidos, gratis) y ElevenLabs (voz natural, de pago). Se pegan ahí y se guardan en `.env` de este computador; no se vuelven a mostrar.

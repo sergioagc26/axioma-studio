@@ -45,6 +45,7 @@ import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack } from '.
 import { splitIntoParts } from './series.ts';
 import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { brandbookFile, createBrandbook } from './brandbook.ts';
+import { backupStatus, runBackup, scheduleBackups } from './backup.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -697,6 +698,17 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (method === 'PUT') return json(res, await updateEntry(entry, await readBody(req)));
     if (method === 'DELETE') return json(res, await removeEntry(entry));
   }
+  // Copia de seguridad: estado, y hacerla ahora (corre en segundo plano).
+  if (p === '/api/copia' && method === 'GET') return json(res, await backupStatus());
+  if (p === '/api/copia' && method === 'POST') {
+    const job = startJob('crear', async (j) => {
+      j.message = 'Haciendo la copia de seguridad…';
+      const s = await runBackup((m) => { j.message = m; });
+      if (s.error) throw new Error(s.error);
+      return { ...s };
+    });
+    return json(res, job);
+  }
   if (p === '/api/musica' && method === 'GET') return json(res, await listTracks());
   if (p === '/api/musica/archivo' && method === 'GET') {
     const f = safeJoin(MUSIC_DIR, path.basename(url.searchParams.get('f') ?? ''));
@@ -887,7 +899,7 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
       } catch { /* no es nuestro */ }
       reject(new Error(`El puerto ${STUDIO_PORT} está ocupado por otro programa. Usa SE_STUDIO_PORT para cambiarlo.`));
     });
-    server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => resolve(base));
+    server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); resolve(base); });
   });
   return running;
 }
