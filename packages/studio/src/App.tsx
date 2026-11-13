@@ -58,22 +58,10 @@ export const App: React.FC = () => {
   const [carpeta, setCarpeta] = useState('');
   const [lufs, setLufs] = useState(-14);
   const [ganchos, setGanchos] = useState(false);
-  // ¿Claude tiene sesión iniciada? null = todavía comprobando.
+  // ¿Ya se revisó la IA local? null = todavía comprobando. (Claude ya no se usa: todo es local.)
   const [claude, setClaude] = useState<boolean | null>(null);
   const [local, setLocal] = useState(false);
   useEffect(() => { api('/api/claude').then((d) => { setClaude(d.conectado); setLocal(Boolean(d.local)); }).catch(() => setClaude(false)); }, []);
-  const connect = async () => {
-    try {
-      await api('/api/claude', { method: 'POST' });
-      setToastMsg('Se abrió una terminal. Escribe /login, entra con tu cuenta y vuelve aquí. Lo compruebo solo en unos segundos.');
-      // Se vuelve a comprobar varias veces mientras el usuario inicia sesión.
-      for (let i = 0; i < 12; i++) {
-        await new Promise((r) => setTimeout(r, 15000));
-        const d = await api('/api/claude?revisar=1');
-        if (d.conectado) { setClaude(true); setToastMsg('Claude conectado. Ya puedes usar los botones de pedir a Claude.'); return; }
-      }
-    } catch (e: any) { setToastMsg(e.message); }
-  };
   // Ayuda: las explicaciones largas están ocultas; se muestran con el botón ❔.
   const [help, setHelp] = useState(() => { try { return localStorage.getItem('ayuda') === '1'; } catch { return false; } });
   useEffect(() => {
@@ -216,9 +204,9 @@ export const App: React.FC = () => {
             </>
           )}
           {/* Quién atiende los pedidos de cambios. Con la IA local lista, conectar Claude queda en el mismo botón. */}
-          {claude === true ? <span className="pill" title="Los pedidos de cambios los hace Claude">● Claude</span>
-            : claude === false && local ? <button className="pill" style={{ border: 0, cursor: 'pointer' }} title="Los pedidos de cambios los hace la IA de tu computador (Ollama). Clic para conectar Claude: se abre una terminal, escribe /login y vuelve aquí." onClick={connect}>● IA local</button>
-            : claude === false ? <button className="btn rect" title="Abre una terminal: escribe /login y vuelve aquí" onClick={connect}>Conectar Claude</button> : null}
+          {/* Todo es local: los pedidos los hace la IA de este computador (Ollama), sin gastar créditos. */}
+          {claude === null ? null : local ? <span className="pill" title="Los pedidos de cambios los hace la IA de tu computador (Ollama), ajustada a lo que aguanta tu PC. No gasta créditos.">● IA local</span>
+            : <span className="pill" title="Abre Ollama para que la IA local atienda los pedidos. Mientras tanto quedan guardados.">○ IA local apagada</span>}
           <button className="btn sq" aria-pressed={help} aria-label={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones'} title={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones de cada función'} style={help ? { borderColor: 'var(--pink)' } : undefined} onClick={() => setHelp(!help)}><Icon name="help" /></button>
           <button className="btn sq" aria-label={`Cambiar a tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} title={`Tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
             <Icon name={theme === 'oscuro' ? 'sun' : 'moon'} />

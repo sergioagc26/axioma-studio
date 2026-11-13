@@ -133,16 +133,16 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     setRound((r) => r + 1);
   };
 
-  /** Se lo pide a Claude aquí mismo; el resultado aparece solo en la pantalla. */
+  /** Se lo pide a la IA local aquí mismo; el resultado aparece solo en la pantalla. */
   const ask = async (msg: string) => {
     setSending(true);
-    setStep('Enviando a Claude…');
+    setStep('Enviando a la IA local…');
     try {
       const r = await askAssistant(project.id, msg, scene.id, setStep);
       setText('');
       await store.reloadExtras();
       ctx.toast(r.saved || r.text.length <= 220 ? r.text : r.text.slice(0, 218) + '…');
-    } catch (e: any) { ctx.toast(`Claude no pudo hacerlo: ${e.message}`); } finally { setSending(false); setStep(''); }
+    } catch (e: any) { ctx.toast(`La IA local no pudo hacerlo: ${e.message}`); } finally { setSending(false); setStep(''); }
   };
   const askVariants = () => ask(`Genera 4 variantes distintas y creativas para la escena ${scene.id}${filter === 'Todo' ? '' : `, variando solo: ${filter.toLowerCase()}`}. No repitas estas: ${shown.map((v) => v.label).join(', ')}. Guárdalas con generar_variantes; no elijas ninguna.`);
 
@@ -161,12 +161,12 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </select>
           </label>
           <button className="btn" onClick={others}>Otras 5</button>
-          <button className="btn primary" disabled={sending} onClick={askVariants}>{sending ? 'Claude trabajando…' : 'Pedir variantes a Claude'}</button>
+          <button className="btn primary" disabled={sending} onClick={askVariants}>{sending ? 'IA trabajando…' : 'Pedir variantes a la IA'}</button>
         </div>
       </header>
 
       <section className="row" style={{ padding: '12px 22px', borderBottom: '1px solid var(--line)' }}>
-        <span className="small muted">Al pedir a Claude, variar solo:</span>
+        <span className="small muted">Al pedir a la IA, variar solo:</span>
         {FILTERS.map((f) => (
           <button key={f} className="btn" style={{ height: 36, fontWeight: 500, ...(filter === f ? { borderColor: 'var(--pink)', background: 'var(--pinkSoft)' } : {}) }} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f}</button>
         ))}
@@ -285,11 +285,11 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
       <footer className="tl" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
         <label className="row" style={{ flex: '1 1 420px', flexWrap: 'nowrap' }}>
-          <span className="small muted" style={{ whiteSpace: 'nowrap' }}>Pídele un cambio a Claude</span>
+          <span className="small muted" style={{ whiteSpace: 'nowrap' }}>Pídele un cambio a la IA</span>
           <input className="input" style={{ flex: 1 }} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ej.: más corto, que el texto diga otra cosa, b-roll de oficina"
             onKeyDown={(e) => { if (e.key === 'Enter' && text.trim() && !sending) ask(`En la escena ${scene.id}: ${text.trim()}`); }} />
         </label>
-        <button className="btn cyan rect" disabled={!text.trim() || sending} onClick={() => ask(`En la escena ${scene.id}: ${text.trim()}`)}>Pedir a Claude</button>
+        <button className="btn cyan rect" disabled={!text.trim() || sending} onClick={() => ask(`En la escena ${scene.id}: ${text.trim()}`)}>Pedir a la IA</button>
         {step && <span className="pill" role="status">{step}</span>}
       </footer>
     </>

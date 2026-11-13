@@ -458,18 +458,18 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); }
   };
 
-  /** Claude crea una transición nueva a partir de la descripción y la aplica a la escena elegida. */
+  /** La IA local crea una transición nueva a partir de la descripción y la aplica a la escena elegida. */
   const createTransition = async () => {
     const desc = trText.trim();
     if (!desc || !scene) return;
-    setBusy('Enviando a Claude…');
+    setBusy('Enviando a la IA local…');
     try {
       const target = jointScene?.id ?? (idx > 0 ? scene.id : project.scenes[1]?.id);
       const r = await askAssistant(project.id, `Crea una transición nueva con crear_transicion según esta descripción: "${desc}". Tiene que encajar con el estilo del reel (preset ${project.presetId}).${target ? ` Luego aplícala a la escena ${target} con poner_transicion.` : ''}`, target, setBusy);
       setTrText('');
       await store.reloadExtras();
       ctx.toast(r.saved || r.text.length <= 220 ? r.text : r.text.slice(0, 218) + '…');
-    } catch (e: any) { ctx.toast(`Claude no pudo hacerlo: ${e.message}`); } finally { setBusy(''); }
+    } catch (e: any) { ctx.toast(`La IA local no pudo hacerlo: ${e.message}`); } finally { setBusy(''); }
   };
 
   /** Guarda cómo está vestido el reel ahora como un estilo propio, para reutilizarlo. */
@@ -648,7 +648,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     player.current?.seekTo(Math.round(((e.clientX - r.left) / r.width) * total));
   };
 
-  if (!project.scenes.length) return <div className="page"><p className="muted">No hay escenas todavía. Pídele a Claude que arme el storyboard.</p></div>;
+  if (!project.scenes.length) return <div className="page"><p className="muted">No hay escenas todavía. Crea el proyecto desde Subir para armar el storyboard.</p></div>;
 
   return (
     <>
@@ -1053,7 +1053,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   </button>
                 );
               })}
-              <button className="btn cyan" onClick={() => ctx.go('variantes', { s: scene.id })}>Más opciones y pedir a Claude</button>
+              <button className="btn cyan" onClick={() => ctx.go('variantes', { s: scene.id })}>Más opciones y pedir a la IA</button>
             </Group>
             {(scene.visual === 'motion' || scene.visual === 'texto') && (
               <Group id="motion" title="Gráfico animado" defaultOpen>
@@ -1242,7 +1242,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <div className="row" style={{ flexWrap: 'nowrap' }}>
             <input className="input" style={{ flex: 1 }} value={trText} onChange={(e) => setTrText(e.target.value)} placeholder="¿Quieres otra? Descríbela: «que la escena caiga desde arriba como una cortina»"
               onKeyDown={(e) => { if (e.key === 'Enter' && trText.trim() && !busy) createTransition(); }} />
-            <button className="btn cyan rect" disabled={!trText.trim() || Boolean(busy)} onClick={createTransition}>{busy ? 'Claude trabajando…' : 'Crear con Claude'}</button>
+            <button className="btn cyan rect" disabled={!trText.trim() || Boolean(busy)} onClick={createTransition}>{busy ? 'IA trabajando…' : 'Crear con la IA'}</button>
             {busy && <span className="pill" role="status">{busy}</span>}
           </div>
         </section>

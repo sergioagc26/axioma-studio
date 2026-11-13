@@ -1,6 +1,7 @@
 /**
  * Modelo de lenguaje local con Ollama (gratis, sin internet una vez descargado).
- * Se usa cuando Claude no está conectado: editar por chat, redactar ganchos y el texto para publicar.
+ * Es la única IA que usa la app: editar por chat, redactar ganchos y el texto para publicar.
+ * El modelo, la memoria y los núcleos se ajustan a este PC (hardwareProfile) para no llevarlo al límite.
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -12,10 +13,44 @@ const HOST = process.env.OLLAMA_HOST ? (/^https?:/.test(process.env.OLLAMA_HOST)
 export const MODEL_CHOICES = ['qwen3:14b', 'qwen3:8b', 'qwen2.5:7b', 'llama3.1:8b', 'gemma3:4b', 'qwen3:4b'];
 /** Modelos que ven imágenes (fotogramas), del mejor al más liviano. */
 export const VISION_CHOICES = ['qwen3-vl:8b', 'qwen2.5vl:7b', 'qwen3-vl:4b', 'gemma3:4b'];
-export const LOCAL_MODEL = process.env.AXIOMA_LLM || 'qwen3:8b';
-/** Tiempo que el modelo queda cargado en memoria entre pedidos (respuestas inmediatas mientras trabajas). */
-// 10 minutos: suficiente para una sesión de edición sin dejar 5 GB ocupados media hora.
-const KEEP_ALIVE = process.env.AXIOMA_LLM_KEEP_ALIVE || '10m';
+
+/** Tamaño del modelo en miles de millones de parámetros, leído del nombre (qwen3:8b → 8). */
+export function modelSizeB(name: string): number {
+  const m = /[:\-](\d+(?:\.\d+)?)b\b/i.exec(name);
+  return m ? Number(m[1]) : 0;
+}
+
+export interface HwProfile {
+  ramGb: number; cores: number;
+  /** Modelo de texto más grande (en miles de millones) que cabe dejando memoria para el resto. */
+  maxB: number; visionMaxB: number;
+  /** Contexto máximo, núcleos para la IA y cuánto queda cargado el modelo entre pedidos. */
+  maxCtx: number; threads: number; keepAlive: string;
+  recommended: string; recommendedVision: string;
+}
+
+/**
+ * Lo que este PC aguanta sin quedarse sin memoria ni congelarse: con poca RAM, modelos más
+ * chicos, menos contexto y que se descarguen antes; y siempre quedan núcleos libres para la
+ * interfaz y el render.
+ */
+export function hardwareProfile(ramGb = totalRamGb(), cores = os.cpus().length || 4): HwProfile {
+  const maxB = ramGb > 20 ? 14 : ramGb > 10 ? 8 : 4;
+  const visionMaxB = ramGb > 12 ? 8 : 4;
+  return {
+    ramGb: Math.round(ramGb), cores, maxB, visionMaxB,
+    maxCtx: ramGb > 20 ? 32768 : ramGb > 10 ? 16384 : 8192,
+    threads: Math.max(2, Math.min(cores - 2, Math.floor(cores * 0.75))),
+    keepAlive: process.env.AXIOMA_LLM_KEEP_ALIVE || (ramGb > 20 ? '30m' : ramGb > 10 ? '10m' : '3m'),
+    recommended: maxB >= 14 ? 'qwen3:14b' : maxB >= 8 ? 'qwen3:8b' : 'qwen3:4b',
+    recommendedVision: visionMaxB >= 8 ? 'qwen3-vl:8b' : 'qwen3-vl:4b',
+  };
+}
+
+let hw: HwProfile | null = null;
+const profile = () => (hw ??= hardwareProfile());
+
+export const LOCAL_MODEL = process.env.AXIOMA_LLM || profile().recommended;
 
 export interface LlmStatus { running: boolean; version?: string; model?: string; vision?: string; installed: string[]; loaded: boolean; error?: string }
 
@@ -31,8 +66,9 @@ const matches = (name: string, want: string) => name === want || name === `${wan
 /** El modelo a usar: el que pida AXIOMA_LLM o el mejor descargado que quepa en la memoria. */
 export function pickModel(installed: string[], ramGb = totalRamGb()): string | undefined {
   if (process.env.AXIOMA_LLM) return installed.find((n) => matches(n, process.env.AXIOMA_LLM!));
-  // Con 16 GB o menos, uno de 14B deja poca memoria para el render: se prefiere el de 8B.
-  const choices = ramGb > 20 ? MODEL_CHOICES : MODEL_CHOICES.filter((m) => !m.includes('14b'));
+  // Solo los que caben dejando memoria para el render (16 GB → hasta 8B; 8 GB → hasta 4B).
+  const { maxB } = hardwareProfile(ramGb);
+  const choices = MODEL_CHOICES.filter((m) => modelSizeB(m) <= maxB);
   for (const c of choices) { const hit = installed.find((n) => matches(n, c)); if (hit) return hit; }
   return undefined;
 }
@@ -73,8 +109,9 @@ export async function llmStatus(): Promise<LlmStatus> {
 }
 
 /** El modelo que ve imágenes: AXIOMA_VISION o el mejor descargado. */
-export function pickVisionModel(installed: string[]): string | undefined {
-  const want = process.env.AXIOMA_VISION ? [process.env.AXIOMA_VISION] : VISION_CHOICES;
+export function pickVisionModel(installed: string[], ramGb = totalRamGb()): string | undefined {
+  const { visionMaxB } = hardwareProfile(ramGb);
+  const want = process.env.AXIOMA_VISION ? [process.env.AXIOMA_VISION] : VISION_CHOICES.filter((m) => modelSizeB(m) <= visionMaxB);
   for (const c of want) { const hit = installed.find((n) => matches(n, c)); if (hit) return hit; }
   return undefined;
 }
@@ -99,7 +136,7 @@ export async function llmWarmUp(): Promise<boolean> {
   if (!(await llmReady())) return false;
   const model = await activeModel();
   try {
-    const r = await fetch(`${HOST}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120_000), body: JSON.stringify({ model, keep_alive: KEEP_ALIVE }) });
+    const r = await fetch(`${HOST}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120_000), body: JSON.stringify({ model, keep_alive: profile().keepAlive, options: { num_thread: profile().threads } }) });
     return r.ok;
   } catch { return false; }
 }
@@ -113,10 +150,10 @@ function inLine<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /** Contexto justo para el pedido: más rápido y con menos memoria en los cortos; hasta 32k en los largos. */
-export function contextFor(chars: number): number {
+export function contextFor(chars: number, max = 32768): number {
   const tokens = Math.ceil(chars / 3) + 2048;
-  for (const n of [8192, 16384, 32768]) if (tokens <= n) return n;
-  return 32768;
+  for (const n of [8192, 16384, 32768]) if (tokens <= n) return Math.min(n, max);
+  return max;
 }
 
 /**
@@ -125,7 +162,7 @@ export function contextFor(chars: number): number {
  * `think: true` deja que el modelo razone antes de responder (más lento, mejor en pedidos difíciles).
  */
 export async function llmJson<T>(system: string, user: string, schema: object, opts: { temperature?: number; timeoutMs?: number; think?: boolean } = {}): Promise<T> {
-  if (!(await llmReady())) throw new Error('La IA local no está disponible. Revisa que Ollama esté instalado y con un modelo descargado (ollama pull qwen3:8b).');
+  if (!(await llmReady())) throw new Error('La IA local no está disponible. Revisa que Ollama esté instalado y con un modelo descargado (ollama pull ${LOCAL_MODEL}).');
   const model = await activeModel();
   const once = async (): Promise<T> => {
     let r: Response;
@@ -135,8 +172,8 @@ export async function llmJson<T>(system: string, user: string, schema: object, o
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(opts.timeoutMs ?? 180_000),
         body: JSON.stringify({
-          model, stream: false, think: Boolean(opts.think), format: schema, keep_alive: KEEP_ALIVE,
-          options: { temperature: opts.temperature ?? 0.3, num_ctx: contextFor(system.length + user.length) },
+          model, stream: false, think: Boolean(opts.think), format: schema, keep_alive: profile().keepAlive,
+          options: { temperature: opts.temperature ?? 0.3, num_ctx: contextFor(system.length + user.length, profile().maxCtx), num_thread: profile().threads },
           messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
         }),
       });
@@ -213,14 +250,14 @@ export async function visionReady(): Promise<string | undefined> {
  */
 export async function visionJson<T>(system: string, user: string, images: string[], schema: object, opts: { temperature?: number; timeoutMs?: number } = {}): Promise<T> {
   const model = await visionReady();
-  if (!model) throw new Error('No hay un modelo de visión descargado (ollama pull qwen3-vl:8b).');
+  if (!model) throw new Error('No hay un modelo de visión descargado (ollama pull ${profile().recommendedVision}).');
   const b64 = await Promise.all(images.map(async (f) => (await readFile(f)).toString('base64')));
   return inLine(async () => {
     const r = await fetch(`${HOST}/api/chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(opts.timeoutMs ?? 240_000),
       body: JSON.stringify({
         model, stream: false, think: false, format: schema, keep_alive: '2m',
-        options: { temperature: opts.temperature ?? 0.2, num_ctx: 16384 },
+        options: { temperature: opts.temperature ?? 0.2, num_ctx: Math.min(16384, profile().maxCtx), num_thread: profile().threads },
         messages: [{ role: 'system', content: system }, { role: 'user', content: user, images: b64 }],
       }),
     });
