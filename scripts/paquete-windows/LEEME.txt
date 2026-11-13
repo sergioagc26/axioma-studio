@@ -16,4 +16,5 @@ AXIOMA STUDIO PARA WINDOWS
 - Si algo falla, abre el instalador otra vez: retoma donde quedo.
 
 Claves de servicios (Pixabay, Freesound, ElevenLabs): en la app, Proyectos > «Claves»,
-pegas cada una. Estan en tu Mac, en la app, en el mismo panel.
+pegas cada una. Cada «Sacar la clave» abre la pagina donde aparece tu clave
+(entras con tu cuenta de siempre y la copias).
