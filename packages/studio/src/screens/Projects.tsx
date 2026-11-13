@@ -36,6 +36,38 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ctx.toast(done.result?.copied ? `Copia lista: ${done.result.copied} archivos nuevos (${Math.round((done.result.bytes ?? 0) / 1e6)} MB).` : 'Copia al día: no había nada nuevo.');
     } catch (e: any) { ctx.toast(e.message); api<any>('/api/copia').then(setBackup).catch(() => {}); } finally { setBackingUp(''); }
   };
+  // Actualizarse: al abrir se mira si hay versión nueva; con un clic se instala y la app se reinicia.
+  const [upd, setUpd] = useState<{ behind: number; changes: string[]; error?: string; source: string | null } | null>(null);
+  const [updating, setUpdating] = useState('');
+  useEffect(() => { api<any>('/api/actualizar').then(setUpd).catch(() => {}); }, []);
+  const update = async () => {
+    setUpdating('Buscando…');
+    try {
+      const c = await api<any>('/api/actualizar');
+      setUpd(c);
+      if (c.error) return ctx.toast(c.error);
+      if (!c.behind) return ctx.toast('Ya tienes la última versión.');
+      if (!window.confirm(`Hay ${c.behind} novedad${c.behind === 1 ? '' : 'es'}:\n\n${c.changes.map((x: string) => `• ${x}`).join('\n')}\n\n¿Actualizar ahora? La app se reinicia sola (tu trabajo no se toca).`)) return;
+      const job = await api<Job>('/api/actualizar', { method: 'POST' });
+      let restarting = false;
+      try {
+        const done = await waitJob(job, (j) => setUpdating(j.message));
+        restarting = Boolean(done.result?.restarting);
+        ctx.toast(done.result?.message ?? 'Actualizada.');
+        if (!restarting && done.result?.updated) ctx.toast('Actualizada. Cierra y vuelve a abrir la app para usar la versión nueva.');
+      } catch (e: any) {
+        // Si la app se reinició mientras se esperaba, la conexión se corta: es lo esperado.
+        if (/fetch|network|Failed/i.test(e.message)) restarting = true; else throw e;
+      }
+      if (restarting) {
+        setUpdating('Reiniciando…');
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 1000));
+          try { await api('/api/ping'); if (i > 2) { location.reload(); return; } } catch { /* todavía reiniciando */ }
+        }
+      }
+    } catch (e: any) { ctx.toast(e.message); } finally { setUpdating(''); }
+  };
   const [preset, setPreset] = useState('rapido');
   const [kind, setKind] = useState<'hablado' | 'montaje'>('hablado');
   const [job, setJob] = useState<Job | null>(null);
@@ -122,6 +154,11 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <h1 style={{ fontSize: 28 }}>Nuevo reel</h1>
         <div className="row">
           <a className="btn rect" href="#/calendario">📅 Calendario</a>
+          <button className="btn rect" disabled={Boolean(updating)} onClick={update}
+            title={upd?.error ?? (upd?.behind ? `Novedades:\n${upd.changes.join('\n')}` : 'Revisa si hay una versión nueva de la app')}
+            style={upd?.behind ? { borderColor: 'var(--pink)' } : undefined}>
+            {updating || (upd?.behind ? `⬆️ Actualizar (${upd.behind})` : '⬆️ Actualizar')}
+          </button>
           <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pixabay, Pexels, Freesound y ElevenLabs">🔑 Claves</button>
           <button className="btn rect" disabled={Boolean(backingUp || backup?.running)} onClick={backupNow}
             title={backup?.error ? backup.error : 'Copia de seguridad en iCloud Drive: se hace sola una vez al día. Clic para hacerla ahora.'}

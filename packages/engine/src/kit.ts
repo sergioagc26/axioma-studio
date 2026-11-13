@@ -4,7 +4,7 @@ import path from 'node:path';
 import { BrandKit, brandStyle, type CaptionStyle } from '@axioma/schema';
 import { WORKSPACE, slugify } from './paths.ts';
 
-const kitFile = (client?: string) => path.join(WORKSPACE, 'clientes', slugify(client ?? 'personal'), 'kit.json');
+export const kitFile = (client?: string) => path.join(WORKSPACE, 'clientes', slugify(client ?? 'personal'), 'kit.json');
 
 export async function readKit(client?: string): Promise<BrandKit | null> {
   const f = kitFile(client);
@@ -41,7 +41,10 @@ export function kitCaptions(kit: BrandKit | null): Partial<CaptionStyle> {
   if (!kit) return {};
   // Una marca con sector trae su propio diseño de subtítulos; si no, solo colores y letra.
   const brand = brandStyle(kit);
-  return brand ? { ...brand.captions, ...kit.captions } : { highlightColor: kit.colors.primary, color: kit.colors.text, fontFamily: kit.fonts.heading, ...kit.captions };
+  if (brand) return { ...brand.captions, ...kit.captions };
+  // Sin sector: igual se usa el diseño de subtítulos que mejores resultados le dio.
+  const won = Object.keys(kit.learned ?? {}).find((k) => k.startsWith('exito:design:'))?.slice(13);
+  return { highlightColor: kit.colors.primary, color: kit.colors.text, fontFamily: kit.fonts.heading, ...(won ? { design: won } : {}), ...kit.captions };
 }
 
 /** Anota con qué diseño se exportó, para que la marca vaya aprendiendo lo que se usa. */

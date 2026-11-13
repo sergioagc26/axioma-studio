@@ -4,7 +4,9 @@ import type { Ctx } from '../App.tsx';
 import { api } from '../useProject.ts';
 
 type Network = 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'linkedin';
-interface Entry { id: string; projectId: string; date: string; time?: string; network: Network; status: 'planificado' | 'publicado'; note?: string }
+interface Entry { id: string; projectId: string; date: string; time?: string; network: Network; status: 'planificado' | 'publicado'; note?: string; metrics?: Metrics }
+interface Metrics { views: number; likes?: number; comments?: number; shares?: number; saves?: number }
+interface Insights { client: string; reels: number; medianViews: number; engagement: number; findings: { label: string; text: string }[]; applied: string[]; note?: string }
 interface Item { id: string; name: string; client: string; thumbT?: number }
 
 const NET: Record<Network, { label: string; short: string; color: string }> = {
@@ -60,6 +62,28 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch { ctx.toast('No se pudo copiar el texto.'); }
   };
   const sel = (entries ?? []).find((e) => e.id === open) ?? null;
+  const clients = useMemo(() => [...new Set(items.map((i) => i.client))].sort(), [items]);
+  const [client, setClient] = useState('');
+  const [insights, setInsights] = useState<Insights | null>(null);
+  const [nums, setNums] = useState<Record<string, string>>({});
+  useEffect(() => { if (!client && clients.length) setClient(clients.includes('personal') ? 'personal' : clients[0]); }, [clients]);
+  useEffect(() => { if (client) api<Insights>(`/api/resultados?cliente=${encodeURIComponent(client)}`).then(setInsights).catch(() => setInsights(null)); }, [client, entries]);
+  useEffect(() => {
+    const m = sel?.metrics;
+    setNums(m ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== 'at').map(([k, v]) => [k, String(v ?? '')])) : {});
+  }, [sel?.id]);
+  const saveResults = async () => {
+    if (!sel || !(Number(nums.views) > 0)) return ctx.toast('Pon al menos las vistas.');
+    if (!(await call('PUT', { metrics: nums }, sel.id))) return;
+    const c = byId.get(sel.projectId)?.client;
+    try {
+      const i = await api<Insights>(`/api/resultados${c ? `?cliente=${encodeURIComponent(c)}` : ''}`, { method: 'POST' });
+      if (c) setClient(c);
+      setInsights(i);
+      ctx.toast(i.applied.length ? `Resultados guardados. Aprendido: ${i.applied.join(' · ')}.` : 'Resultados guardados.');
+    } catch { ctx.toast('Resultados guardados.'); }
+  };
+  const FIELDS: [keyof Metrics, string][] = [['views', 'Vistas'], ['likes', 'Me gusta'], ['comments', 'Comentarios'], ['shares', 'Compartidos'], ['saves', 'Guardados']];
   const pending = (entries ?? []).filter((e) => e.status === 'planificado' && e.date >= today).length;
 
   return (
@@ -118,6 +142,26 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         })}
       </div>
 
+      <section className="card col" style={{ gap: 10 }} aria-label="Lo que funciona">
+        <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <h2 style={{ fontSize: 18 }}>📊 Lo que funciona</h2>
+          {clients.length > 1 && (
+            <select value={client} onChange={(e) => setClient(e.target.value)} aria-label="Cliente">
+              {clients.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          )}
+        </div>
+        <span className="small muted">Cuando publiques un reel, ábrelo aquí y pon sus vistas y su interacción (las ves en Instagram o TikTok). Con 4 o más reels de un cliente, la app compara y usa lo que mejor le funciona en sus próximos reels.</span>
+        {insights && (
+          <>
+            {insights.reels >= 4 && <span className="small">{insights.reels} reels con cifras · vistas típicas <strong>{insights.medianViews.toLocaleString('es')}</strong> · interacción <strong>{String(insights.engagement).replace('.', ',')} %</strong></span>}
+            {insights.findings.map((f) => <span key={f.label}>• {f.text}</span>)}
+            {insights.applied.length > 0 && <span className="small" style={{ color: 'var(--accent, #25F4EE)' }}>Aplicado a sus próximos reels: {insights.applied.join(' · ')}.</span>}
+            {insights.note && <span className="small muted">{insights.note}</span>}
+          </>
+        )}
+      </section>
+
       {sel && (
         <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setOpen(null); }}>
           <div className="modal card col" role="dialog" aria-modal="true" aria-label="Publicación programada" style={{ maxWidth: 440, gap: 12 }}>
@@ -137,6 +181,17 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               {byId.has(sel.projectId) && <button className="btn rect" onClick={() => copyText(sel.projectId)}>Copiar texto para publicar</button>}
               <button className={`btn ${sel.status === 'publicado' ? 'rect' : 'primary'}`} onClick={() => call('PUT', { status: sel.status === 'publicado' ? 'planificado' : 'publicado' }, sel.id)}>{sel.status === 'publicado' ? 'Marcar como pendiente' : 'Marcar como publicado'}</button>
             </div>
+            <details className="grp" open={sel.status === 'publicado'}>
+              <summary>📊 Resultados {sel.metrics ? `· ${sel.metrics.views.toLocaleString('es')} vistas` : ''}</summary>
+              <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                {FIELDS.map(([k, label]) => (
+                  <label key={k} className="field" style={{ flex: '1 1 110px' }}>{label}
+                    <input type="number" min={0} inputMode="numeric" value={nums[k] ?? ''} onChange={(e) => setNums({ ...nums, [k]: e.target.value })} />
+                  </label>
+                ))}
+              </div>
+              <button className="btn primary" style={{ marginTop: 8 }} onClick={saveResults}>Guardar resultados</button>
+            </details>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <button className="btn ghost" onClick={async () => { if (await call('DELETE', undefined, sel.id)) { setOpen(null); ctx.toast('Quitado del calendario.'); } }}>Quitar del calendario</button>
               <button className="btn" onClick={() => setOpen(null)}>Cerrar</button>

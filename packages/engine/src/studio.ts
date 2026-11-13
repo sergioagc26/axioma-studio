@@ -46,6 +46,8 @@ import { splitIntoParts } from './series.ts';
 import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { brandbookFile, createBrandbook } from './brandbook.ts';
 import { backupStatus, runBackup, scheduleBackups } from './backup.ts';
+import { learnFromResults } from './results.ts';
+import { applyUpdate, checkUpdate, restartStudio } from './update.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -698,6 +700,22 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (method === 'PUT') return json(res, await updateEntry(entry, await readBody(req)));
     if (method === 'DELETE') return json(res, await removeEntry(entry));
   }
+  // Aprender de los resultados: qué le funciona a cada cliente. POST además lo deja por defecto.
+  if (p === '/api/resultados' && (method === 'GET' || method === 'POST')) {
+    return json(res, await learnFromResults(url.searchParams.get('cliente') || undefined, method === 'POST'));
+  }
+  // Actualizarse: revisar si hay versión nueva y aplicarla (se reinicia sola si se abrió como app).
+  if (p === '/api/actualizar' && method === 'GET') return json(res, await checkUpdate());
+  if (p === '/api/actualizar' && method === 'POST') {
+    const job = startJob('crear', async (j) => {
+      j.message = 'Buscando la versión nueva…';
+      const r = await applyUpdate((m) => { j.message = m; });
+      const canRestart = r.restart && process.argv.includes('studio');
+      if (canRestart) restartStudio();
+      return { ...r, restarting: canRestart };
+    });
+    return json(res, job);
+  }
   // Copia de seguridad: estado, y hacerla ahora (corre en segundo plano).
   if (p === '/api/copia' && method === 'GET') return json(res, await backupStatus());
   if (p === '/api/copia' && method === 'POST') {
@@ -899,7 +917,10 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
       } catch { /* no es nuestro */ }
       reject(new Error(`El puerto ${STUDIO_PORT} está ocupado por otro programa. Usa SE_STUDIO_PORT para cambiarlo.`));
     });
-    server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); resolve(base); });
+    // Tras actualizarse, el proceso nuevo espera a que el anterior suelte el puerto.
+    const wait = process.env.AXIOMA_RESTART_WAIT ? 2500 : 0;
+    delete process.env.AXIOMA_RESTART_WAIT;
+    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); resolve(base); }), wait);
   });
   return running;
 }

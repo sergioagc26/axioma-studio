@@ -452,6 +452,40 @@ export function createServer() {
     return `Versión guardada: ${await E.saveVersion(await resolveProject(proyecto), etiqueta)}`;
   });
 
+  tool('guardar_resultados', 'Anota cómo le fue a un reel publicado: vistas, me gusta, comentarios, compartidos y guardados (las cifras las da el usuario, nunca se inventan). Con 4 o más reels de un cliente, la app aprende qué le funciona (usa aprender_resultados).', {
+    proyecto, red: z.enum(['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin']).default('instagram'),
+    fecha: z.string().optional().describe('Día en que se publicó, AAAA-MM-DD. Por defecto hoy.'),
+    hora: z.string().optional().describe('Hora de publicación HH:MM, si se sabe.'),
+    vistas: z.number().int().positive(), me_gusta: z.number().int().min(0).optional(), comentarios: z.number().int().min(0).optional(),
+    compartidos: z.number().int().min(0).optional(), guardados: z.number().int().min(0).optional(),
+  }, async (a) => {
+    const p = await E.readProject(await resolveProject(a.proyecto));
+    let entry = (await E.listEntries()).find((e) => e.projectId === p.id && e.network === a.red);
+    if (!entry) {
+      const list = await E.addEntry({ projectId: p.id, date: a.fecha ?? new Date().toISOString().slice(0, 10), time: a.hora, network: a.red });
+      entry = list.find((e) => e.projectId === p.id && e.network === a.red)!;
+    } else if (a.fecha || a.hora) await E.updateEntry(entry.id, { ...(a.fecha ? { date: a.fecha } : {}), ...(a.hora ? { time: a.hora } : {}) });
+    await E.updateEntry(entry.id, { metrics: { views: a.vistas, likes: a.me_gusta, comments: a.comentarios, shares: a.compartidos, saves: a.guardados } });
+    const i = await E.learnFromResults(p.client, true);
+    return `Resultados guardados para «${p.name}» en ${a.red}.\n\n${E.formatInsights(i)}`;
+  });
+
+  tool('aprender_resultados', 'Dice qué le funciona a un cliente según los resultados reales de sus reels (diseño de subtítulos, textos, duración, música, hora y día) y lo deja como estilo por defecto de sus próximos reels.', {
+    cliente: z.string().optional().describe('Cliente (carpeta). Por defecto "personal".'),
+  }, async ({ cliente }) => E.formatInsights(await E.learnFromResults(cliente, true)));
+
+  tool('actualizar_app', 'Revisa si hay una versión nueva de la app y, con aplicar=true, la instala (no pisa cambios hechos a mano). Después hay que reiniciar la app.', {
+    aplicar: z.boolean().default(false),
+  }, async ({ aplicar }) => {
+    if (!aplicar) {
+      const c = await E.checkUpdate();
+      if (c.error) return c.error;
+      return c.behind ? `Hay ${c.behind} cambio(s) nuevo(s):\n${c.changes.map((x) => `• ${x}`).join('\n')}` : `Ya tienes la última versión (${c.current}).`;
+    }
+    const r = await E.applyUpdate();
+    return r.updated ? `${r.message} Reinicia la app (y Claude) para usar la versión nueva.` : r.message;
+  });
+
   tool('marcar_estado', 'Cambia el estado. "aprobado" solo cuando el usuario lo diga explícitamente.', {
     proyecto, estado: z.enum(['borrador', 'en_revision', 'aprobado']),
   }, async ({ proyecto, estado }) => {

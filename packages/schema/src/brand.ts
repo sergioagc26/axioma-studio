@@ -69,10 +69,17 @@ export function brandStyle(kit: BrandKit | null): (Look & { captions: Partial<Ca
     case 'cercana': Object.assign(style, { look: 'calido', camera: 'acercar' }); why += '; por ser cercana, tonos cálidos y la cámara acercándose'; break;
     case 'energica': Object.assign(style, { sfxAuto: true, textAnim: 'pop' }); break;
   }
-  // Lo aprendido: el diseño de subtítulos con el que más se ha exportado (3 veces o más).
-  const top = Object.entries(kit.learned ?? {}).filter(([k]) => k.startsWith('design:')).sort((a, b) => b[1] - a[1])[0];
-  if (top && top[1] >= 3) { captions.design = top[0].slice(7) as CaptionStyle['design']; why += `; ya exportaste ${top[1]} veces con este diseño de subtítulos`; }
-  const title = Object.entries(kit.learned ?? {}).filter(([k]) => k.startsWith('titulo:')).sort((a, b) => b[1] - a[1])[0];
-  if (title && title[1] >= 3) style.textStyle = title[0].slice(7) as NonNullable<Preset['style']>['textStyle'];
+  // Lo aprendido. Primero lo que mejor funcionó en las redes (resultados reales); si no hay,
+  // el diseño de subtítulos con el que más se ha exportado (3 veces o más).
+  const learned = Object.entries(kit.learned ?? {});
+  const won = (kind: string) => learned.find(([k]) => k.startsWith(`exito:${kind}:`))?.[0].slice(`exito:${kind}:`.length);
+  const top = learned.filter(([k]) => k.startsWith('design:')).sort((a, b) => b[1] - a[1])[0];
+  const bestDesign = won('design');
+  if (bestDesign) { captions.design = bestDesign as CaptionStyle['design']; why += '; estos subtítulos son los que mejores resultados le han dado'; }
+  else if (top && top[1] >= 3) { captions.design = top[0].slice(7) as CaptionStyle['design']; why += `; ya exportaste ${top[1]} veces con este diseño de subtítulos`; }
+  const title = learned.filter(([k]) => k.startsWith('titulo:')).sort((a, b) => b[1] - a[1])[0];
+  const bestTitle = won('titulo');
+  if (bestTitle) style.textStyle = bestTitle as NonNullable<Preset['style']>['textStyle'];
+  else if (title && title[1] >= 3) style.textStyle = title[0].slice(7) as NonNullable<Preset['style']>['textStyle'];
   return { captions, style, colors: base.colors, why };
 }

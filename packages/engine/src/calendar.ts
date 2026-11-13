@@ -9,7 +9,9 @@ import { WORKSPACE } from './paths.ts';
  */
 export const NETWORKS = ['instagram', 'tiktok', 'youtube', 'facebook', 'linkedin'] as const;
 export type Network = (typeof NETWORKS)[number];
-export interface CalendarEntry { id: string; projectId: string; date: string; time?: string; network: Network; status: 'planificado' | 'publicado'; note?: string }
+export interface CalendarEntry { id: string; projectId: string; date: string; time?: string; network: Network; status: 'planificado' | 'publicado'; note?: string;
+  /** Resultados del reel publicado (los pone el usuario). */
+  metrics?: { views: number; likes?: number; comments?: number; shares?: number; saves?: number; at?: string } }
 
 const FILE = path.join(WORKSPACE, 'calendario.json');
 
@@ -36,7 +38,7 @@ export async function addEntry(e: { projectId: string; date: string; time?: stri
   return save([...(await listEntries()), entry]);
 }
 
-export async function updateEntry(id: string, patch: Partial<Pick<CalendarEntry, 'date' | 'time' | 'network' | 'status' | 'note'>>) {
+export async function updateEntry(id: string, patch: Partial<Pick<CalendarEntry, 'date' | 'time' | 'network' | 'status' | 'note' | 'metrics'>>) {
   const entries = await listEntries();
   const e = entries.find((x) => x.id === id);
   if (!e) throw new Error('Esa publicación ya no está en el calendario.');
@@ -44,6 +46,13 @@ export async function updateEntry(id: string, patch: Partial<Pick<CalendarEntry,
   if (patch.time !== undefined) { if (!validTime(patch.time)) throw new Error('Hora no válida (HH:MM).'); e.time = patch.time || undefined; }
   if (patch.network && (NETWORKS as readonly string[]).includes(patch.network)) e.network = patch.network;
   if (patch.status === 'planificado' || patch.status === 'publicado') e.status = patch.status;
+  if (patch.metrics !== undefined) {
+    const n = (x: unknown) => (x === '' || x == null ? undefined : Math.max(0, Math.round(Number(x))) || 0);
+    const m = patch.metrics as Record<string, unknown> | null;
+    const views = m ? n(m.views) : undefined;
+    e.metrics = views ? { views, likes: n(m!.likes), comments: n(m!.comments), shares: n(m!.shares), saves: n(m!.saves), at: new Date().toISOString() } : undefined;
+    if (e.metrics) e.status = 'publicado';
+  }
   if (patch.note !== undefined) e.note = patch.note.trim().slice(0, 300) || undefined;
   return save(entries);
 }
