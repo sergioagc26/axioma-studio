@@ -480,17 +480,17 @@ export function createServer() {
     return p.audio.music ? `Música: ${p.audio.music} · volumen ${p.audio.musicVolume}` : 'Música quitada.';
   });
 
-  tool('buscar_broll', 'Busca b-roll vertical en Pexels (licencia Pexels, uso comercial gratuito). Necesita PEXELS_API_KEY en .env.', {
+  tool('buscar_broll', 'Busca videos de stock para b-roll (verticales primero) en Pexels o Pixabay, el que tenga clave en .env (PEXELS_API_KEY o PIXABAY_API_KEY). Ambos permiten uso comercial gratuito.', {
     busqueda: z.string().describe('En inglés suele dar mejores resultados, p. ej. "person editing video on laptop"'),
   }, async ({ busqueda }) => {
     const list = await E.searchBroll(busqueda);
-    return list.length ? list.map((v) => `${v.id} · ${v.duration} s · ${v.width}×${v.height} · ${v.author} · ${v.url}`).join('\n') : 'Sin resultados.';
+    return list.length ? list.map((v) => `${v.id} · ${v.source} · ${v.duration} s · ${v.width}×${v.height} · ${v.author} · ${v.url}`).join('\n') : 'Sin resultados.';
   });
 
   tool('usar_broll', 'Pone b-roll en una escena (la voz sigue sonando). Usa un id de buscar_broll o un archivo local con su licencia.', {
     proyecto,
     escena: z.string(),
-    pexels_id: z.number().optional(),
+    pexels_id: z.number().optional().describe('Id de un resultado de buscar_broll (Pexels o Pixabay)'),
     busqueda: z.string().optional().describe('La misma búsqueda con la que encontraste el id'),
     archivo: z.string().optional().describe('Ruta absoluta de un video local'),
     licencia: z.string().optional().describe('Obligatoria para archivos locales'),
@@ -501,7 +501,7 @@ export function createServer() {
     const item = (await E.searchBroll(a.busqueda, 15)).find((v) => v.id === a.pexels_id);
     if (!item) throw new Error(`El video ${a.pexels_id} no aparece en la búsqueda "${a.busqueda}".`);
     const file = await E.downloadBroll(dir, item);
-    return E.summarize(await E.setBroll(dir, a.escena, file, { license: 'Pexels License', source: 'Pexels', author: item.author, url: item.url }), dir);
+    return E.summarize(await E.setBroll(dir, a.escena, file, { license: item.license, source: item.source, author: item.author, url: item.url }), dir);
   });
 
   tool('buscar_material', 'Busca en el material propio del cliente (todos sus reels y b-rolls): lo que SE VE (modelo de visión local) y lo que SE DICE (transcripciones). Devuelve momentos numerados para usar con usar_material. Prefiere esto a Pexels cuando el cliente ya grabó algo parecido.', {

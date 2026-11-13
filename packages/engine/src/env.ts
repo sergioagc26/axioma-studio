@@ -13,7 +13,7 @@ export async function envValue(name: string): Promise<string | undefined> {
 }
 
 /** Claves que la app deja guardar desde su pantalla. */
-export const KEY_NAMES = ['PEXELS_API_KEY', 'FREESOUND_API_KEY', 'ELEVENLABS_API_KEY'] as const;
+export const KEY_NAMES = ['PEXELS_API_KEY', 'PIXABAY_API_KEY', 'FREESOUND_API_KEY', 'ELEVENLABS_API_KEY'] as const;
 
 /** Guarda una clave en el archivo .env de la raíz (que no se sube a git). Nunca se devuelve su valor. */
 export async function setEnvValue(name: string, value: string): Promise<void> {
@@ -30,5 +30,5 @@ export async function setEnvValue(name: string, value: string): Promise<void> {
 
 /** Qué claves están puestas (solo sí o no). */
 export async function keyStatus(): Promise<Record<string, boolean>> {
-  return { pexels: Boolean(await envValue('PEXELS_API_KEY')), freesound: Boolean(await envValue('FREESOUND_API_KEY')), elevenlabs: Boolean(await envValue('ELEVENLABS_API_KEY')) };
+  return { pexels: Boolean(await envValue('PEXELS_API_KEY')), pixabay: Boolean(await envValue('PIXABAY_API_KEY')), freesound: Boolean(await envValue('FREESOUND_API_KEY')), elevenlabs: Boolean(await envValue('ELEVENLABS_API_KEY')) };
 }

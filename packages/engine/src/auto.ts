@@ -9,7 +9,7 @@ import { readProject, readTranscript, writeProject } from './store.ts';
 import { readVision } from './vision.ts';
 import { envValue } from './env.ts';
 import { llmHook, llmReady } from './llm.ts';
-import { downloadBroll, searchBroll } from './pexels.ts';
+import { downloadBroll, searchBroll, stockSource } from './pexels.ts';
 import { keywords, speechOf } from '@axioma/schema';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -109,7 +109,8 @@ export async function planAutoEdit(dir: string): Promise<string[]> {
     if (g) plan.push(`Quitaré el saludo del inicio («${g}») para abrir con el gancho.`);
     const asked = (project.brief.duracion ?? '').match(/\d+/g)?.map(Number) ?? [];
     if (asked.length) plan.push(`Lo dejaré en máximo ${Math.max(...asked)} s, como pediste en el brief.`);
-    if (await envValue('PEXELS_API_KEY')) plan.push('Pondré b-roll de Pexels en algunas escenas del medio, elegido por lo que dices.');
+    const bank = await stockSource();
+    if (bank) plan.push(`Pondré b-roll de ${bank} en algunas escenas del medio, elegido por lo que dices.`);
   } else {
     plan.push(`Montaje con cortes al ritmo${trend ? `, de unos ${trend.seconds} s` : ''}.`);
   }
@@ -164,9 +165,10 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   project = await applyPresetObject(dir, merged);
   project.presetId = base.id;
 
-  // 2b. B-roll automático de Pexels (si hay clave): una de cada cuatro escenas del medio,
+  // 2b. B-roll automático de Pexels o Pixabay (si hay clave): una de cada cuatro escenas del medio,
   // nunca el gancho ni el cierre, y solo donde no hay texto ni gráfico.
-  if (project.kind === 'hablado' && (await envValue('PEXELS_API_KEY'))) {
+  const stock = project.kind === 'hablado' ? await stockSource() : null;
+  if (stock) {
     const transcript = await readTranscript(dir).catch(() => null);
     let put = 0;
     for (const [i, s] of project.scenes.entries()) {
@@ -180,11 +182,11 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
         const rel = path.relative(dir, file).split(path.sep).join('/');
         s.brollFile = rel;
         s.visual = 'broll';
-        project.assets = [...project.assets.filter((a) => a.file !== rel), { file: rel, kind: 'broll', source: 'Pexels', license: 'Pexels (uso comercial gratuito)', author: found.author, url: found.url }];
+        project.assets = [...project.assets.filter((a) => a.file !== rel), { file: rel, kind: 'broll', source: found.source, license: found.license, author: found.author, url: found.url }];
         put++;
       } catch { /* sin internet o sin resultados: la escena queda con el video original */ }
     }
-    if (put) { project = await writeProject(dir, project); summary.push(`B-roll de Pexels en ${put} escenas, elegido por lo que dices en cada una.`); }
+    if (put) { project = await writeProject(dir, project); summary.push(`B-roll de ${stock} en ${put} escenas, elegido por lo que dices en cada una.`); }
   }
 
   // 2c. Gancho redactado por la IA local (si está instalada), fiel a lo que se dice.

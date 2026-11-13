@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './useProject.ts';
 
-type Keys = { pexels: boolean; freesound: boolean; elevenlabs: boolean };
+type Keys = { pexels: boolean; pixabay: boolean; freesound: boolean; elevenlabs: boolean };
 let memo: Promise<Keys> | null = null;
-const loadKeys = (fresh = false) => (memo = fresh || !memo ? api<Keys>('/api/claves').catch(() => ({ pexels: false, freesound: false, elevenlabs: false })) : memo);
+const loadKeys = (fresh = false) => (memo = fresh || !memo ? api<Keys>('/api/claves').catch(() => ({ pexels: false, pixabay: false, freesound: false, elevenlabs: false })) : memo);
 
 /** ¿Está puesta la clave de este banco? null mientras se comprueba. */
 export function useBankKey(banco: keyof Keys): [boolean | null, () => void] {
@@ -36,7 +36,8 @@ export const BankKey: React.FC<{ banco: keyof Keys; name: string; link: string; 
 };
 
 const SERVICES: { id: keyof Keys; name: string; link: string; cost: string; unlocks: string }[] = [
-  { id: 'pexels', name: 'Pexels', link: 'https://www.pexels.com/api/', cost: 'Gratis', unlocks: 'Videos de stock como b-roll, también en la edición automática.' },
+  { id: 'pixabay', name: 'Pixabay', link: 'https://pixabay.com/api/docs/#api_search_videos', cost: 'Gratis', unlocks: 'Videos de stock como b-roll, también en la edición automática. La clave aparece en esa página al iniciar sesión.' },
+  { id: 'pexels', name: 'Pexels', link: 'https://www.pexels.com/api/', cost: 'Gratis (claves nuevas pausadas)', unlocks: 'Otro banco de videos de stock. Si hay clave, se usa antes que Pixabay.' },
   { id: 'freesound', name: 'Freesound', link: 'https://freesound.org/apiv2/apply', cost: 'Gratis', unlocks: 'Banco de efectos de sonido para buscar por palabra.' },
   { id: 'elevenlabs', name: 'ElevenLabs', link: 'https://elevenlabs.io/app/settings/api-keys', cost: 'De pago (opcional)', unlocks: 'Voz natural en la voz en off y el doblaje (sin ella se usa la voz del computador).' },
 ];

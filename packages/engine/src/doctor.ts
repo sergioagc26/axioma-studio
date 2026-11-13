@@ -50,8 +50,9 @@ export async function doctor(): Promise<{ ok: boolean; checks: Check[] }> {
   checks.push({ name: 'Plugin de Claude conectado', ok: existsSync(mcp), detail: existsSync(mcp) ? 'ok' : 'falta', fix: 'npm run se -- instalar-claude' });
 
   // Opcionales: no bloquean.
-  const pexels = Boolean(process.env.PEXELS_API_KEY) || (existsSync(path.join(REPO_ROOT, '.env')) && /PEXELS_API_KEY\s*=\s*\S/.test(readFileSync(path.join(REPO_ROOT, '.env'), 'utf8')));
-  checks.push({ name: 'Clave de Pexels (opcional, para buscar b-roll)', ok: true, detail: pexels ? 'ok' : 'sin clave: usa b-roll de archivos locales' });
+  const envText = existsSync(path.join(REPO_ROOT, '.env')) ? readFileSync(path.join(REPO_ROOT, '.env'), 'utf8') : '';
+  const stock = ['PEXELS_API_KEY', 'PIXABAY_API_KEY'].filter((k) => Boolean(process.env[k]) || new RegExp(`^${k}\\s*=\\s*\\S`, 'm').test(envText));
+  checks.push({ name: 'Clave de videos de stock (opcional: Pexels o Pixabay)', ok: true, detail: stock.length ? `ok (${stock.map((k) => k.split('_')[0].toLowerCase()).join(', ')})` : 'sin clave: usa b-roll de archivos locales' });
 
   return { ok: checks.every((c) => c.ok), checks };
 }

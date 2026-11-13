@@ -94,7 +94,7 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 
 - **Música**: `poner_musica` con un archivo local y su licencia. Baja sola bajo la voz y la mezcla final se nivela a -16 LUFS.
 - **B-roll**: una escena puede mostrar otro video mientras sigue la voz.
-  - Con clave de Pexels en `.env` (`PEXELS_API_KEY=…`): `buscar_broll` y `usar_broll`.
+  - Con clave de Pixabay o de Pexels (Proyectos → 🔑 Claves): `buscar_broll` y `usar_broll`. Se usa Pexels si tiene clave; si no, Pixabay. Ambos permiten uso comercial gratuito; la licencia queda anotada en el proyecto.
   - Sin clave: `usar_broll` con un archivo local y su licencia.
 - **Motion graphics** (`poner_motion`): barras, contador, lista, logo y tarjeta de texto. Los datos los pones tú; lo que falte se ve como `[DATO]`.
 - **Formatos**: 9:16, 4:5 y 1:1, desde `renderizar`, el studio o `se render -f 4:5`.
@@ -104,7 +104,7 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 
 ## Claves de servicios
 
-En Proyectos, **🔑 Claves** muestra las tres claves opcionales, qué desbloquea cada una, si ya está puesta y el enlace para sacarla: Pexels (b-roll de stock, gratis), Freesound (sonidos, gratis) y ElevenLabs (voz natural, de pago). Se pegan ahí y se guardan en `.env` de este computador; no se vuelven a mostrar.
+En Proyectos, **🔑 Claves** muestra las tres claves opcionales, qué desbloquea cada una, si ya está puesta y el enlace para sacarla: Pixabay y Pexels (b-roll de stock, gratis; Pexels tiene pausadas las claves nuevas), Freesound (sonidos, gratis) y ElevenLabs (voz natural, de pago). Se pegan ahí y se guardan en `.env` de este computador; no se vuelven a mostrar.
 
 ## Abrir la app desde el portátil
 

@@ -206,7 +206,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/claves' && method === 'GET') return json(res, await keyStatus());
   if (p === '/api/claves' && method === 'POST') {
     const b = await readBody(req);
-    await setEnvValue(({ pexels: 'PEXELS_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY' } as Record<string, string>)[String(b.banco)] ?? '', String(b.clave ?? ''));
+    await setEnvValue(({ pexels: 'PEXELS_API_KEY', pixabay: 'PIXABAY_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY' } as Record<string, string>)[String(b.banco)] ?? '', String(b.clave ?? ''));
     return json(res, await keyStatus());
   }
   if (p === '/api/pexels' && method === 'GET') return json(res, { results: await searchBroll(String(url.searchParams.get('q') ?? '').slice(0, 80), 9) });
@@ -567,11 +567,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, job);
     }
     if (b.op === 'broll-pexels') {
-      // Descarga un video de Pexels (se vuelve a buscar para no confiar en una dirección de fuera) y lo pone en la escena.
+      // Descarga un video del banco de stock (se vuelve a buscar para no confiar en una dirección de fuera) y lo pone en la escena.
       const item = (await searchBroll(String(b.q ?? ''), 15)).find((v) => v.id === Number(b.pexelsId));
       if (!item) return json(res, { error: 'Ese video ya no aparece en la búsqueda. Busca de nuevo.' }, 400);
       const file = await downloadBroll(dir, item);
-      const info = { license: 'Pexels (uso comercial gratuito)', source: 'Pexels', author: item.author, url: item.url };
+      const info = { license: item.license, source: item.source, author: item.author, url: item.url };
       if (b.fondo) return json(res, { project: await ops.setBackdropFile(dir, String(b.sceneId ?? ''), file) });
       return json(res, { project: await ops.setBroll(dir, String(b.sceneId ?? ''), file, info) });
     }

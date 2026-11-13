@@ -109,7 +109,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <h1 style={{ fontSize: 28 }}>Nuevo reel</h1>
         <div className="row">
           <a className="btn rect" href="#/calendario">📅 Calendario</a>
-          <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pexels, Freesound y ElevenLabs">🔑 Claves</button>
+          <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pixabay, Pexels, Freesound y ElevenLabs">🔑 Claves</button>
         {items && items[0] && !job && (
           <a className="btn rect" href={`#/editor?p=${encodeURIComponent(items[0].id)}`} title={`Abrir «${items[0].name}»`}>Seguir con «{items[0].name.length > 28 ? items[0].name.slice(0, 27) + '…' : items[0].name}» →</a>
         )}

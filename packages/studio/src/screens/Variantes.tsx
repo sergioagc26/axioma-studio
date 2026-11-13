@@ -76,8 +76,11 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); }
   };
 
-  // Buscador de videos de Pexels.
-  const [pexelsOk, recheckPexels] = useBankKey('pexels');
+  // Buscador de videos de stock (Pexels o Pixabay, el que tenga clave).
+  const [pexelsKey, recheckPexels] = useBankKey('pexels');
+  const [pixabayKey, recheckPixabay] = useBankKey('pixabay');
+  const pexelsOk = pexelsKey == null || pixabayKey == null ? null : pexelsKey || pixabayKey;
+  const bankName = pexelsKey ? 'Pexels' : 'Pixabay';
   const [pq, setPq] = useState('');
   const [pexels, setPexels] = useState<{ q: string; items: { id: number; image?: string; duration: number; author: string }[] } | null>(null);
   const [searching, setSearching] = useState(false);
@@ -86,7 +89,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     try {
       const d = await api<{ results: any[] }>(`/api/pexels?q=${encodeURIComponent(pq.trim())}`);
       setPexels({ q: pq.trim(), items: d.results });
-      if (!d.results.length) ctx.toast('Pexels no encontró videos verticales con esas palabras. Prueba en inglés o con otras palabras.');
+      if (!d.results.length) ctx.toast(`${bankName} no encontró videos con esas palabras. Prueba en inglés o con otras palabras.`);
     } catch (e: any) { ctx.toast(e.message); } finally { setSearching(false); }
   };
   const usePexels = async (pexelsId: number) => {
@@ -94,7 +97,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     try {
       const d = await api(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'broll-pexels', sceneId: scene.id, q: pexels?.q, pexelsId }) });
       store.replace(d.project);
-      ctx.toast('Video de Pexels puesto como b-roll de la escena.');
+      ctx.toast(`Video de ${bankName} puesto como b-roll de la escena.`);
     } catch (e: any) { ctx.toast(e.message); } finally { setMaking(''); }
   };
 
@@ -110,7 +113,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const done = await waitJob(job, (j) => setLooking(j.message || 'Buscando…'));
       const hits = (done.result?.hits ?? []) as Hit[];
       setMine({ q: mq.trim(), hits });
-      if (!hits.length) ctx.toast('No encontré nada parecido en tu material. Prueba con otras palabras o busca en Pexels.');
+      if (!hits.length) ctx.toast('No encontré nada parecido en tu material. Prueba con otras palabras o busca en los videos de stock.');
     } catch (e: any) { ctx.toast(e.message); } finally { setLooking(''); }
   };
   const useMine = async (h: Hit) => {
@@ -242,12 +245,12 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               ))}
             </div>
           )}
-          <strong className="small" style={{ marginTop: 6 }}>O busca un video en Pexels (gratis, uso comercial)</strong>
-          {pexelsOk === false ? <BankKey banco="pexels" name="Pexels" link="https://www.pexels.com/api/" onSaved={recheckPexels} toast={ctx.toast} /> : (
+          <strong className="small" style={{ marginTop: 6 }}>O busca un video de stock en {bankName} (gratis, uso comercial)</strong>
+          {pexelsOk === false ? <BankKey banco="pixabay" name="Pixabay" link="https://pixabay.com/api/docs/#api_search_videos" onSaved={() => { recheckPixabay(); recheckPexels(); }} toast={ctx.toast} /> : (
             <div className="row" style={{ flexWrap: 'wrap' }}>
               <input className="input" style={{ flex: '1 1 320px' }} value={pq} onChange={(e) => setPq(e.target.value)} placeholder="Ej.: oficina, café, gimnasio, ciudad de noche"
                 onKeyDown={(e) => { if (e.key === 'Enter' && pq.trim().length > 1 && !searching) searchPexels(); }} />
-              <button className="btn rect" disabled={pq.trim().length < 2 || searching} onClick={searchPexels}>{searching ? 'Buscando…' : 'Buscar en Pexels'}</button>
+              <button className="btn rect" disabled={pq.trim().length < 2 || searching} onClick={searchPexels}>{searching ? 'Buscando…' : `Buscar en ${bankName}`}</button>
             </div>
           )}
           {pexels && pexels.items.length > 0 && (
