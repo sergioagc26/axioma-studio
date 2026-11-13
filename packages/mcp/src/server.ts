@@ -521,6 +521,13 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('camara_lenta', 'Pone una escena en cámara lenta suave (crea los fotogramas intermedios siguiendo el movimiento): velocidad 0.5 (2×), 0.33 (3×) o 0.25 (4×); 1 la devuelve a normal. La voz de esa escena no suena: úsala en montajes con música o tomas sin diálogo. Tarda unos 20 s por cada segundo de video en 4K.', {
+    proyecto, escena: z.string(), velocidad: z.number().min(0.2).max(1),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    return E.summarize(await E.setSlowMotion(dir, a.escena, a.velocidad), dir);
+  });
+
   tool('igualar_color_referencia', 'Iguala el color del reel a una imagen (o video) de referencia: mide los colores de ambos y crea un LUT a la medida, con fuerza ajustable. Los textos no cambian. Para quitarlo, usa el LUT "sin LUT" en el studio.', {
     proyecto, imagen: z.string().describe('Ruta absoluta de la imagen o video de referencia'),
     fuerza: z.number().min(0.1).max(1).default(0.85),

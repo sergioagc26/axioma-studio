@@ -151,6 +151,10 @@ export const Scene = z.object({
   camera: Camera.default('ninguno'),
   /** Cuánto se mueve la cámara (0,05 sutil – 0,4 fuerte). */
   cameraAmount: z.number().min(0.03).max(0.5).default(0.14),
+  /** Cámara lenta: 1 normal, 0,5 a la mitad, 0,25 a un cuarto. La voz de la escena se silencia. */
+  speed: z.number().min(0.2).max(1).default(1),
+  /** Tramos ya interpolados (fotogramas intermedios) para la cámara lenta suave. */
+  slowFiles: z.array(z.object({ start: z.number(), end: z.number(), speed: z.number(), file: z.string() })).optional(),
   brollFile: z.string().optional(),
   motionTemplate: z.string().optional(),
   /** Datos de la plantilla de motion graphics (los pone el usuario; nunca inventados). */

@@ -34,7 +34,7 @@ export function effectiveRanges(scene: Pick<Scene, 'ranges' | 'trimStart' | 'tri
 }
 
 /** Duración de una escena en la salida (con su recorte). */
-export const sceneLength = (scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'>) => effectiveRanges(scene).reduce((a, r) => a + r.end - r.start, 0);
+export const sceneLength = (scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'> & { speed?: number }) => effectiveRanges(scene).reduce((a, r) => a + r.end - r.start, 0) / Math.min(1, Math.max(0.2, scene.speed ?? 1));
 
 export type MotionSpec = {
   template: string; data: Record<string, any>; text?: string;
@@ -54,6 +54,9 @@ export type TimelineClip = {
   /** Frames de la escena que ya pasaron antes de este tramo (para b-roll continuo). */
   sceneOffsetFrames: number;
   punchZoom: boolean;
+  /** Cámara lenta: velocidad (< 1) y, si ya existe, el video con fotogramas intermedios. */
+  speed?: number;
+  slowSrc?: string;
   /** El audio sigue sin corte desde el tramo anterior / hacia el siguiente (solo cambia el encuadre). */
   seamIn?: boolean;
   seamOut?: boolean;
@@ -255,13 +258,18 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
       : visual === 'texto' && activeText(scene) ? { template: 'texto', data: {}, text: activeText(scene), style: scene.motionStyle } : undefined;
 
     effectiveRanges(scene, project.source.duration).forEach((r, i) => {
-      const dur = Math.max(0, r.end - r.start);
+      // Cámara lenta: el tramo dura más en la salida (dur / velocidad).
+      const speed = Math.min(1, Math.max(0.2, scene.speed ?? 1));
+      const slow = speed < 1;
+      const dur = Math.max(0, r.end - r.start) / speed;
       if (dur <= 0) return;
+      // Video ya interpolado para este tramo (si no, se reproduce más lento sin fotogramas nuevos).
+      const slowFile = slow ? scene.slowFiles?.find((f) => Math.abs(f.start - r.start) < 0.02 && Math.abs(f.end - r.end) < 0.02 && Math.abs(f.speed - speed) < 0.001)?.file : undefined;
       // Con reencuadre al hablante, el tramo se parte donde cambia quien habla.
-      const pieces = auto && urls.speakers?.length ? splitBySpeaker(r, urls.speakers) : [r as { start: number; end: number; turn?: SpeakerTurn }];
+      const pieces = !slow && auto && urls.speakers?.length ? splitBySpeaker(r, urls.speakers) : [r as { start: number; end: number; turn?: SpeakerTurn }];
       pieces.forEach((pc, pi) => {
-        const from = toFrame(acc + (pc.start - r.start));
-        const to = toFrame(acc + (pc.end - r.start));
+        const from = toFrame(acc + (pc.start - r.start) / speed);
+        const to = toFrame(acc + (pc.end - r.start) / speed);
         if (to > from) {
           // Un encuadre fijo por tramo (media de la cara): sigue a la persona sin temblar.
           const focus = pc.turn ? { x: pc.turn.x, y: pc.turn.y } : auto ? focusFor(urls.faces, pc.start, pc.end, manual) : manual;
@@ -284,6 +292,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             durationInFrames: to - from,
             sourceStartFrame: toFrame(pc.start),
             seamIn: pi > 0 || undefined,
+            speed: slow ? speed : undefined,
+            slowSrc: slowFile && urls.asset ? urls.asset(slowFile) : undefined,
             seamOut: pi < pieces.length - 1 || undefined,
             sceneOffsetFrames: from - toFrame(sceneStart),
             punchZoom: scene.punchZoom && i === 0 && pi === 0,
@@ -293,7 +303,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
           });
         }
       });
-      if (sourceWords) {
+      // En cámara lenta no suena la voz: tampoco hay subtítulos.
+      if (sourceWords && !slow) {
         for (const w of sourceWords.words) {
           const mid = (w.start + w.end) / 2;
           if (mid < r.start || mid >= r.end) continue;

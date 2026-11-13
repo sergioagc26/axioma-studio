@@ -233,7 +233,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
   // Si solo cambia el encuadre (reencuadre al hablante), el audio sigue sin fundido.
   const fadeVol = (f: number) => t.originalVolume * Math.min(1, clip.seamIn ? 1 : (f + 1) / 2, clip.seamOut ? 1 : (clip.durationInFrames - f) / 2);
-  const voice = t.originalVolume <= 0 ? null
+  const voice = t.originalVolume <= 0 || clip.speed ? null
     : t.voiceSrc ? <Audio src={t.voiceSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} />
     : clip.visual !== 'original' ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} /> : null;
   // Transición de entrada: la escena anterior sigue debajo mientras la nueva entra animada.
@@ -274,13 +274,15 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
           <AbsoluteFill>
             <OffthreadVideo src={t.cutoutSrc} transparent trimBefore={clip.sourceStartFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }} />
           </AbsoluteFill>
-          {!t.voiceSrc && t.originalVolume > 0 ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} /> : null}
+          {!t.voiceSrc && t.originalVolume > 0 && !clip.speed ? <Audio src={t.videoSrc} trimBefore={clip.sourceStartFrame} volume={fadeVol} /> : null}
         </>
       ) : (
         <OffthreadVideo
-          src={t.videoSrc}
-          trimBefore={clip.sourceStartFrame}
-          muted={Boolean(t.voiceSrc) || t.originalVolume <= 0}
+          // Cámara lenta: el video interpolado (suave) o, mientras se prepara, el original más lento.
+          src={clip.slowSrc ?? t.videoSrc}
+          trimBefore={clip.slowSrc ? 0 : clip.sourceStartFrame}
+          playbackRate={clip.speed && !clip.slowSrc ? clip.speed : 1}
+          muted={Boolean(t.voiceSrc) || t.originalVolume <= 0 || Boolean(clip.speed)}
           volume={fadeVol}
           style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }}
         />

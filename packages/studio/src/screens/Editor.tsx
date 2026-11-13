@@ -194,6 +194,19 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [safeNet, setSafeNet] = useState<keyof typeof SAFE>(() => /historia/i.test(project.brief.formato ?? '') ? 'historia' : /tiktok/i.test(project.brief.formato ?? '') ? 'tiktok' : /short/i.test(project.brief.formato ?? '') ? 'short' : 'reel');
   const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`;
 
+  // Cámara lenta suave por escena (se crean los fotogramas intermedios en el servidor).
+  const [slowing, setSlowing] = useState('');
+  const slowMotion = async (sceneId: string, speed: number) => {
+    setSlowing(speed < 1 ? 'Creando los fotogramas intermedios…' : 'Volviendo a velocidad normal…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'camara-lenta', sceneId, speed }) });
+      await waitJob(job, (j) => setSlowing(j.message || 'Creando los fotogramas intermedios…'));
+      const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
+      store.replace(d.project);
+      ctx.toast(speed < 1 ? 'Cámara lenta lista y suave.' : 'Escena a velocidad normal.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setSlowing(''); }
+  };
+
   // Reencuadre al hablante (videos horizontales con varias personas).
   const [speakerBusy, setSpeakerBusy] = useState('');
   const followSpeaker = async (on: boolean) => {
@@ -939,6 +952,15 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 </select>
               </label>
             </div>
+            <label className="field">Cámara lenta
+              <select value={String(scene.speed ?? 1)} disabled={Boolean(slowing)} onChange={(e) => slowMotion(scene.id, Number(e.target.value))}>
+                <option value="1">Normal</option>
+                <option value="0.5">A la mitad (2×)</option>
+                <option value="0.33">A un tercio (3×)</option>
+                <option value="0.25">A un cuarto (4×)</option>
+              </select>
+            </label>
+            {slowing ? <span className="pill" role="status">{slowing}</span> : (scene.speed ?? 1) < 1 ? <span className="small muted">Suave: se crean los fotogramas intermedios. La voz de esta escena no suena (va bien con música).</span> : null}
             <label className="field">Fondo detrás de la persona
               <select value={scene.backdrop} disabled={!store.extras?.cutout} onChange={(e) => edit((s) => { s.backdrop = e.target.value as Scene['backdrop']; })}>
                 <option value="ninguno">El del video (sin cambios)</option>

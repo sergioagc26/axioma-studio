@@ -33,6 +33,7 @@ import { DUB_LANGUAGES, dubProject } from './dub.ts';
 import { montageToBeat } from './beats.ts';
 import { setFollowSpeaker } from './speakers.ts';
 import { matchToReference } from './colorref.ts';
+import { setSlowMotion } from './slowmo.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -330,6 +331,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Preparando las imágenes…';
         const r = await createImages(dir, tipo, (m) => { j.message = m; });
         return { files: r.files, ai: r.ai };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'camara-lenta') {
+      const job = startJob('ia', async (j) => {
+        await setSlowMotion(dir, String(b.sceneId ?? ''), Number(b.speed) || 1, (m, pr) => { j.message = m; if (pr != null) j.progress = pr; });
+        return {};
       });
       return json(res, job);
     }
