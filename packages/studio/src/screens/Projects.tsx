@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
+import { KeysPanel } from '../Bank.tsx';
 
 interface Item { id: string; name: string; client: string; approval: string; scenes: number; updatedAt: string; kind?: string; duration?: number; thumbT?: number }
 
@@ -21,6 +22,7 @@ function ago(iso: string) {
 export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [items, setItems] = useState<Item[] | null>(null);
   const [client, setClient] = useState('');
+  const [keysOpen, setKeysOpen] = useState(false);
   const [preset, setPreset] = useState('rapido');
   const [kind, setKind] = useState<'hablado' | 'montaje'>('hablado');
   const [job, setJob] = useState<Job | null>(null);
@@ -102,10 +104,12 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
   return (
     <main className="page projects" style={{ maxWidth: 1080, width: '100%', margin: '0 auto' }}>
+      {keysOpen && <KeysPanel onClose={() => setKeysOpen(false)} toast={ctx.toast} />}
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 28 }}>Nuevo reel</h1>
         <div className="row">
           <a className="btn rect" href="#/calendario">📅 Calendario</a>
+          <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pexels, Freesound y ElevenLabs">🔑 Claves</button>
         {items && items[0] && !job && (
           <a className="btn rect" href={`#/editor?p=${encodeURIComponent(items[0].id)}`} title={`Abrir «${items[0].name}»`}>Seguir con «{items[0].name.length > 28 ? items[0].name.slice(0, 27) + '…' : items[0].name}» →</a>
         )}

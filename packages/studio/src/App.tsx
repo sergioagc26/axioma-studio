@@ -236,7 +236,7 @@ export const App: React.FC = () => {
               <button className="btn rect" onClick={pickFolder}>Elegir carpeta…</button>
             </div>
             <span className="small muted">Se recuerda para la próxima vez. Vacío = dentro del proyecto.</span>
-            <span className="small muted">Texto para publicar (también se guarda junto al video como .txt)</span>
+            <span className="small muted">Texto para publicar (junto al video se guardan también el .txt y los subtítulos en .srt)</span>
             <textarea className="input" readOnly rows={6} style={{ resize: 'vertical', fontFamily: 'inherit' }} value={pubText} />
             {local && (
               <button className="btn rect" style={{ alignSelf: 'flex-start' }} disabled={pubBusy} onClick={async () => {

@@ -102,6 +102,10 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## Claves de servicios
+
+En Proyectos, **🔑 Claves** muestra las tres claves opcionales, qué desbloquea cada una, si ya está puesta y el enlace para sacarla: Pexels (b-roll de stock, gratis), Freesound (sonidos, gratis) y ElevenLabs (voz natural, de pago). Se pegan ahí y se guardan en `.env` de este computador; no se vuelven a mostrar.
+
 ## Abrir la app desde el portátil
 
 La app corre en este computador (el Mac mini) y el portátil solo necesita un navegador; los cortes, el render y la IA se hacen aquí.
@@ -187,6 +191,7 @@ En el brief, en «Marca», el botón **Manual de marca (PDF)** crea en segundos 
 - **Pantalla dividida y recuadro** (Imagen y cámara, en escenas con b-roll): el b-roll arriba y tú abajo (o al revés), con una línea del color de la marca, o tú en un recuadro sobre el b-roll (formato reacción). Claude: `editar_escena` con `distribucion_broll`.
 - **Puntaje del reel** (debajo de «Editar todo con IA»): de 0 a 100 con gancho, ritmo, movimiento en pantalla, subtítulos, duración, cierre y audio, y qué hacer para subir cada parte. Son buenas prácticas de retención; no predice las vistas. Claude: `puntaje_reel`.
 - **Rótulo con nombre y cargo** (Acabados): entra deslizándose con una barra del color de la marca, en el segundo y por el tiempo que elijas. Claude: `rotulo`.
+- **Subtítulos en .srt**: cada exportación deja junto al video un `.srt` con los subtítulos en los tiempos del reel final (líneas de hasta 42 caracteres), para subirlo aparte a YouTube, LinkedIn o Facebook.
 - **Horizontal 16:9** (Exportar): para YouTube, 1920×1080 con el reel vertical entero y centrado sobre un fondo con los colores de la marca (no se recorta).
 
 ## Editar por texto y revisión del cliente

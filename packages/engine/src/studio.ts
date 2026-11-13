@@ -206,7 +206,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/claves' && method === 'GET') return json(res, await keyStatus());
   if (p === '/api/claves' && method === 'POST') {
     const b = await readBody(req);
-    await setEnvValue(b.banco === 'pexels' ? 'PEXELS_API_KEY' : b.banco === 'freesound' ? 'FREESOUND_API_KEY' : '', String(b.clave ?? ''));
+    await setEnvValue(({ pexels: 'PEXELS_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY' } as Record<string, string>)[String(b.banco)] ?? '', String(b.clave ?? ''));
     return json(res, await keyStatus());
   }
   if (p === '/api/pexels' && method === 'GET') return json(res, { results: await searchBroll(String(url.searchParams.get('q') ?? '').slice(0, 80), 9) });

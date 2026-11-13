@@ -15,7 +15,7 @@ import { normalizeMix } from './media.ts';
 import { ensureUsedSfx } from './sfx.ts';
 import { depthPath, ensureProjectDepth } from './depth.ts';
 import { gradedMaster } from './lut.ts';
-import { publishPack, publishText } from '@axioma/schema';
+import { publishPack, publishText, toSrt } from '@axioma/schema';
 import { P, REMOTION_ENTRY } from './paths.ts';
 import { serveFolder } from './server.ts';
 import { readProject, readTranscript } from './store.ts';
@@ -120,6 +120,8 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     const kit = await readKit(project.client).catch(() => null);
     const pack = publishPack(project, transcript, kit?.sector);
     await writeFile(out.replace(/\.mp4$/i, '') + '.txt', publishText(pack)).catch(() => {});
+    // Y los subtítulos en .srt, para subirlos aparte a YouTube, LinkedIn o Facebook.
+    if (timeline.words.length) await writeFile(out.replace(/\.mp4$/i, '') + '.srt', toSrt(timeline.words, timeline.fps)).catch(() => {});
     // La marca aprende con qué diseño se exporta.
     const titles = project.scenes.filter((x) => x.onScreenText).map((x) => x.textStyle);
     await learnFromExport(project.client, project.captions.design, titles.sort((a, b) => titles.filter((x) => x === b).length - titles.filter((x) => x === a).length)[0]).catch(() => {});
