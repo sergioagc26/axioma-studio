@@ -28,6 +28,18 @@ function plainError(msg: string): string {
 }
 
 /**
+ * Qué está haciendo la exportación. Al principio (0 %) se prepara el material y al final (95 %+) se
+ * nivela el volumen y se guarda: son pasos sin porcentaje, así que se dicen con palabras.
+ */
+function stage(progress: number, message: string): string {
+  const generic = !message || /^(exportando…?|empezando…?|preparando la exportación…?)$/i.test(message.trim());
+  if (!generic) return message;
+  if (progress <= 0) return 'Preparando el material… (el primer paso tarda un poco)';
+  if (progress >= 0.95) return 'Nivelando el volumen y guardando el archivo…';
+  return 'Armando el video cuadro por cuadro…';
+}
+
+/**
  * Resultado: lo primero que se ve al terminar la edición. El video grande, qué se le hizo
  * (en iconos) y tres caminos: exportar, pedir un cambio con palabras o abrir los ajustes avanzados.
  */
@@ -54,7 +66,8 @@ export const Listo: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const reload = async () => {
     const d = await api(`/api/project?id=${encodeURIComponent(project.id)}`);
     store.replace(d.project);
-    await store.reloadExtras();
+    // La misma respuesta trae extras, estilos y marca: no se pide el proyecto dos veces.
+    await store.reloadExtras(d);
   };
   const ask = async (request: string) => {
     if (!request.trim() || busy) return;
@@ -200,7 +213,7 @@ export const Listo: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <div className="col" style={{ gap: 6 }} role="status">
             <strong>Exportando tu video… {Math.round(ctx.exporting.progress * 100)} %</strong>
             <div className={`progress ${ctx.exporting.progress <= 0 || ctx.exporting.progress >= 0.95 ? 'busy' : ''}`}><div style={{ width: `${Math.round(ctx.exporting.progress * 100)}%` }} /></div>
-            {ctx.exporting.message && <span className="small muted">{ctx.exporting.message}</span>}
+            <span className="small muted">{stage(ctx.exporting.progress, ctx.exporting.message)}</span>
           </div>
         ) : ctx.exportBusyElsewhere ? (
           <div className="col" style={{ gap: 8 }}>
@@ -233,6 +246,21 @@ export const Listo: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <div className="col" style={{ gap: 8, padding: 12, borderRadius: 12, background: 'var(--cyanSoft)' }}>
             <strong><Icon name="check" style={{ marginRight: 6 }} />Video exportado</strong>
             <span className="small" style={{ wordBreak: 'break-all' }}>{last.file ? last.path : `Está en tu carpeta: ${last.path}`}</span>
+            {last.files && last.files.length > 1 && (
+              <div className="col" style={{ gap: 4 }}>
+                {last.files.map((f) => (
+                  <div key={f.id + f.label} className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
+                    <span className="small" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.label}><strong>{f.id}</strong> · {f.label}</span>
+                    {f.file ? (
+                      <>
+                        <a className="btn ghost small" href={mediaHref(f.file)} target="_blank" rel="noreferrer" aria-label={`Abrir ${f.label}`}><Icon name="play" />Abrir</a>
+                        <a className="btn ghost small" href={mediaHref(f.file)} download aria-label={`Descargar ${f.label}`}><Icon name="export" />Descargar</a>
+                      </>
+                    ) : <span className="small muted">En tu carpeta</span>}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="row">
               {last.file && <a className="btn primary" href={mediaHref(last.file)} target="_blank" rel="noreferrer"><Icon name="play" />Abrir</a>}
               {last.file && <a className="btn rect" href={mediaHref(last.file)} download><Icon name="export" />Descargar</a>}

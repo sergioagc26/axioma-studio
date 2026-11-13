@@ -40,7 +40,7 @@ interface AccountsFile { cuentas: Account[]; porCliente: Record<string, Partial<
 const FILE = path.join(WORKSPACE, 'cuentas.json');
 const PORT = Number(process.env.SE_STUDIO_PORT ?? 4747);
 const DAY = 86_400_000;
-const NO_ACCOUNT = 'Conecta la cuenta en Proyectos → 🔗 Cuentas.';
+const NO_ACCOUNT = 'Conecta la cuenta en Proyectos → «Cuentas».';
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // --- Errores de las redes ---
@@ -242,7 +242,7 @@ export async function accountFor(client: string | undefined, red: Red, accountId
   if (!all.length) throw new Error(NO_ACCOUNT);
   if (accountId) {
     const hit = all.find((a) => a.id === accountId);
-    if (!hit) throw new Error('Esa cuenta ya no está conectada. Abre 🔗 Cuentas.');
+    if (!hit) throw new Error('Esa cuenta ya no está conectada. Abre «Cuentas».');
     return hit;
   }
   const remembered = all.find((a) => a.id === f.porCliente[slugify(client ?? 'personal')]?.[red]);

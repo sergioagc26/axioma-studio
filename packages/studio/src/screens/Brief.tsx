@@ -34,12 +34,13 @@ export const SPOKEN_CTA = 'La que digo en el video';
 
 // Todas las preguntas se responden tocando una opción; escribir es solo para una respuesta distinta.
 const QUESTIONS: Q[] = [
-  { key: 'formato', label: 'Formato', title: '¿Dónde lo vas a publicar?', help: 'Define las zonas seguras y cómo se acomodan los textos.', placeholder: 'Ej.: pantalla de un evento', options: [
-    { value: 'Reel 9:16', title: 'Reel de Instagram', desc: 'Vertical, para el feed de Reels.' },
-    { value: 'Historia 9:16', title: 'Historia', desc: 'Deja libre la zona de respuesta.' },
-    { value: 'TikTok 9:16', title: 'TikTok', desc: 'Vertical, ritmo de TikTok.' },
-    { value: 'YouTube Short 9:16', title: 'YouTube Short', desc: 'Vertical, hasta 60 s.' },
-    { value: 'Anuncio 9:16', title: 'Anuncio pagado', desc: 'Para pautar: mensaje claro y cierre fuerte.' }] },
+  // Lo que dice cada opción es lo que hace la edición con el brief (brief.ts, applyBrief).
+  { key: 'formato', label: 'Formato', title: '¿Dónde lo vas a publicar?', help: 'Todos salen en vertical 9:16; según dónde, cambia el ritmo, la duración o el cierre.', placeholder: 'Ej.: pantalla de un evento', options: [
+    { value: 'Reel 9:16', title: 'Reel de Instagram', desc: 'Vertical 9:16, para el feed de Reels.' },
+    { value: 'Historia 9:16', title: 'Historia', desc: 'Sube los subtítulos para dejar libre la zona de respuesta.' },
+    { value: 'TikTok 9:16', title: 'TikTok', desc: 'Si no eliges ritmo, corta rápido.' },
+    { value: 'YouTube Short 9:16', title: 'YouTube Short', desc: 'Lo deja en 60 s como máximo.' },
+    { value: 'Anuncio 9:16', title: 'Anuncio pagado', desc: 'Siempre lleva frase de cierre, aunque no elijas una.' }] },
   { key: 'objetivo', label: 'Objetivo', title: '¿Qué quieres que haga quien lo vea?', help: 'El cierre del reel se arma alrededor de esto.', placeholder: 'Ej.: que reserven una clase de prueba', options: [
     { value: 'Mensajes por DM', title: 'Escribirte por DM', desc: 'Que te escriban para pedir info.' },
     { value: 'Comentarios', title: 'Comentar', desc: 'Que respondan u opinen.' },
@@ -84,7 +85,6 @@ const QUESTIONS: Q[] = [
 const editing = new Map<string, Job>();
 /** Qué pantalla Brief sigue cada edición: solo esa navega o avisa al terminar. */
 const owner = new Map<string, symbol>();
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const ninguna = (v?: string) => !v || v === 'ninguna';
 /** Botón pequeño (lápiz, papelera) sobre la miniatura de una referencia. */
 const ICON_BTN: React.CSSProperties = { width: 24, height: 24, padding: 0, border: 0, borderRadius: 6, background: 'rgba(0,0,0,.6)', color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer' };
@@ -96,8 +96,6 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const forGoal = CTA_FOR[project.brief.objetivo ?? ''];
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  const savingRef = useRef(store.saving);
-  savingRef.current = store.saving;
   const [building, setBuilding] = useState('');
   const buildingRef = useRef(false);
   const busy = Boolean(building);
@@ -166,8 +164,21 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ctx.toast(`«${r.name}» quitada.`);
     } catch (e: any) { ctx.toast(e.message); }
   };
-  const [prompt, setPrompt] = useState('');
-  const loadPrompt = () => { setPrompt('Escribiendo…'); setTimeout(() => api<Help>(`/api/brief-ia?id=${pid}`).then((h) => setPrompt(h.prompt)).catch(() => setPrompt('')), 900); };
+  // «Ver lo que la app va a hacer»: el plan real de la edición (el mismo que sigue al editar).
+  const [plan, setPlan] = useState<string[] | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const briefKey = JSON.stringify(project.brief);
+  useEffect(() => {
+    if (!planOpen) return;
+    let on = true;
+    setPlan(null);
+    // Primero se guarda lo último elegido, para que el plan lo tenga en cuenta.
+    store.flush().catch(() => {})
+      .then(() => api<{ plan: string[] }>(`/api/plan?id=${pid}`))
+      .then((d) => on && setPlan(d.plan))
+      .catch(() => on && setPlan([]));
+    return () => { on = false; };
+  }, [planOpen, briefKey]);
 
   const [brand, setBrand] = useState({ name: '', sector: '', personality: '', primary: '#FE2C55', secondary: '#25F4EE' });
   useEffect(() => {
@@ -208,10 +219,7 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   /** Espera a que se guarde lo último que se escribió (el guardado sale con un pequeño retraso). */
   const flushSaves = async () => {
     (document.activeElement as HTMLElement | null)?.blur?.();
-    const flush = (store as unknown as { flush?: () => Promise<void> }).flush;
-    if (flush) return flush();
-    await sleep(350);
-    for (let i = 0; savingRef.current && i < 150; i++) await sleep(60);
+    await store.flush();
   };
   /** Sigue una edición hasta el final; al terminar lleva a Resultado y exporta solo. */
   const follow = async (job: Job) => {
@@ -223,8 +231,13 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } finally { editing.delete(project.id); }
     if (owner.get(project.id) !== me) return;
     owner.delete(project.id);
-    if (!alive.current) { ctx.toast(`«${project.name}» ya está editado. Ábrelo para verlo y exportarlo.`); return; }
     const d = await api(`/api/project?id=${pid}`);
+    if (!alive.current) {
+      // Se salió del brief: si el video sigue abierto, se muestra ya editado (si no, un guardado pisaría la edición).
+      if (store.latest()?.id === project.id) { store.replace(d.project); await store.reloadExtras().catch(() => {}); }
+      ctx.toast(`«${project.name}» ya está editado. Ábrelo para verlo y exportarlo.`);
+      return;
+    }
     store.replace(d.project);
     await store.reloadExtras();
     ctx.go('listo', { s: null });
@@ -257,7 +270,10 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     buildingRef.current = true;
     setBuilding('Guardando tus respuestas…');
     if (refsLoaded && !refSel && !ninguna(project.brief.referencia)) set('referencia', 'ninguna');
-    await flushSaves();
+    try { await flushSaves(); } catch (e: any) {
+      buildingRef.current = false; setBuilding('');
+      return ctx.toast(`No se pudo guardar tus respuestas: ${e.message}`);
+    }
     await run(() => api<Job>(`/api/op?id=${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'aplicar-brief' }) }));
   };
 
@@ -268,7 +284,8 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     return opts;
   };
   const row = (x: Q) => {
-    if (refSel && (x.key === 'tono' || x.key === 'ritmo')) {
+    // Con referencia, el ritmo es el de la referencia; el tono sigue eligiendo música y efectos.
+    if (refSel && x.key === 'ritmo') {
       return (
         <section key={x.key} className="col" style={{ gap: 8 }}>
           <h2 style={{ fontSize: 17 }}>{x.title}</h2>
@@ -285,7 +302,8 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <h2 style={{ fontSize: 17 }}>{x.title}</h2>
           {suggested.includes(x.key) && <span className="pill" title="Lo propuso la IA al oír tu video. Cámbialo si no es."><Icon name="sparkle" size={12} />sugerido</span>}
         </div>
-        {x.key === 'tono' && store.kit?.sector && <span className="small muted">El estilo de los textos y la imagen lo pone tu marca «{store.kit.name}»; el tono guía las palabras y la música.</span>}
+        {x.key === 'tono' && refSel && <span className="small muted">Las letras, los textos y el ritmo los copia de «{refSel.name}»; el tono elige la música y los efectos.</span>}
+        {x.key === 'tono' && !refSel && store.kit?.sector && <span className="small muted">El estilo de los textos y la imagen lo pone tu marca «{store.kit.name}»; el tono guía las palabras y la música.</span>}
         <div className="bchips">
           {opts.map((o) => (
             <button key={o.value} className={`bchip ${value === o.value ? 'on' : ''}`} aria-pressed={value === o.value} title={o.desc} onClick={() => set(x.key, o.value)}>
@@ -381,9 +399,13 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <summary><Icon name="settings" /> Más opciones</summary>
           <fieldset disabled={busy} style={{ ...lock, gap: 18 }}>{MORE.map(row)}</fieldset>
         </details>
-        <details className="grp" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) loadPrompt(); }}>
+        <details className="grp" onToggle={(e) => setPlanOpen((e.target as HTMLDetailsElement).open)}>
           <summary><Icon name="brief" /> Ver lo que la app va a hacer</summary>
-          <pre className="small" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.5 }}>{prompt}</pre>
+          <div className="col small" style={{ gap: 4, paddingBottom: 12, lineHeight: 1.5 }} aria-live="polite">
+            {plan === null ? <span className="muted">Mirando tus respuestas…</span>
+              : plan.length ? plan.map((l, i) => <span key={i} className="row" style={{ gap: 6, alignItems: 'baseline', flexWrap: 'nowrap' }}><Icon name="check" size={13} style={{ flex: 'none' }} />{l}</span>)
+              : <span className="muted">No se pudo armar el plan ahora. Puedes editar igual.</span>}
+          </div>
         </details>
         <details className="grp">
           <summary><Icon name="palette" /> {store.kit?.sector ? `Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : 'Tu marca'}

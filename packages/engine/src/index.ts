@@ -55,3 +55,4 @@ export * from './briefai.ts';
 export * from './update.ts';
 export * from './brandbook.ts';
 export * from './backup.ts';
+export * from './trash.ts';

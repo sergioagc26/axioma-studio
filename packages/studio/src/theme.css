@@ -92,9 +92,10 @@ select { min-height: 36px; padding: 6px 10px; border-radius: 8px; border: 1px so
 /* Storyboard */
 .page { flex: 1; min-height: 0; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
-.scene { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); touch-action: none; }
+.scene { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); }
 .scene.sel { border: 2px solid var(--pink); padding: 9px; }
-.scene .grab { cursor: grab; }
+/* Solo el asa de arrastre bloquea el desplazamiento táctil: deslizar sobre la tarjeta mueve la página. */
+.scene .grab { cursor: grab; touch-action: none; }
 .bar { display: flex; gap: 3px; height: 34px; }
 .bar > button { border: 0; border-radius: 6px; font-size: 12px; font-weight: 600; padding: 0 8px; overflow: hidden; white-space: nowrap; text-align: left; min-width: 0; }
 

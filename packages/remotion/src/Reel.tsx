@@ -133,7 +133,9 @@ const ReelBody: React.FC<Timeline> = (t) => {
       ) : null}
       {t.voiceoverSrc ? <Audio src={t.voiceoverSrc} /> : null}
       {t.sfx.map((e, i) => (
-        <Sequence key={`fx${i}`} from={e.fromFrame}>
+        // Los efectos duran como mucho 8 s (los del banco se limitan a eso): con duración, cada
+        // <audio> se desmonta al terminar y el reproductor no acumula decenas a la vez.
+        <Sequence key={`fx${i}`} from={e.fromFrame} durationInFrames={Math.round(t.fps * 8)}>
           <Audio src={e.src} volume={e.volume} />
         </Sequence>
       ))}

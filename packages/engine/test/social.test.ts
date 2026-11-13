@@ -73,11 +73,11 @@ async function meta(c: Call): Promise<unknown> {
   if (k === 'POST oauth/access_token') return c.form.get('grant_type') === 'fb_exchange_token' ? { access_token: LONG, token_type: 'bearer', expires_in: 5_184_000 } : { access_token: SHORT, token_type: 'bearer' };
   if (k === 'GET me/accounts') {
     return c.query.get('after') ? { data: [PAGES[1], PAGES[2]] }
-      : { data: [PAGES[0]], paging: { cursors: { after: 'c1' }, next: `https://graph.facebook.com/v27.0/me/accounts?after=c1&access_token=${LONG}` } };
+      : { data: [PAGES[0]], paging: { cursors: { after: 'c1' }, next: `https://graph.facebook.com/v26.0/me/accounts?after=c1&access_token=${LONG}` } };
   }
   if (k === `GET ${PAGES[2].id}`) return PAGES[2];
   if (k === `GET ${IG1}/content_publishing_limit`) return { data: [{ quota_usage: 2, config: { quota_total: 50, quota_duration: 86400 } }] };
-  if (k === `POST ${IG1}/media`) { const id = `C${++fake.containers}`; return { id, uri: `https://rupload.facebook.com/ig-api-upload/v27.0/${id}` }; }
+  if (k === `POST ${IG1}/media`) { const id = `C${++fake.containers}`; return { id, uri: `https://rupload.facebook.com/ig-api-upload/v26.0/${id}` }; }
   if (k === 'POST rupload') return { success: true };
   if (/^GET C\d+$/.test(k)) return { id: k.slice(4), status_code: fake.status.length > 1 ? fake.status.shift() : fake.status[0], video_status: fake.videoStatus };
   if (k === `POST ${IG1}/media_publish`) return { id: 'M1' };
@@ -294,7 +294,7 @@ describe('conectar Instagram', () => {
 
   it('con el botón: usa el Configuration ID si lo hay, y si no la lista de permisos', async () => {
     const u = new URL(await S.connectUrl('instagram'));
-    expect(u.origin + u.pathname).toBe('https://www.facebook.com/v27.0/dialog/oauth');
+    expect(u.origin + u.pathname).toBe('https://www.facebook.com/v26.0/dialog/oauth');
     expect(u.searchParams.get('client_id')).toBe(APP_ID);
     expect(u.searchParams.get('redirect_uri')).toBe(`http://localhost:${port}/api/redes/instagram/callback`);
     expect(u.searchParams.get('scope')).toContain('instagram_content_publish');
@@ -344,7 +344,7 @@ describe('conectar Instagram', () => {
     expect(envText()).not.toContain('META_USER_TOKEN');
     expect(envText()).toContain(`META_APP_ID=${APP_ID}`);
     expect((await S.socialStatus()).instagram.cuentas).toEqual([]);
-    await expect(publicar()).rejects.toThrow('Conecta la cuenta en Proyectos → 🔗 Cuentas.');
+    await expect(publicar()).rejects.toThrow('Conecta la cuenta en Proyectos → «Cuentas».');
   });
 });
 
@@ -359,11 +359,11 @@ describe('publicar un Reel', () => {
     expect(calls.map((c) => c.key)).toEqual([`POST ${IG1}/media`, 'POST rupload', 'GET C1', 'GET C1', `POST ${IG1}/media_publish`, 'GET M1']);
     const [media, upload, , , publish] = calls;
     // Paso 1: los datos van en el cuerpo, como formulario, y el permiso en la cabecera.
-    expect(media.url).toBe(`https://graph.facebook.com/v27.0/${IG1}/media`);
+    expect(media.url).toBe(`https://graph.facebook.com/v26.0/${IG1}/media`);
     expect(Object.fromEntries(media.form)).toEqual({ media_type: 'REELS', upload_type: 'resumable', caption: 'Mi texto #reels', thumb_offset: '1500' });
     expect(media.headers.Authorization).toBe(`Bearer ${PAGE1}`);
     // Paso 2: a la dirección que dio Instagram, con las tres cabeceras y el archivo entero.
-    expect(upload.url).toBe('https://rupload.facebook.com/ig-api-upload/v27.0/C1');
+    expect(upload.url).toBe('https://rupload.facebook.com/ig-api-upload/v26.0/C1');
     expect(upload.headers).toMatchObject({ Authorization: `OAuth ${PAGE1}`, offset: '0', file_size: '5000' });
     expect((upload.body as Uint8Array).byteLength).toBe(5000);
     expect(publish.form.get('creation_id')).toBe('C1');
@@ -459,11 +459,41 @@ describe('publicar un Reel', () => {
     expect(count(new RegExp(`^POST ${IG1}/media$`))).toBe(1);
   });
 
+  it('si rupload dice que el fallo se puede reintentar, sigue desde donde llegó', async () => {
+    let first = true;
+    fake.on.push([/^POST rupload$/, () => {
+      if (!first) return undefined;
+      first = false;
+      return new Response(JSON.stringify({ debug_info: { retriable: true, type: 'ProcessingFailedError', message: 'Se cortó' } }), { status: 400 });
+    }]);
+    fake.videoStatus = { uploading_phase: { status: 'in_progress', bytes_transferred: 1500 } };
+    await publicar();
+    expect(calls.filter((c) => c.key === 'POST rupload').map((c) => c.headers.offset)).toEqual(['0', '1500']);
+    expect(count(new RegExp(`^POST ${IG1}/media$`))).toBe(1);
+    expect(count(/media_publish$/)).toBe(1);
+  });
+
+  it('si la respuesta de publicar se pierde y Instagram tarda en marcarlo, no da error ni deja republicar', async () => {
+    fake.media = [{ id: 'M1', permalink: PERMALINK, timestamp: new Date(Date.now() + 5000).toISOString().replace(/\.\d+Z$/, '+0000'), media_product_type: 'REELS' }];
+    // Tras el corte, la primera consulta aún dice FINISHED y la segunda ya PUBLISHED.
+    fake.on.push([/media_publish$/, () => { fake.status = ['FINISHED', 'PUBLISHED']; throw new TypeError('fetch failed'); }]);
+    const r = await publicar();
+    expect(r.url).toBe(PERMALINK);
+    expect(count(/media_publish$/)).toBe(1);
+    expect((await entries())[0].remote).toMatchObject({ state: 'publicado', id: 'M1' });
+  });
+
+  it('los mensajes de error no llevan emojis ni símbolos sueltos', async () => {
+    fake.rejected = new Set([PAGE1, LONG]);
+    const e = await publicar().then(() => null, (x) => x);
+    expect(e.message).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
   it('permiso caducado: la cuenta pasa a «reconectar» y la entrada queda en error', async () => {
     fake.rejected = new Set([PAGE1, LONG]);
     const e = await publicar().then(() => null, (x) => x);
     expect(S.failKind(e)).toBe('reconectar');
-    expect(e.message).toBe('Instagram pidió volver a conectar la cuenta. Abre 🔗 Cuentas.');
+    expect(e.message).toBe('Instagram pidió volver a conectar la cuenta. Abre «Cuentas».');
     sinSecretos(e.message);
     // Probó con el permiso de la página y luego con el de usuario, y no llegó a subir nada.
     expect(calls.map((c) => [c.key, c.headers.Authorization])).toEqual([[`POST ${IG1}/media`, `Bearer ${PAGE1}`], [`POST ${IG1}/media`, `Bearer ${LONG}`]]);
@@ -575,7 +605,7 @@ describe('traer las cifras', () => {
     fake.rejected = new Set([PAGE1, LONG]);
     const r = await S.syncMetrics({ force: true });
     expect(r.actualizadas).toBe(0);
-    expect(r.errores).toEqual(['«Reel demo»: Instagram pidió volver a conectar la cuenta. Abre 🔗 Cuentas.']);
+    expect(r.errores).toEqual(['«Reel demo»: Instagram pidió volver a conectar la cuenta. Abre «Cuentas».']);
     expect((await S.socialStatus()).instagram.cuentas[0].estado).toBe('reconectar');
     expect((await S.syncMetrics({ entrada: 'no-existe' })).errores[0]).toContain('no se hizo desde la app');
   });
@@ -649,7 +679,7 @@ describe('rutas del studio', () => {
     fake.rejected = new Set([PAGE1, LONG]);
     const fallo = await job(await post(`/api/redes/publicar?id=${PID}`, { ...body, confirmado: true, repetir: true }));
     seen.push(JSON.stringify(fallo));
-    expect(fallo).toMatchObject({ status: 'error', message: 'Instagram pidió volver a conectar la cuenta. Abre 🔗 Cuentas.' });
+    expect(fallo).toMatchObject({ status: 'error', message: 'Instagram pidió volver a conectar la cuenta. Abre «Cuentas».' });
     expect(JSON.parse(await text(await get('/api/redes'))).instagram.cuentas[0].estado).toBe('reconectar');
 
     const off = await post('/api/redes/desconectar', { cuenta: `ig-${IG2}` });
@@ -659,6 +689,39 @@ describe('rutas del studio', () => {
     expect(seen.length).toBeGreaterThan(10);
     for (const t of seen) sinSecretos(t);
   }, 30_000);
+
+  it('rechaza las rutas de cuentas pedidas con otro nombre de equipo (DNS rebinding)', async () => {
+    const http = await import('node:http');
+    const raw = (p: string, host: string, method = 'GET', body = '') => new Promise<number>((ok, ko) => {
+      const rq = http.request({ host: '127.0.0.1', port, path: p, method, headers: { Host: host, 'Content-Type': 'application/json' } }, (rs) => { rs.resume(); ok(rs.statusCode ?? 0); });
+      rq.on('error', ko); rq.end(body);
+    });
+    expect(await raw('/api/redes', `ataque.example:${port}`)).toBe(403);
+    expect(await raw(`/api/redes/publicar?id=${PID}`, `ataque.example:${port}`, 'POST', JSON.stringify({ red: 'instagram', confirmado: true }))).toBe(403);
+    expect(await raw('/api/redes', `localhost:${port}`)).toBe(200);
+    expect(await raw('/api/redes', `127.0.0.1:${port}`)).toBe(200);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('la publicación en marcha lleva el proyecto y no se lanza dos veces', async () => {
+    await conectar();
+    calls = [];
+    let release!: () => void;
+    const gate = new Promise<void>((ok) => { release = ok; });
+    fake.on.push([/media_publish$/, async () => { await gate; return undefined; }]);
+    const body = { red: 'instagram', cuenta: `ig-${IG1}`, texto: 'Hola', confirmado: true };
+    const a = await (await post(`/api/redes/publicar?id=${PID}`, body)).json();
+    const b = await (await post(`/api/redes/publicar?id=${PID}`, body)).json();
+    expect(a).toMatchObject({ kind: 'publicar', projectId: PID });
+    expect(b.id).toBe(a.id);
+    const list = await (await get(`/api/jobs?id=${PID}&kind=publicar`)).json();
+    expect(list.map((j: { id: string }) => j.id)).toEqual([a.id]);
+    release();
+    let j = a;
+    for (let i = 0; i < 200 && j.status === 'running'; i++) { await new Promise((ok) => setTimeout(ok, 25)); j = await (await get(`/api/jobs/${a.id}`)).json(); }
+    expect(j).toMatchObject({ status: 'done', result: { url: PERMALINK } });
+    expect(count(/media_publish$/)).toBe(1);
+  });
 
   it('rechaza escrituras desde otro origen y redes que aún no existen', async () => {
     const r = await realFetch(`${base}/api/redes/token`, { method: 'POST', headers: { Origin: 'http://otra-web.test' }, body: JSON.stringify({ red: 'instagram', token: SHORT }) });

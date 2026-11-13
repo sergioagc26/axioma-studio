@@ -42,7 +42,9 @@ export interface Ctx {
 }
 
 /** Lo que devuelve GET /api/ultimo-export. `file` es relativo al proyecto (para /media/<id>/<file>). */
-export interface LastExport { file: string | null; path: string; at: string; stale: boolean; error?: string }
+export interface LastExport { file: string | null; path: string; at: string; stale: boolean; error?: string; files?: ExportFile[] }
+/** Cada archivo de una exportación de varios (los 3 formatos o las 3 versiones del gancho). `file` null = fuera del proyecto. */
+export interface ExportFile { id: string; label: string; file?: string | null }
 
 /**
  * Firma del contenido del video para saber si cambió después de exportar. Deja fuera lo que escribe
@@ -50,8 +52,10 @@ export interface LastExport { file: string | null; path: string; at: string; sta
  */
 const firma = (p: Project) => JSON.stringify({ ...p, updatedAt: '', export: null, audio: { ...p.audio, targetLufs: 0 } });
 
-/** Tecla de los atajos según el sistema: ⌘ en Mac, Ctrl en Windows. */
-const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+/** Atajos según el sistema: ⌘ en Mac, Ctrl en Windows. */
+const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+const MOD = MAC ? '⌘' : 'Ctrl+';
+const REDO = MAC ? '⇧⌘Z' : 'Ctrl+Shift+Z';
 
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
@@ -63,7 +67,7 @@ function parseHash(): { screen: Screen; p: string | null; s: string | null } {
 // En el orden del trabajo real: casi siempre se llega al Editor (modo automático).
 // Lo de todos los días a la vista; lo avanzado, guardado en «Más».
 const TABS: [Screen, IconName, string][] = [['brief', 'brief', 'Brief'], ['listo', 'result', 'Resultado'], ['editor', 'editor', 'Editor']];
-const MORE: [Screen, IconName, string][] = [['texto', 'text', 'Texto'], ['storyboard', 'storyboard', 'Storyboard'], ['variantes', 'variants', 'Variantes'], ['audio', 'audio', 'Audio'], ['imagenes', 'image', 'Imágenes'], ['referencias', 'reference', 'Referencias']];
+const MORE: [Screen, IconName, string][] = [['texto', 'scissors', 'Cortar por texto'], ['storyboard', 'storyboard', 'Storyboard'], ['variantes', 'variants', 'Variantes'], ['audio', 'audio', 'Audio'], ['imagenes', 'image', 'Imágenes'], ['referencias', 'reference', 'Referencias']];
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
@@ -161,7 +165,9 @@ export const App: React.FC = () => {
   const [sigs, setSigs] = useState<Record<string, string>>({});
   const [exportError, setExportError] = useState<{ id: string; message: string } | null>(null);
   const loadExport = useCallback((id: string) => api<LastExport | null>(`/api/ultimo-export?id=${encodeURIComponent(id)}`)
-    .then((d) => setExported((cur) => (parseHash().p === id ? { id, data: d ?? null } : cur)))
+    .then((d) => setExported((cur) => (parseHash().p !== id ? cur
+      // El servidor no guarda la lista de archivos de una exportación múltiple: se conserva la de esta sesión.
+      : { id, data: d ? { ...d, files: cur?.id === id && cur.data?.path === d.path ? cur.data.files : undefined } : null })))
     .catch(() => { /* sin dato del servidor: se queda lo que había */ }), []);
 
   /** Sigue una exportación hasta el final y deja el resultado (o el error) a la vista. */
@@ -171,7 +177,8 @@ export const App: React.FC = () => {
     try {
       const done = await waitJob(job, (j) => { renderRef.current = j; setRender(j); });
       setSigs((all) => { const n = { ...all }; if (sig) n[id] = sig; else delete n[id]; return n; });
-      setExported({ id, data: { file: (done.result?.file as string | undefined) ?? null, path: String(done.result?.path ?? ''), at: String(done.result?.at ?? new Date().toISOString()), stale: false } });
+      const files = done.result?.files as ExportFile[] | undefined;
+      setExported({ id, data: { file: (done.result?.file as string | undefined) ?? files?.find((f) => f.file)?.file ?? null, path: String(done.result?.path ?? ''), at: String(done.result?.at ?? new Date().toISOString()), stale: false, files } });
       void loadExport(id);
       return done;
     } catch (e: any) {
@@ -287,8 +294,11 @@ export const App: React.FC = () => {
   };
   // Tras recargar: si el servidor sigue creando un proyecto, se retoma su avance.
   useEffect(() => {
-    api<Job[]>('/api/jobs?kind=crear').then((list) => {
-      const j = Array.isArray(list) ? list.find((x) => x.status === 'running') : undefined;
+    // /api/jobs?kind=crear devuelve solo las creaciones de proyecto (tipo 'nuevo'); por si acaso, solo
+    // se retoma la de un proyecto que aún no tiene escenas, que es el que se está creando.
+    Promise.all([api<Job[]>('/api/jobs?kind=crear'), api<{ id: string; scenes: number }[]>('/api/projects')]).then(([list, projects]) => {
+      const fresh = new Set((Array.isArray(projects) ? projects : []).filter((x) => !x.scenes).map((x) => x.id));
+      const j = Array.isArray(list) ? list.find((x) => x.status === 'running' && x.projectId && fresh.has(x.projectId)) : undefined;
       if (!j || creatingRef.current) return;
       creatingRef.current = true;
       finishCreate(j).catch((e: any) => toast(`No se pudo crear: ${e.message}`)).finally(() => { creatingRef.current = false; setCreating(null); });
@@ -352,7 +362,7 @@ export const App: React.FC = () => {
           {project && (
             <>
               <button className="btn sq" aria-label="Deshacer" title={`Deshacer (${MOD}Z)`} disabled={!store.canUndo} onClick={store.undo}><Icon name="undo" /></button>
-              <button className="btn sq" aria-label="Rehacer" title={`Rehacer (⇧${MOD}Z)`} disabled={!store.canRedo} onClick={store.redo}><Icon name="redo" /></button>
+              <button className="btn sq" aria-label="Rehacer" title={`Rehacer (${REDO})`} disabled={!store.canRedo} onClick={store.redo}><Icon name="redo" /></button>
             </>
           )}
           {/* Quién atiende los pedidos de cambios. Con la IA local lista, conectar Claude queda en el mismo botón. */}
@@ -401,7 +411,7 @@ export const App: React.FC = () => {
             <h2 style={{ fontSize: 22 }}>Exportar video</h2>
             <span className="small muted">Formato</span>
             <div className="opts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios'], ['16:9', 'Horizontal', 'YouTube: el reel centrado'], ['todos', 'Los 3 verticales', '9:16, 4:5 y 1:1 de una vez']] as const).map(([id, name, desc]) => (
+              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios'], ['16:9', 'Horizontal', 'YouTube: el video centrado'], ['todos', 'Los 3 verticales', '9:16, 4:5 y 1:1 de una vez']] as const).map(([id, name, desc]) => (
                 <button key={id} className={`opt ${formato === id ? 'on' : ''}`} aria-pressed={formato === id} onClick={() => setFormato(id)}>
                   <strong>{name}{id === 'todos' ? '' : ` · ${id}`}</strong><span className="muted small">{desc}</span>
                 </button>

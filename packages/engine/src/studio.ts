@@ -41,7 +41,7 @@ import { duplicateProject, trashProject } from './manage.ts';
 import { saveClientLogo } from './kit.ts';
 import { addReviewComment, approveReview, ensureReviewToken, findByToken, publicReview, resetReviewToken, reviewVideo } from './review.ts';
 import { reviewPageHtml } from './review-page.ts';
-import { MUSIC_DIR, addTrack, listTracks, rebeatMontage, removeTrack, renameTrack, useLibraryTrack, autoMusic, stockMusic } from './musiclib.ts';
+import { MUSIC_DIR, addTrack, keepEdits, listTracks, rebeatMontage, removeTrack, renameTrack, useLibraryTrack, autoMusic, stockMusic } from './musiclib.ts';
 import { splitIntoParts } from './series.ts';
 import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { brandbookFile, createBrandbook } from './brandbook.ts';
@@ -54,18 +54,20 @@ import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
-import { envValue, keyStatus, setEnvValue } from './env.ts';
+import { envValue, keyStatus, removeEnvValue, setEnvValue } from './env.ts';
 import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
 import { createProject, readProject, readTranscript, writeProject } from './store.ts';
+import { emptyTrash, listTrash, restoreTrash } from './trash.ts';
 
 export const STUDIO_PORT = Number(process.env.SE_STUDIO_PORT ?? 4747);
 const DIST = path.join(REPO_ROOT, 'packages', 'studio', 'dist');
 
 interface Job {
   id: string;
-  kind: 'crear' | 'render' | 'referencia' | 'ia' | 'audio' | 'publicar' | 'metricas';
+  /** 'nuevo' = se está creando un proyecto; 'crear' = edición completa (aplicar-brief, auto-editar). */
+  kind: 'nuevo' | 'crear' | 'render' | 'referencia' | 'ia' | 'audio' | 'publicar' | 'metricas' | 'actualizar' | 'copia';
   status: 'running' | 'done' | 'error';
   message: string;
   progress: number;
@@ -104,6 +106,14 @@ async function findDir(id: string | null): Promise<string> {
   if (!hit) throw Object.assign(new Error(id ? `No existe el proyecto ${id}.` : 'No hay proyectos.'), { status: 404 });
   return hit.dir;
 }
+
+/** Direcciones con las que se puede abrir la app: localhost o una IP (nunca un nombre de otra web). */
+const HOST_OK = /^(localhost|127\.0\.0\.1|\[::1\]|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:.]+\])(:\d{1,5})?$/i;
+
+const CACHE_DAY = { 'Cache-Control': 'max-age=86400' };
+
+/** Qué variable del .env guarda la clave de cada banco. */
+const KEY_ENV: Record<string, string> = { pexels: 'PEXELS_API_KEY', pixabay: 'PIXABAY_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY', meta_app_id: 'META_APP_ID', meta_app_secret: 'META_APP_SECRET', meta_config_id: 'META_CONFIG_ID', meta_api_version: 'META_API_VERSION' };
 
 /** Archivo exportado relativo al proyecto (para /media/<id>/<file>), o null si quedó fuera. */
 const relOut = (dir: string, out: string) => { const r = path.relative(dir, out); return r.startsWith('..') || path.isAbsolute(r) ? null : r.split(path.sep).join('/'); };
@@ -232,6 +242,10 @@ async function handleReview(req: http.IncomingMessage, res: http.ServerResponse,
 async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://x');
   if (await handleReview(req, res, url)) return;
+  // Solo se atiende si la dirección pedida es «localhost» o una IP: una web con otro nombre que
+  // apunte a este equipo (DNS rebinding) pasaría el control de origen y podría leer o cambiar todo.
+  // Los enlaces de revisión (/r/…) van antes: llevan su propia clave.
+  if (!HOST_OK.test(req.headers.host ?? '')) return json(res, { error: 'Abre la app con «localhost» o con la IP de este computador.' }, 403);
   if (guardNetwork(req, res, url)) return;
   const p = url.pathname;
   const id = url.searchParams.get('id');
@@ -250,7 +264,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const b = await readBody(req);
     // Los datos de la app de Meta (para publicar en Instagram) solo se cambian desde este computador.
     if (String(b.banco).startsWith('meta_')) soloLocal(req);
-    await setEnvValue(({ pexels: 'PEXELS_API_KEY', pixabay: 'PIXABAY_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY', meta_app_id: 'META_APP_ID', meta_app_secret: 'META_APP_SECRET', meta_config_id: 'META_CONFIG_ID', meta_api_version: 'META_API_VERSION' } as Record<string, string>)[String(b.banco)] ?? '', String(b.clave ?? ''));
+    await setEnvValue(KEY_ENV[String(b.banco)] ?? '', String(b.clave ?? ''));
+    return json(res, await keyStatus());
+  }
+  if (p === '/api/claves' && method === 'DELETE') {
+    // Quitar una clave: solo desde este computador.
+    if (!isLoopback(req.socket.remoteAddress)) return json(res, { error: 'Las claves se quitan desde el computador donde está instalada la app.' }, 403);
+    const name = KEY_ENV[String(url.searchParams.get('banco'))];
+    if (!name || name.startsWith('META_')) return json(res, { error: 'No conozco esa clave.' }, 400);
+    await removeEnvValue(name);
     return json(res, await keyStatus());
   }
   if (p === '/api/pexels' && method === 'GET') return json(res, { results: await searchBroll(String(url.searchParams.get('q') ?? '').slice(0, 80), 9) });
@@ -288,7 +310,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (p === '/api/projects' && method === 'GET') {
     const all = await ops.listProjects();
-    const making = new Set([...jobs.values()].filter((j) => j.kind === 'crear' && j.status === 'running' && j.projectId).map((j) => j.projectId));
+    const making = new Set([...jobs.values()].filter((j) => j.kind === 'nuevo' && j.status === 'running' && j.projectId).map((j) => j.projectId));
     return json(res, all.map(({ project: x }) => ({
       id: x.id, name: x.name, client: x.client ?? 'personal', approval: x.approval, scenes: x.scenes.length, updatedAt: x.updatedAt,
       kind: x.kind, duration: +outputDuration(x).toFixed(1),
@@ -314,7 +336,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const b = await readBody(req);
     const folders: string[] = (b.tokens ?? []).map((t: string) => uploads.get(t)).filter(Boolean);
     if (!folders.length) return json(res, { error: 'Sube al menos un video.' }, 400);
-    const job = startJob('crear', async (j) => {
+    const job = startJob('nuevo', async (j) => {
       const log = (m: string) => { j.message = m.trim(); };
       // Si falla antes de quedar armado, el proyecto a medias va a la papelera (no queda en la lista).
       let made: string | undefined;
@@ -348,7 +370,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     await mkdir(tmpDir, { recursive: true });
     const tmp = path.join(tmpDir, filename);
     await pipe(req, createWriteStream(tmp));
-    const job = startJob('crear', async (j) => {
+    const job = startJob('nuevo', async (j) => {
       const log = (m: string) => { j.message = m.trim(); };
       // Si falla antes de quedar cortado, el proyecto a medias va a la papelera (no queda en la lista).
       let made: string | undefined;
@@ -394,7 +416,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 
   // Tareas en marcha: las de un proyecto (?id=) o las de un tipo (?kind=crear), para retomar el avance.
   if (p === '/api/jobs' && method === 'GET') {
-    const kind = url.searchParams.get('kind');
+    // ?kind=crear es otro nombre de ?kind=nuevo: solo las tareas que están creando un proyecto.
+    const kind = url.searchParams.get('kind') === 'crear' ? 'nuevo' : url.searchParams.get('kind');
     return json(res, [...jobs.values()].filter((j) => j.status === 'running' && (!id || j.projectId === id) && (!kind || j.kind === kind)));
   }
 
@@ -475,7 +498,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'crear-imagenes') {
       // Carrusel, post o historia a partir del reel.
       const tipo = ['carrusel', 'post', 'historia', 'portada'].includes(b.tipo) ? b.tipo : 'carrusel';
-      const job = startJob('crear', async (j) => {
+      const job = startJob('ia', async (j) => {
         j.message = 'Preparando las imágenes…';
         const r = await createImages(dir, tipo, (m) => { j.message = m; });
         return { files: r.files, ai: r.ai };
@@ -492,7 +515,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'manual-marca') {
       // Manual de marca del cliente en PDF (colores, letras, logo, video y tono), desde su kit.
       const project = await readProject(dir);
-      const job = startJob('crear', async (j) => {
+      const job = startJob('ia', async (j) => {
         j.message = 'Armando el manual de marca…';
         const r = await createBrandbook(project.client);
         return { pdf: `/api/manual-marca?id=${encodeURIComponent(project.id)}`, hasKit: r.hasKit };
@@ -537,9 +560,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'ritmo') {
       // Montaje con los cortes en los golpes de la música.
       // Sin duración pedida se mantiene la actual (con voz en off, la de la voz).
+      // Se conservan gancho, cierre, textos, color y transiciones (y queda una versión de antes).
       const cur = await readProject(dir);
+      if (cur.kind === 'montaje' && cur.scenes.length) await ops.saveVersion(dir, 'antes-de-cortar-al-ritmo').catch(() => {});
       const r = await montageToBeat(dir, { density: ['auto', 'pulso', 'medio', 'compas'].includes(b.densidad) ? b.densidad : 'auto', duration: Number(b.duracion) || (cur.audio.voiceover || !cur.scenes.length ? undefined : outputDuration(cur)) });
-      return json(res, { project: r.project, bpm: r.bpm, cuts: r.cuts, duration: r.duration, drop: r.drop });
+      const project = cur.kind === 'montaje' && cur.scenes.length ? await writeProject(dir, keepEdits(cur, r.project)) : r.project;
+      return json(res, { project, bpm: r.bpm, cuts: r.cuts, duration: r.duration, drop: r.drop });
     }
     if (b.op === 'doblar') {
       // Copia del reel con la voz en otro idioma (la original no se toca).
@@ -551,9 +577,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'crear-clip') {
       // Reel nuevo con un tramo del video largo, ya editado con IA.
-      const job = startJob('crear', async (j) => {
+      const job = startJob('nuevo', async (j) => {
         j.message = 'Creando el reel del clip…';
         const made = await createClipProject(dir, { start: Number(b.start), end: Number(b.end), title: String(b.title ?? '') }, Number(b.n) || 1);
+        // Desde aquí la tarea es del reel nuevo (sale «creando» en su tarjeta).
+        j.projectId = made.id; dirCache.set(made.id, made.dir);
         j.message = 'Editando el clip…';
         const { summary } = await editEverything(made.dir, { onProgress: (m) => { j.message = m; } });
         return { id: made.id, summary };
@@ -562,6 +590,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'auto-editar') {
       // Edición completa sin preguntas: referencia del cliente + tendencia del nicho + lo que se ve en el video.
+      // Una sola edición completa a la vez por proyecto: si ya hay una en marcha, se devuelve esa.
+      const busy = runningJob(pid, 'crear', 'editar');
+      if (busy) return json(res, busy);
       const job = startJob('crear', async (j) => {
         j.message = 'Editando todo el video…';
         const { summary } = await editEverything(dir, { referenceId: b.refId, onProgress: (m) => { j.message = m; } });
@@ -572,7 +603,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'otra-musica') {
       // Cambia la canción por otra del mismo ánimo (de la biblioteca o del banco gratuito).
-      const job = startJob('crear', async (j) => {
+      const job = startJob('audio', async (j) => {
         j.message = 'Buscando otra canción…';
         // Se cambia en un solo guardado (sin pasar por «sin música»); el montaje se recorta al ritmo
         // de la canción nueva conservando duración, cierre, textos y transiciones.
@@ -583,7 +614,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       });
       return json(res, job);
     }
-    if (b.op === 'aplicar-brief' || b.op === 'auto-editar') {
+    if (b.op === 'aplicar-brief') {
       // Una sola edición completa a la vez por proyecto: si ya hay una en marcha, se devuelve esa.
       const busy = runningJob(pid, 'crear', 'editar');
       if (busy) return json(res, busy);
@@ -827,6 +858,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (method === 'DELETE') return json(res, await removeEntry(entry));
   }
   // Publicar en redes (hoy Instagram). Nunca se devuelve un permiso: solo nombres y estados.
+  // (La comprobación de la dirección pedida contra DNS rebinding se hace al principio de handle().)
   if (p === '/api/redes' && method === 'GET') return json(res, await socialStatus());
   if (p === '/api/redes/conectar' && method === 'POST') {
     soloLocal(req);
@@ -869,7 +901,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     // Publicar es público y no se deshace: sin la confirmación de la persona no se hace nada.
     if (b.confirmado !== true) return json(res, { error: 'Confirma antes de publicar: es público y no se puede deshacer.' }, 400);
     const str = (x: unknown) => (typeof x === 'string' && x ? x : undefined);
-    const job = startJob('publicar', async (j) => ({ ...(await publishReel(dir, { red: b.red, cuenta: str(b.cuenta), texto: str(b.texto), entrada: str(b.entrada), repetir: b.repetir === true, portadaMs: Number.isFinite(b.portadaMs) ? Number(b.portadaMs) : undefined }, (m, pr) => { j.message = m; j.progress = pr; })) }));
+    // Si ya hay una publicación en marcha de este video (p. ej. tras recargar la página), se sigue esa.
+    const running = runningJob(id, 'publicar');
+    if (running) return json(res, running);
+    // Con projectId, la pantalla puede retomar el avance tras recargar (GET /api/jobs?id=…).
+    const job = startJob('publicar', async (j) => ({ ...(await publishReel(dir, { red: b.red, cuenta: str(b.cuenta), texto: str(b.texto), entrada: str(b.entrada), repetir: b.repetir === true, portadaMs: Number.isFinite(b.portadaMs) ? Number(b.portadaMs) : undefined }, (m, pr) => { j.message = m; j.progress = pr; })) }), id);
     return json(res, job);
   }
   if (p === '/api/redes/metricas' && method === 'POST') {
@@ -902,7 +938,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, updateCache.data);
   }
   if (p === '/api/actualizar' && method === 'POST') {
-    const job = startJob('crear', async (j) => {
+    const job = startJob('actualizar', async (j) => {
       j.message = 'Buscando la versión nueva…';
       const r = await applyUpdate((m) => { j.message = m; });
       const canRestart = r.restart && process.argv.includes('studio');
@@ -914,7 +950,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   // Copia de seguridad: estado, y hacerla ahora (corre en segundo plano).
   if (p === '/api/copia' && method === 'GET') return json(res, await backupStatus());
   if (p === '/api/copia' && method === 'POST') {
-    const job = startJob('crear', async (j) => {
+    const job = startJob('copia', async (j) => {
       j.message = 'Haciendo la copia de seguridad…';
       const s = await runBackup((m) => { j.message = m; });
       if (s.error) throw new Error(s.error);
@@ -1074,10 +1110,34 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return;
   }
 
+  // Las miniaturas no cambian para el mismo momento: el navegador las guarda un día.
   if (p === '/api/thumb') {
     const dir = await findDir(id);
-    if (!sendFile(req, res, await thumb(dir, Math.max(0, Number(url.searchParams.get('t') ?? 0)), url.searchParams.get('file')))) res.writeHead(404).end();
+    if (!sendFile(req, res, await thumb(dir, Math.max(0, Number(url.searchParams.get('t') ?? 0)), url.searchParams.get('file')), CACHE_DAY)) res.writeHead(404).end();
     return;
+  }
+
+  // Miniatura JPG (360 px de ancho) de una imagen creada en «Imágenes» (las PNG pesan mucho).
+  if (p === '/api/imagenes/miniatura' && method === 'GET') {
+    const dir = await findDir(id);
+    const rel = url.searchParams.get('f') ?? '';
+    const src = safeJoin(path.join(dir, P.renders, 'imagenes'), rel.replace(new RegExp(`^${P.renders}/imagenes/`), ''));
+    if (!src || !/\.(png|jpe?g|webp)$/i.test(src) || !existsSync(src)) { res.writeHead(404).end(); return; }
+    const out = path.join(dir, 'proxies', 'thumbs', 'imagenes', path.relative(path.join(dir, P.renders, 'imagenes'), src).replace(/[\\/]/g, '__').replace(/\.\w+$/, '.jpg'));
+    if (!existsSync(out)) {
+      await mkdir(path.dirname(out), { recursive: true });
+      await ffmpeg(['-i', src, '-vf', 'scale=360:-2', '-q:v', '4', out]);
+    }
+    if (!sendFile(req, res, out, CACHE_DAY)) res.writeHead(404).end();
+    return;
+  }
+
+  // Papelera: ver lo que se quitó, recuperarlo o borrarlo para siempre (esto último solo desde este computador).
+  if (p === '/api/papelera' && method === 'GET') return json(res, await listTrash());
+  if (p === '/api/papelera/recuperar' && method === 'POST') return json(res, await restoreTrash(String((await readBody(req)).nombre ?? '')));
+  if (p === '/api/papelera' && method === 'DELETE') {
+    if (!isLoopback(req.socket.remoteAddress)) return json(res, { error: 'La papelera solo se vacía desde el computador donde está instalada la app.' }, 403);
+    return json(res, await emptyTrash(url.searchParams.get('nombre') || undefined));
   }
 
   if (p.startsWith('/media/')) {

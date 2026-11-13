@@ -165,6 +165,15 @@ export async function rebeatMontage(dir: string, before?: Project, opts: { durat
   const duration = opts.duration ?? (now.audio.voiceover ? undefined : outputDuration(old));
   let built: Project;
   try { built = (await buildMontage(dir, { duration })).project; } catch { return { project: now, rebuilt: false }; }
+  return { project: await ops.writeProject(dir, keepEdits(old, built)), rebuilt: true };
+}
+
+/**
+ * Pasa la edición del montaje viejo al recién cortado: gancho y cierre en su sitio, los textos del
+ * medio en el mismo orden, el color y la cámara de cada momento y las transiciones. Cambia `built`.
+ */
+export function keepEdits(old: Project, built: Project): Project {
+  if (!old.scenes.length || !built.scenes.length) return built;
   const n = built.scenes.length;
   const m = old.scenes.length;
   const at = (i: number, from: number, to: number) => (from <= 1 ? 0 : Math.round((i * (to - 1)) / (from - 1)));
@@ -192,7 +201,7 @@ export async function rebeatMontage(dir: string, before?: Project, opts: { durat
   const last = built.scenes[n - 1];
   first.role = old.scenes[0].role; first.title = old.scenes[0].title || first.title;
   if (n > 1 && m > 1) { last.role = old.scenes[m - 1].role; last.title = old.scenes[m - 1].title || last.title; }
-  return { project: await ops.writeProject(dir, built), rebuilt: true };
+  return built;
 }
 
 /** Qué se busca en el banco para cada ánimo: palabras sencillas (en inglés, como están etiquetadas) */

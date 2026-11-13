@@ -35,8 +35,6 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [dragOver, setDragOver] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const savingRef = useRef(store.saving);
-  savingRef.current = store.saving;
   const [touched, setTouched] = useState({ font: false, uppercase: false });
   const [form, setForm] = useState({
     name: '', ritmo: true, color: true, fuente: true, font: 'Montserrat', mode: 'word', uppercase: true, words: 3, useKit: false,
@@ -59,9 +57,12 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   useEffect(() => { setReady(false); }, [cur?.id]);
 
   const upload = async (file: File) => {
+    // Se le pone nombre al subirla (si no, quedaría con el nombre del archivo).
+    const base = file.name.replace(/\.[^.]+$/, '').slice(0, 60);
+    const nombre = (window.prompt('¿Cómo llamamos a esta referencia?', base) ?? '').trim() || base;
     try {
       setJob({ id: '', status: 'running', message: 'Subiendo la referencia…', progress: 0 });
-      const started = await api<Job>(`/api/references?id=${pid}&filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+      const started = await api<Job>(`/api/references?id=${pid}&filename=${encodeURIComponent(file.name)}&nombre=${encodeURIComponent(nombre)}`, { method: 'POST', body: file });
       const done = await waitJob(started, setJob);
       const report = done.result!.report as Report;
       setList((l) => [report, ...l]);
@@ -118,8 +119,8 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     setEditing('Empezando…');
     try {
       // Antes de editar, se espera a que se guarde lo último (el guardado sale con un pequeño retraso).
-      await new Promise((r) => setTimeout(r, 350));
-      for (let i = 0; savingRef.current && i < 150; i++) await new Promise((r) => setTimeout(r, 60));
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      await store.flush();
       const running = await api<(Job & { kind?: string })[]>(`/api/jobs?id=${pid}`).catch(() => []);
       const act = Array.isArray(running) ? running.find((j) => j.status === 'running' && j.kind === 'crear') : undefined;
       const job = act ?? await api<Job>(`/api/op?id=${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'aplicar-brief' }) });

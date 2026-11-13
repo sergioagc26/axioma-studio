@@ -96,7 +96,8 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     await mkdir(folder, { recursive: true });
     const out = opts.out ?? path.join(folder, `${project.id}-${stamp}${suffix}${opts.suffix ?? ''}.mp4`);
     // Calidad: cuanto menor el CRF, menos compresión. 12 es prácticamente sin pérdida visible.
-    const q = { maxima: { crf: 12, audio: '320k' }, alta: { crf: 17, audio: '256k' }, ligera: { crf: 23, audio: '160k' } }[opts.quality ?? project.export.quality];
+    // Audio AAC a lo más 256k: es lo máximo que conserva Instagram (más no se nota y lo recodifica).
+    const q = { maxima: { crf: 12, audio: '256k' }, alta: { crf: 17, audio: '256k' }, ligera: { crf: 23, audio: '160k' } }[opts.quality ?? project.export.quality];
     const raw = out.replace(/\.mp4$/i, '') + '.sin-nivelar.mp4';
     await retryBrowser(() => renderMedia({
       serveUrl,
@@ -114,7 +115,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     }));
     // Siempre se nivela el resultado final al volumen elegido (−14 LUFS para redes).
     try {
-      await normalizeMix(raw, out, project.audio.targetLufs);
+      await normalizeMix(raw, out, project.audio.targetLufs, q.audio);
       await rm(raw, { force: true });
     } catch {
       await rename(raw, out); // sin pista de audio no hay nada que nivelar
@@ -189,6 +190,8 @@ export async function lastExport(dir: string): Promise<{ file: string | null; pa
       if (!existsSync(folder)) continue;
       for (const f of await readdir(folder)) {
         if (!/\.mp4$/i.test(f) || /\.sin-nivelar\.mp4$/i.test(f) || !f.startsWith(project.id)) continue;
+        // Si aún existe su versión «sin nivelar», la exportación sigue escribiendo este archivo.
+        if (existsSync(path.join(folder, f.replace(/\.mp4$/i, '.sin-nivelar.mp4')))) continue;
         const t = (await stat(path.join(folder, f))).mtimeMs;
         if (!best || t > best.t) best = { f: path.join(folder, f), t };
       }

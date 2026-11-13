@@ -104,8 +104,9 @@ export interface ProjectStore {
   setPresets: (p: Preset[]) => void;
   error: string | null;
   saving: boolean;
-  /** Vuelve a pedir al servidor lo que no vive en project.json (transiciones propias, voz en off…). */
-  reloadExtras: () => Promise<void>;
+  /** Vuelve a pedir al servidor lo que no vive en project.json (transiciones propias, voz en off…).
+   *  Si ya se tiene la respuesta de GET /api/project, se pasa y no se vuelve a pedir. */
+  reloadExtras: (data?: { extras?: Extras; presets?: Preset[]; brand?: Brand }) => Promise<void>;
   /** Cambia el proyecto: guarda, y queda en el historial de deshacer. */
   update: (fn: (p: Project) => void) => void;
   /** Reemplaza el proyecto con uno que devolvió el servidor. `reset` limpia el historial de deshacer (ops que crean o borran archivos). */
@@ -266,9 +267,9 @@ export function useProject(id: string | null): ProjectStore {
     window.clearTimeout(timer.current);
     if (!(await sendRef.current())) throw new Error(lastError.current || 'No se pudo guardar el cambio.');
   }, []);
-  const reloadExtras = useCallback(async () => {
+  const reloadExtras = useCallback(async (data?: { extras?: Extras; presets?: Preset[]; brand?: Brand }) => {
     if (!id) return;
-    const d = await api(`/api/project?id=${encodeURIComponent(id)}`);
+    const d = data && data.presets ? data : await api(`/api/project?id=${encodeURIComponent(id)}`);
     setExtras(d.extras); setPresets(d.presets); setBrand(d.brand);
   }, [id]);
 

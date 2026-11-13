@@ -60,8 +60,10 @@ export function adviseProject(p: Project, transcript: Transcript | null): Advice
     why: 'Un barrido en cada transición y un «pop» al entrar un texto dan sensación de edición profesional.',
     op: { op: 'efectos-auto', on: true },
   });
-  if (!p.audio.music) out.push({
-    id: 'musica', title: 'Música de fondo', why: 'Sin música el reel se siente vacío. Se baja sola cuando hablas.', go: 'audio',
+  // Si la quitó a mano, no se le insiste.
+  if (!p.audio.music && !p.audio.musicOff) out.push({
+    id: 'musica', title: 'Música de fondo', why: 'Sin música el video se siente vacío. Pongo una del ánimo del video, bajita.',
+    op: { op: 'otra-musica' },
   });
   if (last && p.scenes.length > 1 && !last.onScreenText) {
     const cta = (p.brief.cta && !/digo en el video/i.test(p.brief.cta) ? p.brief.cta : '') || 'Sígueme para más';

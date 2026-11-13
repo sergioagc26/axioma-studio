@@ -257,7 +257,7 @@ function useMissing(urls: string[]) {
 /** Un icono por panel: se reconoce de un vistazo. */
 const GROUP_ICON: Record<string, IconName> = {
   sugerencias: 'bulb', estilos: 'palette', subtitulos: 'captions', color: 'color', herramientas: 'wand', acabados: 'finish', revision: 'eye', quitadas: 'trash',
-  variantes: 'variants', motion: 'chart', texto: 'title', imagen: 'camera', fondo: 'layers', dice: 'speech',
+  variantes: 'variants', motion: 'chart', texto: 'title', imagen: 'camera', fondo: 'layers', dice: 'speech', papel: 'tag',
 };
 const Group: React.FC<{ id: string; title: string; hint?: string; defaultOpen?: boolean; onOpen?: () => void; children: React.ReactNode }> = ({ id, title, hint, defaultOpen = false, onOpen, children }) => {
   const key = `axioma:grupo:${id}`;
@@ -704,14 +704,17 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [applying, setApplying] = useState<{ id: string; msg: string } | null>(null);
   const applyAdvice = async (a: ReturnType<typeof adviseProject>[number]) => {
     if (applying) return;
-    if (a.go) return ctx.go(a.go, {});
+    // La música la elige la app sola (como en Resultado), sin mandar a la pantalla de Audio.
+    const op = a.id === 'musica' ? { op: 'otra-musica' } : a.op;
+    if (a.go && !op) return ctx.go(a.go, {});
     if (a.fix) { store.update((p) => a.fix!(p)); return ctx.toast(`Aplicado: ${a.title.toLowerCase()}.`); }
     setApplying({ id: a.id, msg: 'Aplicando…' });
     try {
-      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a.op) });
-      if (d.id && d.status) await waitJob(d, (j) => setApplying({ id: a.id, msg: j.message || 'Aplicando…' }));
+      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(op) });
+      const done = d.id && d.status ? await waitJob(d, (j) => setApplying({ id: a.id, msg: j.message || 'Aplicando…' })) : null;
       await reloadProject();
-      ctx.toast(`Aplicado: ${a.title.toLowerCase()}.`);
+      const said = (done?.result as { text?: string } | undefined)?.text;
+      ctx.toast(said || `Aplicado: ${a.title.toLowerCase()}.`);
     } catch (e: any) { ctx.toast(e.message); } finally { setApplying(null); }
   };
   // Clips para redes sacados del video largo (solo si el original dura más de 45 s).
@@ -847,7 +850,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                     <strong className="small">{a.title}</strong>
                     <span className="small muted">{a.why}</span>
                     <div className="row" style={{ gap: 6 }}>
-                      <button className="btn primary" style={{ height: 30 }} disabled={applying !== null} onClick={() => applyAdvice(a)}>{applying?.id === a.id ? 'Aplicando…' : a.go ? 'Ir' : 'Aplicar'}</button>
+                      <button className="btn primary" style={{ height: 30 }} disabled={applying !== null} onClick={() => applyAdvice(a)}>{applying?.id === a.id ? 'Aplicando…' : a.go && a.id !== 'musica' ? 'Ir' : 'Aplicar'}</button>
                       <button className="btn ghost" style={{ height: 30 }} disabled={applying?.id === a.id} onClick={() => setDismissed((d) => [...d, a.id])}>Ahora no</button>
                     </div>
                     {applying?.id === a.id && <span className="pill" role="status">{applying.msg}</span>}
@@ -1123,13 +1126,12 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
         <main className="stage">
           <div className="row small muted">
-            <span className="pill line">9:16 · {project.format.width}×{project.format.height}</span>
-            <label className="row"><input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} /> Zonas seguras
+            {/* Sin la píldora «9:16 · 1080×1920»: era siempre igual y no decía nada a quien no edita. */}
+            <label className="row" title="Marca la parte del video que no tapan los botones, el perfil ni la barra de respuesta de la red"><input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} /> Zonas seguras
               <select value={safeNet} onChange={(e) => setSafeNet(e.target.value as keyof typeof SAFE)} style={{ marginLeft: 6 }} aria-label="Red para las zonas seguras">
                 <option value="reel">Reel</option><option value="historia">Historia</option><option value="tiktok">TikTok</option><option value="short">Short</option>
               </select>
             </label>
-            <TimeCounter player={player} playerKey={playerKey} total={total} fps={timeline.fps} />
           </div>
           <div className="playerbox" style={{ position: 'relative' }}>
             <Player
@@ -1142,7 +1144,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               compositionWidth={timeline.width}
               compositionHeight={timeline.height}
               style={{ width: '100%', height: '100%' }}
-              controls
+              // Un solo juego de controles (los de abajo): sin los del reproductor no hay botones repetidos
+              // ni el reproductor se roba el foco al terminar. Un clic en el video reproduce o pausa.
+              clickToPlay
               spaceKeyToPlayOrPause={false}
               errorFallback={() => <PreviewStuck onRetry={retryPreview} />}
               acknowledgeRemotionLicense
@@ -1154,6 +1158,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <button className="btn sq" aria-label="Escena anterior" disabled={idx <= 0} onClick={() => select(project.scenes[idx - 1].id)}><Icon name="prev" /></button>
             <PlayButton player={player} playerKey={playerKey} />
             <button className="btn sq" aria-label="Escena siguiente" disabled={idx >= project.scenes.length - 1} onClick={() => select(project.scenes[idx + 1].id)}><Icon name="next" /></button>
+            <span className="small muted"><TimeCounter player={player} playerKey={playerKey} total={total} fps={timeline.fps} /></span>
           </div>
         </main>
 
@@ -1165,11 +1170,6 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </div>
             <label className="field">Título
               <input key={scene.id + 't' + scene.title} defaultValue={scene.title} onBlur={(e) => e.target.value !== scene.title && edit((s) => { s.title = e.target.value; })} />
-            </label>
-            <label className="field">Rol
-              <select value={scene.role} onChange={(e) => edit((s) => { s.role = e.target.value as Scene['role']; })}>
-                {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-              </select>
             </label>
             <div className="col" style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--panel2)' }}>
               <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -1355,6 +1355,15 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--panel2)' }}>{sceneSpeech(scene, store.transcript)}</div>
               </Group>
             )}
+            {/* El papel de la escena es para la IA (orden y sugerencias): va plegado al final, no arriba. */}
+            <Group id="papel" title="Para qué sirve esta escena" hint={ROLE_LABEL[scene.role]}>
+              <label className="field">Papel en la historia
+                <select value={scene.role} onChange={(e) => edit((s) => { s.role = e.target.value as Scene['role']; })}>
+                  {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                </select>
+              </label>
+              <span className="small muted help">Ayuda a la IA a entender el video (por ejemplo, cuál escena engancha y cuál cierra). No cambia cómo se ve.</span>
+            </Group>
             <button className="btn rect" onClick={() => store.update((p) => { p.scenes = p.scenes.filter((s) => s.id !== scene.id); applyPunchZooms(p.scenes, p.pacing.punchZoomEvery); })}>Eliminar escena</button>
           </aside>
         )}
@@ -1466,8 +1475,10 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </div>
         </div>}
         <div className="track">
-          <span>{hasSpeech || project.audio.voiceover ? 'Voz' : 'Sonido'}</span>
-          <div className="lane" onClick={() => ctx.go('audio')} title="Abrir la pantalla de Audio">
+          <span className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>{hasSpeech || project.audio.voiceover ? 'Voz' : 'Sonido'}
+            <button className="btn ghost sq" style={{ height: 24, width: 24 }} aria-label="Cambiar la música, la voz o los efectos (abre Audio)" title="Cambiar la música, la voz o los efectos (abre Audio)" onClick={() => ctx.go('audio')}><Icon name="audio" size={14} /></button>
+          </span>
+          <div className="lane" onClick={seekLane}>
             {timeline.sfx.map((e, i) => <div key={i} className="clip" style={{ left: pct(e.fromFrame), width: 6, padding: 0, background: 'var(--cyan)', zIndex: 1 }} />)}
             <div className="clip" style={{ left: 0, width: '100%', background: 'var(--violet)', color: 'var(--onViolet)' }}>{project.audio.voiceover ? `Voz en off · ${project.audio.voiceover.provider}` : project.kind === 'montaje' ? `Sonido original · ${Math.round(project.audio.originalVolume * 100)}%` : 'Voz limpia'}{project.audio.music ? ' · con música' : ''}</div>
             <Playhead player={player} playerKey={playerKey} total={total} />

@@ -74,7 +74,9 @@ async function decideStyle(dir: string, project: Awaited<ReturnType<typeof readP
   let base: Preset;
   if (ref) {
     base = ref;
-    lines.push(`Seguí tu referencia «${ref.name}»: su ritmo de cortes, subtítulos y estilo de textos.`);
+    // El nombre actual de la referencia (si se renombró, no el que tenía al guardar el estilo).
+    const refName = (await listReferences(project.client)).find((r) => r.id === ref.reference)?.name ?? ref.name;
+    lines.push(`Seguí tu referencia «${refName}»: su ritmo de cortes, subtítulos y estilo de textos.`);
   } else if (trend) {
     base = getPreset(trend.preset, own);
     lines.push(`Sin referencia: usé lo que funciona en ${sectorName ?? 'tu nicho'} (${kit?.sector ? 'el nicho de tu marca' : rec0.reason.replace(/\.$/, '')}).`);
@@ -125,7 +127,8 @@ export async function planAutoEdit(dir: string): Promise<string[]> {
   const project = await readProject(dir);
   const route = await editRoute(project);
   const b = project.brief;
-  const max = maxSeconds(b.duracion);
+  const asked = maxSeconds(b.duracion);
+  const max = /short|youtube/i.test(b.formato ?? '') && (asked == null || asked > 60) ? 60 : asked;
   const cta = /digo en el video/i.test(b.cta ?? '') ? '' : (b.cta ?? '').trim() || ctaForGoal(b.objetivo, /anuncio/i.test(b.formato ?? ''));
   const musicLine = project.audio.music ? 'Dejaré la música que ya tiene.' : project.audio.musicOff ? 'No pondré música: la quitaste a mano.' : project.kind === 'montaje' ? 'Elegiré la música primero y cortaré en sus golpes.' : 'Pondré música del ánimo del video, bajita debajo de la voz.';
   if (route.useBrief) {
@@ -182,11 +185,19 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   void kit; void transcript0;
   summary.push(...lines);
 
+  // Formato del brief (también con referencia): YouTube Short máximo 60 s; Historia deja libre la
+  // zona de respuesta (se aplica después del estilo); el anuncio siempre lleva cierre (ver el paso 3).
+  const formato = project.brief.formato ?? '';
+  const short = /short|youtube/i.test(formato);
+  const askedMax = maxSeconds(project.brief.duracion);
+  const formatMax = short && (askedMax == null || askedMax > 60) ? 60 : askedMax;
+  if (short && formatMax !== askedMax) summary.push('Formato YouTube Short: máximo 60 s.');
+
   // 1. Corte con el ritmo elegido.
   if (project.kind === 'montaje') {
     project.pacing = merged.pacing;
     await writeProject(dir, project);
-    const max = maxSeconds(project.brief.duracion) ?? (wantsAll(project.brief.duracion) ? MONTAGE_ALL : trend?.seconds);
+    const max = formatMax ?? (wantsAll(project.brief.duracion) ? MONTAGE_ALL : short ? Math.min(60, trend?.seconds ?? 60) : trend?.seconds);
     const m = await buildMontage(dir, { duration: max });
     summary.push(`Montaje de ${m.duration.toFixed(0)} s con cortes de ~${m.clip.toFixed(1)} s.`);
   } else {
@@ -196,10 +207,10 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     const greeting = skipGreeting(project, await readTranscript(dir).catch(() => null));
     if (greeting) { project = await writeProject(dir, project); summary.push(`Quité el saludo del inicio («${greeting}») para abrir directo con el gancho.`); }
     // Solo se acorta si el brief pidió una duración: quitar partes por cuenta propia rompe el mensaje.
-    const max = maxSeconds(project.brief.duracion);
+    const max = formatMax;
     summary.push('Corté silencios largos, muletillas y tomas repetidas.');
     if (max && outputDuration(project) > max) {
-      summary.push(fitDuration(project, max));
+      summary.push(fitDuration(project, max, await readTranscript(dir).catch(() => null)));
       await writeProject(dir, project);
     }
   }
@@ -207,6 +218,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   // 2. La edición: gancho, textos, zoom, cámara, gráficos, transiciones, sonidos y acabados.
   project = await applyPresetObject(dir, merged);
   project.presetId = base.id;
+  if (/historia/i.test(formato)) project.captions.y = 0.62; // deja libre la zona de respuesta de las historias
 
   // 2b. B-roll automático de Pexels o Pixabay (si hay clave): una de cada cuatro escenas del medio,
   // nunca el gancho ni el cierre, y solo donde no hay texto ni gráfico.

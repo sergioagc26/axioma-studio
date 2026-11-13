@@ -113,10 +113,10 @@ export const Texto: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   return (
     <main className="page texto" style={{ maxWidth: 980, width: '100%', margin: '0 auto' }}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h1 style={{ fontSize: 26 }}>Editar por texto</h1>
+        <h1 style={{ fontSize: 26 }}>Cortar por texto</h1>
         <span className="muted small">El video dura {outputDuration(project).toFixed(1)} s · {removedCount} palabras fuera del corte</span>
       </div>
-      <p className="muted" style={{ margin: 0 }}>Selecciona palabras (clic, arrastrar o Mayús+clic) y quítalas del video o recupéralas. Las <s>tachadas</s> no están en el video. Teclas: Borrar quita · R recupera · Espacio escucha · Esc suelta.</p>
+      <p className="muted" style={{ margin: 0 }}>Selecciona palabras (clic y arrastrar; en el celular, toca la primera y la última) y quítalas del video o recupéralas. Las <s>tachadas</s> no están en el video. Teclas: Borrar quita · R recupera · Espacio escucha · Esc suelta.</p>
 
       <div className="texto-bar" role="toolbar" aria-label="Acciones sobre la selección">
         <span className="small muted" style={{ minWidth: 160 }}>{sel ? `${b - a + 1} palabra${b > a ? 's' : ''} seleccionada${b > a ? 's' : ''}` : 'Nada seleccionado'}</span>
@@ -139,6 +139,12 @@ export const Texto: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   anchor.current = i; dragging.current = true; setSel([i, i]);
                 }}
                 onMouseEnter={() => { if (dragging.current && anchor.current != null) setSel([Math.min(anchor.current, i), Math.max(anchor.current, i)]); }}
+                // En pantallas táctiles: un toque marca la primera palabra y otro toque, la última.
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  if (sel && sel[0] === sel[1] && anchor.current != null && anchor.current !== i) { setSel([Math.min(anchor.current, i), Math.max(anchor.current, i)]); return; }
+                  anchor.current = i; setSel([i, i]);
+                }}
               >{t.words[i].text} </span>
             ))}
           </p>

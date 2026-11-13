@@ -138,10 +138,13 @@ export async function applyLut(dir: string, opts: { builtin?: string; file?: str
   return writeProject(dir, fresh);
 }
 
-/** Quita el LUT: el reel vuelve al color original. */
+/**
+ * Quita el LUT: el reel vuelve al color original. Los videos con el color NO se borran: así
+ * «Deshacer» vuelve a mostrar el filtro con video (si no, la vista previa quedaba sin imagen).
+ * Se reemplazan solos al aplicar otro LUT.
+ */
 export async function removeLut(dir: string) {
   const project = await readProject(dir);
   project.finish.lut = undefined;
-  for (const f of [MASTER_LUT, PROXY_LUT]) await rm(path.join(dir, f), { force: true });
   return writeProject(dir, project);
 }

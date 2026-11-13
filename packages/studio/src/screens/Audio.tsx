@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { Project } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
-import { api, waitJob, type Job } from '../useProject.ts';
+import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
 import { Icon } from '../Icon.tsx';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -28,7 +28,8 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [busy, setBusy] = useState('');
   const [voText, setVoText] = useState(a.voiceover?.text ?? '');
   const [voProvider, setVoProvider] = useState('');
-  const [fx, setFx] = useState({ scene: project.scenes[0]?.id ?? '', id: 'whoosh', offset: 0, volume: 0.6 });
+  // Momento del efecto en segundos del video (se convierte a escena + segundo dentro de ella al añadirlo).
+  const [fx, setFx] = useState({ at: 0, id: 'whoosh', volume: 0.6 });
   // Banco de sonidos (Freesound).
   const [soundsOk, recheckSounds] = useBankKey('freesound');
   const [sq, setSq] = useState('');
@@ -247,6 +248,18 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     ?? project.assets.find((x) => x.file === `media/sfx/${id}.wav`)?.source?.replace(/^Freesound\s*·\s*/, '')
     ?? id;
   const allFx = project.scenes.flatMap((s, i) => s.sfx.map((e, k) => ({ s, i, e, k })));
+  // Dónde empieza cada escena en el video, para hablar en segundos del video y no de escenas.
+  const starts = project.scenes.reduce<number[]>((acc, s, i) => { acc.push(i ? acc[i - 1] + sceneDuration(project.scenes[i - 1]) : 0); return acc; }, []);
+  const total = project.scenes.length ? starts[starts.length - 1] + sceneDuration(project.scenes[project.scenes.length - 1]) : 0;
+  const fmt = (sec: number) => `${Math.floor(sec / 60)}:${(sec % 60).toFixed(1).padStart(4, '0')}`;
+  /** Escena y segundo dentro de ella que corresponden a un momento del video. */
+  const place = (() => {
+    if (!project.scenes.length) return null;
+    const at = Math.min(Math.max(0, fx.at), Math.max(0, total - 0.05));
+    let i = starts.findIndex((st, k) => at < st + sceneDuration(project.scenes[k]));
+    if (i < 0) i = project.scenes.length - 1;
+    return { scene: project.scenes[i], i, offset: Math.round((at - starts[i]) * 100) / 100 };
+  })();
 
   return (
     <main className="page">
@@ -430,22 +443,18 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <label className="row"><input type="checkbox" checked={a.sfxAuto} disabled={Boolean(busy)} onChange={(e) => run({ op: 'efectos-auto', on: e.target.checked }, e.target.checked ? 'Efectos automáticos activados.' : 'Efectos automáticos apagados. La edición automática no los volverá a poner.', 'Guardando…')} />
             Automáticos: un barrido en cada transición y un «pop» cuando entra un texto</label>
           <div className="row" style={{ alignItems: 'flex-end' }}>
-            <label className="field">Escena
-              <select value={fx.scene} onChange={(e) => setFx({ ...fx, scene: e.target.value })}>
-                {project.scenes.map((s, i) => <option key={s.id} value={s.id}>{i + 1} · {s.title || ROLE_LABEL[s.role]}</option>)}
-              </select>
-            </label>
             <label className="field">Efecto
               <select value={fx.id} onChange={(e) => setFx({ ...fx, id: e.target.value })}>
                 {store.catalog.sfx.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
               </select>
             </label>
-            <label className="field">Segundo dentro de la escena
-              <input type="number" min={0} step={0.1} value={fx.offset} style={{ width: 120 }} onChange={(e) => setFx({ ...fx, offset: Math.max(0, Number(e.target.value) || 0) })} />
+            <label className="field">Segundo del video
+              <input type="number" min={0} max={Math.round(total * 10) / 10} step={0.1} value={fx.at} style={{ width: 120 }} onChange={(e) => setFx({ ...fx, at: Math.min(Math.max(0, Number(e.target.value) || 0), Math.round(total * 10) / 10) })} />
             </label>
             <button className="btn rect" onClick={() => new window.Audio(`/sfx/${fx.id}.wav`).play()}><Icon name="play" /> Escuchar</button>
-            <button className="btn primary" disabled={!fx.scene || Boolean(busy)} onClick={() => run({ op: 'efecto', sceneId: fx.scene, id: fx.id, offset: fx.offset, volume: fx.volume }, 'Efecto añadido.', 'Añadiendo el efecto…')}><Icon name="plus" /> Añadir efecto</button>
+            <button className="btn primary" disabled={!place || Boolean(busy)} onClick={() => place && run({ op: 'efecto', sceneId: place.scene.id, id: fx.id, offset: place.offset, volume: fx.volume }, `Efecto añadido a los ${fmt(fx.at)} del video.`, 'Añadiendo el efecto…')}><Icon name="plus" /> Añadir efecto</button>
           </div>
+          {place && <span className="small muted">Sonará a los {fmt(Math.min(fx.at, total))} del video (dura {fmt(total)}), en la escena {place.i + 1} · {place.scene.title || ROLE_LABEL[place.scene.role]}.</span>}
           <span className="small muted">{store.catalog.sfx.find((x) => x.id === fx.id)?.description} Úsalos con medida: uno en un cambio fuerte o en un texto clave.</span>
           <strong className="small" style={{ marginTop: 6 }}>Más sonidos: banco Freesound (gratis)</strong>
           {soundsOk === false ? <BankKey banco="freesound" name="Freesound" link="https://freesound.org/apiv2/apply" onSaved={recheckSounds} toast={ctx.toast} /> : (
@@ -462,7 +471,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <span style={{ flex: '1 1 220px', minWidth: 0 }}>{x.name} <span className="small muted">· {x.duration} s · {x.author} · {x.license}</span></span>
                   <span className="row">
                     <button className="btn rect" style={{ height: 34 }} onClick={() => new window.Audio(x.preview).play()}><Icon name="play" /> Escuchar</button>
-                    <button className="btn rect" style={{ height: 34 }} disabled={!fx.scene || Boolean(busy)} onClick={() => run({ op: 'efecto-banco', sceneId: fx.scene, soundId: x.id, offset: fx.offset, volume: fx.volume }, `«${x.name}» añadido a la escena elegida arriba.`, 'Añadiendo el sonido…')}><Icon name="plus" /> Añadir</button>
+                    <button className="btn rect" style={{ height: 34 }} disabled={!place || Boolean(busy)} onClick={() => place && run({ op: 'efecto-banco', sceneId: place.scene.id, soundId: x.id, offset: place.offset, volume: fx.volume }, `«${x.name}» añadido a los ${fmt(fx.at)} del video (el segundo elegido arriba).`, 'Añadiendo el sonido…')}><Icon name="plus" /> Añadir</button>
                   </span>
                 </div>
               ))}
@@ -473,7 +482,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <div className="col list">
               {allFx.map(({ s, i, e, k }) => (
                 <div key={`${s.id}-${k}`} className="row" style={{ justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'var(--panel2)' }}>
-                  <span>Escena {i + 1} · {fxName(e.id)} · a los {e.offset} s</span>
+                  <span>{fxName(e.id)} · a los {fmt(starts[i] + e.offset)} del video <span className="small muted">(escena {i + 1})</span></span>
                   <button className="btn ghost" disabled={Boolean(busy)} onClick={() => set((p) => {
                     p.scenes[i].sfx.splice(k, 1);
                     // Si era el último uso de un sonido del banco, se quita también su crédito.

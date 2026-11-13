@@ -14,7 +14,7 @@ import { fail, failKind, pause, redact, type Account, type SocialError } from '.
  */
 const GRAPH = 'https://graph.facebook.com';
 const DIALOG = 'https://www.facebook.com';
-const VERSION = 'v27.0';
+const VERSION = 'v26.0';
 /** Publicar, leer cifras y ver las páginas; los tres últimos hacen falta si la página es de un cliente (portafolio de negocio). */
 export const IG_SCOPES = ['instagram_basic', 'instagram_content_publish', 'instagram_manage_insights', 'pages_show_list', 'pages_read_engagement', 'business_management', 'ads_management', 'ads_read'];
 const PAGE_FIELDS = 'id,name,access_token,tasks,instagram_business_account{id,username}';
@@ -55,7 +55,7 @@ export function igError(status: number, body: unknown, usage?: string | null, se
   const code = Number(e.code) || undefined, sub = Number(e.error_subcode) || undefined;
   const access = code === 10 || (code !== undefined && code >= 200 && code <= 299) || sub === 492;
   if (access || code === 190 || code === 102 || status === 401) {
-    return fail(access ? 'Ya no tienes acceso a la página de Facebook de esta cuenta, o falta un permiso. Abre 🔗 Cuentas y conéctala otra vez.' : 'Instagram pidió volver a conectar la cuenta. Abre 🔗 Cuentas.', 'reconectar', { code });
+    return fail(access ? 'Ya no tienes acceso a la página de Facebook de esta cuenta, o falta un permiso. Abre «Cuentas» y conéctala otra vez.' : 'Instagram pidió volver a conectar la cuenta. Abre «Cuentas».', 'reconectar', { code });
   }
   // Con subcódigo 2207xxx, Instagram dice qué pasó (cuenta restringida, portada fuera del video…):
   // aunque el código sea de «espera», no se arregla esperando, así que se enseña su mensaje.
@@ -93,7 +93,7 @@ async function graph<T = any>(token: string | null, method: 'GET' | 'POST', rout
 async function tokensOf(a: Account): Promise<{ kind: 'pagina' | 'usuario'; token: string }[]> {
   const page = await envValue(a.envKey), user = await envValue('META_USER_TOKEN');
   const list = [...(page ? [{ kind: 'pagina' as const, token: page }] : []), ...(user && user !== page ? [{ kind: 'usuario' as const, token: user }] : [])];
-  if (!list.length) throw fail('Esta cuenta no tiene su permiso guardado. Abre 🔗 Cuentas y conéctala otra vez.', 'reconectar');
+  if (!list.length) throw fail('Esta cuenta no tiene su permiso guardado. Abre «Cuentas» y conéctala otra vez.', 'reconectar');
   return a.tokenKind === 'usuario' ? list.reverse() : list;
 }
 
@@ -223,10 +223,11 @@ async function upload(uri: string, token: string, buf: Buffer, offset: number): 
   let body: any = null;
   try { body = JSON.parse(text); } catch { /* no es JSON */ }
   if (r.ok && body?.success !== false && !body?.error) return;
-  if (r.status === 401 || r.status === 403 || /unauthori[sz]ed|access token|oauth/i.test(text)) throw fail('Instagram no aceptó el permiso de esta cuenta para subir el video. Abre 🔗 Cuentas y conéctala otra vez.', 'reconectar');
+  if (r.status === 401 || r.status === 403 || /unauthori[sz]ed|access token|oauth/i.test(text)) throw fail('Instagram no aceptó el permiso de esta cuenta para subir el video. Abre «Cuentas» y conéctala otra vez.', 'reconectar');
   if (body?.error) throw igError(r.status, body, null, [token]);
   const why = redact(String(body?.debug_info?.message ?? '')).split(token).join('…').slice(0, 200);
-  throw fail(`Instagram no aceptó la subida${why ? `: ${why}` : ` (error ${r.status})`}.`, r.status >= 500 ? 'espera' : 'otro');
+  // Meta dice en `debug_info.retriable` si vale la pena reintentar: entonces se sigue desde lo que llegó.
+  throw fail(`Instagram no aceptó la subida${why ? `: ${why}` : ` (error ${r.status})`}.`, r.status >= 500 || body?.debug_info?.retriable === true ? 'espera' : 'otro');
 }
 
 /** Sube el video; si se corta, pregunta cuánto llegó y sigue desde ahí (dos reintentos). */
@@ -328,8 +329,14 @@ export async function igPublish(a: Account, o: IgPublishOpts): Promise<{ id?: st
     if (!pub?.id) throw fail('Instagram no confirmó la publicación.');
   } catch (e) {
     // Puede que sí se publicara y solo fallara la respuesta: se comprueba antes de dar el error.
-    if ((await container(a, id).catch(() => null))?.status_code !== 'PUBLISHED') throw e;
-    return findPublished(a, Date.parse(at));
+    // Instagram puede tardar unos segundos en marcarlo, así que se mira hasta tres veces.
+    for (let n = 0; n < 3; n++) {
+      if (n) await pause(5000 * n);
+      if ((await container(a, id).catch(() => null))?.status_code === 'PUBLISHED') return findPublished(a, Date.parse(at));
+      // Si Meta rechazó la petición con un error claro (no un corte), no hace falta esperar más.
+      if (failKind(e) === 'otro') break;
+    }
+    throw e;
   }
   const issue = pub.config_issue ? JSON.stringify(pub.config_issue) : '';
   const aviso = !issue ? undefined : issue.includes('CAPTION_NOT_ATTACHED') ? 'Se publicó, pero sin el texto. Pégalo a mano en Instagram.' : `Se publicó, pero Instagram avisó de un problema (${redact(issue).replace(/["[\]{}]/g, '').slice(0, 80)}).`;

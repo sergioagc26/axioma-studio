@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { effectiveRanges } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
@@ -29,10 +29,10 @@ export async function setSlowMotion(dir: string, sceneId: string, speed: number,
   const scene = project.scenes.find((s) => s.id === sceneId);
   if (!scene) throw new Error(`No existe la escena ${sceneId}.`);
   const sp = Math.min(1, Math.max(0.2, speed));
-  // Los archivos que ya no se usan se borran.
+  // Los archivos de antes NO se borran: así «Deshacer» vuelve a una cámara lenta que se sigue viendo
+  // (cada archivo lleva en el nombre su tramo y su velocidad, y se reutiliza si ya existe).
   const old = scene.slowFiles ?? [];
   if (sp >= 1) {
-    for (const f of old) await rm(path.join(dir, f.file), { force: true });
     scene.speed = 1;
     scene.slowFiles = undefined;
     return writeProject(dir, project);
@@ -46,8 +46,9 @@ export async function setSlowMotion(dir: string, sceneId: string, speed: number,
   for (const r of ranges) {
     const reuse = old.find((f) => Math.abs(f.start - r.start) < 0.02 && Math.abs(f.end - r.end) < 0.02 && Math.abs(f.speed - sp) < 0.001 && existsSync(path.join(dir, f.file)));
     if (reuse) { files.push(reuse); done += r.end - r.start; continue; }
-    onProgress?.(`Creando los fotogramas intermedios… ${Math.round((done / total) * 100)} %`, done / total);
     const rel = path.join(DIR, `${scene.id}-${Math.round(r.start * 1000)}-${Math.round(sp * 100)}.mp4`).split(path.sep).join('/');
+    if (existsSync(path.join(dir, rel))) { files.push({ start: r.start, end: r.end, speed: sp, file: rel }); done += r.end - r.start; continue; }
+    onProgress?.(`Creando los fotogramas intermedios… ${Math.round((done / total) * 100)} %`, done / total);
     // -ss y -t antes de -i: limitan lo que se LEE (en la salida dura el doble o más).
     await ffmpeg([
       '-ss', r.start.toFixed(3), '-t', (r.end - r.start).toFixed(3), '-i', path.join(dir, P.master),
@@ -57,7 +58,6 @@ export async function setSlowMotion(dir: string, sceneId: string, speed: number,
     files.push({ start: r.start, end: r.end, speed: sp, file: rel });
     done += r.end - r.start;
   }
-  for (const f of old) if (!files.some((x) => x.file === f.file)) await rm(path.join(dir, f.file), { force: true });
   const fresh = await readProject(dir);
   const sc = fresh.scenes.find((s) => s.id === sceneId)!;
   sc.speed = sp;

@@ -32,7 +32,7 @@ export function maxSeconds(answer?: string): number | null {
   if (mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
   const nums = t.match(/\d+(?:[.,]\d+)?/g)?.map((n) => Number(n.replace(',', '.'))) ?? [];
   if (!nums.length) return /medio minuto/.test(t) ? 30 : /\bun minuto\b/.test(t) ? 60 : null;
-  const v = Math.round(Math.max(...nums) * (/\bmin/.test(t) ? 60 : 1));
+  const v = Math.round(Math.max(...nums) * (/(^|[\d\s])min(?!im)/.test(t) ? 60 : 1));
   return v >= 5 ? v : null;
 }
 
@@ -74,11 +74,29 @@ export function ctaForGoal(objetivo?: string, ad = false): string {
   return (objetivo && CTA_FOR[objetivo]) || (ad ? 'Escríbenos y te contamos' : '');
 }
 
-/** Acorta un reel hablado hasta el máximo: quita escenas del medio, de atrás hacia adelante, y si aún no cabe recorta el final. */
-export function fitDuration(project: Project, max: number): string {
+/** Lo que vale una escena del medio al acortar: texto, gráfico, rol y cifras u ofertas en lo que se dice. */
+function sceneValue(s: Scene, transcript?: Parameters<typeof speechOf>[1]): number {
+  const said = transcript ? speechOf(s, transcript).toLowerCase() : '';
+  return (s.onScreenText ? 3 : 0) + (s.visual === 'motion' ? 3 : 0) + (s.brollFile ? 1 : 0)
+    + (s.role !== 'otro' && s.role !== 'gancho' && s.role !== 'cta' ? 1 : 0)
+    + (/\d|\$|€|precio|oferta|gratis|descuento|promo|paso|truco|clave/.test(said) ? 2 : 0);
+}
+
+/**
+ * Acorta un reel hablado hasta el máximo. Nunca quita el gancho ni el cierre: quita primero las
+ * escenas del medio de menos valor (sin texto, sin gráfico, sin cifras ni ofertas en lo que se
+ * dice); entre las de igual valor, la más cercana al final. Si aún no cabe, recorta el final.
+ */
+export function fitDuration(project: Project, max: number, transcript?: Parameters<typeof speechOf>[1]): string {
   let removed = 0;
   while (outputDuration(project) > max && project.scenes.length > 2) {
-    project.scenes.splice(project.scenes.length - 2, 1);
+    let pick = -1;
+    let best = Infinity;
+    for (let i = project.scenes.length - 2; i >= 1; i--) {
+      const v = sceneValue(project.scenes[i], transcript);
+      if (v < best) { best = v; pick = i; }
+    }
+    project.scenes.splice(pick, 1);
     removed++;
   }
   const over = outputDuration(project) - max;
@@ -134,7 +152,7 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   const transcript = await readTranscript(dir);
 
   // 2. Duración (videos hablados).
-  if (project.kind === 'hablado' && max) summary.push(fitDuration(project, max));
+  if (project.kind === 'hablado' && max) summary.push(fitDuration(project, max, transcript));
 
   // 3. Tono → estilo (el escrito a mano se entiende por palabras clave).
   const toneHit = toneFor(b.tono);

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 import { Icon } from '../Icon.tsx';
+import type { IconName } from '../icons.ts';
 
 type Tipo = 'carrusel' | 'post' | 'historia' | 'portada';
 interface ImageSet { name: string; tipo: string; files: string[] }
@@ -13,6 +14,7 @@ const TIPOS: [Tipo, string, string][] = [
   ['historia', 'Historia estática', 'El gancho y un botón de llamado a la acción, sin tapar la barra de respuesta. Formato 9:16.'],
 ];
 
+const ICONO: Record<Tipo, IconName> = { portada: 'frame', carrusel: 'layers', post: 'image', historia: 'story' };
 const NOMBRE: Record<string, string> = { carrusel: 'Carrusel', post: 'Post', historia: 'Historia', portada: 'Portada del video' };
 /** La carpeta se llama con la hora en UTC (2026-11-13T21-51-06-portada): se muestra en la hora local. */
 const fecha = (n: string) => {
@@ -42,6 +44,8 @@ export const Imagenes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } finally { setSaving(''); }
   };
   const media = (rel: string) => `/media/${encodeURIComponent(project.id)}/${rel.split('/').map(encodeURIComponent).join('/')}`;
+  /** Miniatura JPG liviana (360 px) para la cuadrícula; el PNG completo queda para descargar. */
+  const thumb = (rel: string) => `/api/imagenes/miniatura?id=${encodeURIComponent(project.id)}&f=${encodeURIComponent(rel)}`;
   const load = () => api<{ sets: ImageSet[] }>(`/api/imagenes?id=${encodeURIComponent(project.id)}`).then((d) => setSets(d.sets)).catch(() => {});
   useEffect(() => { load(); }, [project.id]);
 
@@ -63,7 +67,7 @@ export const Imagenes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <div className="opts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         {TIPOS.map(([id, name, desc]) => (
           <button key={id} className="opt" disabled={Boolean(busy)} onClick={() => create(id)}>
-            <strong style={{ fontSize: 16 }}>{name}</strong>
+            <strong style={{ fontSize: 16 }}><Icon name={ICONO[id]} /> {name}</strong>
             <span className="muted small">{desc}</span>
             <span className="btn" style={{ height: 34, marginTop: 6, alignSelf: 'flex-start' }} aria-hidden="true">{making === id ? busy : `Crear ${name.toLowerCase()}`}</span>
           </button>
@@ -81,7 +85,9 @@ export const Imagenes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${set.tipo === 'historia' || set.tipo === 'portada' ? 150 : 180}px, 1fr))`, gap: 10 }}>
             {set.files.map((f) => (
               <a key={f} href={media(f)} download={f.split('/').pop()} title="Descargar" style={{ display: 'block', borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
-                <img src={media(f)} alt="" loading="lazy" style={{ width: '100%', display: 'block' }} />
+                <img src={thumb(f)} alt="" loading="lazy" style={{ width: '100%', display: 'block' }}
+                  // Si la miniatura no está disponible, se muestra la imagen original.
+                  onError={(e) => { const el = e.currentTarget; if (!el.dataset.original) { el.dataset.original = '1'; el.src = media(f); } }} />
               </a>
             ))}
           </div>

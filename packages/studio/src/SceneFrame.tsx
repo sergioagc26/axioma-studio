@@ -43,7 +43,12 @@ export const SceneFrame: React.FC<{
   const t = scene.ranges[0].start + Math.min(0.4, (scene.ranges[0].end - scene.ranges[0].start) / 2);
   const url = isFile ? `/api/thumb?id=${id}&t=1&file=${encodeURIComponent(scene.brollFile!)}` : `/api/thumb?id=${id}&t=${t.toFixed(2)}`;
   return (
-    <div className="frame" style={{ backgroundImage: `url(${url})`, ...style }}>
+    <div className="frame" style={style}>
+      {/* Imagen con carga diferida: con muchas escenas solo se piden las que se ven, y el navegador
+          la guarda en caché (el servidor responde con Cache-Control) en vez de pedirla en cada visita. */}
+      <img src={url} alt="" loading="lazy" decoding="async" draggable={false}
+        onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
       {ost ? <div className="ost" style={{ ['--c' as any]: color ?? scene.textColor ?? '#FE2C55' }}>{ost}</div> : null}
       {saidEl}
     </div>

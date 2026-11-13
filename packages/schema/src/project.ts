@@ -364,6 +364,8 @@ export const Project = z.object({
       duration: z.number(),
       /** Si es un doblaje: idioma (en, pt, fr…). */
       language: z.string().optional(),
+      /** Volumen del sonido original antes de poner la voz en off (se recupera al quitarla). */
+      prevOriginalVolume: z.number().min(0).max(1).optional(),
     }).optional(),
   }).default({ denoise: true, denoiseLevel: 'media', enhance: false, sfxAuto: false, targetLufs: -14, musicVolume: 0.18, originalVolume: 1 }),
   /** Acabados profesionales de todo el reel. */

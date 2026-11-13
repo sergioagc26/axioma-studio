@@ -121,8 +121,38 @@ export function createServer() {
     const report = (await E.listReferences(p.client)).find((r) => r.id === referencia);
     if (!report) throw new Error(`No existe la referencia ${referencia}.`);
     const preset = await E.savePreset(p.client, E.presetFromReference(report, nombre));
+    // Queda elegida en el brief: es la única referencia que manda al editar.
+    p.brief.referencia = report.id;
+    await E.writeProject(dir, p);
     if (aplicar) await E.applyPreset(dir, preset.id);
-    return `Plantilla ${preset.id} guardada${aplicar ? ' y aplicada' : ''}.\n${E.summarize(await E.readProject(dir), dir)}`;
+    return `Plantilla ${preset.id} guardada${aplicar ? ' y aplicada' : ''}. Referencia elegida en el brief.\n${E.summarize(await E.readProject(dir), dir)}`;
+  });
+
+  tool('elegir_referencia', 'Elige en el brief la referencia que manda al editar (su ritmo, subtítulos y textos). Con "ninguna" se edita sin referencia. Es la única que cuenta: sin elegir, no se usa ninguna.', {
+    proyecto, referencia: z.string().describe('Id de listar_referencias, o "ninguna"'),
+  }, async ({ proyecto, referencia }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.readProject(dir);
+    if (referencia !== 'ninguna' && !(await E.listReferences(p.client)).some((r) => r.id === referencia)) throw new Error(`No existe la referencia ${referencia}.`);
+    p.brief.referencia = referencia;
+    await E.writeProject(dir, p);
+    return referencia === 'ninguna' ? 'Listo: se editará sin referencia.' : `Listo: se editará siguiendo la referencia ${referencia}.`;
+  });
+
+  tool('renombrar_referencia', 'Cambia el nombre con el que se ve una referencia (su id no cambia).', {
+    proyecto, referencia: z.string(), nombre: z.string(),
+  }, async ({ proyecto, referencia, nombre }) => {
+    const p = await E.readProject(await resolveProject(proyecto));
+    const r = await E.renameReference(p.client, referencia, nombre);
+    return `Referencia ${r.id} ahora se llama «${r.name}».`;
+  });
+
+  tool('quitar_referencia', 'Quita una referencia: va a la papelera (se puede recuperar) junto con los estilos guardados a partir de ella, y los videos que la tenían elegida quedan sin referencia.', {
+    proyecto, referencia: z.string(),
+  }, async ({ proyecto, referencia }) => {
+    const p = await E.readProject(await resolveProject(proyecto));
+    const rest = await E.deleteReference(p.client, referencia);
+    return `Referencia ${referencia} quitada (está en la papelera). Quedan ${rest.length}.`;
   });
 
   tool('aplicar_cortes', 'Rehace el corte automático (borra el storyboard actual). Opcionalmente cambia de preset.', {
@@ -474,7 +504,24 @@ export function createServer() {
     cliente: z.string().optional().describe('Cliente (carpeta). Por defecto "personal".'),
   }, async ({ cliente }) => E.formatInsights(await E.learnFromResults(cliente, true)));
 
-  tool('publicar_en_redes', 'Publica el último video vertical exportado del reel como Reel de Instagram, en la cuenta conectada. ES PÚBLICO Y NO SE PUEDE DESHACER desde la app: úsala solo cuando el usuario pida explícitamente publicar ese reel en esa red, nunca por iniciativa propia ni como parte de «termina el video». Antes dile en qué cuenta saldrá y con qué texto.', {
+  tool('revisar_publicacion', 'Antes de publicar: dice qué video se subiría, en qué cuenta, con qué texto, el cupo del día y si algo lo impide. No publica nada. Úsala para enseñarle todo al usuario y pedirle que confirme.', {
+    proyecto, red: z.enum(['instagram']).default('instagram'),
+    cuenta: z.string().optional().describe('Id de la cuenta (ig-…), si hay varias conectadas.'),
+  }, async (a) => {
+    const r = await E.prePublish(await resolveProject(a.proyecto), a.red, a.cuenta);
+    const acc = r.cuentas.find((c) => c.id === r.cuenta);
+    return [
+      `Video: ${r.archivo ?? '(ninguno)'}${r.archivo ? ` · ${(r.peso / 1e6).toFixed(1)} MB · ${Math.round(r.duracion)} s` : ''}`,
+      `Cuenta: ${acc ? `@${acc.usuario}` : `(elige una: ${r.cuentas.map((c) => `${c.id} = @${c.usuario}`).join(', ') || 'ninguna conectada'})`}`,
+      ...(r.cupo?.total ? [`Hoy: ${r.cupo.usadas} de ${r.cupo.total} publicaciones.`] : []),
+      `Texto:\n${r.texto}`,
+      ...r.avisos.map((x) => `Aviso: ${x}`),
+      ...r.problemas.map((x) => `No se puede publicar: ${x}`),
+      r.listo ? 'Listo para publicar si el usuario lo confirma.' : 'Todavía no se puede publicar.',
+    ].join('\n');
+  });
+
+  tool('publicar_en_redes','Publica el último video vertical exportado del reel como Reel de Instagram, en la cuenta conectada. ES PÚBLICO Y NO SE PUEDE DESHACER desde la app: úsala solo cuando el usuario pida explícitamente publicar ese reel en esa red, nunca por iniciativa propia ni como parte de «termina el video». Antes usa revisar_publicacion y dile en qué cuenta saldrá y con qué texto.', {
     proyecto, red: z.enum(['instagram']).default('instagram'),
     confirmado: z.boolean().describe('true solo si el usuario pidió explícitamente publicar este reel ahora.'),
     cuenta: z.string().optional().describe('Id de la cuenta (ig-…), si hay varias conectadas.'),

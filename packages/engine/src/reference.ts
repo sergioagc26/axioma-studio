@@ -49,7 +49,8 @@ export const referencesDir = (client?: string) => path.join(WORKSPACE, 'clientes
 
 /** Cambios de plano detectados por FFmpeg. */
 export async function detectCuts(file: string): Promise<number[]> {
-  const { stdout, stderr } = await ffmpeg(['-i', file, '-an', '-vf', "select='gt(scene,0.3)',metadata=print:file=-", '-f', 'null', '-']);
+  // Se analiza en pequeño: un video 4K tardaba minutos y los cortes se ven igual a 320 px.
+  const { stdout, stderr } = await ffmpeg(['-i', file, '-an', '-vf', "scale=320:-2,select='gt(scene,0.3)',metadata=print:file=-", '-f', 'null', '-']);
   return [...(stdout + stderr).matchAll(/pts_time:([\d.]+)/g)].map((m) => Number(m[1]));
 }
 

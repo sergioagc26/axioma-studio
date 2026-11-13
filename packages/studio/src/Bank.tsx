@@ -14,7 +14,7 @@ export function useBankKey(banco: keyof Keys): [boolean | null, () => void] {
   return [ok, () => check(true)];
 }
 
-/** Recuadro para pegar la clave gratuita de un banco. La clave se guarda en este computador (archivo .env) y no se vuelve a mostrar. */
+/** Recuadro para pegar la clave gratuita de un banco. La clave se guarda solo en este computador y no se vuelve a mostrar. */
 export const BankKey: React.FC<{ banco: keyof Keys; name: string; link: string; onSaved: () => void; toast: (m: string) => void }> = ({ banco, name, link, onSaved, toast }) => {
   const [value, setValue] = useState('');
   const save = async () => {
@@ -38,7 +38,7 @@ export const BankKey: React.FC<{ banco: keyof Keys; name: string; link: string; 
 
 const SERVICES: { id: keyof Keys; name: string; link: string; cost: string; unlocks: string }[] = [
   { id: 'pixabay', name: 'Pixabay', link: 'https://pixabay.com/api/docs/#api_search_videos', cost: 'Gratis', unlocks: 'Videos de apoyo (b-roll), también en la edición automática. La clave aparece en esa página al iniciar sesión.' },
-  { id: 'pexels', name: 'Pexels', link: 'https://www.pexels.com/api/', cost: 'Gratis (no da claves nuevas por ahora)', unlocks: 'Otro banco de videos de apoyo. No hace falta si ya tienes la de Pixabay; si la tienes, se usa primero.' },
+  { id: 'pexels', name: 'Pexels', link: 'https://www.pexels.com/api/', cost: 'Gratis (ya no da claves nuevas)', unlocks: 'Otro banco de videos de apoyo. No hace falta si ya tienes la de Pixabay; si la tienes, se usa primero.' },
   { id: 'freesound', name: 'Freesound', link: 'https://freesound.org/apiv2/apply', cost: 'Gratis · Recomendada', unlocks: 'Música automática para tus videos y efectos de sonido. Sin esta clave, la app solo usa las canciones que subas tú: si no subes ninguna, tus videos salen sin música.' },
   { id: 'elevenlabs', name: 'ElevenLabs', link: 'https://elevenlabs.io/app/settings/api-keys', cost: 'De pago (opcional)', unlocks: 'Voz natural en la voz en off y el doblaje (sin ella se usa la voz del computador).' },
 ];
@@ -49,6 +49,21 @@ export const KeysPanel: React.FC<{ onClose: () => void; toast: (m: string) => vo
   const [edit, setEdit] = useState<keyof Keys | null>(null);
   const [value, setValue] = useState('');
   useEffect(() => { loadKeys(true).then(setKeys); }, []);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    addEventListener('keydown', esc);
+    return () => removeEventListener('keydown', esc);
+  }, [onClose]);
+  /** Quita una clave mal puesta (DELETE /api/claves?banco=). */
+  const remove = async (id: keyof Keys, name: string) => {
+    if (!window.confirm(`¿Quitar la clave de ${name} de este computador?`)) return;
+    try {
+      const k = await api<Keys>(`/api/claves?banco=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      memo = Promise.resolve(k);
+      setKeys(k); setEdit(null);
+      toast(`Clave de ${name} quitada.`);
+    } catch (e: any) { toast(e.status === 404 || e.status === 405 ? 'Esta versión de la app aún no puede quitar claves: pega la correcta encima con «Cambiar».' : e.message); }
+  };
   const save = async (id: keyof Keys, name: string) => {
     try {
       const k = await api<Keys>('/api/claves', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ banco: id, clave: value }) });
@@ -62,7 +77,8 @@ export const KeysPanel: React.FC<{ onClose: () => void; toast: (m: string) => vo
       <div className="modal card col" role="dialog" aria-modal="true" aria-label="Claves de servicios" style={{ maxWidth: 520, gap: 14 }}>
         <h2 style={{ fontSize: 20 }}>Claves de servicios</h2>
         <span className="small muted">La app funciona sin ellas, pero <strong>sin la de Freesound no pone música sola</strong>. Con las gratuitas (Freesound y Pixabay) pone música y videos de apoyo sin que hagas nada. Se guardan solo en este computador y no se vuelven a mostrar. Ninguno de estos servicios recibe tus videos.</span>
-        {SERVICES.map((s) => (
+        {/* Pexels ya no da claves nuevas: solo se muestra a quien ya tiene una (para cambiarla o quitarla). */}
+        {SERVICES.filter((s) => s.id !== 'pexels' || keys?.pexels).map((s) => (
           <div key={s.id} className="col" style={{ gap: 6, padding: 12, borderRadius: 12, border: `1px solid ${s.id === 'freesound' && keys && !keys.freesound ? 'var(--pink)' : 'var(--line)'}` }}>
             <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
               <strong>{s.name} <span className="small muted" style={{ fontWeight: 400 }}>· {s.cost}</span></strong>
@@ -76,8 +92,9 @@ export const KeysPanel: React.FC<{ onClose: () => void; toast: (m: string) => vo
               </div>
             ) : (
               <div className="row">
-                <a className="btn ghost small" href={s.link} target="_blank" rel="noreferrer">Sacar la clave<Icon name="open" style={{ marginLeft: 6 }} /></a>
+                {s.id !== 'pexels' && <a className="btn ghost small" href={s.link} target="_blank" rel="noreferrer">Sacar la clave<Icon name="open" style={{ marginLeft: 6 }} /></a>}
                 <button className="btn rect small" onClick={() => { setEdit(s.id); setValue(''); }}>{keys?.[s.id] ? 'Cambiar' : 'Pegar clave'}</button>
+                {keys?.[s.id] && <button className="btn ghost small" onClick={() => remove(s.id, s.name)}><Icon name="trash" />Quitar</button>}
               </div>
             )}
           </div>

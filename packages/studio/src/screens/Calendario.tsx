@@ -11,7 +11,7 @@ interface Metrics { views: number; likes?: number; comments?: number; shares?: n
 /** Lo que pasó al publicar desde la app (lo anota el servidor; aquí solo se lee). */
 interface Remote { state: 'subiendo' | 'procesando' | 'publicado' | 'error'; id?: string; url?: string; error?: string }
 interface Insights { client: string; reels: number; medianViews: number; engagement: number; findings: { label: string; text: string }[]; applied: string[]; note?: string }
-interface Item { id: string; name: string; client: string; thumbT?: number }
+interface Item { id: string; name: string; client: string; thumbT?: number; scenes?: number }
 
 const NET: Record<Network, { label: string; short: string; color: string }> = {
   instagram: { label: 'Instagram', short: 'IG', color: '#E1306C' },
@@ -34,7 +34,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
   useEffect(() => {
     api<Entry[]>('/api/calendario').then(setEntries).catch((e) => ctx.toast(e.message));
-    api<Item[]>('/api/projects').then((l) => { setItems(l); setForm((f) => ({ ...f, projectId: f.projectId || l[0]?.id || '' })); }).catch(() => {});
+    api<Item[]>('/api/projects').then((l) => { setItems(l); setForm((f) => ({ ...f, projectId: f.projectId || l.find((i) => i.scenes !== 0)?.id || '' })); }).catch(() => {});
   }, []);
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
 
@@ -89,13 +89,17 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
   const sel = (entries ?? []).find((e) => e.id === open) ?? null;
   const clients = useMemo(() => [...new Set(items.map((i) => i.client))].sort(), [items]);
+  // En el selector solo van los videos que tienen algo que publicar (0 escenas = vacío); el elegido se mantiene.
+  const pickable = useMemo(() => items.filter((i) => i.scenes !== 0 || i.id === form.projectId), [items, form.projectId]);
   // Nombres repetidos dentro de un cliente: se distinguen con un número.
   const groups = useMemo(() => clients.map((c) => {
-    const list = items.filter((i) => i.client === c);
+    const list = pickable.filter((i) => i.client === c);
     const seen = new Map<string, number>();
     return { client: c, list: list.map((i) => { const n = (seen.get(i.name) ?? 0) + 1; seen.set(i.name, n); return { ...i, label: list.filter((x) => x.name === i.name).length > 1 ? `${i.name} (${n})` : i.name }; }) };
-  }), [clients, items]);
+  }).filter((g) => g.list.length), [clients, pickable]);
   const [client, setClient] = useState('');
+  // «Lo que funciona» se vuelve a pedir solo cuando cambian cifras o estados, no con cada fecha u hora.
+  const resKey = (entries ?? []).map((e) => `${e.id}:${e.status}:${e.metrics?.at ?? e.metrics?.views ?? ''}`).join('|');
   const [insights, setInsights] = useState<Insights | null>(null);
   const [nums, setNums] = useState<Record<string, string>>({});
   useEffect(() => { if (!client && clients.length) setClient(clients.includes('personal') ? 'personal' : clients[0]); }, [clients]);
@@ -105,7 +109,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     api<Insights>(`/api/resultados?cliente=${encodeURIComponent(client)}`)
       .then((i) => setInsights((prev) => ({ ...i, applied: i.applied.length ? i.applied : prev?.client === i.client ? prev.applied : [] })))
       .catch(() => setInsights(null));
-  }, [client, entries]);
+  }, [client, resKey]);
   useEffect(() => {
     const m = sel?.metrics;
     setNums(m ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== 'at' && k !== 'source').map(([k, v]) => [k, String(v ?? '')])) : {});
@@ -172,9 +176,9 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       </section>
 
       <div className="row" style={{ justifyContent: 'space-between', marginTop: 4 }}>
-        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Mes anterior"><Icon name="prev" /></button>
+        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Mes anterior"><Icon name="back" /></button>
         <strong style={{ fontSize: 18 }}>{(() => { const m = month.toLocaleDateString('es', { month: 'long', year: 'numeric' }); return m.charAt(0).toUpperCase() + m.slice(1); })()}</strong>
-        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Mes siguiente"><Icon name="next" /></button>
+        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Mes siguiente"><Icon name="back" style={{ transform: 'scaleX(-1)' }} /></button>
       </div>
 
       <div className="cal" role="grid" aria-label="Calendario del mes">
@@ -270,7 +274,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <button className="btn ghost" onClick={async () => {
                 const extra = sel.metrics ? `\n\nTambién se borran sus resultados (${sel.metrics.views.toLocaleString('es')} vistas) y dejan de contar en «Lo que funciona».` : '';
                 const ig = sel.remote?.id ? '\n\nEn Instagram no se borra nada.' : '';
-                if (sel.metrics && !window.confirm(`¿Quitar esta publicación del calendario?${extra}${ig}\n\nNo se puede deshacer. El proyecto y el video no se tocan.`)) return;
+                if (!window.confirm(`¿Quitar esta publicación del calendario?${extra}${ig}\n\nNo se puede deshacer. El proyecto y el video no se tocan.`)) return;
                 if (await call('DELETE', undefined, sel.id)) { setOpen(null); ctx.toast('Quitado del calendario.'); }
               }}><Icon name="trash" />Quitar del calendario</button>
               <button className="btn" onClick={() => setOpen(null)}>Cerrar</button>

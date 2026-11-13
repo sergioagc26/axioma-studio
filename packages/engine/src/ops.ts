@@ -487,7 +487,9 @@ async function recordVoiceover(dir: string, volume: number | undefined, generate
     if (!transcript.words.length && used.text) transcript.words = spreadWords(used.text, 0, duration);
     await writeFile(path.join(dir, wordsFile), JSON.stringify(transcript));
     const project = await readProject(dir);
-    project.audio.voiceover = { file, wordsFile, duration, provider: used.provider, voice: used.voice, text: used.text ?? transcript.words.map(w => w.text).join(' ') };
+    // El volumen original de antes se recuerda para devolverlo al quitar la voz en off.
+    const prev = project.audio.voiceover?.prevOriginalVolume ?? project.audio.originalVolume;
+    project.audio.voiceover = { file, wordsFile, duration, provider: used.provider, voice: used.voice, text: used.text ?? transcript.words.map(w => w.text).join(' '), prevOriginalVolume: prev };
     project.audio.originalVolume = volume ?? (project.kind === 'montaje' ? Math.min(project.audio.originalVolume, 0.25) : 0);
     return await writeProject(dir, project);
   } catch (error) {
@@ -498,8 +500,10 @@ async function recordVoiceover(dir: string, volume: number | undefined, generate
 
 export async function removeVoiceover(dir: string) {
   const project = await readProject(dir);
+  // Vuelve el volumen original que había antes de la voz en off (si no se sabe, el de siempre).
+  const prev = project.audio.voiceover?.prevOriginalVolume;
   project.audio.voiceover = undefined;
-  project.audio.originalVolume = project.kind === 'montaje' ? 0.6 : 1;
+  project.audio.originalVolume = prev ?? (project.kind === 'montaje' ? 0.6 : 1);
   return writeProject(dir, project);
 }
 
@@ -533,12 +537,18 @@ export async function restoreVersion(dir: string, name: string) {
 export async function correctAudio(dir: string, opts: { denoise?: boolean; level?: 'suave' | 'media' | 'fuerte'; enhance?: boolean }) {
   const project = await readProject(dir);
   if (project.kind !== 'hablado') throw new Error('La corrección de voz aplica a videos hablados. En un montaje, ajusta el sonido original o silencia el video.');
-  if (opts.denoise !== undefined) project.audio.denoise = opts.denoise;
-  if (opts.level) project.audio.denoiseLevel = opts.level;
-  if (opts.enhance !== undefined) project.audio.enhance = opts.enhance;
-  await processVoice(path.join(dir, P.master), path.join(dir, P.voice), project.audio);
-  project.audio.processedVoice = P.voice;
-  return writeProject(dir, project);
+  const audio = { ...project.audio };
+  if (opts.denoise !== undefined) audio.denoise = opts.denoise;
+  if (opts.level) audio.denoiseLevel = opts.level;
+  if (opts.enhance !== undefined) audio.enhance = opts.enhance;
+  await processVoice(path.join(dir, P.master), path.join(dir, P.voice), audio);
+  // Se vuelve a leer: lo que el usuario cambió mientras se procesaba (volúmenes, efectos) no se pisa.
+  const now = await readProject(dir);
+  now.audio.denoise = audio.denoise;
+  now.audio.denoiseLevel = audio.denoiseLevel;
+  now.audio.enhance = audio.enhance;
+  now.audio.processedVoice = P.voice;
+  return writeProject(dir, now);
 }
 
 /** Añade un efecto de sonido a una escena. */

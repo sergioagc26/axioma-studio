@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { api, publishTo, type Job, type Red } from './useProject.ts';
+import { api, publishTo, waitJob, type Job, type Red } from './useProject.ts';
 import { Icon } from './Icon.tsx';
 
 export interface Cuenta { id: string; usuario: string; nombre?: string; estado: 'ok' | 'reconectar'; error?: string; aviso?: string }
@@ -113,14 +113,14 @@ export const CuentasPanel: React.FC<{ onClose: () => void; toast: (m: string) =>
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal card col" role="dialog" aria-modal="true" aria-label="Cuentas" style={{ maxWidth: 520, gap: 14 }}>
         <h2 style={{ fontSize: 20 }}><Icon name="link" style={{ marginRight: 8 }} />Cuentas</h2>
-        <span className="small muted">Para publicar tus reels desde la app. Los permisos se guardan solo en este computador y no se vuelven a mostrar.</span>
+        <span className="small muted">Para publicar tus videos desde la app. Los permisos se guardan solo en este computador y no se vuelven a mostrar.</span>
         {!LOCAL && <span className="small" style={{ padding: 12, borderRadius: 12, background: 'var(--cyanSoft)' }}><Icon name="devices" style={{ marginRight: 6 }} />Las cuentas se conectan desde el computador donde está instalada la app (ábrela allí en «localhost»). Aquí solo puedes ver cuáles hay.</span>}
         {error && <span className="small" style={{ color: 'var(--pinkText)' }}>{WARN}No se pudieron leer las cuentas ({error}). Si acabas de actualizar la app, ciérrala y ábrela otra vez.</span>}
 
         <section className="col" style={{ gap: 10, padding: 12, borderRadius: 12, border: '1px solid var(--line)' }} aria-label="Instagram">
           <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
             <strong><Icon name="instagram" style={{ marginRight: 6 }} />Instagram</strong>
-            {!st ? <span className="small muted">{error ? '' : '…'}</span> : st.cuentas.length ? <span className="pill">✓ {st.cuentas.length === 1 ? '1 cuenta' : `${st.cuentas.length} cuentas`}</span> : <span className="pill line">Sin conectar</span>}
+            {!st ? <span className="small muted">{error ? '' : '…'}</span> : st.cuentas.length ? <span className="pill"><Icon name="check" style={{ marginRight: 4 }} />{st.cuentas.length === 1 ? '1 cuenta' : `${st.cuentas.length} cuentas`}</span> : <span className="pill line">Sin conectar</span>}
           </div>
           {st?.aviso && <span className="small" style={{ color: 'var(--pinkText)' }}>{WARN}{st.aviso}</span>}
 
@@ -128,7 +128,7 @@ export const CuentasPanel: React.FC<{ onClose: () => void; toast: (m: string) =>
             <div key={c.id} className="col" style={{ gap: 2 }}>
               <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
                 <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <strong>{c.estado === 'ok' ? '✓ ' : WARN}@{c.usuario}</strong>{c.nombre ? <span className="small muted"> · {c.nombre}</span> : null}
+                  <strong>{c.estado === 'ok' ? <Icon name="check" style={{ marginRight: 6 }} /> : WARN}@{c.usuario}</strong>{c.nombre ? <span className="small muted"> · {c.nombre}</span> : null}
                 </span>
                 {LOCAL && <button className="btn ghost small" style={{ height: 30, flex: 'none' }} onClick={() => disconnect(c)}>Desconectar</button>}
               </div>
@@ -141,7 +141,7 @@ export const CuentasPanel: React.FC<{ onClose: () => void; toast: (m: string) =>
             <>
               {st.app && !editApp ? (
                 <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
-                  <span className="small">✓ Datos de tu app de Meta puestos{st.config ? '' : ' (sin Configuration ID)'}</span>
+                  <span className="small"><Icon name="check" style={{ marginRight: 6 }} />Datos de tu app de Meta puestos{st.config ? '' : ' (sin Configuration ID)'}</span>
                   <button className="btn rect small" style={{ height: 30 }} onClick={() => setEditApp(true)}>Cambiar</button>
                 </div>
               ) : (
@@ -165,7 +165,7 @@ export const CuentasPanel: React.FC<{ onClose: () => void; toast: (m: string) =>
                 <button className="btn primary" disabled={!st.app || busy === 'conectar'} title={st.app ? 'Se abre Facebook en otra pestaña' : 'Pon primero los datos de tu app de Meta'} onClick={connect}>
                   <Icon name="link" />{busy === 'conectar' ? 'Abriendo Facebook…' : st.cuentas.length ? 'Conectar otra vez con Facebook' : 'Conectar con Facebook'}
                 </button>
-                {link && <a className="btn rect" href={link} target="_blank" rel="noreferrer">Abrir Facebook ↗</a>}
+                {link && <a className="btn rect" href={link} target="_blank" rel="noreferrer"><Icon name="open" />Abrir Facebook</a>}
                 {waiting && <span className="pill" role="status">Esperando a Facebook…</span>}
               </div>
 
@@ -250,6 +250,21 @@ export const PublicarBox: React.FC<{
     } catch (e: any) { setError(e.message); }
   };
   useEffect(() => { void load(); }, [projectId]);
+  // Si ya se está publicando este video (por ejemplo, tras recargar la página), se sigue su avance
+  // en vez de dejar pulsar Publicar otra vez.
+  useEffect(() => {
+    let alive = true;
+    api<Job[]>(`/api/jobs?id=${encodeURIComponent(projectId)}&kind=publicar`).then(async (list) => {
+      const running = list.find((j) => j.kind === 'publicar' && j.status === 'running');
+      if (!running || !alive) return;
+      try {
+        const j = await waitJob(running, (x) => { if (alive) setJob(x); });
+        if (alive) { setDone((j.result ?? {}) as Hecho); toast(`Publicado en ${name}.`); }
+      } catch (e: any) { if (alive) { setError(e.message); void load(); } }
+      finally { if (alive) { setJob(null); onChange?.(); } }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [projectId]);
   // Si cambian las cuentas mientras está abierto (por ejemplo, tras conectar una), se revisa otra vez.
   const now = firma(redes?.instagram.cuentas);
   useEffect(() => { if (previo && now !== undefined && now !== firma(previo.cuentas)) void load(previo.cuenta); }, [now]);
@@ -282,10 +297,10 @@ export const PublicarBox: React.FC<{
         <h2 style={{ fontSize: 20 }}><Icon name="publish" style={{ marginRight: 8 }} />Publicar en {name}</h2>
         {done ? (
           <div className="col" style={{ gap: 8, padding: 12, borderRadius: 12, background: 'var(--cyanSoft)' }} role="status">
-            <strong>Publicado ✓{done.cuenta ? ` en @${done.cuenta}` : ''}</strong>
+            <strong><Icon name="check" style={{ marginRight: 6 }} />Publicado{done.cuenta ? ` en @${done.cuenta}` : ''}</strong>
             {done.aviso && <span className="small">{WARN}{done.aviso}</span>}
             {safe(done.url)
-              ? <a className="btn primary" style={{ alignSelf: 'flex-start' }} href={safe(done.url)} target="_blank" rel="noreferrer">Ver ↗</a>
+              ? <a className="btn primary" style={{ alignSelf: 'flex-start' }} href={safe(done.url)} target="_blank" rel="noreferrer"><Icon name="open" />Ver</a>
               : <span className="small muted">{name} no devolvió el enlace: búscalo en el perfil.</span>}
           </div>
         ) : !previo ? (
@@ -315,7 +330,7 @@ export const PublicarBox: React.FC<{
             {previo.avisos.map((a) => <span key={a} className="small">{WARN}{a}</span>)}
             {previo.problemas.map((p) => <span key={p} className="small" style={{ color: 'var(--pinkText)' }}>{WARN}{p}</span>)}
             {acc?.estado === 'reconectar' && <button className="btn rect" style={{ alignSelf: 'flex-start' }} onClick={onCuentas}><Icon name="link" />Abrir Cuentas</button>}
-            {safe(previo.publicado?.url) && <a className="small" href={safe(previo.publicado?.url)} target="_blank" rel="noreferrer">Ver lo ya publicado ↗</a>}
+            {safe(previo.publicado?.url) && <a className="small" href={safe(previo.publicado?.url)} target="_blank" rel="noreferrer">Ver lo ya publicado <Icon name="open" size={12} /></a>}
             {error && <span className="small" style={{ color: 'var(--pinkText)' }} role="alert">{WARN}{error}</span>}
             {job ? (
               <div className="col" style={{ gap: 6 }} role="status">

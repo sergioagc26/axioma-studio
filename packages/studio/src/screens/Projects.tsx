@@ -9,6 +9,77 @@ import { CuentasPanel, useCuentas } from '../Cuentas.tsx';
 /** `edited` = ya se aplicó el brief; `creating` = el servidor aún lo está preparando. */
 interface Item { id: string; name: string; client: string; approval: string; scenes: number; updatedAt: string; kind?: string; duration?: number; thumbT?: number; edited?: boolean; creating?: boolean }
 
+/**
+ * ¿Se está creando? El servidor marca `creating` con cualquier tarea larga del proyecto (también al
+ * editarlo o cambiar la canción); solo es «creando» si aún no tiene escenas.
+ */
+const making = (it: Item) => Boolean(it.creating && !it.scenes);
+
+/** Lo que hay en la papelera (contrato 9: GET /api/papelera). */
+interface Tirado { nombre: string; tipo: 'proyecto' | 'referencia' | 'estilo' | 'otro'; titulo: string; cliente?: string; fecha: string }
+const TIPO: Record<Tirado['tipo'], [IconName, string]> = { proyecto: ['film', 'Video'], referencia: ['reference', 'Referencia'], estilo: ['palette', 'Estilo'], otro: ['folder', 'Archivo'] };
+
+/** Papelera: lo que se quitó (videos, referencias, estilos) se puede recuperar o borrar para siempre. */
+const PapeleraPanel: React.FC<{ onClose: () => void; onRestored: () => void; toast: (m: string) => void }> = ({ onClose, onRestored, toast }) => {
+  const [list, setList] = useState<Tirado[] | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
+  const load = () => api<Tirado[]>('/api/papelera').then((d) => { setList(Array.isArray(d) ? d : []); setError(''); }).catch((e) => setError(e.status === 404 ? 'La papelera todavía no está disponible en esta versión de la app.' : e.message));
+  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    addEventListener('keydown', esc);
+    return () => removeEventListener('keydown', esc);
+  }, [onClose]);
+  const recuperar = async (t: Tirado) => {
+    setBusy(t.nombre);
+    try {
+      setList(await api<Tirado[]>('/api/papelera/recuperar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nombre: t.nombre }) }));
+      onRestored();
+      toast(`«${t.titulo}» volvió a su lugar.`);
+    } catch (e: any) { toast(e.message); } finally { setBusy(''); }
+  };
+  const borrar = async (t?: Tirado) => {
+    const n = list?.length ?? 0;
+    if (!window.confirm(t ? `¿Borrar «${t.titulo}» para siempre?\n\nNo se puede deshacer.` : `¿Vaciar la papelera?\n\nSe borran para siempre ${n === 1 ? 'el elemento que hay' : `los ${n} elementos`}. No se puede deshacer.`)) return;
+    setBusy(t?.nombre ?? '*');
+    try {
+      setList(await api<Tirado[]>(`/api/papelera${t ? `?nombre=${encodeURIComponent(t.nombre)}` : ''}`, { method: 'DELETE' }));
+      toast(t ? `«${t.titulo}» borrado para siempre.` : 'Papelera vacía.');
+    } catch (e: any) { toast(e.message); } finally { setBusy(''); }
+  };
+  return (
+    <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal card col" role="dialog" aria-modal="true" aria-label="Papelera" style={{ maxWidth: 560, gap: 14 }}>
+        <h2 style={{ fontSize: 20 }}>Papelera</h2>
+        <span className="small muted">Lo que quitas no se borra al momento: queda aquí. Recupéralo o bórralo para siempre para liberar espacio.</span>
+        {error ? <span className="small" role="alert"><Icon name="warning" style={{ marginRight: 6 }} />{error}</span>
+          : list === null ? <span className="small muted" role="status">Cargando…</span>
+          : list.length === 0 ? <span className="muted">La papelera está vacía.</span>
+          : (
+            <div className="col" style={{ gap: 6, maxHeight: '50vh', overflowY: 'auto' }}>
+              {list.map((t) => (
+                <div key={t.nombre} className="row" style={{ flexWrap: 'nowrap', gap: 10, padding: 8, borderRadius: 10, border: '1px solid var(--line)' }}>
+                  <Icon name={TIPO[t.tipo]?.[0] ?? 'folder'} size={20} />
+                  <span className="col" style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                    <strong className="pname">{t.titulo}</strong>
+                    <span className="small muted">{TIPO[t.tipo]?.[1] ?? 'Archivo'}{t.cliente ? ` · ${t.cliente}` : ''}{t.fecha ? ` · ${ago(t.fecha)}` : ''}</span>
+                  </span>
+                  <button className="btn rect small" disabled={Boolean(busy)} onClick={() => recuperar(t)}><Icon name="undo" />Recuperar</button>
+                  <button className="btn sq" disabled={Boolean(busy)} aria-label={`Borrar «${t.titulo}» para siempre`} title="Borrar para siempre" onClick={() => borrar(t)}><Icon name="trash" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          {list && list.length > 0 ? <button className="btn ghost" style={{ color: 'var(--pinkText)' }} disabled={Boolean(busy)} onClick={() => borrar()}><Icon name="trash" />Vaciar la papelera</button> : <span />}
+          <button className="btn" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /** A dónde lleva abrir un proyecto: a su resultado si ya se editó; si no, al brief. */
 const openHref = (it: Item) => `#/${it.edited ? 'listo' : 'brief'}?p=${encodeURIComponent(it.id)}`;
 const VIDEO = /\.(mp4|mov|m4v|webm|mkv)$/i;
@@ -31,6 +102,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [items, setItems] = useState<Item[] | null>(null);
   const [client, setClient] = useState('');
   const [keysOpen, setKeysOpen] = useState(false);
+  const [papeleraOpen, setPapeleraOpen] = useState(false);
   // Cuentas de Instagram para publicar: el botón avisa si alguna hay que conectarla otra vez.
   const [cuentasOpen, setCuentasOpen] = useState(false);
   const ig = useCuentas()?.instagram;
@@ -113,7 +185,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     try {
       await api(`/api/op?id=${encodeURIComponent(it.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'papelera' }) });
       await reload();
-      ctx.toast(`«${it.name}» está en la papelera.`);
+      ctx.toast(`«${it.name}» está en la papelera. Para recuperarlo: Ajustes › Papelera.`);
     } catch (e: any) { ctx.toast(e.message); }
   };
   /** Cambia el nombre o el cliente del proyecto (lo guarda con el PUT del proyecto; el id y la carpeta no cambian). */
@@ -157,7 +229,14 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   useEffect(() => { if (filter && items && !clients.includes(filter)) setFilter(''); }, [clients]);
   const shown = useMemo(() => (items ?? []).filter((i) =>
     (!filter || i.client === filter) && (!q.trim() || `${i.name} ${i.client}`.toLowerCase().includes(q.trim().toLowerCase()))), [items, q, filter]);
-  const last = items?.find((i) => !i.creating);
+  const last = items?.find((i) => !making(i));
+  // Escape cierra la ventana de «Otros equipos».
+  useEffect(() => {
+    if (!access) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAccess(null); };
+    addEventListener('keydown', esc);
+    return () => removeEventListener('keydown', esc);
+  }, [access]);
 
   /** Montaje sin voz: se suben uno o varios videos y se arma con cortes rápidos. */
   const uploadMontage = (files: File[]) => {
@@ -202,6 +281,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   return (
     <main className="page projects" style={{ maxWidth: 1080, width: '100%', margin: '0 auto' }}>
       {keysOpen && <KeysPanel onClose={() => setKeysOpen(false)} toast={ctx.toast} />}
+      {papeleraOpen && <PapeleraPanel onClose={() => setPapeleraOpen(false)} onRestored={() => void reload()} toast={ctx.toast} />}
       {cuentasOpen && <CuentasPanel onClose={() => setCuentasOpen(false)} toast={ctx.toast} />}
       {access && (
         <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setAccess(null); }}>
@@ -255,6 +335,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <Icon name="key" />{freesound === false ? 'Claves (falta la de la música)' : 'Claves'}
               </button>
               <button className={cuentasAviso ? 'warn' : ''} onClick={() => { closeAjustes(); setCuentasOpen(true); }} title={cuentasAviso ?? 'Instagram: conecta tus cuentas para publicar desde la app'}><Icon name="link" />Cuentas</button>
+              <button onClick={() => { closeAjustes(); setPapeleraOpen(true); }} title="Recupera lo que quitaste o vacíala para liberar espacio"><Icon name="trash" />Papelera</button>
               <button className={backup?.error || (backup && !backup.last) ? 'warn' : ''} disabled={Boolean(backingUp || backup?.running)}
                 onClick={() => { closeAjustes(); if (backup?.error) ctx.toast(`La última copia falló: ${backup.error}`); void backupNow(); }}
                 title={backup?.error ? backup.error : 'Copia de seguridad en iCloud Drive: se hace sola una vez al día. Clic para hacerla ahora.'}>
@@ -321,8 +402,8 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ) : (
         <div className="pgrid">
           {shown.map((it) => (
-            <div key={it.id} className={`pcard ${menu === it.id ? 'menu-open' : ''} ${it.creating ? 'busy' : ''}`} aria-busy={it.creating || undefined}>
-              <a className="pcard-link" href={it.creating ? undefined : openHref(it)} aria-disabled={it.creating || undefined} title={it.creating ? 'Todavía se está preparando' : `Abrir «${it.name}»`}>
+            <div key={it.id} className={`pcard ${menu === it.id ? 'menu-open' : ''} ${making(it) ? 'busy' : ''}`} aria-busy={making(it) || undefined}>
+              <a className="pcard-link" href={making(it) ? undefined : openHref(it)} aria-disabled={making(it) || undefined} title={making(it) ? 'Todavía se está preparando' : `Abrir «${it.name}»`}>
                 <span className="pthumb">
                   <img src={`/api/thumb?id=${encodeURIComponent(it.id)}&t=${it.thumbT ?? 1}`} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }} />
                   {it.duration ? <span className="pdur">{Math.floor(it.duration / 60)}:{String(Math.round(it.duration % 60)).padStart(2, '0')}</span> : null}
@@ -331,14 +412,15 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <strong className="pname">{it.name}</strong>
                   <span className="small muted">{it.client} · {it.kind === 'montaje' ? 'montaje' : `${it.scenes} escenas`}</span>
                   <span className="row" style={{ gap: 6 }}>
-                    {it.creating ? <span className="pill line">Preparando…</span>
+                    {making(it) ? <span className="pill line">Preparando…</span>
+                      : it.creating ? <span className="pill line">Editándose…</span>
                       : !it.edited ? <span className="pill line">Falta el brief</span>
                       : <span className={`pill ${it.approval === 'aprobado' ? '' : 'line'}`}>{STATUS[it.approval] ?? it.approval}</span>}
                     <span className="small muted">{ago(it.updatedAt)}</span>
                   </span>
                 </span>
               </a>
-              {!it.creating && (
+              {!making(it) && (
                 <div className="pactions">
                   <button className="btn sq" aria-label={`Más acciones para «${it.name}»`} aria-expanded={menu === it.id} onClick={() => setMenu(menu === it.id ? null : it.id)}><Icon name="more" /></button>
                   {menu === it.id && (
