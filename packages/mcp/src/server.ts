@@ -521,6 +521,15 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('montaje_al_ritmo', 'En un montaje con música, pone cada corte justo en un golpe de la canción (detecta tempo, compás y dónde sube la energía). densidad: auto (más cortes donde la música es fuerte), pulso, medio (cada 2) o compas (cada 4).', {
+    proyecto, densidad: z.enum(['auto', 'pulso', 'medio', 'compas']).default('auto'),
+    duracion: z.number().optional().describe('Segundos; por defecto lo que dura la voz en off o hasta 30 s'),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const r = await E.montageToBeat(dir, { density: a.densidad, duration: a.duracion });
+    return `${r.cuts} cortes en los golpes (${r.bpm} BPM), ${r.duration.toFixed(1)} s${r.drop != null ? `, destello en ${r.drop.toFixed(1)} s` : ''}.\n` + E.summarize(r.project, dir);
+  });
+
   tool('doblar', 'Crea una copia del reel doblada a otro idioma (en, pt, fr, it, de): traduce cada frase con la IA local, genera la voz, la ajusta al tiempo de cada frase y traduce subtítulos y textos en pantalla. El reel original no cambia. Hacerlo cuando el corte esté terminado.', {
     proyecto, idioma: z.enum(['en', 'pt', 'fr', 'it', 'de']),
     voz: z.enum(['elevenlabs', 'piper', 'sistema']).optional(),

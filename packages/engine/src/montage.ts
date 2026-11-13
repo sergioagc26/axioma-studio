@@ -10,6 +10,7 @@ import { P, projectDir, slugify } from './paths.ts';
 import { listPresets } from './presets.ts';
 import { detectBpm, detectCuts } from './reference.ts';
 import { readProject, writeProject } from './store.ts';
+import { montageToBeat } from './beats.ts';
 
 const VIDEO = /\.(mp4|mov|m4v|webm|mkv)$/i;
 
@@ -160,6 +161,15 @@ export interface MontagePick { toma: string; inicio?: number; duracion?: number 
  */
 export async function buildMontage(dir: string, opts: { duration?: number; clipLength?: number; picks?: MontagePick[] } = {}) {
   const project = await readProject(dir);
+  // Con música y sin tomas elegidas a mano, los cortes caen en los golpes de la canción.
+  if (!opts.picks?.length && !opts.clipLength && project.audio.music && existsSync(path.join(dir, project.audio.music))) {
+    try {
+      const r = await montageToBeat(dir, { duration: opts.duration });
+      return { project: r.project, clip: 60 / r.bpm, beat: 60 / r.bpm, shots: r.cuts, duration: r.duration };
+    } catch (e) {
+      if (!/pulso claro/.test(String((e as Error).message))) throw e; // sin pulso: corte parejo
+    }
+  }
   const shots = await detectShots(dir);
   if (!shots.length) throw new Error('No se detectaron tomas en el video.');
   const byId = new Map(shots.map((s) => [s.id, s]));

@@ -166,6 +166,10 @@ En Variantes, «Busca en tu material» encuentra momentos en todos los reels del
 
 En Audio, «Doblaje a otro idioma» crea una **copia** del reel en inglés, portugués, francés, italiano o alemán; el original no cambia. La IA local (Ollama) traduce frase por frase lo que quedó en el corte, se genera la voz de cada frase (la del computador, o ElevenLabs si hay clave) a tu ritmo de habla y, si una frase no cabe en su espacio, se acelera hasta un 35 % o empuja un poco a la siguiente. La voz original se apaga; la música y los efectos siguen. Los subtítulos y los textos en pantalla salen traducidos (no los textos que ya venían grabados en el video). Los labios no se sincronizan. Tarda alrededor de un minuto. Claude puede hacerlo con `doblar`.
 
+## Montaje al ritmo de la música
+
+En un montaje (videos sin voz), con música puesta, cada corte cae justo en un golpe de la canción. La app detecta el tempo, el primer golpe de cada compás y dónde sube la energía, en este computador. En Audio, «Cortar al ritmo» permite elegir: automático (cada compás en las partes suaves, cada 2 golpes en las medias y en cada golpe en las fuertes, con un destello en el golpe donde más sube la música), en cada golpe, cada 2 o cada compás. El final también cae en un golpe; con voz en off, en el primero después de que termina la voz. Subir una canción a un montaje lo vuelve a cortar solo, y el montaje automático ya usa los golpes cuando hay música. Si la canción no tiene un pulso claro, se corta parejo como antes. Claude puede hacerlo con `montaje_al_ritmo`.
+
 ## Lo más reciente
 
 - **La app ve el video.** Un modelo de visión local (CLIP, en `.modelos/`, ~160 MB la primera vez) mira seis fotogramas y reconoce de qué trata: gente entrenando, comida, alguien hablando, una pantalla, un producto, etc. Eso pesa en el estilo recomendado, propone el sector de la marca y ordena los aspectos de imagen de las variantes. El video no sale del computador.

@@ -30,6 +30,7 @@ import { BUILTIN_LUTS, applyLut, removeLut } from './lut.ts';
 import { addTeaser, removeTeaser } from './teaser.ts';
 import { searchLibrary, useLibraryHit } from './library.ts';
 import { DUB_LANGUAGES, dubProject } from './dub.ts';
+import { montageToBeat } from './beats.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -330,6 +331,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       });
       return json(res, job);
     }
+    if (b.op === 'ritmo') {
+      // Montaje con los cortes en los golpes de la música.
+      const r = await montageToBeat(dir, { density: ['auto', 'pulso', 'medio', 'compas'].includes(b.densidad) ? b.densidad : 'auto', duration: Number(b.duracion) || undefined });
+      return json(res, { project: r.project, bpm: r.bpm, cuts: r.cuts, duration: r.duration, drop: r.drop });
+    }
     if (b.op === 'doblar') {
       // Copia del reel con la voz en otro idioma (la original no se toca).
       const job = startJob('ia', async (j) => {
@@ -502,7 +508,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'musica.mp3'));
     await pipe(req, createWriteStream(tmp));
     try {
-      return json(res, { project: await ops.setMusic(dir, tmp, { license: url.searchParams.get('license') ?? '', source: 'subida en el studio' }) });
+      const withMusic = await ops.setMusic(dir, tmp, { license: url.searchParams.get('license') ?? '', source: 'subida en el studio' });
+      // En un montaje, los cortes se vuelven a poner en los golpes de la canción nueva.
+      if (withMusic.kind === 'montaje') {
+        try { return json(res, { project: (await buildMontage(dir, {})).project, ritmo: true }); } catch { /* queda el montaje anterior */ }
+      }
+      return json(res, { project: withMusic });
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

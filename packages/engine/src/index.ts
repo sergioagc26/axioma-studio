@@ -35,3 +35,4 @@ export * from './localedit.ts';
 export * from './images.ts';
 export * from './library.ts';
 export * from './dub.ts';
+export * from './beats.ts';

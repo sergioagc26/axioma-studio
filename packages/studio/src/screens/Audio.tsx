@@ -66,6 +66,17 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
+  // Montaje al ritmo de la música.
+  const [density, setDensity] = useState('auto');
+  const toBeat = async () => {
+    setBusy('Escuchando la música…');
+    try {
+      const d = await op({ op: 'ritmo', densidad: density });
+      store.replace(d.project);
+      ctx.toast(`Listo: ${d.cuts} cortes en los golpes de la música (${d.bpm} BPM, ${d.duration.toFixed(1)} s)${d.drop != null ? `, con un destello en el golpe más fuerte (${d.drop.toFixed(1)} s)` : ''}.`);
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+  };
+
   // Doblaje: crea una copia del reel con la voz en otro idioma.
   const [dubLang, setDubLang] = useState('en');
   const dub = async () => {
@@ -115,7 +126,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     try {
       const d = await api(`/api/music?id=${pid}&filename=${encodeURIComponent(file.name)}&license=${encodeURIComponent(license.trim())}`, { method: 'POST', body: file });
       store.replace(d.project);
-      ctx.toast('Música puesta. Baja sola cuando hay voz.');
+      ctx.toast(d.ritmo ? 'Música puesta y el montaje cortado en sus golpes.' : 'Música puesta. Baja sola cuando hay voz.');
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
@@ -177,6 +188,21 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <audio controls src={`/media/${pid}/${a.music.split('/').map(encodeURIComponent).join('/')}`} style={{ width: '100%' }} />
               <Volume label="Volumen bajo la voz" value={a.musicVolume} onCommit={(v) => set((p) => { p.audio.musicVolume = v; })} />
               <span className="small muted">Sube sola en los silencios y baja cuando hay voz.</span>
+              {project.kind === 'montaje' && (
+                <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--panel2)', gap: 8 }}>
+                  <strong>Cortar al ritmo</strong>
+                  <span className="small muted">Cada corte cae justo en un golpe de la canción. En automático corta más seguido donde la música sube y pone un destello en el golpe más fuerte.</span>
+                  <div className="row" style={{ flexWrap: 'wrap' }}>
+                    <select value={density} onChange={(e) => setDensity(e.target.value)} aria-label="Cada cuánto cortar">
+                      <option value="auto">Automático (sigue la energía)</option>
+                      <option value="pulso">En cada golpe</option>
+                      <option value="medio">Cada 2 golpes</option>
+                      <option value="compas">Cada compás (4 golpes)</option>
+                    </select>
+                    <button className="btn primary" disabled={Boolean(busy)} onClick={toBeat}>Cortar al ritmo</button>
+                  </div>
+                </div>
+              )}
               <button className="btn rect" onClick={() => run({ op: 'quitar-musica' }, 'Música quitada.')}>Quitar la música</button>
             </>
           ) : (
