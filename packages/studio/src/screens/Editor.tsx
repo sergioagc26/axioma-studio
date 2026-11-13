@@ -228,6 +228,22 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
 
   const [allAdvice, setAllAdvice] = useState(false);
+  // Revisión del cliente: enlace y comentarios.
+  const [review, setReview] = useState<{ token: string; exported: boolean; network: boolean; links: string[]; local: string } | null>(null);
+  const shareReview = async (nuevo: boolean) => {
+    try {
+      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: nuevo ? 'revision-nueva' : 'revision' }) });
+      setReview(d);
+      if (nuevo) ctx.toast('Enlace nuevo creado: el anterior ya no funciona.');
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+  useEffect(() => { if (project.review?.token) shareReview(false); }, [project.id]);
+  const resolveRequest = async (requestId: string, status: 'hecha' | 'descartada') => {
+    try {
+      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'peticion', requestId, status }) });
+      store.replace(d.project);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
   /** Sube el logo a la marca del cliente. */
   const uploadLogo = async (file: File) => {
     try {
@@ -855,6 +871,43 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <label className="row"><input type="checkbox" checked={project.finish.keywordZoom} onChange={(e) => store.update((p) => { p.finish.keywordZoom = e.target.checked; })} /> Zoom en la palabra importante de cada frase</label>
               <label className="row"><input type="checkbox" checked={project.finish.halation} onChange={(e) => store.update((p) => { p.finish.halation = e.target.checked; })} /> Brillo de cine (halo en las luces)</label>
               <label className="row"><input type="checkbox" checked={project.finish.letterbox} onChange={(e) => store.update((p) => { p.finish.letterbox = e.target.checked; })} /> Barras de cine</label>
+          </Group>
+          <Group id="revision" title="Revisión del cliente" hint={project.requests.filter((r) => r.status === 'pendiente').length ? `${project.requests.filter((r) => r.status === 'pendiente').length} pendiente${project.requests.filter((r) => r.status === 'pendiente').length === 1 ? '' : 's'}` : project.approval === 'aprobado' ? 'Aprobado' : undefined}>
+              <span className="small muted">Un enlace para que tu cliente vea el último video exportado, comente en el segundo exacto y lo apruebe. Solo da acceso a este reel.</span>
+              {review ? (
+                <div className="col" style={{ gap: 6 }}>
+                  {(review.links.length ? review.links : [review.local]).map((l) => (
+                    <div key={l} className="row" style={{ flexWrap: 'nowrap' }}>
+                      <input className="input" style={{ flex: 1, minWidth: 0, minHeight: 34, fontSize: 12 }} readOnly value={l} onFocus={(e) => e.target.select()} aria-label="Enlace de revisión" />
+                      <button className="btn rect" style={{ height: 34 }} onClick={() => navigator.clipboard?.writeText(l).then(() => ctx.toast('Enlace copiado.')).catch(() => ctx.toast('Selecciónalo y cópialo a mano.'))}>Copiar</button>
+                    </div>
+                  ))}
+                  {!review.exported && <span className="small" style={{ color: 'var(--pinkText)' }}>Todavía no hay un video exportado: el cliente verá un aviso hasta que exportes el reel.</span>}
+                  {!review.network && <span className="small" style={{ color: 'var(--pinkText)' }}>La app no está abierta en modo red: el enlace solo funciona en este computador. Para que el cliente lo abra desde su equipo (misma Wi-Fi), abre la app con el ícono del Escritorio o «Abrir Axioma Studio».</span>}
+                  {review.network && <span className="small muted">Funciona en la misma Wi-Fi mientras la app esté abierta. Fuera de casa necesita una red privada como Tailscale.</span>}
+                  <button className="btn ghost" style={{ height: 28, alignSelf: 'flex-start' }} onClick={() => shareReview(true)}>Cambiar el enlace (el anterior deja de funcionar)</button>
+                </div>
+              ) : <button className="btn rect" style={{ height: 34 }} onClick={() => shareReview(false)}>Crear enlace de revisión</button>}
+              {project.requests.length > 0 && (
+                <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                  <strong className="small">Comentarios y pedidos</strong>
+                  {[...project.requests].sort((x, y) => Number(x.status !== 'pendiente') - Number(y.status !== 'pendiente') || y.at.localeCompare(x.at)).slice(0, 30).map((r) => (
+                    <div key={r.id} className="col" style={{ gap: 4, padding: 8, borderRadius: 8, background: 'var(--panel2)', opacity: r.status === 'pendiente' ? 1 : 0.55 }}>
+                      <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+                        <strong className="small">{r.author ?? 'Pedido a la IA'}</strong>
+                        {r.time != null && <button className="btn ghost" style={{ height: 24, padding: '0 4px', fontVariantNumeric: 'tabular-nums' }} title="Ir a ese momento" onClick={() => player.current?.seekTo(Math.round(r.time! * timeline.fps))}>{Math.floor(r.time / 60)}:{String(Math.floor(r.time % 60)).padStart(2, '0')}</button>}
+                      </div>
+                      <span className="small">{r.text}</span>
+                      {r.status === 'pendiente' ? (
+                        <div className="row" style={{ gap: 6 }}>
+                          <button className="btn rect" style={{ height: 28 }} onClick={() => resolveRequest(r.id, 'hecha')}>Hecho</button>
+                          <button className="btn ghost" style={{ height: 28 }} onClick={() => resolveRequest(r.id, 'descartada')}>Descartar</button>
+                        </div>
+                      ) : <span className="small muted">{r.status === 'hecha' ? 'Hecho' : 'Descartado'}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
           </Group>
           <Group id="quitadas" title="Partes quitadas" hint={String(removed.length)}>
 

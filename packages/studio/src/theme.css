@@ -201,3 +201,12 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .pmenu button:hover, .pmenu button:focus-visible { background: var(--panel2); }
 .pmenu button.danger { color: var(--pinkText); }
 .pcard-link { padding-right: 26px; }
+
+/* Editar por texto */
+.texto-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--line); }
+.texto-body { font-size: 18px; line-height: 1.75; user-select: none; outline: none; }
+.texto-body p { margin: 0 0 14px; }
+.texto-body .w { cursor: text; border-radius: 4px; padding: 1px 0; }
+.texto-body .w:hover { background: var(--panel2); }
+.texto-body .w.out { color: var(--muted); text-decoration: line-through; opacity: .55; }
+.texto-body .w.sel { background: var(--pinkSoft); box-shadow: 0 0 0 1px var(--pink) inset; }

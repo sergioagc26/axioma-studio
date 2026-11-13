@@ -301,6 +301,10 @@ export const Request = z.object({
   sceneId: z.string().optional(),
   text: z.string(),
   status: z.enum(['pendiente', 'hecha', 'descartada']).default('pendiente'),
+  /** Quién lo pidió (por ejemplo, el cliente desde el enlace de revisión). */
+  author: z.string().optional(),
+  /** Segundo del reel al que se refiere. */
+  time: z.number().optional(),
 });
 
 export const Project = z.object({
@@ -388,5 +392,7 @@ export const Project = z.object({
   assets: z.array(Asset).default([]),
   approval: z.enum(['borrador', 'en_revision', 'aprobado']).default('borrador'),
   requests: z.array(Request).default([]),
+  /** Enlace de revisión para el cliente: la clave que da acceso solo a este reel. */
+  review: z.object({ token: z.string(), createdAt: z.string() }).optional(),
 });
 export type Project = z.infer<typeof Project>;

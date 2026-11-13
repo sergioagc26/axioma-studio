@@ -522,6 +522,15 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('enlace_revision', 'Crea (o muestra) el enlace de revisión del cliente: ve el último video exportado, comenta en el segundo exacto y aprueba. Los comentarios llegan como peticiones (leer_peticiones). Funciona en la misma red con la app abierta en modo red.', {
+    proyecto, nuevo: z.boolean().default(false).describe('true cambia el enlace (el anterior deja de funcionar)'),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const token = a.nuevo ? await E.resetReviewToken(dir) : await E.ensureReviewToken(dir);
+    const ips = E.lanAddresses();
+    return `Enlace de revisión:\n${(ips.length ? ips : ['localhost']).map((ip) => `http://${ip}:${E.STUDIO_PORT}/r/${token}`).join('\n')}`;
+  });
+
   tool('marca_de_agua', 'Pone (o quita) el logo de la marca fijo en una esquina del reel. Si la marca no tiene logo, usa su nombre. Sube el logo con logo_marca.', {
     proyecto, on: z.boolean().default(true),
     esquina: z.enum(['arriba-izq', 'arriba-der', 'abajo-izq', 'abajo-der']).default('arriba-der'),

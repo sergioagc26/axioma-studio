@@ -172,6 +172,11 @@ En Variantes, «Busca en tu material» encuentra momentos en todos los reels del
 
 Claude: `ajustar_subtitulos` (emojis), `idioma_subtitulos`.
 
+## Editar por texto y revisión del cliente
+
+- **Editar por texto** (pestaña Texto, como Descript): todo lo que se dice, palabra por palabra. Selecciona (clic, arrastrar o Mayús+clic) y «Quitar del video» (⌫) o «Recuperar» (R); espacio escucha la selección. Las tachadas no están en el reel. Quitar una frase del medio parte la escena en dos; recuperar la devuelve a su escena. Se deshace con ⌘Z.
+- **Revisión del cliente** (Editor → «Revisión del cliente», como Frame.io): un enlace `http://<tu-ip>:4747/r/<clave>` que solo da acceso a ese reel. El cliente ve el último video exportado (si no hay, un aviso: nunca el video original sin editar), comenta en el segundo exacto y lo aprueba. Los comentarios aparecen en el editor (clic en el minuto para ir ahí) con «Hecho» y «Descartar», y Claude los lee con `leer_peticiones`. Funciona en la misma Wi-Fi con la app abierta desde el ícono (modo red); el resto de la app sigue pidiendo su clave. «Cambiar el enlace» invalida el anterior. Claude: `enlace_revision`.
+
 ## Portada, marca de agua, formatos y proyectos
 
 - **Portada del reel** (Imágenes): elige el mejor fotograma de las primeras escenas (nítido, con la cara cerca del centro y buena luz) y le pone el gancho grande, en 9:16, para elegirla como portada al publicar. Todas las imágenes (carrusel, post, historia) usan ahora el mejor fotograma de su escena, no el del medio.

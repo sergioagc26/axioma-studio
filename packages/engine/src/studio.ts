@@ -39,6 +39,8 @@ import { setCaptionLanguage } from './subtitles.ts';
 import { renderHookVariants } from './hooks.ts';
 import { duplicateProject, trashProject } from './manage.ts';
 import { saveClientLogo } from './kit.ts';
+import { addReviewComment, approveReview, ensureReviewToken, findByToken, publicReview, resetReviewToken, reviewVideo } from './review.ts';
+import { reviewPageHtml } from './review-page.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -144,8 +146,46 @@ function guardNetwork(req: http.IncomingMessage, res: http.ServerResponse, url: 
   return true;
 }
 
+/**
+ * Enlace de revisión del cliente: /r/<clave> (página) y /api/r/<clave>/… (datos, video, comentar,
+ * aprobar). No pide la clave de la red: la clave del enlace solo da acceso a ese reel.
+ */
+async function handleReview(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<boolean> {
+  const m = url.pathname.match(/^\/(r|api\/r)\/([\w-]{12,40})(?:\/(video|comentario|aprobar))?$/);
+  if (!m) return false;
+  const [, kind, token, action] = m;
+  const method = req.method ?? 'GET';
+  const hit = await findByToken(token);
+  if (!hit) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Este enlace de revisión ya no funciona.'); return true; }
+  if (kind === 'r' && !action && method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Robots-Tag': 'noindex' }).end(reviewPageHtml(token));
+    return true;
+  }
+  if (method !== 'GET') {
+    const origin = req.headers.origin;
+    if (origin && new URL(origin).host !== req.headers.host) { json(res, { error: 'Origen no permitido.' }, 403); return true; }
+  }
+  const video = await reviewVideo(hit.dir, hit.project);
+  if (!action && method === 'GET') { json(res, publicReview(hit.project, video.exported)); return true; }
+  if (action === 'video' && method === 'GET') { if (!video.file || !sendFile(req, res, video.file)) res.writeHead(404).end(); return true; }
+  if (action === 'comentario' && method === 'POST') {
+    const b = await readBody(req);
+    const project = await addReviewComment(hit.dir, { name: String(b.name ?? ''), text: String(b.text ?? ''), time: Number(b.time) });
+    json(res, publicReview(project, video.exported));
+    return true;
+  }
+  if (action === 'aprobar' && method === 'POST') {
+    const b = await readBody(req);
+    json(res, publicReview(await approveReview(hit.dir, String(b.name ?? '')), video.exported));
+    return true;
+  }
+  res.writeHead(405).end();
+  return true;
+}
+
 async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   const url = new URL(req.url ?? '/', 'http://x');
+  if (await handleReview(req, res, url)) return;
   if (guardNetwork(req, res, url)) return;
   const p = url.pathname;
   const id = url.searchParams.get('id');
@@ -342,6 +382,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       });
       return json(res, job);
     }
+    if (b.op === 'revision' || b.op === 'revision-nueva') {
+      // Enlace para el cliente: funciona en la misma red cuando la app está abierta en modo red.
+      const token = b.op === 'revision-nueva' ? await resetReviewToken(dir) : await ensureReviewToken(dir);
+      const port = new URL(`http://${req.headers.host ?? 'localhost'}`).port || String(STUDIO_PORT);
+      return json(res, { token, exported: (await reviewVideo(dir, await readProject(dir))).exported, network: Boolean(networkKey), links: lanAddresses().map((ip) => `http://${ip}:${port}/r/${token}`), local: `http://localhost:${port}/r/${token}` });
+    }
+    if (b.op === 'peticion') return json(res, { project: await ops.resolveRequest(dir, String(b.requestId ?? ''), b.status === 'descartada' ? 'descartada' : 'hecha') });
     if (b.op === 'duplicar') return json(res, { id: (await duplicateProject(dir)).id });
     if (b.op === 'papelera') { await trashProject(dir); return json(res, { ok: true }); }
     if (b.op === 'idioma-subtitulos') {
