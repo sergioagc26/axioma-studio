@@ -4,16 +4,19 @@
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 
 const HOST = process.env.OLLAMA_HOST ? (/^https?:/.test(process.env.OLLAMA_HOST) ? process.env.OLLAMA_HOST : `http://${process.env.OLLAMA_HOST}`).replace(/\/$/, '') : 'http://127.0.0.1:11434';
 /** Modelos que sirven, del mejor al más liviano. Se usa el primero que esté descargado. */
 export const MODEL_CHOICES = ['qwen3:14b', 'qwen3:8b', 'qwen2.5:7b', 'llama3.1:8b', 'gemma3:4b', 'qwen3:4b'];
+/** Modelos que ven imágenes (fotogramas), del mejor al más liviano. */
+export const VISION_CHOICES = ['qwen3-vl:8b', 'qwen2.5vl:7b', 'qwen3-vl:4b', 'gemma3:4b'];
 export const LOCAL_MODEL = process.env.AXIOMA_LLM || 'qwen3:8b';
 /** Tiempo que el modelo queda cargado en memoria entre pedidos (respuestas inmediatas mientras trabajas). */
 const KEEP_ALIVE = process.env.AXIOMA_LLM_KEEP_ALIVE || '30m';
 
-export interface LlmStatus { running: boolean; version?: string; model?: string; installed: string[]; loaded: boolean; error?: string }
+export interface LlmStatus { running: boolean; version?: string; model?: string; vision?: string; installed: string[]; loaded: boolean; error?: string }
 
 async function getJson<T>(p: string, ms = 2500): Promise<T | null> {
   try {
@@ -65,7 +68,14 @@ export async function llmStatus(): Promise<LlmStatus> {
   const model = pickModel(installed);
   const ps = await getJson<{ models?: { name: string }[] }>('/api/ps');
   const loaded = Boolean(model && ps?.models?.some((m) => m.name === model));
-  return { running: true, version: v.version, model, installed, loaded, error: model ? undefined : `No hay un modelo descargado. Descarga uno con: ollama pull ${LOCAL_MODEL}` };
+  return { running: true, version: v.version, model, vision: pickVisionModel(installed), installed, loaded, error: model ? undefined : `No hay un modelo descargado. Descarga uno con: ollama pull ${LOCAL_MODEL}` };
+}
+
+/** El modelo que ve imágenes: AXIOMA_VISION o el mejor descargado. */
+export function pickVisionModel(installed: string[]): string | undefined {
+  const want = process.env.AXIOMA_VISION ? [process.env.AXIOMA_VISION] : VISION_CHOICES;
+  for (const c of want) { const hit = installed.find((n) => matches(n, c)); if (hit) return hit; }
+  return undefined;
 }
 
 let cachedModel: { name: string; at: number } | null = null;
@@ -187,4 +197,34 @@ Responde solo JSON {"gancho": "..."}.`;
   }
   const n = hook.split(' ').length;
   return n >= 2 && n <= 8 ? hook : null;
+}
+
+/** ¿Hay un modelo que vea imágenes? Devuelve su nombre. */
+export async function visionReady(): Promise<string | undefined> {
+  if (!(await getJson('/api/version', 1500)) && !(await ensureOllama())) return undefined;
+  const tags = await getJson<{ models?: { name: string }[] }>('/api/tags');
+  return pickVisionModel((tags?.models ?? []).map((m) => m.name));
+}
+
+/**
+ * Como llmJson, pero el modelo además MIRA imágenes (rutas a .jpg/.png). Se descarga de la
+ * memoria a los 2 minutos: con 16 GB no conviene tenerlo cargado junto al de texto.
+ */
+export async function visionJson<T>(system: string, user: string, images: string[], schema: object, opts: { temperature?: number; timeoutMs?: number } = {}): Promise<T> {
+  const model = await visionReady();
+  if (!model) throw new Error('No hay un modelo de visión descargado (ollama pull qwen3-vl:8b).');
+  const b64 = await Promise.all(images.map(async (f) => (await readFile(f)).toString('base64')));
+  return inLine(async () => {
+    const r = await fetch(`${HOST}/api/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(opts.timeoutMs ?? 240_000),
+      body: JSON.stringify({
+        model, stream: false, think: false, format: schema, keep_alive: '2m',
+        options: { temperature: opts.temperature ?? 0.2, num_ctx: 16384 },
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user, images: b64 }],
+      }),
+    });
+    if (!r.ok) throw new Error(`La IA de visión respondió ${r.status}. ${(await r.text()).slice(0, 200)}`);
+    const d = (await r.json()) as { message?: { content?: string } };
+    return JSON.parse((d.message?.content ?? '').replace(/^```(json)?|```$/g, '').trim()) as T;
+  });
 }

@@ -59,7 +59,7 @@ export async function doctor(): Promise<{ ok: boolean; checks: Check[] }> {
   const ia = await llmStatus();
   checks.push({
     name: 'IA local (opcional: Ollama)', ok: true,
-    detail: !ia.running ? 'no está abierta: sin Claude, la edición por chat no funciona' : ia.model ? `ok (${ia.model}${ia.loaded ? ', cargada en memoria' : ''}, Ollama ${ia.version})` : `abierta pero sin modelo: ollama pull ${LOCAL_MODEL}`,
+    detail: !ia.running ? 'no está abierta: sin Claude, la edición por chat no funciona' : ia.model ? `ok (${ia.model}${ia.loaded ? ', cargada en memoria' : ''}${ia.vision ? ` · ve imágenes con ${ia.vision}` : ''}, Ollama ${ia.version})` : `abierta pero sin modelo: ollama pull ${LOCAL_MODEL}`,
   });
 
   return { ok: checks.every((c) => c.ok), checks };

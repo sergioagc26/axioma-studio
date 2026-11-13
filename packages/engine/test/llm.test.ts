@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contextFor, pickModel } from '../src/llm.ts';
+import { contextFor, pickModel, pickVisionModel } from '../src/llm.ts';
 
 describe('IA local', () => {
   it('elige el mejor modelo descargado que quepa en la memoria', () => {
@@ -14,5 +14,10 @@ describe('IA local', () => {
     expect(contextFor(30_000)).toBe(16384);
     expect(contextFor(80_000)).toBe(32768);
     expect(contextFor(500_000)).toBe(32768);
+  });
+  it('elige el modelo que ve imágenes, sin confundirlo con el de texto', () => {
+    expect(pickVisionModel(['qwen3:8b', 'qwen3-vl:8b'])).toBe('qwen3-vl:8b');
+    expect(pickVisionModel(['qwen3:8b'])).toBeUndefined();
+    expect(pickModel(['qwen3-vl:8b'], 16)).toBeUndefined();
   });
 });

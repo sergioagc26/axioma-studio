@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promi
 import path from 'node:path';
 import { ffmpeg } from './exec.ts';
 import { probe } from './media.ts';
+import { visionJson, visionReady } from './llm.ts';
 import { WORKSPACE, slugify } from './paths.ts';
 
 export interface ReferenceReport {
@@ -38,6 +39,8 @@ export interface ReferenceReport {
   look: 'normal' | 'bn' | 'calido' | 'frio' | 'contraste';
   /** Hay destellos blancos en los cortes. */
   flashes: boolean;
+  /** Tipografía de los subtítulos vista por la IA local de visión (si está instalada). */
+  typography?: { fontFamily: string; uppercase: boolean; style: string } | null;
   /** Valores sugeridos para un preset. */
   suggested: { maxPause: number; punchZoomEvery: number; highlightColor: string; ritmo: 'rapido' | 'con-ritmo' | 'sobrio' };
 }
@@ -255,6 +258,23 @@ async function detectVisualStyle(file: string, duration: number, cuts: number[],
  * subtítulos (posición, colores, forma de resaltar, palabras por línea),
  * estilo de los textos, aspecto de la imagen, transiciones y efectos.
  */
+/** Fuentes que el render sabe dibujar; la IA solo puede elegir entre estas. */
+export const RENDER_FONTS = ['Anton', 'Archivo Black', 'Bangers', 'Barlow Condensed', 'Bebas Neue', 'Caveat', 'DM Sans', 'Inter', 'Kanit', 'League Spartan', 'Lobster', 'Lora', 'Montserrat', 'Nunito', 'Oswald', 'Pacifico', 'Permanent Marker', 'Playfair Display', 'Poppins', 'Raleway', 'Righteous', 'Roboto Condensed', 'Rubik', 'Sora', 'Space Grotesk', 'Teko'];
+
+/** La IA local de visión mira 4 fotogramas y elige la fuente más parecida a la de los subtítulos. */
+export async function detectTypography(frames: string[]): Promise<ReferenceReport['typography']> {
+  if (!(await visionReady())) return null;
+  const pick = frames.filter((_, i) => i % 2 === 1).slice(0, 4);
+  const r = await visionJson<{ hay_texto: boolean; fuente: string; mayusculas: boolean; estilo: string }>(
+    `Eres diseñador de motion graphics. Mira los fotogramas de un reel y describe SOLO la tipografía de los subtítulos o textos en pantalla. Elige la fuente más parecida de esta lista exacta: ${RENDER_FONTS.join(', ')}. Pistas: letras altas y angostas → Anton, Bebas Neue, Oswald o Teko; gruesas y anchas → Archivo Black o Montserrat; redondas y amables → Poppins, Nunito o Rubik; con serifa → Lora o Playfair Display; manuscritas → Caveat, Pacifico o Permanent Marker; de cómic → Bangers. Si no hay texto en pantalla, hay_texto=false. Responde en español, solo JSON.`,
+    'Fotogramas del reel de referencia. ¿Qué fuente usan los subtítulos, van en mayúsculas y cómo es el estilo (borde, sombra, caja, colores) en una frase corta?',
+    pick,
+    { type: 'object', properties: { hay_texto: { type: 'boolean' }, fuente: { type: 'string', enum: RENDER_FONTS }, mayusculas: { type: 'boolean' }, estilo: { type: 'string' } }, required: ['hay_texto', 'fuente', 'mayusculas', 'estilo'] },
+  );
+  if (!r.hay_texto || !RENDER_FONTS.includes(r.fuente)) return null;
+  return { fontFamily: r.fuente, uppercase: r.mayusculas, style: r.estilo.trim().slice(0, 160) };
+}
+
 export function presetFromReference(r: ReferenceReport, name?: string) {
   const c = r.captions;
   const fast = r.suggested.ritmo === 'rapido';
@@ -276,8 +296,8 @@ export function presetFromReference(r: ReferenceReport, name?: string) {
         effect: (c.box ? 'caja' : c.highlight ? (fast ? 'pop' : 'color') : 'subrayado') as 'caja' | 'pop' | 'color' | 'subrayado',
         emphasis: Boolean(c.highlight),
       } : { effect: (fast ? 'pop' : 'color') as 'pop' | 'color' }),
-      uppercase: fast,
-      fontFamily: fast ? 'Montserrat' : 'Inter',
+      uppercase: r.typography?.uppercase ?? fast,
+      fontFamily: r.typography?.fontFamily ?? (fast ? 'Montserrat' : 'Inter'),
     },
     style: {
       textStyle: (c?.box ? 'caja' : fast ? 'resaltado' : 'subrayado') as 'caja' | 'resaltado' | 'subrayado',
@@ -325,6 +345,7 @@ export async function analyzeReference(input: string, opts: { client?: string; n
     await ffmpeg(['-ss', (((i + 0.5) / count) * info.duration).toFixed(2), '-i', file, '-frames:v', '1', '-vf', 'scale=360:-2', '-q:v', '4', path.join(dir, rel)]);
     frames.push(rel);
   }
+  const typography = await detectTypography(frames.map((f) => path.join(dir, f))).catch(() => null);
   if (opts.keepVideo) await copyFile(file, path.join(dir, `referencia${path.extname(file).toLowerCase()}`));
 
   const avgShot = info.duration / (cuts.length + 1);
@@ -332,7 +353,7 @@ export async function analyzeReference(input: string, opts: { client?: string; n
   const accent = [...palette].sort((a, b) => saturation(b) - saturation(a))[0];
   const report: ReferenceReport = {
     id, name, client: opts.client ?? 'personal', createdAt: new Date().toISOString(),
-    duration: info.duration, cuts, avgShot, bpm, palette, frames, ...visual,
+    duration: info.duration, cuts, avgShot, bpm, palette, frames, ...visual, typography,
     suggested: {
       ritmo,
       maxPause: ritmo === 'rapido' ? 0.2 : ritmo === 'con-ritmo' ? 0.35 : 0.6,
@@ -365,6 +386,7 @@ export function formatReport(r: ReferenceReport, dir: string): string {
     r.captions
       ? `Subtítulos detectados: al ${Math.round(r.captions.y * 100)} % de alto · letras ${r.captions.color}${r.captions.highlight ? ` · resaltado ${r.captions.highlight}${r.captions.box ? ' en caja' : ''}` : ' · sin resaltado'} · ~${r.captions.wordsPerLine} palabras por línea`
       : 'Subtítulos: no se detectaron en la imagen.',
+    r.typography ? `Tipografía (vista por la IA local): ${r.typography.fontFamily}${r.typography.uppercase ? ' en mayúsculas' : ''} · ${r.typography.style}` : 'Tipografía: sin revisar (mira los fotogramas para elegirla).',
     `Imagen: ${r.look}${r.flashes ? ' · destellos en los cortes' : ''}`,
     'Fotogramas (opcional: míralos solo para afinar la tipografía; el estilo ya está detectado):',
     ...r.frames.map((f) => `  ${path.join(dir, f)}`),

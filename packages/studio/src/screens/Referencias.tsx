@@ -8,6 +8,7 @@ interface Report {
   look: string; flashes: boolean;
   id: string; name: string; client: string; duration: number; cuts: number[]; avgShot: number; bpm: number | null;
   palette: string[]; frames: string[];
+  typography?: { fontFamily: string; uppercase: boolean; style: string } | null;
   suggested: { maxPause: number; punchZoomEvery: number; highlightColor: string; ritmo: string };
 }
 
@@ -30,7 +31,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   useEffect(() => {
     api<Report[]>(`/api/references?id=${pid}`).then((l) => { setList(l); setCur((c) => c ?? l[0] ?? null); }).catch((e) => ctx.toast(e.message));
   }, [project.id]);
-  useEffect(() => { if (cur) setForm((f) => ({ ...f, name: `Estilo ${cur.name}` })); }, [cur?.id]);
+  useEffect(() => { if (cur) setForm((f) => ({ ...f, name: `Estilo ${cur.name}`, ...(cur.typography ? { font: cur.typography.fontFamily, uppercase: cur.typography.uppercase } : {}) })); }, [cur?.id]);
 
   const upload = async (file: File) => {
     try {
@@ -152,6 +153,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                     {cur.captions.highlight ? ` · resalta en ${cur.captions.highlight}${cur.captions.box ? ' con caja' : ''}` : ' · sin color de resaltado'}
                     {' '}· unas {cur.captions.wordsPerLine} palabra{cur.captions.wordsPerLine > 1 ? 's' : ''} a la vez
                   </span>
+                  {cur.typography && <span className="small muted">👁 La IA local vio la letra: <strong style={{ color: 'var(--text)' }}>{cur.typography.fontFamily}</strong>{cur.typography.uppercase ? ' en mayúsculas' : ''} · {cur.typography.style}</span>}
                 </>
               ) : <span className="muted">No se encontraron subtítulos en la imagen. Se usarán los del ritmo detectado.</span>}
             </article>
@@ -187,7 +189,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </label>
               <label className="row"><input type="checkbox" checked={form.uppercase} onChange={(e) => { setForm({ ...form, uppercase: e.target.checked }); setTouched({ ...touched, uppercase: true }); }} /> Mayúsculas</label>
               <label className="row"><input type="checkbox" checked={form.useKit} onChange={(e) => setForm({ ...form, useKit: e.target.checked })} /> Mantener mi color de resaltado actual</label>
-              <span className="small muted">La tipografía y las mayúsculas no se pueden leer de la imagen: se eligen según el ritmo. Cámbialas aquí si no coinciden.</span>
+              <span className="small muted">{cur.typography ? 'La tipografía y las mayúsculas las eligió la IA local mirando los fotogramas.' : 'Sin la IA de visión, la tipografía y las mayúsculas se eligen según el ritmo.'} Cámbialas aquí si no coinciden.</span>
             </div>
           </details>
           <button className="btn primary" style={{ height: 46 }} onClick={() => save(true)}>Guardar estilo y aplicarlo a este reel</button>
