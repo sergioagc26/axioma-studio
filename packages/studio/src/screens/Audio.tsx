@@ -66,6 +66,18 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
+  // Doblaje: crea una copia del reel con la voz en otro idioma.
+  const [dubLang, setDubLang] = useState('en');
+  const dub = async () => {
+    setBusy('Preparando el doblaje…');
+    try {
+      const done = await waitJob(await op({ op: 'doblar', idioma: dubLang, provider: voProvider }) as Job, (j) => setBusy(j.message));
+      const r = done.result as { id: string; lines: number; tight: number; idioma: string };
+      ctx.toast(`Listo: copia en ${r.idioma} con ${r.lines} frases dobladas${r.tight ? ` (${r.tight} quedaron justas de tiempo; revísalas)` : ''}. El reel original no cambió.`);
+      ctx.go('editor', { p: r.id, s: null });
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+  };
+
   // Grabación de voz con el micrófono.
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [recSecs, setRecSecs] = useState(0);
@@ -207,6 +219,24 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <button className="btn rect" onClick={() => run({ op: 'quitar-voz' }, 'Voz en off quitada.')}>Quitar la voz en off</button>
             </>
           )}
+        </section>
+
+        <section className="card col" style={{ gap: 12 }}>
+          <h2 style={{ fontSize: 17 }}>Doblaje a otro idioma</h2>
+          <span className="small muted">Traduce lo que dices frase por frase con la IA local, genera la voz y la ajusta para que cada frase caiga en su momento. Los subtítulos y los textos en pantalla salen en el nuevo idioma. Se crea una copia: este reel no cambia. Hazlo cuando el corte ya esté listo. Los labios no se sincronizan.</span>
+          {a.voiceover?.language ? <span className="pill line">Este reel ya es un doblaje ({a.voiceover.language})</span> : (
+            <div className="row" style={{ flexWrap: 'wrap' }}>
+              <select value={dubLang} onChange={(e) => setDubLang(e.target.value)} aria-label="Idioma del doblaje">
+                <option value="en">Inglés</option>
+                <option value="pt">Portugués (Brasil)</option>
+                <option value="fr">Francés</option>
+                <option value="it">Italiano</option>
+                <option value="de">Alemán</option>
+              </select>
+              <button className="btn primary" disabled={Boolean(busy) || project.kind === 'montaje'} onClick={dub}>Crear versión doblada</button>
+            </div>
+          )}
+          <span className="small muted">Usa la voz elegida arriba en «Voz» (la del computador si no hay otra). Tarda alrededor de un minuto.</span>
         </section>
 
         <section className="card col" style={{ gap: 12, gridColumn: '1 / -1' }}>

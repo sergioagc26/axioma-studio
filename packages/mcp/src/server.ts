@@ -521,6 +521,14 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('doblar', 'Crea una copia del reel doblada a otro idioma (en, pt, fr, it, de): traduce cada frase con la IA local, genera la voz, la ajusta al tiempo de cada frase y traduce subtítulos y textos en pantalla. El reel original no cambia. Hacerlo cuando el corte esté terminado.', {
+    proyecto, idioma: z.enum(['en', 'pt', 'fr', 'it', 'de']),
+    voz: z.enum(['elevenlabs', 'piper', 'sistema']).optional(),
+  }, async (a) => {
+    const r = await E.dubProject(await resolveProject(a.proyecto), a.idioma, { provider: a.voz });
+    return `Copia doblada: ${r.id} (${r.lines} frases, voz ${r.provider}${r.voice ? ` ${r.voice}` : ''}${r.tight ? `; ${r.tight} frases quedaron justas de tiempo` : ''}).`;
+  });
+
   tool('sugerir_motion', 'Lista todos los motion graphics que se pueden armar SOLOS con lo que se dice en una escena (pregunta, porcentaje, número, antes y después, pasos, lista con vistos, palabras en movimiento, frase destacada…), ya llenos con las cifras y frases reales. Aplica uno con `aplicar`.', {
     proyecto, escena: z.string(), aplicar: z.string().optional().describe('Id de la idea a aplicar, p. ej. m2'),
   }, async ({ proyecto, escena, aplicar }) => {

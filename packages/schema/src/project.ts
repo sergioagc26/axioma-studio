@@ -339,6 +339,8 @@ export const Project = z.object({
       provider: z.string(),
       voice: z.string().optional(),
       duration: z.number(),
+      /** Si es un doblaje: idioma (en, pt, fr…). */
+      language: z.string().optional(),
     }).optional(),
   }).default({ denoise: true, denoiseLevel: 'media', enhance: false, sfxAuto: false, targetLufs: -14, musicVolume: 0.18, originalVolume: 1 }),
   /** Acabados profesionales de todo el reel. */

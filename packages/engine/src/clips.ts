@@ -105,14 +105,10 @@ async function linkOrCopy(src: string, dest: string) {
 }
 
 /**
- * Crea un reel nuevo a partir de un tramo de otro proyecto: reutiliza el video, la
- * transcripción y los análisis (no se vuelve a procesar nada) y solo usa ese tramo.
+ * Copia los archivos de un proyecto a otra carpeta (enlaces duros si se puede: no ocupa espacio
+ * extra). No copia project.json, renders ni versiones.
  */
-export async function createClipProject(dir: string, clip: { start: number; end: number; title?: string }, n = 1): Promise<{ dir: string; id: string }> {
-  const src = await readProject(dir);
-  let id = `${src.id}-clip-${n}`;
-  let out = projectDir(src.client, id);
-  for (let i = 2; existsSync(out); i++) out = projectDir(src.client, (id = `${src.id}-clip-${n}-${i}`));
+export async function cloneProjectFiles(dir: string, out: string) {
   await mkdir(out, { recursive: true });
   // Archivos de la raíz (transcripción, análisis, caras, visión) y las carpetas de medios.
   for (const f of await readdir(dir, { withFileTypes: true })) {
@@ -131,6 +127,18 @@ export async function createClipProject(dir: string, clip: { start: number; end:
     await walk('');
   }
   for (const sub of [P.renders, P.versions]) await mkdir(path.join(out, sub), { recursive: true });
+}
+
+/**
+ * Crea un reel nuevo a partir de un tramo de otro proyecto: reutiliza el video, la
+ * transcripción y los análisis (no se vuelve a procesar nada) y solo usa ese tramo.
+ */
+export async function createClipProject(dir: string, clip: { start: number; end: number; title?: string }, n = 1): Promise<{ dir: string; id: string }> {
+  const src = await readProject(dir);
+  let id = `${src.id}-clip-${n}`;
+  let out = projectDir(src.client, id);
+  for (let i = 2; existsSync(out); i++) out = projectDir(src.client, (id = `${src.id}-clip-${n}-${i}`));
+  await cloneProjectFiles(dir, out);
   const now = new Date().toISOString();
   const name = `${src.name} · clip ${n}${clip.title ? ` · ${clip.title.slice(0, 40)}` : ''}`;
   await writeProject(out, { ...src, id, name, createdAt: now, updatedAt: now, clipRange: { start: clip.start, end: clip.end }, briefAppliedAt: undefined, approval: 'borrador', requests: [], scenes: src.scenes });

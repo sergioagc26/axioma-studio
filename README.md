@@ -162,6 +162,10 @@ En «Acabados del reel», «LUT de color» trae seis looks incluidos (Teal & Ora
 
 En Variantes, «Busca en tu material» encuentra momentos en todos los reels del mismo cliente (sus videos y b-rolls) a partir de una descripción: lo que **se ve** («hombres entrenando en la calle», «manos en el portátil») con el modelo de visión local, y lo que **se dice**, en las transcripciones. Al elegir un resultado se corta ese tramo del video original (unos 3,5 s, sin audio) y entra como b-roll de la escena, con su origen anotado. La primera vez revisa todo el material (un fotograma por segundo) y guarda el índice en `indice-visual.json` de cada proyecto; después solo revisa lo nuevo. Si la IA local (Ollama) está abierta, la búsqueda se traduce al inglés porque el modelo de visión la entiende mejor. Claude tiene lo mismo con `buscar_material` y `usar_material`.
 
+## Doblaje a otro idioma
+
+En Audio, «Doblaje a otro idioma» crea una **copia** del reel en inglés, portugués, francés, italiano o alemán; el original no cambia. La IA local (Ollama) traduce frase por frase lo que quedó en el corte, se genera la voz de cada frase (la del computador, o ElevenLabs si hay clave) a tu ritmo de habla y, si una frase no cabe en su espacio, se acelera hasta un 35 % o empuja un poco a la siguiente. La voz original se apaga; la música y los efectos siguen. Los subtítulos y los textos en pantalla salen traducidos (no los textos que ya venían grabados en el video). Los labios no se sincronizan. Tarda alrededor de un minuto. Claude puede hacerlo con `doblar`.
+
 ## Lo más reciente
 
 - **La app ve el video.** Un modelo de visión local (CLIP, en `.modelos/`, ~160 MB la primera vez) mira seis fotogramas y reconoce de qué trata: gente entrenando, comida, alguien hablando, una pantalla, un producto, etc. Eso pesa en el estilo recomendado, propone el sector de la marca y ordena los aspectos de imagen de las variantes. El video no sale del computador.

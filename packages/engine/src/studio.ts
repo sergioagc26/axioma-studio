@@ -29,6 +29,7 @@ import { matchSceneColors } from './colormatch.ts';
 import { BUILTIN_LUTS, applyLut, removeLut } from './lut.ts';
 import { addTeaser, removeTeaser } from './teaser.ts';
 import { searchLibrary, useLibraryHit } from './library.ts';
+import { DUB_LANGUAGES, dubProject } from './dub.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -326,6 +327,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Preparando las imágenes…';
         const r = await createImages(dir, tipo, (m) => { j.message = m; });
         return { files: r.files, ai: r.ai };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'doblar') {
+      // Copia del reel con la voz en otro idioma (la original no se toca).
+      const job = startJob('ia', async (j) => {
+        const r = await dubProject(dir, String(b.idioma ?? 'en'), { provider: b.provider || undefined, onProgress: (m, pr) => { j.message = m; if (pr != null) j.progress = pr; } });
+        return { id: r.id, lines: r.lines, tight: r.tight, idioma: DUB_LANGUAGES[String(b.idioma ?? 'en')].name };
       });
       return json(res, job);
     }

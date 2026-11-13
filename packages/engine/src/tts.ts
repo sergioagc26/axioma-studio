@@ -30,7 +30,7 @@ export async function ttsProviders(): Promise<TtsProvider[]> {
  * - piper: local y gratis; necesita `piper` instalado y SE_PIPER_MODEL con la ruta del modelo .onnx.
  * - sistema: la voz del sistema operativo (macOS `say`, Windows SAPI). Gratis y siempre disponible, suena más robótica.
  */
-export async function synthesize(text: string, out: string, opts: { provider?: TtsProvider; voice?: string } = {}): Promise<{ provider: TtsProvider; voice?: string }> {
+export async function synthesize(text: string, out: string, opts: { provider?: TtsProvider; voice?: string; /** Palabras por minuto (solo voz del sistema). */ rate?: number } = {}): Promise<{ provider: TtsProvider; voice?: string }> {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean) throw new Error('El texto de la voz en off está vacío.');
   const available = await ttsProviders();
@@ -62,7 +62,7 @@ export async function synthesize(text: string, out: string, opts: { provider?: T
   } else if (process.platform === 'darwin') {
     voice ??= 'Paulina';
     raw = `${tmp}.aiff`;
-    await run('say', ['-v', voice, '-r', '185', '-o', raw, clean]);
+    await run('say', ['-v', voice, '-r', String(Math.round(opts.rate ?? 185)), '-o', raw, clean]);
   } else if (process.platform === 'win32') {
     raw = `${tmp}.wav`;
     const txt = `${tmp}.txt`;
