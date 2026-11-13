@@ -44,6 +44,7 @@ import { reviewPageHtml } from './review-page.ts';
 import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack } from './musiclib.ts';
 import { splitIntoParts } from './series.ts';
 import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
+import { brandbookFile, createBrandbook } from './brandbook.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -392,6 +393,16 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, { token, exported: (await reviewVideo(dir, await readProject(dir))).exported, network: Boolean(networkKey), links: lanAddresses().map((ip) => `http://${ip}:${port}/r/${token}`), local: `http://localhost:${port}/r/${token}` });
     }
     if (b.op === 'resolver-peticion') return json(res, { project: await ops.resolveRequest(dir, String(b.requestId ?? ''), b.status === 'descartada' ? 'descartada' : 'hecha') });
+    if (b.op === 'manual-marca') {
+      // Manual de marca del cliente en PDF (colores, letras, logo, video y tono), desde su kit.
+      const project = await readProject(dir);
+      const job = startJob('crear', async (j) => {
+        j.message = 'Armando el manual de marca…';
+        const r = await createBrandbook(project.client);
+        return { pdf: `/api/manual-marca?id=${encodeURIComponent(project.id)}`, hasKit: r.hasKit };
+      });
+      return json(res, job);
+    }
     if (b.op === 'serie') return json(res, await splitIntoParts(dir, [60, 90, 180].includes(Number(b.max)) ? Number(b.max) : 60));
     if (b.op === 'musica-biblioteca') {
       const r = await useLibraryTrack(dir, b.file || undefined);
@@ -707,6 +718,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
   if (p === '/api/musica' && method === 'DELETE') return json(res, await removeTrack(url.searchParams.get('f') ?? ''));
 
+  if (p === '/api/manual-marca' && method === 'GET') {
+    const project = await readProject(await findDir(id));
+    const f = brandbookFile(project.client);
+    if (!existsSync(f)) { res.writeHead(404).end(); return; }
+    res.setHeader('Content-Disposition', `inline; filename="manual-de-marca-${(project.client ?? 'marca').replace(/[^\w-]+/g, '-')}.pdf"`);
+    if (!sendFile(req, res, f)) res.writeHead(404).end();
+    return;
+  }
   if (p === '/api/logo' && method === 'POST') {
     // Logo de la marca del cliente: sirve para todos sus reels (marca de agua, cierre, imágenes).
     const dir = await findDir(id);

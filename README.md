@@ -178,6 +178,10 @@ Claude: `ajustar_subtitulos` (emojis), `idioma_subtitulos`.
 - **Serie en partes** (Herramientas de un clic, en reels de más de 66 s): divide el reel en «Parte 1, 2…» de hasta 60 s, 90 s o 3 min, siempre en un cambio de escena. Cada parte termina con «Sigue en la parte N →» y las siguientes abren con «Parte N: …». Cada parte es un proyecto nuevo (los videos se enlazan). Claude: `dividir_en_partes`.
 - **Calendario de publicación** (Proyectos → 📅 Calendario, o «Programar publicación» en el menú de cada reel): qué reel sale qué día, a qué hora y en qué red. Desde cada publicación: abrir en el editor, copiar el texto para publicar, marcar como publicado o quitar. Es un plan: la app no publica sola en las redes. Se guarda en `workspace/calendario.json`.
 
+## Manual de marca
+
+En el brief, en «Marca», el botón **Manual de marca (PDF)** crea en segundos una guía de 6 páginas para el cliente a partir de su kit: portada, colores (HEX, RGB, CMYK, contraste y para qué se usa cada uno), tipografías, logo (fondos, tamaño mínimo y lo que no se hace), cómo se ven sus reels (fotogramas reales con sus subtítulos y la receta de estilo) y tono de voz con ejemplos de «Así sí / Así no». Queda en `workspace/clientes/<cliente>/marca/manual-de-marca.pdf`. Desde Claude: herramienta `manual_marca`.
+
 ## Pantalla dividida, puntaje, rótulo y 16:9
 
 - **Pantalla dividida y recuadro** (Imagen y cámara, en escenas con b-roll): el b-roll arriba y tú abajo (o al revés), con una línea del color de la marca, o tú en un recuadro sobre el b-roll (formato reacción). Claude: `editar_escena` con `distribucion_broll`.

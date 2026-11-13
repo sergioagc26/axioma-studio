@@ -100,6 +100,20 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); }
   };
 
+  const [manual, setManual] = useState('');
+  /** Crea el manual de marca del cliente (PDF) y lo abre en otra pestaña. */
+  const brandbook = async () => {
+    const tab = window.open('', '_blank');
+    setManual('Armando el manual…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'manual-marca' }) });
+      const done = await waitJob(job, (j) => setManual(j.message));
+      const url = `${done.result?.pdf}&v=${Date.now()}`;
+      if (tab) tab.location.href = url; else window.location.href = url;
+      ctx.toast(done.result?.hasKit ? 'Manual de marca listo.' : 'Manual listo con colores de ejemplo: guarda tu marca para que salga con la tuya.');
+    } catch (e: any) { tab?.close(); ctx.toast(e.message); } finally { setManual(''); }
+  };
+
   const [building, setBuilding] = useState('');
   /** Arma la edición según el brief y lleva al editor. */
   const build = async () => {
@@ -142,7 +156,9 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
       <main className="card col" style={{ flex: '999 1 480px', minWidth: 0, gap: 18, padding: 26, borderRadius: 20 }}>
         <details className="grp" open={!store.kit?.sector}>
-          <summary>{store.kit?.sector ? `Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : 'Primero, tu marca'}</summary>
+          <summary>{store.kit?.sector ? `Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : 'Primero, tu marca'}
+            {store.kit?.sector && <button className="btn ghost small" style={{ float: 'right', marginTop: -4 }} disabled={!!manual} onClick={(e) => { e.preventDefault(); brandbook(); }} title="PDF de una página por tema: colores, letras, logo, cómo se ven sus reels y tono de voz">{manual || '📘 Manual de marca'}</button>}
+          </summary>
           <div className="col">
             <span className="small muted">Cada marca se ve distinta: un gimnasio no lleva los mismos subtítulos que una hamburguesería. Esto se pregunta una sola vez por cliente y decide subtítulos, títulos, letra, imagen y efectos.</span>
             {store.vision && (

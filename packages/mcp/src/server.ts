@@ -524,6 +524,14 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('manual_marca', 'Crea el manual de marca del cliente en PDF (colores con HEX/RGB/CMYK y contraste, tipografías, logo y usos, cómo se ven sus reels y tono de voz), desde su kit. Queda en clientes/<cliente>/marca/manual-de-marca.pdf.', {
+    proyecto,
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const r = await E.createBrandbook((await E.readProject(dir)).client);
+    return `Manual de marca listo: ${r.pdf}${r.hasKit ? '' : '\n(El cliente aún no tiene marca guardada: salió con colores de ejemplo.)'}`;
+  });
+
   tool('dividir_en_partes', 'Divide un reel largo en una serie «Parte 1, 2, 3» (cada parte un proyecto nuevo, en cambios de escena), con «Sigue en la parte N →» al final y «Parte N:» al inicio.', {
     proyecto, max_segundos: z.number().min(30).max(300).default(60),
   }, async (a) => {
