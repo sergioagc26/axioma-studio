@@ -49,6 +49,7 @@ export * from './musiclib.ts';
 export * from './series.ts';
 export * from './calendar.ts';
 export * from './results.ts';
+export * from './briefai.ts';
 export * from './update.ts';
 export * from './brandbook.ts';
 export * from './backup.ts';

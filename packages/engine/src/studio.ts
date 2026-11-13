@@ -20,7 +20,7 @@ import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
-import { autoEdit, planAutoEdit } from './auto.ts';
+import { autoEdit, editEverything, planAutoEdit } from './auto.ts';
 import { outputDuration, speechOf } from '@axioma/schema';
 import { llmPublish, llmReady, llmStatus, llmWarmUp } from './llm.ts';
 import { localEdit } from './localedit.ts';
@@ -41,12 +41,13 @@ import { duplicateProject, trashProject } from './manage.ts';
 import { saveClientLogo } from './kit.ts';
 import { addReviewComment, approveReview, ensureReviewToken, findByToken, publicReview, resetReviewToken, reviewVideo } from './review.ts';
 import { reviewPageHtml } from './review-page.ts';
-import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack } from './musiclib.ts';
+import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack , stockMusic } from './musiclib.ts';
 import { splitIntoParts } from './series.ts';
 import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { brandbookFile, createBrandbook } from './brandbook.ts';
 import { backupStatus, runBackup, scheduleBackups } from './backup.ts';
 import { learnFromResults } from './results.ts';
+import { buildPrompt, suggestBrief } from './briefai.ts';
 import { applyUpdate, checkUpdate, restartStudio } from './update.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
@@ -278,7 +279,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Detectando tomas y armando el montaje…';
         await detectShots(dir);
         await buildMontage(dir, { duration: b.duration || undefined });
-        if (b.auto) { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await autoEdit(dir)).summary }; }
+        if (b.auto) { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await editEverything(dir, { onProgress: (m) => { j.message = m; } })).summary }; }
         return { id: project.id };
       } finally {
         for (const [t, f] of uploads) if (folders.includes(f)) { uploads.delete(t); await rm(f, { recursive: true, force: true }); }
@@ -310,7 +311,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.progress = 0.9;
         await cutProject(dir);
         // Edición automática al subir: el video llega al editor ya editado.
-        if (url.searchParams.get('auto') === '1') { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await autoEdit(dir)).summary }; }
+        if (url.searchParams.get('auto') === '1') { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await editEverything(dir, { onProgress: (m) => { j.message = m; } })).summary }; }
         return { id: project.id };
       } finally {
         await rm(tmpDir, { recursive: true, force: true });
@@ -460,7 +461,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Creando el reel del clip…';
         const made = await createClipProject(dir, { start: Number(b.start), end: Number(b.end), title: String(b.title ?? '') }, Number(b.n) || 1);
         j.message = 'Editando el clip…';
-        const { summary } = await autoEdit(made.dir);
+        const { summary } = await editEverything(made.dir, { onProgress: (m) => { j.message = m; } });
         return { id: made.id, summary };
       });
       return json(res, job);
@@ -469,7 +470,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       // Edición completa sin preguntas: referencia del cliente + tendencia del nicho + lo que se ve en el video.
       const job = startJob('crear', async (j) => {
         j.message = 'Editando todo el video…';
-        const { summary } = await autoEdit(dir, { referenceId: b.refId });
+        const { summary } = await editEverything(dir, { referenceId: b.refId, onProgress: (m) => { j.message = m; } });
         return { summary };
       });
       return json(res, job);
@@ -478,7 +479,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       // Arma la edición según las respuestas del brief.
       const job = startJob('crear', async (j) => {
         j.message = 'Armando tu edición según el brief…';
-        const { summary } = await applyBrief(dir);
+        const { summary } = await editEverything(dir, { onProgress: (m) => { j.message = m; } });
         return { summary };
       });
       return json(res, job);
@@ -700,6 +701,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (method === 'PUT') return json(res, await updateEntry(entry, await readBody(req)));
     if (method === 'DELETE') return json(res, await removeEntry(entry));
   }
+  // Brief inteligente: lo que la IA propone para este video y el prompt de edición que resulta.
+  if (p === '/api/brief-ia' && method === 'GET' && id) {
+    const dir = await findDir(id);
+    return json(res, { ...(await suggestBrief(dir, url.searchParams.get('otra') === '1')), prompt: await buildPrompt(dir) });
+  }
   // Aprender de los resultados: qué le funciona a cada cliente. POST además lo deja por defecto.
   if (p === '/api/resultados' && (method === 'GET' || method === 'POST')) {
     return json(res, await learnFromResults(url.searchParams.get('cliente') || undefined, method === 'POST'));
@@ -920,7 +926,7 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
     // Tras actualizarse, el proceso nuevo espera a que el anterior suelte el puerto.
     const wait = process.env.AXIOMA_RESTART_WAIT ? 2500 : 0;
     delete process.env.AXIOMA_RESTART_WAIT;
-    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); resolve(base); }), wait);
+    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); if (!process.env.VITEST) void stockMusic(); resolve(base); }), wait);
   });
   return running;
 }

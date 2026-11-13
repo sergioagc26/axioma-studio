@@ -1,5 +1,8 @@
 import { Preset, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@axioma/schema';
-import { fitDuration } from './brief.ts';
+import { applyBrief, fitDuration } from './brief.ts';
+import { autoMusic } from './musiclib.ts';
+import { applyWishes, buildPrompt } from './briefai.ts';
+import { setAutoSfx } from './ops.ts';
 import { readKit } from './kit.ts';
 import { buildMontage } from './montage.ts';
 import { applyPresetObject, saveVersion } from './ops.ts';
@@ -242,7 +245,7 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
     await prepareMedia(dir, log);
     await detectShots(dir);
   }
-  const { summary } = await autoEdit(dir);
+  const { summary } = await editEverything(dir);
   for (const line of summary) log(`  ${line}`);
   let out: string | undefined;
   if (opts.render !== false) {
@@ -253,4 +256,66 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
     log(`Listo: ${out}`);
   }
   return { dir, out, summary };
+}
+
+/**
+ * La edición completa de principio a fin, sin que el usuario busque nada: corta, viste el reel
+ * (con el brief si lo respondió; si no, con la referencia o la tendencia del nicho), pone música
+ * del ánimo que pide, efectos de sonido y deja todo listo para exportar.
+ */
+export async function editEverything(dir: string, opts: { referenceId?: string; onProgress?: (m: string) => void } = {}): Promise<{ summary: string[] }> {
+  const say = opts.onProgress ?? (() => {});
+  let project = await readProject(dir);
+  const answered = ['ritmo', 'tono', 'duracion', 'cta', 'objetivo'].filter((k) => project.brief[k]).length;
+  let summary: string[];
+  if (answered >= 2 && !opts.referenceId) {
+    say('Cortando y armando según tu brief…');
+    summary = (await applyBrief(dir)).summary;
+    // Lo que el brief no hace y la edición automática sí: abrir con el gancho y redactarlo con la IA local.
+    project = await readProject(dir);
+    if (project.kind === 'hablado') {
+      const greeting = skipGreeting(project, await readTranscript(dir).catch(() => null));
+      if (greeting) { await writeProject(dir, project); summary.push(`Quité el saludo del inicio («${greeting}») para abrir directo con el gancho.`); }
+      // El gancho lo redacta la IA local: una idea que enganche, no la primera frase tal cual.
+      const first = project.scenes[0];
+      if (first && (await llmReady())) {
+        try {
+          const hook = await llmHook(speechOf(first, await readTranscript(dir).catch(() => null)));
+          if (hook) {
+            first.onScreenText = hook; first.autoText = hook;
+            await writeProject(dir, project);
+            const i = summary.findIndex((l) => l.startsWith('Gancho:'));
+            const line = `Gancho escrito por la IA: «${hook}» en grande desde el primer segundo.`;
+            if (i >= 0) summary[i] = line; else summary.push(line);
+          }
+        } catch { /* queda el gancho sacado de lo que se dice */ }
+      }
+    }
+  } else {
+    say('Cortando y armando el video…');
+    summary = (await autoEdit(dir, { referenceId: opts.referenceId })).summary;
+  }
+
+  // Los pedidos puntuales del cliente (respuestas a las preguntas de la IA y su nota).
+  say('Aplicando lo que pediste…');
+  summary.push(...(await applyWishes(dir).catch(() => [])));
+  // El prompt profesional con el que se editó queda guardado en el proyecto.
+  project = await readProject(dir);
+  project.brief.prompt = await buildPrompt(dir);
+  await writeProject(dir, project);
+
+  // Música: sola, del ánimo que pide el reel.
+  say('Eligiendo la música…');
+  const music = await autoMusic(dir).catch(() => null);
+  if (music) summary.push(music);
+
+  // Efectos de sonido: siempre, salvo que se haya pedido algo sobrio.
+  project = await readProject(dir);
+  const calm = project.intensity === 'suave' || /elegante|serio|sobrio/i.test(`${project.brief.tono ?? ''} ${project.brief.ritmo ?? ''}`);
+  if (!calm && !project.audio.sfxAuto) {
+    say('Poniendo efectos de sonido…');
+    await setAutoSfx(dir, true);
+    summary.push('Efectos de sonido en las transiciones y al entrar cada texto.');
+  }
+  return { summary };
 }

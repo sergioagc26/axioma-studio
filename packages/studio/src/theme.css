@@ -236,3 +236,12 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .cal-chip { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px; border: 0; border-left: 4px solid; border-radius: 6px; background: var(--panel2); text-align: left; }
 .cal-chip.publicado { opacity: .6; }
 @media (max-width: 760px) { .cal { grid-template-columns: 1fr; } .cal-head { display: none; } .cal-day.out { display: none; } .cal-day { min-height: 0; } }
+
+/* Brief: respuestas como fichas con icono (se toca, no se escribe). */
+.bchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.bchip { display: inline-flex; align-items: center; gap: 7px; height: 42px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 15px; font-weight: 500; cursor: pointer; }
+.bchip:hover { border-color: var(--muted); }
+.bchip.on { border: 2px solid var(--pink); background: var(--pinkSoft); padding: 0 13px; font-weight: 700; }
+.bchip-input { height: 42px; width: 130px; padding: 0 14px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; color: var(--text); font-size: 15px; }
+.bchip-input.on { border: 2px solid var(--pink); background: var(--pinkSoft); width: 240px; }
+.bchip-input:focus { width: 240px; outline: none; border-style: solid; border-color: var(--pink); }

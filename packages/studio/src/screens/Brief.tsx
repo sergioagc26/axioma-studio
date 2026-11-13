@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { PERSONALITIES, SECTORS, VISION_TOPICS } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
-import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
-import { ROLE_LABEL } from '../SceneFrame.tsx';
+import { api, waitJob, type Job } from '../useProject.ts';
 
+interface Help { resumen: string; sugerido: Record<string, string>; preguntas: { id: string; pregunta: string; ejemplo: string }[]; ia: boolean; prompt: string }
 interface Opt { value: string; title: string; desc: string }
 interface Q { key: string; label: string; title: string; help: string; placeholder: string; options: Opt[] }
 
@@ -15,6 +15,16 @@ const CTA_FOR: Record<string, string> = {
   'Ir al link': 'Entra al link de mi perfil',
   Seguidores: 'Sígueme para más como esto',
   Compartidos: 'Envíaselo a quien lo necesita',
+};
+/** Un icono por respuesta: se entiende de un vistazo, sin leer. */
+const ICON: Record<string, string> = {
+  'Reel 9:16': '📱', 'Historia 9:16': '⭕', 'TikTok 9:16': '🎵', 'YouTube Short 9:16': '▶️', 'Anuncio 9:16': '📣',
+  'Mensajes por DM': '💬', Comentarios: '🗨️', Guardados: '🔖', Compartidos: '📤', 'Ir al link': '🔗', Seguidores: '➕',
+  'Gente que aún no me conoce': '👋', 'Seguidores que ya me conocen': '🫶', 'Clientes listos para comprar': '🛒', 'Dueños de negocio y emprendedores': '💼', 'Jóvenes de 18 a 25': '🧑', 'Adultos y familias': '👨‍👩‍👧',
+  'Rápido': '⚡', 'Con ritmo': '🎶', Sobrio: '🧘', 'Enérgico': '🔥', 'Pausado y elegante': '🎬', 'Que decida la app': '✨',
+  Directo: '🎯', Cercano: '🤝', Educativo: '📚', Inspirador: '🚀', Divertido: '😄', Elegante: '🖤',
+  '10–15 s': '⏱️', '15–20 s': '⏱️', '20–30 s': '⏱️', '30–45 s': '⏱️', '45–60 s': '⏱️', 'Lo que dure': '♾️',
+  'La que digo en el video': '🎙️', 'Escríbeme «INFO» por DM': '💬', 'Comenta «QUIERO» y te lo envío': '🗨️', 'Guárdalo para cuando lo necesites': '🔖', 'Entra al link de mi perfil': '🔗', 'Sígueme para más como esto': '➕', 'Envíaselo a quien lo necesita': '📤',
 };
 export const SPOKEN_CTA = 'La que digo en el video';
 
@@ -69,15 +79,23 @@ const QUESTIONS: Q[] = [
 export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const { store } = ctx;
   const project = store.project!;
-  const firstEmpty = QUESTIONS.findIndex((q) => !project.brief[q.key]);
-  const [i, setI] = useState(firstEmpty === -1 ? 0 : firstEmpty);
-  const base = QUESTIONS[i];
   const forGoal = CTA_FOR[project.brief.objetivo ?? ''];
-  const q: Q = base.key === 'cta' && forGoal
-    ? { ...base, options: [{ value: forGoal, title: forGoal, desc: 'Va con tu objetivo.' }, ...base.options.filter((o) => o.value !== forGoal)] }
-    : base;
-  const value = project.brief[q.key] ?? '';
-  const answered = QUESTIONS.filter((x) => project.brief[x.key]).length;
+  // La IA lee el video y propone las respuestas: el cliente solo confirma o cambia.
+  const [help, setHelp] = useState<Help | null>(null);
+  const [suggested, setSuggested] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    api<Help>(`/api/brief-ia?id=${encodeURIComponent(project.id)}`).then((h) => {
+      if (!alive) return;
+      setHelp(h);
+      const fill = Object.entries(h.sugerido).filter(([k, v]) => v && !store.project!.brief[k]);
+      if (fill.length) { store.update((p) => { for (const [k, v] of fill) p.brief[k] = v; }); setSuggested(fill.map(([k]) => k)); }
+    }).catch(() => setHelp({ resumen: '', sugerido: {}, preguntas: [], ia: false, prompt: '' }));
+    return () => { alive = false; };
+  }, [project.id]);
+  const set = (key: string, v: string) => { store.update((p) => { if (v) p.brief[key] = v; else delete p.brief[key]; }); setSuggested((x) => x.filter((k) => k !== key)); };
+  const [prompt, setPrompt] = useState('');
+  const loadPrompt = () => { setPrompt('Escribiendo…'); setTimeout(() => api<Help>(`/api/brief-ia?id=${encodeURIComponent(project.id)}`).then((h) => setPrompt(h.prompt)).catch(() => setPrompt('')), 900); };
 
   const [brand, setBrand] = useState({ name: '', sector: '', personality: '', primary: '#FE2C55', secondary: '#25F4EE' });
   useEffect(() => {
@@ -129,38 +147,76 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(`No se pudo armar la edición: ${e.message}`); } finally { setBuilding(''); }
   };
 
-  /** Guarda la respuesta. Al tocar una opción se pasa sola a la siguiente pregunta. */
-  const answer = (v: string, next = false) => {
-    store.update((p) => { if (v) p.brief[q.key] = v; else delete p.brief[q.key]; });
-    if (next && i < QUESTIONS.length - 1) setI(i + 1);
+  const optionsOf = (x: Q) => (x.key === 'cta' && forGoal ? [{ value: forGoal, title: forGoal, desc: '' }, ...x.options.filter((o) => o.value !== forGoal)] : x.options);
+  const row = (x: Q) => {
+    const value = project.brief[x.key] ?? '';
+    const opts = optionsOf(x);
+    const custom = Boolean(value) && !opts.some((o) => o.value === value);
+    return (
+      <section key={x.key} className="col" style={{ gap: 8 }}>
+        <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+          <h2 style={{ fontSize: 17 }}>{x.title}</h2>
+          {suggested.includes(x.key) && <span className="pill" title="Lo propuso la IA al oír tu video. Cámbialo si no es.">✨ sugerido</span>}
+        </div>
+        <div className="bchips">
+          {opts.map((o) => (
+            <button key={o.value} className={`bchip ${value === o.value ? 'on' : ''}`} aria-pressed={value === o.value} title={o.desc} onClick={() => set(x.key, o.value)}>
+              <span aria-hidden="true">{ICON[o.value] ?? '•'}</span> {o.title}
+            </button>
+          ))}
+          <input
+            key={`${x.key}-${custom ? value : ''}`}
+            className={`bchip-input ${custom ? 'on' : ''}`}
+            defaultValue={custom ? value : ''}
+            placeholder="✏️ Otra…"
+            aria-label={`${x.label}: otra respuesta`}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== value) set(x.key, v); else if (!v && custom) set(x.key, ''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          />
+        </div>
+      </section>
+    );
   };
-  const custom = Boolean(value) && !q.options.some((o) => o.value === value);
+  const MAIN = QUESTIONS.filter((x) => ['formato', 'objetivo', 'tono', 'duracion', 'cta'].includes(x.key));
+  const MORE = QUESTIONS.filter((x) => ['publico', 'ritmo'].includes(x.key));
 
   return (
-    <div className="cols">
-      <nav className="col steps" aria-label="Pasos del brief" style={{ flex: '1 1 220px', maxWidth: 250, gap: 4 }}>
-        <span className="small muted" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Brief · {answered} de {QUESTIONS.length}</span>
-        {QUESTIONS.map((x, n) => {
-          const done = Boolean(project.brief[x.key]);
-          return (
-            <button key={x.key} className={n === i ? 'on' : ''} onClick={() => setI(n)}>
-              <span className={`dot ${n === i ? 'cur' : done ? 'done' : ''}`}>{done && n !== i ? '✓' : n + 1}</span>
-              <span className="col" style={{ gap: 0, minWidth: 0 }}>
-                <span style={{ fontWeight: n === i ? 700 : 500 }}>{x.label}</span>
-                <span className="small muted">{project.brief[x.key] ?? (n === i ? 'Respondiendo' : 'Pendiente')}</span>
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+    <div className="cols" style={{ justifyContent: 'center' }}>
+      <main className="card col" style={{ flex: '1 1 640px', maxWidth: 820, minWidth: 0, gap: 22, padding: 26, borderRadius: 20 }}>
+        <header className="col" style={{ gap: 6 }}>
+          <h1 style={{ fontSize: 26, lineHeight: 1.15 }}>Cuéntame cómo lo quieres</h1>
+          <span className="muted">{help === null ? '✨ Estoy viendo y oyendo tu video…' : help.resumen ? `✨ Esto entendí: ${help.resumen}` : 'Toca una opción en cada fila. Con eso edito todo el video.'}</span>
+        </header>
 
-      <main className="card col" style={{ flex: '999 1 480px', minWidth: 0, gap: 18, padding: 26, borderRadius: 20 }}>
-        <details className="grp" open={!store.kit?.sector}>
-          <summary>{store.kit?.sector ? `Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : 'Primero, tu marca'}
+        {MAIN.map(row)}
+
+        {help?.preguntas.map((x) => (
+          <label key={x.id} className="field" style={{ fontSize: 17, fontWeight: 700, gap: 8 }}>{x.pregunta}
+            <input defaultValue={project.brief[`extra:${x.id}`] ?? ''} placeholder={`Ej.: ${x.ejemplo}`} style={{ fontWeight: 400 }}
+              onBlur={(e) => set(`extra:${x.id}`, e.target.value.trim())} />
+          </label>
+        ))}
+        <label className="field" style={{ fontSize: 17, fontWeight: 700, gap: 8 }}>¿Algo más que deba saber? <span className="small muted" style={{ fontWeight: 400 }}>(opcional)</span>
+          <textarea rows={2} defaultValue={project.brief.notas ?? ''} placeholder="Ej.: que el precio salga grande · no cortes cuando muestro el plato" style={{ fontWeight: 400 }}
+            onBlur={(e) => set('notas', e.target.value.trim())} />
+        </label>
+
+        <button className="btn primary" style={{ height: 54, fontSize: 18 }} disabled={Boolean(building)} onClick={build}>{building || (project.briefAppliedAt ? '✨ Volver a editar mi video' : '✨ Editar mi video')}</button>
+        <span className="small muted" style={{ textAlign: 'center' }}>La app corta, pone textos, subtítulos, música y efectos de sonido. Al terminar lo ves y lo exportas.</span>
+
+        <details className="grp">
+          <summary>⚙️ Más opciones</summary>
+          <div className="col" style={{ gap: 18 }}>{MORE.map(row)}</div>
+        </details>
+        <details className="grp" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) loadPrompt(); }}>
+          <summary>📝 Ver el prompt de edición</summary>
+          <pre className="small" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.5 }}>{prompt}</pre>
+        </details>
+        <details className="grp">
+          <summary>{store.kit?.sector ? `🎨 Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : '🎨 Tu marca'}
             {store.kit?.sector && <button className="btn ghost small" style={{ float: 'right', marginTop: -4 }} disabled={!!manual} onClick={(e) => { e.preventDefault(); brandbook(); }} title="PDF de una página por tema: colores, letras, logo, cómo se ven sus reels y tono de voz">{manual || '📘 Manual de marca'}</button>}
           </summary>
           <div className="col">
-            <span className="small muted">Cada marca se ve distinta: un gimnasio no lleva los mismos subtítulos que una hamburguesería. Esto se pregunta una sola vez por cliente y decide subtítulos, títulos, letra, imagen y efectos.</span>
             {store.vision && (
               <span className="pill" style={{ alignSelf: 'flex-start', whiteSpace: 'normal' }}>
                 La app vio el video: {store.vision.scores.slice(0, 2).map((x) => `${x.label} (${Math.round(x.score * 100)} %)`).join(' y ')}.
@@ -193,55 +249,7 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </div>
           </div>
         </details>
-        <span className="small" style={{ fontWeight: 700, color: 'var(--pinkText)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Pregunta {i + 1}</span>
-        <h1 style={{ fontSize: 30, lineHeight: 1.15 }}>{q.title}</h1>
-        <p className="muted" style={{ margin: 0, maxWidth: 560 }}>{q.help}</p>
-        <div className="opts">
-          {q.options.map((o) => (
-            <button key={o.value} className={`opt ${value === o.value ? 'on' : ''}`} aria-pressed={value === o.value} onClick={() => answer(o.value, true)}>
-              <strong style={{ fontSize: 16 }}>{o.title}</strong>
-              {o.desc && <span className="muted small">{o.desc}</span>}
-            </button>
-          ))}
-        </div>
-        <label className="field">Otra respuesta (opcional)
-          <input
-            key={q.key}
-            defaultValue={custom ? value : ''}
-            placeholder={q.placeholder}
-            style={custom ? { borderColor: 'var(--pink)' } : undefined}
-            onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== value) answer(v); else if (!v && custom) answer(''); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-          />
-        </label>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <button className="btn" disabled={i === 0} onClick={() => setI(i - 1)}>Atrás</button>
-          {i < QUESTIONS.length - 1
-            ? <button className="btn primary" onClick={() => setI(i + 1)}>Siguiente pregunta</button>
-            : <button className="btn primary" disabled={Boolean(building)} onClick={build}>{building || (project.briefAppliedAt ? 'Volver a crear la edición' : 'Crear mi edición')}</button>}
-        </div>
-        {answered >= 3 && i < QUESTIONS.length - 1 && (
-          <button className="btn cyan" style={{ alignSelf: 'flex-end' }} disabled={Boolean(building)} onClick={build}>{building || 'Crear mi edición con lo que llevo'}</button>
-        )}
-        <span className="small muted">
-          {project.briefAppliedAt
-            ? 'Tu edición ya se armó con este brief. Si cambias respuestas y la vuelves a crear, se reemplazan los cambios que hayas hecho a mano (queda una versión guardada).'
-            : 'Al terminar, la app arma la edición con tus respuestas: ritmo, duración, estilo de textos, gancho, cierre y transiciones. Después cambias lo que quieras.'}
-        </span>
       </main>
-
-      <aside className="col" style={{ flex: '1 1 260px', maxWidth: 320, padding: 18, borderRadius: 16, background: 'var(--cyanSoft)' }}>
-        <h2 style={{ fontSize: 17 }}>Así va quedando</h2>
-        <span className="muted small">{project.briefAppliedAt ? 'Edición armada con tu brief.' : 'Primer corte automático. Responde el brief y pulsa «Crear mi edición».'}</span>
-        {project.scenes.map((s, n) => (
-          <div key={s.id} className="row" style={{ padding: '9px 12px', borderRadius: 10, background: 'var(--panel)', flexWrap: 'nowrap' }}>
-            <span className="small muted" style={{ fontWeight: 700 }}>{String(n + 1).padStart(2, '0')}</span>
-            <span style={{ flex: 1, fontWeight: 600 }}>{s.title || ROLE_LABEL[s.role]}</span>
-            <span className="small muted">{sceneDuration(s).toFixed(1)} s</span>
-          </div>
-        ))}
-        <span className="small muted">Preset: <strong style={{ color: 'var(--text)' }}>{store.presets.find((p) => p.id === project.presetId)?.name ?? project.presetId}</strong></span>
-      </aside>
     </div>
   );
 };

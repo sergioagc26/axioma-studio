@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { outputDuration, type Project } from '@axioma/schema';
 import { analyzeBeats } from './beats.ts';
+import { envValue } from './env.ts';
 import { ffmpeg } from './exec.ts';
 import { mediaDuration } from './media.ts';
 import { buildMontage } from './montage.ts';
@@ -123,4 +124,86 @@ export async function useLibraryTrack(dir: string, file?: string) {
   // En un montaje, los cortes se vuelven a poner en los golpes de la canción nueva.
   if (p.kind === 'montaje') p = (await buildMontage(dir, {})).project;
   return { project: p, track: chosen, why: file ? undefined : pickTrack(project, tracks)?.why };
+}
+
+/** Qué se busca en el banco para cada ánimo: palabras sencillas (en inglés, como están etiquetadas) */
+const BANK: Record<Mood, { queries: string[] }> = {
+  energica: { queries: ['upbeat', 'energetic', 'dance', 'beat'] },
+  media: { queries: ['happy', 'groove', 'pop', 'background'] },
+  tranquila: { queries: ['lofi', 'chill', 'ambient', 'piano'] },
+};
+
+/**
+ * Baja del banco gratuito (Freesound, solo CC0: uso libre, sin tener que dar crédito) una canción
+ * del ánimo pedido y la deja en la biblioteca con su autor y licencia. El ánimo es el de la búsqueda
+ * (animada, alegre, tranquila), así no hay que bajar varias para probar. Null si no hay clave,
+ * internet o resultados.
+ */
+export async function fetchBankMusic(mood: Mood): Promise<MusicTrack | null> {
+  const key = await envValue('FREESOUND_API_KEY');
+  if (!key) return null;
+  const have = (await listTracks()).map((t) => t.license);
+  const { queries } = BANK[mood];
+  for (const query of [...queries].sort(() => Math.random() - 0.5)) {
+    try {
+      const q = new URLSearchParams({
+        query, page_size: '15', fields: 'id,name,duration,username,previews', sort: 'rating_desc',
+        filter: 'duration:[40 TO 200] tag:music license:"Creative Commons 0"', token: key,
+      });
+      const r = await fetch(`https://freesound.org/apiv2/search/text/?${q}`, { signal: AbortSignal.timeout(20_000) });
+      if (!r.ok) continue;
+      const results = (((await r.json()) as { results?: any[] }).results ?? []).filter((s) => s.previews?.['preview-hq-mp3'] && !have.some((l) => l.endsWith(`#${s.id}`)));
+      const s = results[Math.floor(Math.random() * Math.min(results.length, 6))];
+      if (!s) continue;
+      const tmp = path.join(os.tmpdir(), `freesound-${s.id}.mp3`);
+      const d = await fetch(s.previews['preview-hq-mp3'], { signal: AbortSignal.timeout(60_000) });
+      if (!d.ok) continue;
+      await writeFile(tmp, Buffer.from(await d.arrayBuffer()));
+      const track = await addTrack(tmp, {
+        name: String(s.name ?? 'Canción').replace(/\.(wav|mp3|flac|ogg|aiff?)$/i, '').replace(/[_-]+/g, ' ').slice(0, 60),
+        license: `CC0 (uso libre) · Freesound · ${s.username ?? 'autor'} #${s.id}`,
+      });
+      await rm(tmp, { force: true });
+      // El ánimo es el que se pidió en la búsqueda.
+      const all = await listTracks();
+      const saved = all.find((t) => t.file === track.file);
+      if (saved) { saved.mood = mood; await saveTracks(all); }
+      return { ...track, mood };
+    } catch { /* sin internet: se sigue con lo que haya */ }
+  }
+  return null;
+}
+
+let stocking: Promise<void> | null = null;
+/** En segundo plano, deja 3 canciones de cada ánimo en la biblioteca para que editar no espere a bajarlas. */
+export function stockMusic(): Promise<void> {
+  stocking ??= (async () => {
+    for (const mood of ['energica', 'media', 'tranquila'] as Mood[]) {
+      for (let i = 0; i < 3; i++) {
+        if ((await listTracks()).filter((t) => t.mood === mood).length >= 3) break;
+        if (!(await fetchBankMusic(mood))) break;
+      }
+    }
+  })().catch(() => {}).finally(() => { stocking = null; });
+  return stocking;
+}
+
+/**
+ * Música automática: si el reel no tiene, elige de la biblioteca la que va con su ánimo; si la
+ * biblioteca no tiene suficientes de ese ánimo, baja una del banco gratuito. Varía entre las que van.
+ */
+export async function autoMusic(dir: string): Promise<string | null> {
+  const project = await readProject(dir);
+  if (project.audio.music) return null;
+  const want = wantedMood(project);
+  let fits = (await listTracks()).filter((t) => t.mood === want);
+  // Solo se espera a bajar una si no hay ninguna de ese ánimo; el resto se trae en segundo plano.
+  if (!fits.length) { const got = await fetchBankMusic(want); if (got) fits = [got]; }
+  if (fits.length < 3) void stockMusic();
+  const tracks = await listTracks();
+  if (!tracks.length) return null;
+  const pick = fits.length ? fits[Math.floor(Math.random() * fits.length)] : pickTrack(project, tracks)!.track;
+  await useLibraryTrack(dir, pick.file);
+  const label = { tranquila: 'tranquila', media: 'de ritmo medio', energica: 'enérgica' };
+  return `Música ${label[pick.mood]}: «${pick.name}» (${pick.license.split(' · ')[0]})${project.kind === 'montaje' ? ', con los cortes en sus golpes' : ', bajita debajo de la voz'}.`;
 }

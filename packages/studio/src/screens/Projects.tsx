@@ -96,7 +96,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); }
   };
   // Automático: el video se edita solo al subirlo y se abre directo en el editor.
-  const [auto, setAuto] = useState(true);
+  const auto = false; // la edición completa se lanza desde el brief, con lo que responda el cliente
 
   useEffect(() => { api<Item[]>('/api/projects').then(setItems).catch((e) => ctx.toast(e.message)); }, []);
   const clients = useMemo(() => [...new Set((items ?? []).map((i) => i.client))].sort(), [items]);
@@ -116,7 +116,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const started = await api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset, auto }) });
       const done = await waitJob(started, setJob);
       if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
-      ctx.go(auto ? 'editor' : 'storyboard', { p: done.result?.id, s: null });
+      ctx.go('brief', { p: done.result?.id, s: null });
     } catch (e: any) {
       ctx.toast(`No se pudo crear: ${e.message}`);
     } finally {
@@ -139,7 +139,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const started = await api<Job>(`/api/projects?${qs}`, { method: 'POST', body: file });
       const done = await waitJob(started, setJob);
       if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
-      ctx.go(auto ? 'editor' : 'brief', { p: done.result?.id, s: null });
+      ctx.go('brief', { p: done.result?.id, s: null });
     } catch (e: any) {
       ctx.toast(`No se pudo crear: ${e.message}`);
     } finally {
@@ -180,33 +180,24 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <>
             <strong>{job.message}</strong>
             <div className="progress" style={{ maxWidth: 420 }} role="progressbar" aria-valuenow={Math.round(job.progress * 100)} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${Math.round(job.progress * 100)}%` }} /></div>
-            <span className="muted small">Transcribir y limpiar el audio tarda de 1 a 5 minutos. Puedes dejar esta pestaña abierta.</span>
+            <span className="muted small">Tarda de 1 a 5 minutos. Después te hago unas preguntas.</span>
           </>
         ) : (
           <>
             <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', width: '100%', maxWidth: 420 }}>
-              <button className={kind === 'hablado' ? 'on' : ''} aria-pressed={kind === 'hablado'} onClick={() => setKind('hablado')}>Hablando a cámara</button>
-              <button className={kind === 'montaje' ? 'on' : ''} aria-pressed={kind === 'montaje'} onClick={() => setKind('montaje')}>Sin voz (montaje)</button>
+              <button className={kind === 'hablado' ? 'on' : ''} aria-pressed={kind === 'hablado'} onClick={() => setKind('hablado')}>🎙️ Hablando a cámara</button>
+              <button className={kind === 'montaje' ? 'on' : ''} aria-pressed={kind === 'montaje'} onClick={() => setKind('montaje')}>🎬 Sin voz</button>
             </div>
             <strong style={{ fontSize: 17 }}>{over ? 'Suelta el video aquí' : kind === 'hablado' ? 'Arrastra aquí tu video hablando a cámara' : 'Arrastra aquí uno o varios videos'}</strong>
             <span className="muted">{kind === 'hablado'
-              ? 'La app lo transcribe, quita silencios y tomas repetidas, y arma el reel.'
-              : 'Para gimnasio, comida o producto: la app detecta las tomas y arma cortes rápidos (al ritmo, si le pones música).'}</span>
+              ? 'Súbelo, responde unas preguntas y la app lo edita sola.'
+              : 'Gimnasio, comida o producto: sube tus tomas y la app arma el montaje con música.'}</span>
             <div className="row" style={{ justifyContent: 'center' }}>
               <label className="field">Cliente
                 <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="personal" list="clientes" />
                 <datalist id="clientes">{clients.map((c) => <option key={c} value={c} />)}</datalist>
               </label>
-              <label className="field">Ritmo
-                <select value={preset} onChange={(e) => setPreset(e.target.value)}>
-                  <option value="rapido">Rápido</option><option value="con-ritmo">Con ritmo</option><option value="sobrio">Sobrio</option>
-                </select>
-              </label>
             </div>
-            <label className="row" style={{ justifyContent: 'center' }}>
-              <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-              <span><strong>Automático:</strong> que la app lo edite todo sola al subirlo</span>
-            </label>
             <button className="btn primary" onClick={() => input.current?.click()}>{kind === 'montaje' ? 'Elegir videos' : 'Elegir video'}</button>
             <input ref={input} type="file" accept="video/*" multiple={kind === 'montaje'} hidden onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
           </>
