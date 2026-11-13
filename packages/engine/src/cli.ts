@@ -188,7 +188,7 @@ program
   .command('render')
   .argument('<carpeta>', 'carpeta del proyecto')
   .option('-o, --out <archivo>', 'archivo de salida')
-  .option('-f, --formato <formato>', '9:16, 4:5 o 1:1', '9:16')
+  .option('-f, --formato <formato>', '9:16, 4:5, 1:1 o 16:9', '9:16')
   .action(async (dir, o) => {
     const { out } = await renderProject(path.resolve(dir), { out: o.out, format: o.formato, onProgress: (p) => process.stdout.write(`\r  render ${Math.round(p * 100)}%`) });
     console.log(`\nListo: ${out}`);

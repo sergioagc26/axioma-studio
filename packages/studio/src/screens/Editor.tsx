@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
-import { adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@axioma/schema';
+import { reelScore, adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@axioma/schema';
 import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
@@ -228,6 +228,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
 
   const [allAdvice, setAllAdvice] = useState(false);
+  const score = useMemo(() => (project.scenes.length ? reelScore(project, store.transcript) : null), [project, store.transcript]);
   // Revisión del cliente: enlace y comentarios.
   const [review, setReview] = useState<{ token: string; exported: boolean; network: boolean; links: string[]; local: string } | null>(null);
   const shareReview = async (nuevo: boolean) => {
@@ -669,6 +670,27 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </details>
             )}
           </div>
+          {score && (
+            <details className="scorecard">
+              <summary>
+                <span className={`score ${score.grade}`} aria-label={`Puntaje del reel: ${score.score} de 100`}>{score.score}</span>
+                <span className="col" style={{ gap: 0 }}>
+                  <strong className="small">Puntaje del reel · {score.grade}</strong>
+                  <span className="small muted">{score.parts.filter((x) => x.tip).length ? `${score.parts.filter((x) => x.tip).length} cosas para subirlo` : 'Todo en su punto'}</span>
+                </span>
+              </summary>
+              <div className="col" style={{ gap: 8, paddingTop: 8 }}>
+                {score.parts.map((x) => (
+                  <div key={x.id} className="col" style={{ gap: 3 }}>
+                    <div className="row" style={{ justifyContent: 'space-between' }}><span className="small">{x.label}</span><span className="small muted">{x.points}/{x.max}</span></div>
+                    <div className="meter" aria-hidden="true"><div style={{ width: `${(x.points / x.max) * 100}%` }} /></div>
+                    {x.tip && <span className="small muted">{x.tip}</span>}
+                  </div>
+                ))}
+                <span className="small muted">Se calcula con buenas prácticas de retención (gancho, ritmo, movimiento, subtítulos, duración, cierre y audio); no predice las vistas.</span>
+              </div>
+            </details>
+          )}
           {advice.length > 0 && (
             <Group id="sugerencias" title="Sugerencias" hint={String(advice.length)} defaultOpen>
 
@@ -842,7 +864,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                               </div>
               )}
           </Group>
-          <Group id="acabados" title="Acabados" hint={(() => { const n = Number(Boolean(project.finish.watermark)) + Number(project.finish.progressBar) + Number(project.finish.grain) + Number(project.finish.vignette) + Number(project.finish.keywordZoom) + Number(project.finish.halation) + Number(project.finish.letterbox); return n ? `${n} activos` : undefined; })()}>
+          <Group id="acabados" title="Acabados" hint={(() => { const n = Number(Boolean(project.finish.lowerThird)) + Number(Boolean(project.finish.watermark)) + Number(project.finish.progressBar) + Number(project.finish.grain) + Number(project.finish.vignette) + Number(project.finish.keywordZoom) + Number(project.finish.halation) + Number(project.finish.letterbox); return n ? `${n} activos` : undefined; })()}>
 
               <label className="row"><input type="checkbox" checked={project.finish.progressBar} onChange={(e) => store.update((p) => { p.finish.progressBar = e.target.checked; })} /> Barra de progreso arriba</label>
               <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
@@ -865,6 +887,17 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }} />
                 </label>
                 <span className="small muted">El logo queda en la marca de {project.client ?? 'personal'}: se usa en todos sus reels (marca de agua, cierre e imágenes). Mejor PNG con fondo transparente.</span>
+              </div>
+              <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                <label className="row"><input type="checkbox" checked={Boolean(project.finish.lowerThird)} onChange={(e) => store.update((p) => { p.finish.lowerThird = e.target.checked ? { name: store.kit?.name ?? store.brand?.name ?? '', role: '', at: 0.8, duration: 4 } : undefined; })} /> Rótulo con nombre y cargo</label>
+                {project.finish.lowerThird && (
+                  <>
+                    <input className="input" style={{ minHeight: 34 }} defaultValue={project.finish.lowerThird.name} placeholder="Nombre" aria-label="Nombre del rótulo" onBlur={(e) => store.update((p) => { if (p.finish.lowerThird) p.finish.lowerThird.name = e.target.value.trim(); })} />
+                    <input className="input" style={{ minHeight: 34 }} defaultValue={project.finish.lowerThird.role ?? ''} placeholder="Cargo o a qué te dedicas (opcional)" aria-label="Cargo del rótulo" onBlur={(e) => store.update((p) => { if (p.finish.lowerThird) p.finish.lowerThird.role = e.target.value.trim() || undefined; })} />
+                    <Slider label="Aparece en el segundo" value={project.finish.lowerThird.at} min={0} max={15} step={0.5} show={(v) => `${v} s`} onCommit={(v) => store.update((p) => { if (p.finish.lowerThird) p.finish.lowerThird.at = v; })} />
+                    <Slider label="Dura" value={project.finish.lowerThird.duration} min={2} max={10} step={0.5} show={(v) => `${v} s`} onCommit={(v) => store.update((p) => { if (p.finish.lowerThird) p.finish.lowerThird.duration = v; })} />
+                  </>
+                )}
               </div>
               <label className="row"><input type="checkbox" checked={project.finish.grain} onChange={(e) => store.update((p) => { p.finish.grain = e.target.checked; })} /> Grano de película</label>
               <label className="row"><input type="checkbox" checked={project.finish.vignette} onChange={(e) => store.update((p) => { p.finish.vignette = e.target.checked; })} /> Bordes oscuros en todo el reel</label>
@@ -1076,6 +1109,16 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </div>
             </Group>
             <Group id="imagen" title="Imagen y cámara" hint={[LOOK_NAMES.find(([id]) => id === scene.look)?.[1], scene.camera !== 'ninguno' ? CAMERA_NAMES.find(([id]) => id === scene.camera)?.[1] : '', (scene.speed ?? 1) < 1 ? 'lenta' : ''].filter(Boolean).join(' · ')}>
+            {scene.visual === 'broll' && scene.brollFile && (
+              <label className="field">Cómo se ve el b-roll
+                <select value={scene.brollLayout ?? 'completo'} onChange={(e) => edit((s) => { s.brollLayout = e.target.value as Scene['brollLayout']; })}>
+                  <option value="completo">A pantalla completa</option>
+                  <option value="arriba">Dividida: b-roll arriba, tú abajo</option>
+                  <option value="abajo">Dividida: tú arriba, b-roll abajo</option>
+                  <option value="recuadro">Tú en un recuadro sobre el b-roll</option>
+                </select>
+              </label>
+            )}
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <label className="field" style={{ flex: 1 }}>Aspecto
                 <select value={scene.look} onChange={(e) => edit((s) => { s.look = e.target.value as Scene['look']; })}>

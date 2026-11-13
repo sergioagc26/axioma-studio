@@ -155,6 +155,8 @@ export const Scene = z.object({
   camera: Camera.default('ninguno'),
   /** Cuánto se mueve la cámara (0,05 sutil – 0,4 fuerte). */
   cameraAmount: z.number().min(0.03).max(0.5).default(0.14),
+  /** Cómo se combina el b-roll con tu video: a pantalla completa, dividida (b-roll arriba o abajo) o tú en un recuadro. */
+  brollLayout: z.enum(['completo', 'arriba', 'abajo', 'recuadro']).default('completo'),
   /** Cámara lenta: 1 normal, 0,5 a la mitad, 0,25 a un cuarto. La voz de la escena se silencia. */
   speed: z.number().min(0.2).max(1).default(1),
   /** Tramos ya interpolados (fotogramas intermedios) para la cámara lenta suave. */
@@ -375,6 +377,13 @@ export const Project = z.object({
     letterbox: z.boolean().default(false),
     /** LUT de color aplicado a todo el video (incluido o .cube propio). */
     lut: z.object({ name: z.string(), strength: z.number().min(0.1).max(1).default(0.8), builtin: z.string().optional() }).optional(),
+    /** Rótulo con nombre y cargo (como en entrevistas), unos segundos al inicio. */
+    lowerThird: z.object({
+      name: z.string(),
+      role: z.string().optional(),
+      at: z.number().min(0).default(0.8),
+      duration: z.number().min(1).max(15).default(4),
+    }).optional(),
     /** Marca de agua: el logo (o el nombre) de la marca fijo en una esquina. */
     watermark: z.object({
       corner: z.enum(['arriba-izq', 'arriba-der', 'abajo-izq', 'abajo-der']).default('arriba-der'),

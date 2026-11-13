@@ -52,8 +52,8 @@ export const Root: React.FC = () => (
     fps={30}
     durationInFrames={90}
     calculateMetadata={({ props }) => ({
-      width: props.width,
-      height: props.height,
+      width: props.canvas?.width ?? props.width,
+      height: props.canvas?.height ?? props.height,
       fps: props.fps,
       durationInFrames: props.durationInFrames,
     })}

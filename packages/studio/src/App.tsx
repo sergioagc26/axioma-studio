@@ -206,7 +206,7 @@ export const App: React.FC = () => {
             <h2 style={{ fontSize: 22 }}>Exportar video</h2>
             <span className="small muted">Formato</span>
             <div className="opts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios'], ['todos', 'Los 3', 'Un video de cada formato']] as const).map(([id, name, desc]) => (
+              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios'], ['16:9', 'Horizontal', 'YouTube: el reel centrado'], ['todos', 'Los 3 verticales', '9:16, 4:5 y 1:1 de una vez']] as const).map(([id, name, desc]) => (
                 <button key={id} className={`opt ${formato === id ? 'on' : ''}`} aria-pressed={formato === id} onClick={() => setFormato(id)}>
                   <strong>{name}{id === 'todos' ? '' : ` · ${id}`}</strong><span className="muted small">{desc}</span>
                 </button>

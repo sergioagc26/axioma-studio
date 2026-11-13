@@ -3,7 +3,7 @@ import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { APP_NAME, FONT_FAMILIES, applyVariant, motionGallery } from '@axioma/schema';
+import { APP_NAME, FONT_FAMILIES, applyVariant, motionGallery, reelScore } from '@axioma/schema';
 import * as E from '@axioma/engine';
 
 const log = (msg: string) => console.error(`[${APP_NAME}] ${msg}`);
@@ -171,9 +171,11 @@ export function createServer() {
     posicion_texto: z.enum(['arriba', 'centro']).optional(),
     imagen: look.optional().describe('bn = blanco y negro · calido · frio · contraste'),
     camara: camera.optional().describe('Movimiento durante la escena. En fotos con profundidad (b-roll de imagen), orbita gira alrededor del sujeto y foco pasa el foco del fondo a lo cercano.'),
+    distribucion_broll: z.enum(['completo', 'arriba', 'abajo', 'recuadro']).optional().describe('Con b-roll: completo · arriba (pantalla dividida, b-roll arriba y la persona abajo) · abajo · recuadro (la persona en una ventanita sobre el b-roll)'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const p = await E.editScene(dir, a.escena, {
+      brollLayout: a.distribucion_broll,
       role: a.rol, title: a.titulo, onScreenText: a.texto_en_pantalla, textColor: a.color_texto, visual: a.visual, punchZoom: a.zoom, phrases: a.frases,
       textStyle: a.estilo_texto, textKeyword: a.palabra_clave, textPosition: a.posicion_texto, look: a.imagen, camera: a.camara,
     });
@@ -522,6 +524,22 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('puntaje_reel', 'Puntaje del reel (0–100) con lo que más pesa en la retención: gancho, ritmo, movimiento en pantalla, subtítulos, duración, cierre y audio, y qué hacer para subirlo.', { proyecto }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const r = reelScore(await E.readProject(dir), await E.readTranscript(dir));
+    return `Puntaje: ${r.score}/100 (${r.grade})\n${r.parts.map((x) => `- ${x.label}: ${x.points}/${x.max}${x.tip ? ` → ${x.tip}` : ''}`).join('\n')}`;
+  });
+
+  tool('rotulo', 'Pone (o quita) un rótulo con nombre y cargo, como en entrevistas, unos segundos al inicio.', {
+    proyecto, nombre: z.string().describe('"" para quitarlo'), cargo: z.string().optional(),
+    segundo: z.number().min(0).default(0.8), duracion: z.number().min(1).max(15).default(4),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const p = await E.readProject(dir);
+    p.finish.lowerThird = a.nombre.trim() ? { name: a.nombre.trim(), role: a.cargo?.trim() || undefined, at: a.segundo, duration: a.duracion } : undefined;
+    return E.summarize(await E.writeProject(dir, p), dir);
+  });
+
   tool('enlace_revision', 'Crea (o muestra) el enlace de revisión del cliente: ve el último video exportado, comenta en el segundo exacto y aprueba. Los comentarios llegan como peticiones (leer_peticiones). Funciona en la misma red con la app abierta en modo red.', {
     proyecto, nuevo: z.boolean().default(false).describe('true cambia el enlace (el anterior deja de funcionar)'),
   }, async (a) => {
@@ -757,7 +775,7 @@ export function createServer() {
   });
 
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
-    proyecto, formato: z.enum(['9:16', '4:5', '1:1']).default('9:16'),
+    proyecto, formato: z.enum(['9:16', '4:5', '1:1', '16:9']).default('9:16'),
     calidad: z.enum(['maxima', 'alta', 'ligera']).optional().describe('Por defecto, la del proyecto (alta)'),
   }, async ({ proyecto, formato, calidad }) => {
     const dir = await resolveProject(proyecto);

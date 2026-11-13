@@ -172,6 +172,13 @@ En Variantes, «Busca en tu material» encuentra momentos en todos los reels del
 
 Claude: `ajustar_subtitulos` (emojis), `idioma_subtitulos`.
 
+## Pantalla dividida, puntaje, rótulo y 16:9
+
+- **Pantalla dividida y recuadro** (Imagen y cámara, en escenas con b-roll): el b-roll arriba y tú abajo (o al revés), con una línea del color de la marca, o tú en un recuadro sobre el b-roll (formato reacción). Claude: `editar_escena` con `distribucion_broll`.
+- **Puntaje del reel** (debajo de «Editar todo con IA»): de 0 a 100 con gancho, ritmo, movimiento en pantalla, subtítulos, duración, cierre y audio, y qué hacer para subir cada parte. Son buenas prácticas de retención; no predice las vistas. Claude: `puntaje_reel`.
+- **Rótulo con nombre y cargo** (Acabados): entra deslizándose con una barra del color de la marca, en el segundo y por el tiempo que elijas. Claude: `rotulo`.
+- **Horizontal 16:9** (Exportar): para YouTube, 1920×1080 con el reel vertical entero y centrado sobre un fondo con los colores de la marca (no se recorta).
+
 ## Editar por texto y revisión del cliente
 
 - **Editar por texto** (pestaña Texto, como Descript): todo lo que se dice, palabra por palabra. Selecciona (clic, arrastrar o Mayús+clic) y «Quitar del video» (⌫) o «Recuperar» (R); espacio escucha la selección. Las tachadas no están en el reel. Quitar una frase del medio parte la escena en dos; recuperar la devuelve a su escena. Se deshace con ⌘Z.

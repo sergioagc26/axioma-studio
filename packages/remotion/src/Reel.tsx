@@ -67,7 +67,21 @@ export function useFont(name: string): string {
   return useMemo(() => (FONTS[name] ? FONTS[name]().fontFamily : name), [name]);
 }
 
+/** Reel final. En 16:9 el reel vertical va centrado sobre un fondo con los colores de la marca. */
 export const Reel: React.FC<Timeline> = (t) => {
+  if (!t.canvas) return <ReelBody {...t} />;
+  const scale = t.canvas.height / t.height;
+  const left = (t.canvas.width - t.width * scale) / 2;
+  return (
+    <AbsoluteFill style={{ background: `radial-gradient(circle at 20% 30%, ${t.brand.primary}55, transparent 55%), radial-gradient(circle at 80% 70%, ${t.brand.secondary}44, transparent 55%), #0B0B0F` }}>
+      <div style={{ position: 'absolute', top: 0, left, width: t.width, height: t.height, transform: `scale(${scale})`, transformOrigin: 'top left', overflow: 'hidden', boxShadow: '0 0 80px rgba(0,0,0,0.6)' }}>
+        <ReelBody {...t} />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+const ReelBody: React.FC<Timeline> = (t) => {
   const font = useFont(t.captions.fontFamily);
   const chunks = useMemo(
     () => chunkWords(t.words, t.captions.mode === 'phrase' ? Math.max(t.captions.wordsPerLine, 5) : t.captions.wordsPerLine, t.fps),
@@ -112,6 +126,11 @@ export const Reel: React.FC<Timeline> = (t) => {
       {t.finish.grain ? <Grain /> : null}
       {t.finish.progressBar ? <Progress t={t} /> : null}
       {t.finish.watermark ? <Watermark t={t} /> : null}
+      {t.finish.lowerThird?.name ? (
+        <Sequence from={Math.round(t.finish.lowerThird.at * t.fps)} durationInFrames={Math.round(t.finish.lowerThird.duration * t.fps)}>
+          <LowerThird t={t} font={font} />
+        </Sequence>
+      ) : null}
       {t.voiceoverSrc ? <Audio src={t.voiceoverSrc} /> : null}
       {t.sfx.map((e, i) => (
         <Sequence key={`fx${i}`} from={e.fromFrame}>
@@ -185,6 +204,28 @@ const Grain: React.FC = () => {
 };
 
 /** Barra de progreso arriba, con el color de la marca. */
+/** Rótulo con nombre y cargo: entra deslizándose con una barra del color de la marca y se va igual. */
+const LowerThird: React.FC<{ t: Timeline; font: string }> = ({ t, font }) => {
+  const frame = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  const lt = t.finish.lowerThird!;
+  const inP = spring({ frame, fps, config: { damping: 16, stiffness: 140 }, durationInFrames: 18 });
+  const outP = interpolate(frame, [durationInFrames - 10, durationInFrames], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const x = interpolate(inP, [0, 1], [-110, 0]) - outP * 110;
+  const k = t.width / 1080;
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', left: '6%', top: '53%', transform: `translateX(${x}%)`, display: 'flex', alignItems: 'stretch', gap: 16 * k, opacity: 1 - outP }}>
+        <div style={{ width: 12 * k, borderRadius: 6 * k, background: t.brand.primary }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 * k, padding: `${14 * k}px ${22 * k}px`, borderRadius: 14 * k, background: 'rgba(10,10,12,0.78)' }}>
+          <span style={{ font: `800 ${52 * k}px ${font}, Montserrat, sans-serif`, color: '#fff', lineHeight: 1.05 }}>{lt.name}</span>
+          {lt.role ? <span style={{ font: `600 ${32 * k}px Inter, Montserrat, sans-serif`, color: t.brand.secondary, lineHeight: 1.1 }}>{lt.role}</span> : null}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 /**
  * Marca de agua: el logo (o el nombre de la marca) fijo en una esquina. Separada del borde lo
  * justo para no chocar con la barra de progreso ni con los botones de Reels y TikTok.
@@ -199,6 +240,37 @@ const Watermark: React.FC<{ t: Timeline }> = ({ t }) => {
       {t.brand.logoSrc
         ? <Img src={t.brand.logoSrc} style={{ ...pos, width: `${w.size * 100}%`, height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }} />
         : <span style={{ ...pos, font: `800 ${Math.round(t.width * w.size * 0.24)}px Montserrat, sans-serif`, color: '#fff', letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>{t.brand.name ?? ''}</span>}
+    </AbsoluteFill>
+  );
+};
+
+/**
+ * B-roll y tu video a la vez: pantalla dividida (el b-roll arriba o abajo, tú en la otra mitad,
+ * con una línea del color de la marca) o tú en un recuadro sobre el b-roll (formato reacción).
+ */
+const BrollLayout: React.FC<{ clip: TimelineClip; t: Timeline; cover: React.CSSProperties; pos: { x: number; y: number }; filter?: string }> = ({ clip, t, cover, pos, filter }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const broll = /\.(jpe?g|png|webp)(\?|$)/i.test(clip.brollSrc!)
+    ? <Parallax src={clip.brollSrc!} depth={clip.brollDepthSrc} clip={clip} base={{ ...cover, transform: undefined }} />
+    : <OffthreadVideo src={clip.brollSrc!} trimBefore={clip.sceneOffsetFrames} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />;
+  const me = <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${pos.x * 100}% ${pos.y * 100}%`, filter }} />;
+  if (clip.brollLayout === 'recuadro') {
+    const pop = spring({ frame, fps, config: { damping: 14, stiffness: 160 }, durationInFrames: 14 });
+    return (
+      <AbsoluteFill>
+        <AbsoluteFill>{broll}</AbsoluteFill>
+        <div style={{ position: 'absolute', top: '6%', right: '6%', width: '38%', aspectRatio: '3 / 4', borderRadius: 28, overflow: 'hidden', border: `6px solid ${t.brand.primary}`, boxShadow: '0 18px 40px rgba(0,0,0,0.5)', transform: `scale(${interpolate(pop, [0, 1], [0.6, 1])})`, transformOrigin: 'top right' }}>{me}</div>
+      </AbsoluteFill>
+    );
+  }
+  const top = clip.brollLayout === 'arriba' ? broll : me;
+  const bottom = clip.brollLayout === 'arriba' ? me : broll;
+  return (
+    <AbsoluteFill>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '50%', overflow: 'hidden' }}>{top}</div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%', overflow: 'hidden' }}>{bottom}</div>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 'calc(50% - 3px)', height: 6, background: t.brand.primary }} />
     </AbsoluteFill>
   );
 };
@@ -288,6 +360,8 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
       ) : null}
       {clip.motion ? (
         <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
+      ) : clip.brollSrc && clip.brollLayout ? (
+        <BrollLayout clip={clip} t={t} cover={cover} pos={pos} filter={filter} />
       ) : clip.brollSrc ? (
         // Una imagen como b-roll: el movimiento de cámara de la escena la anima.
         /\.(jpe?g|png|webp)(\?|$)/i.test(clip.brollSrc) ? <Parallax src={clip.brollSrc} depth={clip.brollDepthSrc} clip={clip} base={cover} />

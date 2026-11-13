@@ -10,3 +10,4 @@ export * from './advice.ts';
 export * from './publish.ts';
 export * from './emoji.ts';
 export * from './textedit.ts';
+export * from './score.ts';

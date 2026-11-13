@@ -13,7 +13,7 @@
   h3 { font-size: 11.5pt; margin: 5mm 0 1.5mm; }
   p { margin: 0 0 2.5mm; }
   ul { margin: 0 0 2.5mm; padding-left: 5mm; }
-  li { margin: 0 0 1.2mm; }
+  li { margin: 0 0 0.8mm; }
   .muted { color: var(--muted); }
   .page { page-break-after: always; }
   .page:last-child { page-break-after: auto; }
@@ -41,8 +41,8 @@
   .auto { background: var(--cyanSoft); color: #0A7C76; }
   .click { background: var(--pinkSoft); color: #C4123A; }
   .key { background: var(--amberSoft); color: var(--amber); }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
-  .box { border: 1px solid var(--line); border-radius: 3mm; padding: 4mm; break-inside: avoid; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+  .box { border: 1px solid var(--line); border-radius: 3mm; padding: 3mm 4mm; break-inside: avoid; font-size: 9.6pt; }
   .box h3 { margin-top: 0; }
   .prio { display: flex; gap: 3mm; align-items: flex-start; margin-bottom: 3.5mm; break-inside: avoid; }
   .prio .num { flex: none; width: 7mm; height: 7mm; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 9pt; }
@@ -144,6 +144,7 @@
       <li>Recortar, alargar, dividir y recuperar clips en la línea de tiempo.</li>
       <li>«Partes quitadas»: cada corte con su texto tachado y botón para recuperarlo.</li>
       <li>Variantes por escena (gráfico, b-roll, color, tipografía, cámara) con su fotograma real.</li>
+      <li>Puntaje del reel (0–100) con qué mejorar.</li>
       <li>Deshacer y rehacer, atajos de teclado, versiones y comparación.</li>
     </ul></div>
     <div class="box"><h3>Texto y subtítulos</h3><ul>
@@ -158,6 +159,7 @@
       <li>11 movimientos de cámara con fuerza ajustable.</li>
       <li>Grano, brillo de cine, barras de cine, barra de progreso.</li>
       <li>Tamaño del video dentro del cuadro con fondo desenfocado.</li>
+      <li>Pantalla dividida o recuadro con el b-roll; rótulo con nombre y cargo.</li>
     </ul></div>
     <div class="box"><h3>Audio</h3><ul>
       <li>Volumen o silencio del sonido original.</li>
@@ -172,7 +174,7 @@
       <li>Tendencias por nicho (guía incluida, sin consultar internet).</li>
     </ul></div>
     <div class="box"><h3>Exportar y acceder</h3><ul>
-      <li>Calidad máxima, alta o ligera; carpeta de destino; 9:16, 4:5, 1:1 o los 3 de una vez.</li>
+      <li>Calidad máxima, alta o ligera; carpeta de destino; 9:16, 4:5, 1:1, 16:9 o los 3 verticales de una vez.</li>
       <li>Duplicar proyectos y moverlos a la papelera (recuperable).</li>
       <li>Abrir la app desde el portátil en la misma Wi-Fi, con clave.</li>
       <li>Claude como editor (55 herramientas) con tu suscripción, sin pagar API.</li>

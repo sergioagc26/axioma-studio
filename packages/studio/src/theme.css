@@ -210,3 +210,15 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .texto-body .w:hover { background: var(--panel2); }
 .texto-body .w.out { color: var(--muted); text-decoration: line-through; opacity: .55; }
 .texto-body .w.sel { background: var(--pinkSoft); box-shadow: 0 0 0 1px var(--pink) inset; }
+
+/* Puntaje del reel */
+.scorecard { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--panel); }
+.scorecard > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.scorecard > summary::-webkit-details-marker { display: none; }
+.score { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font: 700 17px 'Space Grotesk', sans-serif; border: 3px solid var(--line); }
+.score.excelente { border-color: #22C55E; color: #22C55E; }
+.score.bueno { border-color: var(--cyanText); color: var(--cyanText); }
+.score.mejorable { border-color: #F59E0B; color: #F59E0B; }
+.score.flojo { border-color: var(--pinkText); color: var(--pinkText); }
+.meter { height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; }
+.meter > div { height: 100%; background: var(--cyanText); border-radius: 3px; }

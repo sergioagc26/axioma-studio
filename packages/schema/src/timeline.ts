@@ -56,6 +56,8 @@ export type TimelineClip = {
   punchZoom: boolean;
   /** Cámara lenta: velocidad (< 1) y, si ya existe, el video con fotogramas intermedios. */
   speed?: number;
+  /** B-roll combinado con tu video (pantalla dividida o recuadro). */
+  brollLayout?: 'arriba' | 'abajo' | 'recuadro';
   slowSrc?: string;
   /** El audio sigue sin corte desde el tramo anterior / hacia el siguiente (solo cambia el encuadre). */
   seamIn?: boolean;
@@ -105,6 +107,8 @@ export type Brand = { primary: string; secondary: string; text: string; name?: s
 export type Timeline = {
   width: number;
   height: number;
+  /** Lienzo final si es distinto (16:9 con el reel vertical centrado). */
+  canvas?: { width: number; height: number };
   fps: number;
   durationInFrames: number;
   videoSrc: string;
@@ -126,7 +130,7 @@ export type Timeline = {
   captions: CaptionStyle;
   brand: Brand;
   /** Acabados de todo el reel. */
-  finish: { progressBar: boolean; grain: boolean; vignette: boolean; keywordZoom: boolean; halation: boolean; letterbox: boolean; watermark?: { corner: 'arriba-izq' | 'arriba-der' | 'abajo-izq' | 'abajo-der'; size: number; opacity: number } };
+  finish: { progressBar: boolean; grain: boolean; vignette: boolean; keywordZoom: boolean; halation: boolean; letterbox: boolean; watermark?: { corner: 'arriba-izq' | 'arriba-der' | 'abajo-izq' | 'abajo-der'; size: number; opacity: number }; lowerThird?: { name: string; role?: string; at: number; duration: number } };
   /** Fotogramas donde el zoom cambia (acercar/alejar) en la palabra importante de una frase. */
   emphasis: number[];
   /** Efectos de sonido colocados en la salida. */
@@ -192,7 +196,7 @@ export function focusFor(faces: FacePoint[] | undefined, start: number, end: num
   return { x: hit.reduce((a, f) => a + f.x, 0) / hit.length, y: hit.reduce((a, f) => a + f.y, 0) / hit.length };
 }
 
-export const FORMATS = { '9:16': { width: 1080, height: 1920 }, '4:5': { width: 1080, height: 1350 }, '1:1': { width: 1080, height: 1080 } } as const;
+export const FORMATS = { '9:16': { width: 1080, height: 1920 }, '4:5': { width: 1080, height: 1350 }, '1:1': { width: 1080, height: 1080 }, '16:9': { width: 1920, height: 1080 } } as const;
 export type FormatId = keyof typeof FORMATS;
 
 /**
@@ -235,7 +239,12 @@ function emphasisFrames(words: { text: string; startFrame: number; endFrame: num
 
 export function buildTimeline(project: Project, transcript: Transcript | null, urls: TimelineUrls): Timeline {
   const { fps } = project.format;
-  const { width, height } = urls.format ?? project.format;
+  // Horizontal (16:9) desde un reel vertical: el reel va entero y centrado en un lienzo más ancho
+  // (no se recorta). La línea de tiempo se arma en el tamaño del reel.
+  const out = urls.format ?? project.format;
+  const landscape = out.width > out.height * 1.2 && project.format.height > project.format.width;
+  const { width, height } = landscape ? project.format : out;
+  const canvas = landscape ? { width: out.width, height: out.height } : undefined;
   const toFrame = (s: number) => Math.round(s * fps);
 
   const clips: TimelineClip[] = [];
@@ -295,6 +304,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             sourceStartFrame: toFrame(pc.start),
             seamIn: pi > 0 || undefined,
             speed: slow ? speed : undefined,
+            brollLayout: brollSrc && scene.brollLayout && scene.brollLayout !== 'completo' ? scene.brollLayout : undefined,
             slowSrc: slowFile && urls.asset ? urls.asset(slowFile) : undefined,
             seamOut: pi < pieces.length - 1 || undefined,
             sceneOffsetFrames: from - toFrame(sceneStart),
@@ -399,6 +409,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
   return {
     width,
     height,
+    canvas,
     fps,
     durationInFrames: Math.max(1, toFrame(acc)),
     originalVolume: project.audio.originalVolume,
