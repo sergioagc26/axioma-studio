@@ -2,16 +2,16 @@
 
 Editor de reels 9:16 con IA para videos hablando a cámara. Claude (tu suscripción) dirige la edición; el trabajo pesado corre en tu computador con herramientas gratuitas (FFmpeg, whisper.cpp, Remotion).
 
-## Instalación (Mac o Windows)
+## Instalación (doble clic)
 
-```bash
-npm run setup
-```
+- **Mac**: doble clic en **«Instalar Axioma Studio.command»**. Instala lo que falte (herramientas de Apple, Homebrew, Node, FFmpeg, cmake, whisper y, si quieres, la IA local), compila la app y deja un ícono **«Axioma Studio»** en el Escritorio. La primera vez tarda entre 5 y 20 minutos; Homebrew pide la contraseña del Mac. Si macOS dice que no puede abrirlo por ser de un desarrollador no identificado: clic derecho → Abrir.
+- **Windows 10/11**: doble clic en **«Instalar Axioma Studio.bat»**. Usa winget para Node y FFmpeg y deja un acceso directo en el Escritorio.
 
-Instala dependencias, compila whisper.cpp, descarga el modelo `small` y corre `doctor`.
+Se puede volver a abrir el instalador cuando quieras: salta lo que ya está y repara lo que falte. El registro queda en `workspace/instalacion.log`. Para abrir la app después: el ícono del Escritorio (si ya estaba abierta, solo abre el navegador).
 
-- **Mac**: necesitas Homebrew, `ffmpeg`, `cmake` y las herramientas de Xcode (`xcode-select --install`).
-- **Windows**: el script instala FFmpeg con winget y usa los binarios oficiales de whisper.cpp.
+Guía corta para empezar: [docs/primer-reel.md](docs/primer-reel.md).
+
+Instalación a mano (terminal): `npm run setup`.
 
 ## Uso
 
