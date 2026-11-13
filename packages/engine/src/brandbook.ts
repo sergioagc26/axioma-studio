@@ -53,7 +53,7 @@ export const VOICE: Record<string, { words: string; how: string; yes: string[]; 
  * Imprime una página a PDF con el navegador interno de Remotion (el mismo que exporta los videos),
  * así funciona igual en Mac y en Windows sin depender de tener Chrome instalado.
  */
-async function printPdf(folder: string, page: string, out: string) {
+export async function printPdf(folder: string, page: string, out: string) {
   const { openBrowser } = await import('@remotion/renderer');
   const server = await serveFolder(folder);
   const browser = await openBrowser('chrome');

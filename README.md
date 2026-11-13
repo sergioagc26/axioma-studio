@@ -51,7 +51,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
 - **Skills** (`plugin/skills/`): `editar-reel`, `montaje`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 57 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Servidor MCP** (`packages/mcp`): 75 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -245,7 +245,7 @@ En videos horizontales con dos o más personas (pódcast, entrevista), el editor
 - **Variantes**: cinco por clip (gráficos, b-roll, color, tipografía y cámara).
 - **Claude**: botón «Conectar Claude» que abre la terminal lista para `/login`.
 
-Pendiente (no construido): quitar el fondo del video, creador de imágenes (carrusel, post, historia), b-roll generado a partir de una idea y estudio de tendencias por nicho. La lectura de referencias sigue siendo aproximada.
+La lectura de estilo desde una referencia sigue siendo aproximada (la tipografía no se lee de la imagen). Lo pendiente está en la hoja de ruta: `docs/funciones/`.
 
 ## La marca primero
 
