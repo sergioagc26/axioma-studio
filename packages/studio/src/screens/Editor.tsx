@@ -448,6 +448,16 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ctx.toast(`LUT «${file.name.replace(/\.cube$/i, '')}» aplicado.`);
     } catch (e: any) { ctx.toast(`No se pudo usar ese LUT: ${e.message}`); } finally { setGrading(''); }
   };
+  /** Iguala el color a una imagen de referencia (se crea un LUT a la medida). */
+  const matchReference = async (file: File) => {
+    setGrading('Subiendo la referencia…');
+    try {
+      const job = await api<Job>(`/api/color-referencia?id=${encodeURIComponent(project.id)}&filename=${encodeURIComponent(file.name)}&fuerza=${lutStrength}`, { method: 'POST', body: file });
+      await waitJob(job, (j) => setGrading(j.message || 'Igualando el color…'));
+      await reloadProject();
+      ctx.toast(`Color igualado a «${file.name}». Ajusta la fuerza si quieres menos.`);
+    } catch (e: any) { ctx.toast(`No se pudo igualar el color: ${e.message}`); } finally { setGrading(''); }
+  };
   const hasTeaser = project.scenes[0]?.id === 'adelanto';
   const teaser = async (on: boolean) => {
     try {
@@ -707,6 +717,10 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <label className="btn rect" style={{ height: 34, justifyContent: 'center', cursor: 'pointer' }}>
                   Subir mi LUT (.cube)
                   <input type="file" accept=".cube" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLut(f); e.target.value = ''; }} />
+                </label>
+                <label className="btn rect" style={{ height: 34, cursor: grading ? 'default' : 'pointer' }} title="Sube una foto o un fotograma con el color que te gusta: la app crea un LUT para que tu video se parezca">
+                  Igualar a una imagen
+                  <input type="file" accept="image/*,video/*" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) matchReference(f); e.target.value = ''; }} />
                 </label>
                 {grading ? <span className="small">{grading}</span> : <span className="small muted">Se aplica solo al video: textos, subtítulos y gráficos mantienen tus colores.</span>}
               </div>

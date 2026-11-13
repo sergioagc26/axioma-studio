@@ -32,6 +32,7 @@ import { searchLibrary, useLibraryHit } from './library.ts';
 import { DUB_LANGUAGES, dubProject } from './dub.ts';
 import { montageToBeat } from './beats.ts';
 import { setFollowSpeaker } from './speakers.ts';
+import { matchToReference } from './colorref.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -562,6 +563,25 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const job = startJob('ia', async (j) => {
       try {
         await applyLut(dir, { file: tmp, name, strength: Number(url.searchParams.get('fuerza')) || 0.8 }, (m) => { j.message = m; });
+        return {};
+      } finally {
+        await rm(tmpDir, { recursive: true, force: true });
+      }
+    });
+    return json(res, job);
+  }
+
+  if (p === '/api/color-referencia' && method === 'POST') {
+    // Sube una imagen (o video) de referencia e iguala el color del reel a ella.
+    const dir = await findDir(id);
+    const tmpDir = path.join(os.tmpdir(), `axioma-ref-color-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const name = path.basename(url.searchParams.get('filename') ?? 'referencia.jpg');
+    const tmp = path.join(tmpDir, name.replace(/[^\w.-]+/g, '_'));
+    await pipe(req, createWriteStream(tmp));
+    const job = startJob('ia', async (j) => {
+      try {
+        await matchToReference(dir, tmp, { name, strength: Number(url.searchParams.get('fuerza')) || 0.85, onProgress: (m) => { j.message = m; } });
         return {};
       } finally {
         await rm(tmpDir, { recursive: true, force: true });

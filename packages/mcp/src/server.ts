@@ -521,6 +521,15 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('igualar_color_referencia', 'Iguala el color del reel a una imagen (o video) de referencia: mide los colores de ambos y crea un LUT a la medida, con fuerza ajustable. Los textos no cambian. Para quitarlo, usa el LUT "sin LUT" en el studio.', {
+    proyecto, imagen: z.string().describe('Ruta absoluta de la imagen o video de referencia'),
+    fuerza: z.number().min(0.1).max(1).default(0.85),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const r = await E.matchToReference(dir, a.imagen, { strength: a.fuerza });
+    return `Color igualado (${r.project.finish.lut?.name}, fuerza ${r.project.finish.lut?.strength}).`;
+  });
+
   tool('seguir_hablante', 'En videos horizontales con dos o más personas (pódcast, entrevista), el recorte vertical pasa a quien está hablando: detecta las caras y quién mueve la boca mientras hay voz. on=false vuelve al encuadre normal.', {
     proyecto, on: z.boolean().default(true),
   }, async (a) => {

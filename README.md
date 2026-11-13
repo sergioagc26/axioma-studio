@@ -154,6 +154,8 @@ En el editor, «Recortar a la persona (sin pantalla verde)» procesa el video un
 
 En «Acabados del reel», «LUT de color» trae seis looks incluidos (Teal & Orange, Película cálida, Moderno apagado, Noche azul, Vivo para redes y Blanco y negro de cine) y acepta tu propio archivo `.cube` (el formato de Resolve, Premiere y Final Cut). Se aplica solo al video, con la fuerza que elijas; textos, subtítulos y gráficos conservan los colores de la marca. Tarda unos segundos porque se graba una copia corregida del video (`media/master-lut.mp4`).
 
+**Igualar a una imagen**: en el mismo lugar, sube una foto, un fotograma o un video con el color que te gusta. La app mide los colores del reel y los de la imagen (en espacio Lab: luz, verde-rojo y azul-amarillo) y crea un LUT a la medida que lleva el reel hacia ese color, con límites para que la piel no se rompa con una referencia extrema. Queda como cualquier LUT, con su fuerza ajustable. Claude puede hacerlo con `igualar_color_referencia`.
+
 ## Adelanto: la mejor frase en el primer segundo
 
 «Poner la frase más fuerte en el primer segundo» busca, entre lo que quedó en el corte, la frase corta que más atrapa (pregunta, cifra, palabras fuertes) y la pone al inicio con un zoom y un golpe de sonido; luego empieza el reel normal. Se puede cambiar o quitar.
