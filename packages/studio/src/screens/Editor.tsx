@@ -53,7 +53,7 @@ const LOOK_NAMES: [Scene['look'], string][] = [
 ];
 const CAMERA_NAMES: [Scene['camera'], string][] = [
   ['ninguno', 'Quieta'], ['acercar', 'Se acerca'], ['alejar', 'Se aleja'], ['izquierda', 'Paneo a la izquierda'], ['derecha', 'Paneo a la derecha'],
-  ['arriba', 'Paneo hacia arriba'], ['abajo', 'Paneo hacia abajo'], ['pulso', 'Pulso al ritmo'], ['temblor', 'Cámara en mano'],
+  ['arriba', 'Paneo hacia arriba'], ['abajo', 'Paneo hacia abajo'], ['pulso', 'Pulso al ritmo'], ['temblor', 'Cámara en mano'], ['orbita', 'Órbita alrededor (3D en fotos)'], ['foco', 'Cambio de foco (3D en fotos)'],
 ];
 const MOTION_NAMES: [string, string][] = [
   ['pregunta', 'Pregunta'], ['contador', 'Número animado'], ['porcentaje', 'Porcentaje'], ['comparacion', 'Antes y después'], ['pasos', 'Pasos'],

@@ -118,19 +118,43 @@ export const Reel: React.FC<Timeline> = (t) => {
 const Parallax: React.FC<{ src: string; depth?: string; clip: TimelineClip; base: React.CSSProperties }> = ({ src, depth, clip, base }) => {
   const frame = useCurrentFrame();
   const at = Math.min(1, (clip.sceneOffsetFrames + frame) / Math.max(1, clip.sceneFrames || clip.durationInFrames));
+  // Movimiento suave (entra y sale despacio), como un dolly real.
+  const e = at * at * (3 - 2 * at);
   const a = Math.max(0.06, clip.cameraAmount);
   const dir = clip.camera === 'alejar' ? -1 : 1;
   const sx = clip.camera === 'izquierda' ? -1 : clip.camera === 'derecha' ? 1 : 0;
   const sy = clip.camera === 'arriba' ? -1 : clip.camera === 'abajo' ? 1 : 0;
-  const layer = (k: number): React.CSSProperties => ({
-    position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: base.filter,
-    transform: `translate(${(at - 0.5) * sx * a * 60 * k}%, ${(at - 0.5) * sy * a * 60 * k}%) scale(${1.06 + a * k * (dir > 0 ? at : 1 - at)})`,
-  });
-  if (!depth) return <Img src={src} style={base} />;
+  const layer = (k: number): React.CSSProperties => {
+    const common = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: base.filter } as React.CSSProperties;
+    if (clip.camera === 'orbita') {
+      // Órbita: la cámara gira alrededor del sujeto. Las dos capas se desplazan juntas en arco y
+      // giran en perspectiva; el fondo se queda un poco atrás (paralaje). La separación entre
+      // capas es pequeña: el fondo es la misma foto y una separación grande duplicaría al sujeto.
+      const th = (e - 0.5) * 2; // -1 → 1
+      const shift = th * a * (k >= 1 ? 30 : 22);
+      return { ...common, transform: `perspective(1600px) translateX(${shift}%) rotateY(${-th * a * 40}deg) scale(${1.12 + a * 0.8})` };
+    }
+    if (clip.camera === 'foco') {
+      // Cambio de foco: se acerca muy poco; el desenfoque lo pone cada capa.
+      return { ...common, transform: `scale(${1.06 + a * 0.35 * e * k})` };
+    }
+    return { ...common, transform: `translate(${(at - 0.5) * sx * a * 60 * k}%, ${(at - 0.5) * sy * a * 60 * k}%) scale(${1.06 + a * k * (dir > 0 ? at : 1 - at)})` };
+  };
+  // Cambio de foco: empieza enfocado en el fondo y pasa a lo cercano a mitad de la escena.
+  const rack = clip.camera === 'foco' ? Math.min(1, Math.max(0, (at - 0.3) / 0.35)) : null;
+  const rackE = rack == null ? 0 : rack * rack * (3 - 2 * rack);
+  if (!depth) {
+    // Sin mapa de profundidad: órbita como paneo con giro; foco como imagen que se enfoca.
+    if (clip.camera === 'orbita') return <Img src={src} style={{ ...base, ...layer(0.8) }} />;
+    if (rack != null) return <Img src={src} style={{ ...base, ...layer(1), filter: `${base.filter ?? ''} blur(${(8 * (1 - rackE)).toFixed(2)}px)`.trim() }} />;
+    return <Img src={src} style={base} />;
+  }
+  const bgBlur = rack == null ? (clip.camera === 'orbita' ? 4 : 2.5) : 1 + 7 * rackE;
+  const fgBlur = rack == null ? 0 : 7 * (1 - rackE);
   return (
     <AbsoluteFill>
-      <Img src={src} style={{ ...layer(0.55), filter: `${base.filter ?? ''} blur(2.5px)`.trim() }} />
-      <Img src={src} style={{ ...layer(1), maskImage: `url(${depth})`, maskMode: 'luminance', maskSize: 'cover', maskPosition: 'center', WebkitMaskImage: `url(${depth})`, WebkitMaskSize: 'cover' } as React.CSSProperties} />
+      <Img src={src} style={{ ...layer(0.55), filter: `${base.filter ?? ''} blur(${bgBlur.toFixed(2)}px)`.trim() }} />
+      <Img src={src} style={{ ...layer(1), filter: `${base.filter ?? ''}${fgBlur > 0.05 ? ` blur(${fgBlur.toFixed(2)}px)` : ''}`.trim() || undefined, maskImage: `url(${depth})`, maskMode: 'luminance', maskSize: 'cover', maskPosition: 'center', WebkitMaskImage: `url(${depth})`, WebkitMaskSize: 'cover' } as React.CSSProperties} />
     </AbsoluteFill>
   );
 };
@@ -184,8 +208,12 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
     case 'pulso': drift = 1 + amt * 0.5 * Math.max(0, 1 - ((abs % Math.round(fps / 2)) / (fps / 6))); break;
     // Temblor: cámara en mano.
     case 'temblor': drift = 1 + amt * 0.5; dx = Math.sin(abs * 0.9) * amt * 9; dy = Math.cos(abs * 1.3) * amt * 9; break;
+    // En video, la órbita es un arco lento (paneo que acelera y frena con un leve acercamiento).
+    case 'orbita': { const e = at * at * (3 - 2 * at); drift = 1 + amt * (0.8 + 0.4 * Math.sin(Math.PI * e)); dx = (e - 0.5) * amt * 70; break; }
   }
-  const filter = [LOOKS[clip.look], clip.adjust].filter(Boolean).join(' ') || undefined;
+  // En video, el cambio de foco es la imagen que se enfoca al empezar la escena.
+  const rackBlur = clip.camera === 'foco' ? Math.max(0, 8 * (1 - Math.min(1, abs / (fps * 0.9)))) : 0;
+  const filter = [LOOKS[clip.look], clip.adjust, rackBlur > 0.05 ? `blur(${rackBlur.toFixed(2)}px)` : ''].filter(Boolean).join(' ') || undefined;
   const pos = coverPosition(t, clip.focusX, clip.focusY);
   // Zoom en la palabra importante: cada énfasis alterna entre acercar y alejar, con un muelle corto.
   let kz = 1;

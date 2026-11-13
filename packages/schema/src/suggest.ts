@@ -202,7 +202,7 @@ export function suggestVariants(project: Project, scene: Scene, transcript: Tran
 
   // e) Cámara: cómo se mueve la toma.
   const [camera, cameraAmount, vignette, camWhy] = CAMS[round % CAMS.length];
-  out.push({ label: `Cámara · ${({ acercar: 'se acerca', alejar: 'se aleja', derecha: 'paneo', arriba: 'paneo vertical', pulso: 'pulso', temblor: 'en mano' } as Record<string, string>)[camera]}`, category: 'camara', visual: 'original', camera, cameraAmount, vignette, onScreenText: scene.onScreenText, notes: camWhy });
+  out.push({ label: `Cámara · ${({ acercar: 'se acerca', alejar: 'se aleja', derecha: 'paneo', arriba: 'paneo vertical', pulso: 'pulso', temblor: 'en mano', orbita: 'órbita', foco: 'cambio de foco' } as Record<string, string>)[camera]}`, category: 'camara', visual: 'original', camera, cameraAmount, vignette, onScreenText: scene.onScreenText, notes: camWhy });
 
   return out.map((v, i) => ({ ...v, id: String.fromCharCode(97 + i) }));
 }

@@ -164,6 +164,10 @@ En «Acabados del reel», «LUT de color» trae seis looks incluidos (Teal & Ora
 
 En Variantes, «Busca en tu material» encuentra momentos en todos los reels del mismo cliente (sus videos y b-rolls) a partir de una descripción: lo que **se ve** («hombres entrenando en la calle», «manos en el portátil») con el modelo de visión local, y lo que **se dice**, en las transcripciones. Al elegir un resultado se corta ese tramo del video original (unos 3,5 s, sin audio) y entra como b-roll de la escena, con su origen anotado. La primera vez revisa todo el material (un fotograma por segundo) y guarda el índice en `indice-visual.json` de cada proyecto; después solo revisa lo nuevo. Si la IA local (Ollama) está abierta, la búsqueda se traduce al inglés porque el modelo de visión la entiende mejor. Claude tiene lo mismo con `buscar_material` y `usar_material`.
 
+## Órbita y cambio de foco
+
+Dos movimientos de cámara nuevos (en el inspector de la escena, «Cámara»). En fotos con mapa de profundidad, la **órbita** gira alrededor del sujeto con el fondo desenfocado detrás, y el **cambio de foco** empieza con el fondo nítido y pasa el foco a lo cercano (la persona u objeto), como un rack focus de cine. En video normal, la órbita es un arco lento y el cambio de foco es la imagen que se enfoca al empezar la escena. Claude los usa con `editar_escena` (`camara: orbita` o `foco`).
+
 ## Doblaje a otro idioma
 
 En Audio, «Doblaje a otro idioma» crea una **copia** del reel en inglés, portugués, francés, italiano o alemán; el original no cambia. La IA local (Ollama) traduce frase por frase lo que quedó en el corte, se genera la voz de cada frase (la del computador, o ElevenLabs si hay clave) a tu ritmo de habla y, si una frase no cabe en su espacio, se acelera hasta un 35 % o empuja un poco a la siguiente. La voz original se apaga; la música y los efectos siguen. Los subtítulos y los textos en pantalla salen traducidos (no los textos que ya venían grabados en el video). Los labios no se sincronizan. Tarda alrededor de un minuto. Claude puede hacerlo con `doblar`.
