@@ -11,7 +11,7 @@ import * as ops from './ops.ts';
 import { P, REPO_ROOT, WORKSPACE } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
 import { allPresets, savePreset } from './presets.ts';
-import { AssistantError, askClaude, claudeBin, claudeReady, openClaudeLogin } from './assistant.ts';
+import { claudeBin, openClaudeLogin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, ensureUsedSfx, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
@@ -255,7 +255,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/plan' && method === 'GET') return json(res, { plan: await planAutoEdit(await findDir(id)) });
   if (p === '/api/clips' && method === 'GET') return json(res, { clips: await projectClips(await findDir(id)) });
   if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
-  if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1'), local: await llmReady(), ia: await llmStatus() });
+  // Ya no se comprueba Claude: esa comprobación gastaba créditos. Todo va con la IA local.
+  if (p === '/api/claude' && method === 'GET') return json(res, { conectado: false, local: await llmReady(), ia: await llmStatus() });
   if (p === '/api/claude' && method === 'POST') { await openClaudeLogin(); return json(res, { ok: true }); }
 
   if (p === '/api/projects' && method === 'GET') {
@@ -561,28 +562,17 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, { project: await readProject(dir), advice });
     }
     if (b.op === 'ia') {
-      // Le pide el cambio a Claude desde la app. Si Claude no está disponible, queda como petición.
-      const project = await readProject(dir);
+      // Todo en local: el cambio lo hace la IA de este computador (Ollama). No se usa Claude ni créditos.
       const text = String(b.text ?? '').slice(0, 2000).trim();
       if (!text) return json(res, { error: 'Escribe qué quieres pedir.' }, 400);
       const job = startJob('ia', async (j) => {
-        j.message = 'Claude está trabajando…';
-        try {
-          const r = await askClaude(project.id, text, (m) => { j.message = m; });
-          return { text: r.text, tools: r.tools };
-        } catch (e) {
-          // Sin Claude, lo hace la IA local (Ollama) si está instalada.
-          if (e instanceof AssistantError && e.code !== 'fallo' && (await llmReady())) {
-            j.message = 'La IA local está editando…';
-            const r = await localEdit(dir, text, b.sceneId);
-            return { text: r.applied.length ? `${r.text} (${r.applied.join('; ')}). Queda una versión guardada de antes.` : r.text, local: true };
-          }
-          if (e instanceof AssistantError && e.code !== 'fallo') {
-            await ops.addRequest(dir, text, b.sceneId);
-            return { text: e.message, saved: true, code: e.code };
-          }
-          throw e;
+        if (!(await llmReady())) {
+          await ops.addRequest(dir, text, b.sceneId);
+          return { text: 'La IA local no está encendida (Ollama). Guardé tu pedido para hacerlo luego.', saved: true, code: 'local' };
         }
+        j.message = 'La IA local está editando…';
+        const r = await localEdit(dir, text, b.sceneId);
+        return { text: r.applied.length ? `${r.text} (${r.applied.join('; ')}). Queda una versión guardada de antes.` : r.text, local: true };
       });
       return json(res, job);
     }
