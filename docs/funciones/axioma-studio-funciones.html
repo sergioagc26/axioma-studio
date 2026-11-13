@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Axioma Studio · Funciones</title>
+<style>
+  @page { size: A4; margin: 16mm 16mm 18mm; }
+  :root { --ink: #16161D; --muted: #5E5E6B; --line: #E4E2EA; --pink: #FE2C55; --cyan: #0FB9B1; --soft: #F6F5F9; --pinkSoft: #FFE9EE; --cyanSoft: #E3F8F6; --amberSoft: #FFF5DD; --amber: #B57900; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); font-size: 10.2pt; line-height: 1.45; margin: 0; background: #fff; }
+  h1 { font-size: 30pt; line-height: 1.05; margin: 0 0 6mm; letter-spacing: -0.02em; }
+  h2 { font-size: 16pt; margin: 0 0 3mm; letter-spacing: -0.01em; }
+  h3 { font-size: 11.5pt; margin: 5mm 0 1.5mm; }
+  p { margin: 0 0 2.5mm; }
+  ul { margin: 0 0 2.5mm; padding-left: 5mm; }
+  li { margin: 0 0 1.2mm; }
+  .muted { color: var(--muted); }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .cover { height: 255mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 3mm; font-weight: 700; font-size: 12pt; }
+  .dot { width: 7mm; height: 7mm; border-radius: 2mm; background: linear-gradient(135deg, var(--pink), #25F4EE); }
+  .kicker { text-transform: uppercase; letter-spacing: 0.12em; font-size: 8.5pt; font-weight: 700; color: var(--pink); margin-bottom: 3mm; }
+  .lead { font-size: 13pt; color: var(--muted); max-width: 150mm; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+  .stat { border: 1px solid var(--line); border-radius: 3mm; padding: 4mm; }
+  .stat b { display: block; font-size: 20pt; line-height: 1; margin-bottom: 1.5mm; }
+  .stat span { font-size: 8.5pt; color: var(--muted); }
+  .section-head { border-bottom: 2px solid var(--ink); padding-bottom: 2mm; margin-bottom: 4mm; display: flex; justify-content: space-between; align-items: baseline; }
+  .section-head .n { font-size: 9pt; color: var(--muted); font-weight: 600; }
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.5mm; margin: 2mm 0 3mm; }
+  .step { background: var(--soft); border-radius: 3mm; padding: 3.5mm; font-size: 9pt; }
+  .step b { display: block; font-size: 10pt; margin-bottom: 1mm; }
+  .step i { font-style: normal; color: var(--pink); font-weight: 700; font-size: 8.5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 1mm 0 2mm; font-size: 9pt; line-height: 1.38; }
+  th { text-align: left; font-size: 8.3pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border-bottom: 1px solid var(--ink); padding: 1.6mm 2mm; }
+  td { border-bottom: 1px solid var(--line); padding: 1.25mm 2mm; vertical-align: top; }
+  td:first-child { font-weight: 600; width: 34%; }
+  tr { break-inside: avoid; }
+  .tag { display: inline-block; font-size: 7.8pt; font-weight: 700; border-radius: 10mm; padding: 0.4mm 2.2mm; white-space: nowrap; }
+  .auto { background: var(--cyanSoft); color: #0A7C76; }
+  .click { background: var(--pinkSoft); color: #C4123A; }
+  .key { background: var(--amberSoft); color: var(--amber); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .box { border: 1px solid var(--line); border-radius: 3mm; padding: 4mm; break-inside: avoid; }
+  .box h3 { margin-top: 0; }
+  .prio { display: flex; gap: 3mm; align-items: flex-start; margin-bottom: 3.5mm; break-inside: avoid; }
+  .prio .num { flex: none; width: 7mm; height: 7mm; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 9pt; }
+  .prio.p1 .num { background: var(--pink); }
+  .note { background: var(--soft); border-left: 3px solid var(--pink); padding: 3mm 4mm; border-radius: 0 2mm 2mm 0; font-size: 9.2pt; margin: 3mm 0; }
+  .legend { display: flex; gap: 4mm; font-size: 8.5pt; color: var(--muted); margin-bottom: 3mm; align-items: center; }
+  .foot { font-size: 8pt; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<section class="page cover">
+  <div class="brand"><div class="dot"></div>Axioma Studio</div>
+  <div>
+    <div class="kicker">Estado de la app · 12 de noviembre de 2026</div>
+    <h1>Qué hace, qué hace sola<br>y qué le falta</h1>
+    <p class="lead">Editor de reels e historias con IA que corre en tu Mac mini, gratis y sin subir tus videos a internet. Corta, subtitula, viste y exporta; Claude o la IA local lo dirigen cuando hace falta.</p>
+  </div>
+  <div>
+    <div class="stats">
+      <div class="stat"><b>11</b><span>movimientos de cámara, 6 looks de color y 5 idiomas de doblaje</span></div>
+      <div class="stat"><b>55</b><span>herramientas para que Claude edite</span></div>
+      <div class="stat"><b>59</b><span>diseños de subtítulos y 53 formas de remarcar la palabra</span></div>
+      <div class="stat"><b>98</b><span>pruebas automáticas que pasan</span></div>
+    </div>
+    <p class="foot" style="margin-top:6mm">Todo corre en este computador salvo cuatro servicios opcionales: Pexels (videos de stock), Freesound (sonidos), Pollinations (imágenes desde una idea) y ElevenLabs (voz natural, de pago). Ninguno recibe tu video.</p>
+  </div>
+</section>
+
+<!-- 1. AUTOMÁTICO -->
+<section class="page">
+  <div class="section-head"><h2>1 · Lo que hace sola</h2><span class="n">Sin preguntas ni clics</span></div>
+  <p>Hay tres formas de que edite sin intervención: subir un video con la casilla <b>«Automático»</b>, el botón <b>«Editar todo con IA»</b> en el editor, o una <b>carpeta vigilada</b> donde cada video que dejes sale editado en <code>editados/</code>. Antes de editar muestra el plan (estilo, tendencia, intensidad, duración) para aprobarlo.</p>
+
+  <div class="flow">
+    <div class="step"><i>1 · ESCUCHA</i><b>Transcribe</b>Palabra por palabra en español, con sus tiempos (whisper.cpp).</div>
+    <div class="step"><i>2 · LIMPIA</i><b>Corta</b>Silencios, muletillas, tomas repetidas (deja la última) y el saludo inicial.</div>
+    <div class="step"><i>3 · VISTE</i><b>Decide el estilo</b>Por la referencia del cliente, lo que funciona en su nicho y lo que se ve en el video.</div>
+    <div class="step"><i>4 · ENTREGA</i><b>Exporta</b>MP4 9:16, 4:5 o 1:1, con el sonido nivelado y el texto para publicar.</div>
+  </div>
+
+  <table>
+    <tr><th>Qué hace</th><th>Cómo</th></tr>
+    <tr><td>Corte limpio</td><td>Quita silencios, «eh», frases mal dichas y repeticiones. Pone un microfundido en cada corte para que no suene a corte automático y respeta las pausas de puntuación.</td></tr>
+    <tr><td>Subtítulos</td><td>Palabra por palabra, con la palabra importante remarcada y el diseño que va con la marca.</td></tr>
+    <tr><td>Voz de estudio</td><td>Limpia el ruido, quita las «s» que silban, da presencia y nivela a −14 LUFS (redes) o −16 (más suave).</td></tr>
+    <tr><td>Gancho</td><td>Quita el «hola a todos» del inicio y la IA local escribe un texto de gancho con una frase que sí dijiste.</td></tr>
+    <tr><td>Estilo completo</td><td>Subtítulos, textos, color, cámara, transiciones y efectos de sonido a la vez, según sector y personalidad de la marca. Con control de intensidad (suave, media, fuerte).</td></tr>
+    <tr><td>Zooms en la palabra clave</td><td>Alterna acercar y alejar, centrado en la cara.</td></tr>
+    <tr><td>Encuadre a la cara</td><td>Busca la cara dos veces por segundo y recorta hacia ella al pasar a vertical, 4:5 o 1:1.</td></tr>
+    <tr><td>Gráficos animados</td><td>Arma solos los que salen de lo que dices: cifras que cuentan, porcentajes, pasos, listas, antes y después, preguntas. Nunca inventa un dato.</td></tr>
+    <tr><td>Transiciones y sonidos</td><td>Recomienda transiciones por cambio de idea y pone barridos, golpes y «pops» en su sitio.</td></tr>
+    <tr><td>B-roll de stock <span class="tag key">necesita clave</span></td><td>Busca en Pexels videos según lo que se dice en cada escena (nunca sobre el gancho ni el cierre).</td></tr>
+    <tr><td>Ve el video</td><td>Un modelo de visión local reconoce de qué trata (deporte, comida, alguien hablando…) y eso pesa en el estilo.</td></tr>
+    <tr><td>Montaje sin voz</td><td>Detecta las tomas y, si hay música, corta justo en los golpes: más seguido donde la canción sube, con un destello en el golpe más fuerte.</td></tr>
+    <tr><td>Texto para publicar</td><td>Título, descripción y hashtags, guardados junto al video.</td></tr>
+    <tr><td>Aprende de la marca</td><td>Cuando repites tres veces un diseño de subtítulos o de títulos, pasa a ser el de la marca.</td></tr>
+  </table>
+</section>
+
+<!-- 2. UN BOTÓN -->
+<section class="page">
+  <div class="section-head"><h2>2 · Lo que hace con un botón</h2><span class="n">Tú decides cuándo; la app hace el resto</span></div>
+  <div class="legend"><span class="tag key">clave</span> necesita una clave gratuita o de pago</div>
+  <table>
+    <tr><th>Función</th><th>Qué consigue</th></tr>
+    <tr><td>Adelanto en el primer segundo</td><td>Abre el reel con tu frase más fuerte (pregunta, cifra, palabras de impacto), con zoom y golpe de sonido.</td></tr>
+    <tr><td>LUT de color</td><td>Seis looks de cine incluidos o tu propio .cube, con fuerza ajustable. Solo tiñe el video, no los textos.</td></tr>
+    <tr><td>Igualar a una imagen</td><td>Subes una foto con el color que te gusta y crea un LUT a la medida para parecerse.</td></tr>
+    <tr><td>Igualar color entre escenas</td><td>Tomas con distinta luz parecen del mismo rodaje.</td></tr>
+    <tr><td>Look de cine en un clic</td><td>Color de cine, grano, brillo en las luces, bordes oscuros y cámara que se acerca.</td></tr>
+    <tr><td>Quitar el fondo</td><td>Recorta a la persona sin pantalla verde; detrás va un color, un degradado, tu video desenfocado, una imagen o un fondo creado desde una idea.</td></tr>
+    <tr><td>Largo a cortos</td><td>De un video largo propone clips con puntaje de gancho, cierre y valor; cada uno se vuelve un reel ya editado.</td></tr>
+    <tr><td>Doblaje a otro idioma</td><td>Copia del reel en inglés, portugués, francés, italiano o alemán, con voz ajustada al tiempo de cada frase y subtítulos traducidos.</td></tr>
+    <tr><td>Búsqueda en tu material</td><td>Describes lo que quieres ver («hombres entrenando») o una frase que dijiste, y lo encuentra en todos los reels del cliente para usarlo como b-roll.</td></tr>
+    <tr><td>Cámara lenta suave</td><td>A 2×, 3× o 4×, creando los fotogramas intermedios para que no se vea a saltos.</td></tr>
+    <tr><td>Cámara 3D sobre fotos</td><td>Acercar, alejar, paneos, órbita y cambio de foco con profundidad real (la foto se separa en capas).</td></tr>
+    <tr><td>Seguir a quien habla</td><td>En pódcast o entrevistas horizontales, el recorte pasa a la persona que mueve la boca.</td></tr>
+    <tr><td>B-roll desde una idea</td><td>Escribes una idea, se crea la imagen y se anima con movimiento de cámara.</td></tr>
+    <tr><td>Creador de imágenes</td><td>Carrusel 4:5, post y historia 9:16 con fotogramas del video, colores de la marca y textos de la IA.</td></tr>
+    <tr><td>Estilo desde una referencia</td><td>Subes un reel que te gusta y copia su ritmo de cortes, tempo, colores y diseño de subtítulos (nunca el contenido).</td></tr>
+    <tr><td>Voz en off</td><td>Desde un texto o grabada con el micrófono; se limpia, se nivela y se subtitula sola.</td></tr>
+    <tr><td>Sonidos y música <span class="tag key">clave</span></td><td>30 efectos incluidos sin problema de licencia, banco de Freesound y música que baja sola cuando hablas.</td></tr>
+    <tr><td>Edición por chat</td><td>Pides cambios en palabras; Claude o la IA local (Ollama) los aplican y antes guardan una versión.</td></tr>
+  </table>
+</section>
+
+<!-- 3. TODO LO MANUAL -->
+<section class="page">
+  <div class="section-head"><h2>3 · Todo lo que puedes ajustar a mano</h2><span class="n">Por áreas</span></div>
+  <div class="grid2">
+    <div class="box"><h3>Edición</h3><ul>
+      <li>Storyboard con tarjetas arrastrables.</li>
+      <li>Recortar, alargar, dividir y recuperar clips en la línea de tiempo.</li>
+      <li>«Partes quitadas»: cada corte con su texto tachado y botón para recuperarlo.</li>
+      <li>Variantes por escena (gráfico, b-roll, color, tipografía, cámara) con su fotograma real.</li>
+      <li>Deshacer y rehacer, atajos de teclado, versiones y comparación.</li>
+    </ul></div>
+    <div class="box"><h3>Texto y subtítulos</h3><ul>
+      <li>59 diseños de subtítulos y 53 formas de remarcar la palabra que suena.</li>
+      <li>22 estilos de texto en pantalla y 20 entradas animadas.</li>
+      <li>Tipografías de Google y las instaladas en tu computador.</li>
+      <li>Posición libre, tamaño, color, giro, borde y placa detrás.</li>
+      <li>Zonas seguras de Reels, Historias, TikTok y Shorts en la vista previa.</li>
+    </ul></div>
+    <div class="box"><h3>Imagen y cámara</h3><ul>
+      <li>Aspectos de color, brillo, contraste, saturación y viñeta por escena.</li>
+      <li>11 movimientos de cámara con fuerza ajustable.</li>
+      <li>Grano, brillo de cine, barras de cine, barra de progreso.</li>
+      <li>Tamaño del video dentro del cuadro con fondo desenfocado.</li>
+    </ul></div>
+    <div class="box"><h3>Audio</h3><ul>
+      <li>Volumen o silencio del sonido original.</li>
+      <li>Limpieza de ruido suave, media o fuerte y realce de voz.</li>
+      <li>Efectos por escena con su segundo exacto.</li>
+      <li>Nivel final para redes (−14) o más suave (−16).</li>
+    </ul></div>
+    <div class="box"><h3>Marca y clientes</h3><ul>
+      <li>Perfil de marca por cliente: sector, cómo habla, colores, logo, fuentes.</li>
+      <li>Brief de 7 preguntas por selección que decide ritmo, duración, tono y llamado a la acción.</li>
+      <li>Estilos propios guardados y presets por cliente.</li>
+      <li>Tendencias por nicho (guía incluida, sin consultar internet).</li>
+    </ul></div>
+    <div class="box"><h3>Exportar y acceder</h3><ul>
+      <li>Calidad máxima, alta o ligera; carpeta de destino; 9:16, 4:5 y 1:1.</li>
+      <li>Abrir la app desde el portátil en la misma Wi-Fi, con clave.</li>
+      <li>Claude como editor (55 herramientas) con tu suscripción, sin pagar API.</li>
+      <li>Modo lote para editar una carpeta entera.</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 4. QUÉ FALTA -->
+<section class="page">
+  <div class="section-head"><h2>4 · Lo que le hace falta</h2><span class="n">En orden de importancia</span></div>
+  <p>Las funciones están; lo que falta es <b>probarlas con tu material real</b> y <b>dejar la app lista para usarla sin ayuda</b>.</p>
+
+  <div class="prio p1"><div class="num">1</div><div><h3 style="margin-top:0">Probar con material real</h3>
+    <p>Varias funciones solo se han probado con material armado para la prueba:</p>
+    <ul>
+      <li><b>IMG_5381 como historia de Instagram</b>, de principio a fin: es la prueba real pendiente (está en el portátil).</li>
+      <li><b>Seguir a quien habla</b> con un pódcast o una entrevista horizontal de verdad.</li>
+      <li><b>Montaje al ritmo</b> con una canción real con partes suaves y fuertes.</li>
+      <li><b>Doblaje</b>: escucharlo tú; la voz del computador suena robótica.</li>
+      <li><b>Subir un .cube o una imagen de referencia</b> desde el botón (se probó el envío, no el selector de archivos).</li>
+    </ul></div></div>
+
+  <div class="prio p1"><div class="num">2</div><div><h3 style="margin-top:0">Dejarla lista para usar</h3>
+    <ul>
+      <li><b>Editor ordenado</b> (hecho): grupos plegables con su valor a la vista, el video primero en el teléfono.</li>
+      <li><b>Instalación en un solo paso</b>, sin terminal (abrirla ya tiene un acceso directo: «Abrir Axioma Studio.command»).</li>
+      <li><b>Probar en Windows</b>: el plan lo pedía y nunca se ha probado.</li>
+      <li><b>Guía corta «tu primer reel»</b> para ti o un cliente (el README es largo y técnico).</li>
+      <li><b>Nombre final</b>: confirmar «Axioma Studio».</li>
+    </ul></div></div>
+
+  <div class="prio"><div class="num">3</div><div><h3 style="margin-top:0">Lo que depende de ti</h3>
+    <ul>
+      <li><b>Claves gratuitas de Pexels y Freesound</b>: sin ellas no funcionan el b-roll de stock ni el banco de sonidos.</li>
+      <li><b>ElevenLabs</b> (opcional, de pago): voz en off y doblaje con voz natural.</li>
+    </ul></div></div>
+
+  <div class="prio"><div class="num">4</div><div><h3 style="margin-top:0">Experimental (pesado para 16 GB)</h3>
+    <ul>
+      <li><b>Mejorar la resolución</b> (Real-ESRGAN): útil para videos de WhatsApp. Es lo único recomendable de este grupo.</li>
+      <li>Cámara lenta con IA (RIFE), como mejora de la que ya existe.</li>
+      <li>Sincronizar labios, avatar desde una foto, música generada y video generado: lentos o de calidad pobre en este Mac.</li>
+    </ul></div></div>
+
+  <div class="note"><b>Límites conocidos hoy.</b> El doblaje no mueve los labios. La cámara lenta deja muda la voz de esa escena; el doblaje usa la voz del computador si no hay ElevenLabs. La búsqueda por imagen entiende mejor el inglés (se traduce sola si la IA local está abierta). Fuera de casa, abrir la app desde el portátil necesita una red privada como Tailscale.</div>
+</section>
+
+</body>
+</html>

@@ -20,7 +20,8 @@ export function sendFile(req: http.IncomingMessage, res: http.ServerResponse, fi
     return false;
   }
   const type = TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
-  const headers = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*' };
+  // La página (index.html) se revisa siempre: así una versión nueva de la app se ve sin forzar la recarga.
+  const headers: Record<string, string> = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', ...(/\.html$/i.test(file) ? { 'Cache-Control': 'no-cache' } : {}) };
   const range = req.headers.range?.match(/bytes=(\d*)-(\d*)/);
   if (range) {
     const start = range[1] ? Number(range[1]) : st.size - Number(range[2]);

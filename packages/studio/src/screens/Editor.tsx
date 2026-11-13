@@ -182,6 +182,26 @@ const SizeSlider: React.FC<{ value: number; onCommit: (v: number) => void }> = (
 };
 const ROLES = Object.keys(ROLE_LABEL) as Scene['role'][];
 
+/** Grupo plegable que recuerda si lo dejaste abierto (en este navegador) y muestra su valor actual. */
+const Group: React.FC<{ id: string; title: string; hint?: string; defaultOpen?: boolean; onOpen?: () => void; children: React.ReactNode }> = ({ id, title, hint, defaultOpen = false, onOpen, children }) => {
+  const key = `axioma:grupo:${id}`;
+  const [open, setOpen] = useState(() => {
+    try { const v = localStorage.getItem(key); return v == null ? defaultOpen : v === '1'; } catch { return defaultOpen; }
+  });
+  return (
+    <details className="grp" open={open} onToggle={(e) => {
+      const now = (e.target as HTMLDetailsElement).open;
+      if (now === open) return;
+      setOpen(now);
+      try { localStorage.setItem(key, now ? '1' : '0'); } catch { /* sin almacenamiento: no pasa nada */ }
+      if (now) onOpen?.();
+    }}>
+      <summary><span className="grp-title">{title}</span>{hint ? <span className="grp-hint">{hint}</span> : null}</summary>
+      <div className="col">{children}</div>
+    </details>
+  );
+};
+
 export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const { store } = ctx;
   const project = store.project!;
@@ -207,6 +227,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); } finally { setSlowing(''); }
   };
 
+  const [allAdvice, setAllAdvice] = useState(false);
   // Reencuadre al hablante (videos horizontales con varias personas).
   const [speakerBusy, setSpeakerBusy] = useState('');
   const followSpeaker = async (on: boolean) => {
@@ -602,37 +623,10 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </details>
             )}
           </div>
-          <div className="col" style={{ padding: 12, borderRadius: 14, background: 'var(--panel2)', gap: 6, marginBottom: 10 }}>
-            <button className="btn rect" style={{ height: 34 }} onClick={() => teaser(true)}>{hasTeaser ? 'Cambiar la frase del adelanto' : 'Poner la frase más fuerte en el primer segundo'}</button>
-            {hasTeaser && <button className="btn ghost" style={{ height: 30 }} onClick={() => teaser(false)}>Quitar el adelanto</button>}
-            <span className="small muted">{hasTeaser ? `Abre con: «${sceneSpeech(project.scenes[0], store.transcript).slice(0, 90)}»` : 'Como hacen los creadores grandes: el reel abre con tu mejor frase y luego empieza la historia. La escena original sigue en su sitio.'}</span>
-          </div>
-          {longVideo && (
-            <details className="grp" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !clips) findClips(); }}>
-              <summary>Clips para redes</summary>
-              <div className="col">
-                <span className="small muted">Los mejores tramos de 20–60 s de este video, con puntaje de gancho (G), cierre (C) y valor (V). Cada uno se vuelve un reel nuevo ya editado.</span>
-                {clips === null && <span className="small muted">Buscando…</span>}
-                {clips?.length === 0 && <span className="small muted">No encontré tramos con un gancho y un cierre claros.</span>}
-                {clips?.map((c, i) => (
-                  <div key={c.start} className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--panel2)', gap: 4 }}>
-                    <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
-                      <strong className="small" style={{ minWidth: 0 }}>«{c.title}»</strong>
-                      <span className="pill" style={{ flex: 'none' }}>{c.score}</span>
-                    </div>
-                    <span className="small muted">{Math.round(c.end - c.start)} s · G {c.hook} · C {c.flow} · V {c.value}</span>
-                    <span className="small muted">{c.reasons.join(' · ')}</span>
-                    <button className="btn rect" style={{ height: 30, alignSelf: 'flex-start' }} disabled={Boolean(makingClip)} onClick={() => makeClip(c, i + 1)}>{makingClip || 'Crear reel de este clip'}</button>
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
           {advice.length > 0 && (
-            <details className="grp" open>
-              <summary>Sugerencias ({advice.length})</summary>
-              <div className="col">
-                {advice.map((a) => (
+            <Group id="sugerencias" title="Sugerencias" hint={String(advice.length)} defaultOpen>
+
+                {(allAdvice ? advice : advice.slice(0, 2)).map((a) => (
                   <div key={a.id} className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--panel2)', gap: 6 }}>
                     <strong className="small">{a.title}</strong>
                     <span className="small muted">{a.why}</span>
@@ -642,12 +636,11 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                     </div>
                   </div>
                 ))}
-              </div>
-            </details>
+                            {advice.length > 2 && <button className="btn ghost" style={{ height: 30, alignSelf: 'flex-start' }} onClick={() => setAllAdvice((v) => !v)}>{allAdvice ? 'Ver menos' : `Ver las otras ${advice.length - 2}`}</button>}
+            </Group>
           )}
-          <details className="grp" open>
-            <summary>Estilos</summary>
-            <div className="col">
+          <Group id="estilos" title="Estilo" hint={store.presets.find((p) => p.id === project.presetId)?.name}>
+
               <span className="small muted">Cada estilo es una edición ya puesta: gancho, textos sacados de lo que dices, zoom cuando aparecen, cámara, gráficos, transiciones, sonidos y subtítulos. Lo que escribiste a mano no se toca.</span>
               <button className="btn rect" style={{ height: 34 }} onClick={saveStyle}>Guardar lo actual como mi estilo</button>
               {rec && rec.id !== project.presetId && (
@@ -668,81 +661,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </span>
             </button>
           ))}
-            </div>
-          </details>
-          <details className="grp">
-            <summary>Partes quitadas ({removed.length})</summary>
-            <div className="col">
-              <span className="small muted">Lo que el corte automático quitó: pausas largas, muletillas y tomas repetidas. Si quitó algo que querías, recupéralo.</span>
-              {removed.length === 0 && <span className="small muted">No se quitó nada con voz.</span>}
-              {removed.slice(0, 40).map((r) => (
-                <div key={r.start} className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap', padding: '6px 8px', borderRadius: 8, background: 'var(--panel2)' }}>
-                  <span className="small" style={{ minWidth: 0 }}><s style={{ opacity: 0.7 }}>{r.text}</s> <span className="muted">· {(r.end - r.start).toFixed(1)} s</span></span>
-                  <button className="btn rect" style={{ height: 30, flex: 'none' }} onClick={() => restore(r)}>Recuperar</button>
-                </div>
-              ))}
-            </div>
-          </details>
-          {project.source.width > project.source.height * 1.1 && (
-            <details className="grp">
-              <summary>Encuadre</summary>
-              <div className="col">
-                <label className="row"><input type="checkbox" checked={project.source.followSpeaker} disabled={Boolean(speakerBusy)} onChange={(e) => followSpeaker(e.target.checked)} /> Seguir a quien habla</label>
-                <span className="small muted">Para pódcast y entrevistas con dos o más personas: el recorte vertical pasa a la persona que está hablando (se mira quién mueve la boca). La primera vez tarda un poco.</span>
-                {speakerBusy && <span className="pill" role="status">{speakerBusy}</span>}
-              </div>
-            </details>
-          )}
-          <details className="grp">
-            <summary>Acabados del reel</summary>
-            <div className="col">
-              <label className="row"><input type="checkbox" checked={project.finish.progressBar} onChange={(e) => store.update((p) => { p.finish.progressBar = e.target.checked; })} /> Barra de progreso arriba</label>
-              <label className="row"><input type="checkbox" checked={project.finish.grain} onChange={(e) => store.update((p) => { p.finish.grain = e.target.checked; })} /> Grano de película</label>
-              <label className="row"><input type="checkbox" checked={project.finish.vignette} onChange={(e) => store.update((p) => { p.finish.vignette = e.target.checked; })} /> Bordes oscuros en todo el reel</label>
-              <label className="row"><input type="checkbox" checked={project.finish.keywordZoom} onChange={(e) => store.update((p) => { p.finish.keywordZoom = e.target.checked; })} /> Zoom en la palabra importante de cada frase</label>
-              <label className="row"><input type="checkbox" checked={project.finish.halation} onChange={(e) => store.update((p) => { p.finish.halation = e.target.checked; })} /> Brillo de cine (halo en las luces)</label>
-              <label className="row"><input type="checkbox" checked={project.finish.letterbox} onChange={(e) => store.update((p) => { p.finish.letterbox = e.target.checked; })} /> Barras de cine</label>
-              <button className="btn rect" style={{ height: 34 }} onClick={() => store.update((p) => {
-                p.scenes.forEach((sc) => { sc.look = 'cine'; if (sc.camera === 'ninguno') sc.camera = 'acercar'; });
-                Object.assign(p.finish, { grain: true, vignette: true, halation: true });
-              })}>Look de cine en un clic</button>
-              <span className="small muted">Pone en todas las escenas el color de cine, grano, bordes oscuros, brillo y la cámara acercándose despacio.</span>
-              <button className="btn rect" style={{ height: 34 }} onClick={async () => {
-                try {
-                  const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'igualar-color' }) });
-                  store.replace(d.project);
-                  ctx.toast(d.changed ? `Color igualado en ${d.changed} escena${d.changed > 1 ? 's' : ''}.` : 'Las escenas ya tenían un color parejo.');
-                } catch (e: any) { ctx.toast(e.message); }
-              }}>Igualar el color entre escenas</button>
-              <span className="small muted">Ajusta brillo y color de las tomas que se salen, para que todo parezca del mismo rodaje.</span>
-              <div className="col" style={{ gap: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
-                <span className="small"><b>LUT de color</b> · {project.finish.lut ? project.finish.lut.name : 'ninguno'}</span>
-                <select value={grading && pendingLut ? pendingLut : project.finish.lut?.builtin ?? (project.finish.lut ? 'propio' : '')} disabled={!!grading} onChange={(e) => e.target.value !== 'propio' && setLut(e.target.value)}>
-                  <option value="">Sin LUT (color original)</option>
-                  {luts.map((l) => <option key={l.id} value={l.id}>{l.name} — {l.description}</option>)}
-                  {project.finish.lut && !project.finish.lut.builtin && <option value="propio">{project.finish.lut.name} (tuyo)</option>}
-                </select>
-                {project.finish.lut && (
-                  <label className="col small" style={{ gap: 2 }}>Fuerza: {Math.round(lutStrength * 100)} %
-                    <input type="range" min={0.2} max={1} step={0.05} value={lutStrength} disabled={!!grading} onChange={(e) => setLutStrength(Number(e.target.value))} onPointerUp={() => setLut('actual', lutStrength)} onKeyUp={() => setLut('actual', lutStrength)} />
-                  </label>
-                )}
-                <label className="btn rect" style={{ height: 34, justifyContent: 'center', cursor: 'pointer' }}>
-                  Subir mi LUT (.cube)
-                  <input type="file" accept=".cube" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLut(f); e.target.value = ''; }} />
-                </label>
-                <label className="btn rect" style={{ height: 34, cursor: grading ? 'default' : 'pointer' }} title="Sube una foto o un fotograma con el color que te gusta: la app crea un LUT para que tu video se parezca">
-                  Igualar a una imagen
-                  <input type="file" accept="image/*,video/*" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) matchReference(f); e.target.value = ''; }} />
-                </label>
-                {grading ? <span className="small">{grading}</span> : <span className="small muted">Se aplica solo al video: textos, subtítulos y gráficos mantienen tus colores.</span>}
-              </div>
-              <span className="small muted">La calidad y la carpeta se eligen al pulsar «Exportar».</span>
-            </div>
-          </details>
-          <details className="grp">
-            <summary>Subtítulos</summary>
-            <div className="col">
+                      </Group>
+          <Group id="subtitulos" title="Subtítulos" hint={CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.name}>
+
           <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <button className={project.captions.mode === 'word' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'word'; })}>Palabra a palabra</button>
             <button className={project.captions.mode === 'phrase' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'phrase'; })}>Frase completa</button>
@@ -775,8 +696,104 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <label className="row"><input type="checkbox" checked={project.captions.plate} onChange={(e) => store.update((p) => { p.captions.plate = e.target.checked; })} /> Placa oscura detrás (se lee sobre cualquier fondo)</label>
           <label className="row"><input type="checkbox" checked={project.captions.stroke} onChange={(e) => store.update((p) => { p.captions.stroke = e.target.checked; })} /> Borde negro en las letras</label>
 
-            </div>
-          </details>
+                      </Group>
+          <Group id="color" title="Color" hint={project.finish.lut ? project.finish.lut.name : 'Original'}>
+              <div className="col" style={{ gap: 6 }}>
+                <span className="small"><b>LUT de color</b></span>
+                <select value={grading && pendingLut ? pendingLut : project.finish.lut?.builtin ?? (project.finish.lut ? 'propio' : '')} disabled={!!grading} onChange={(e) => e.target.value !== 'propio' && setLut(e.target.value)}>
+                  <option value="">Sin LUT (color original)</option>
+                  {luts.map((l) => <option key={l.id} value={l.id}>{l.name} — {l.description}</option>)}
+                  {project.finish.lut && !project.finish.lut.builtin && <option value="propio">{project.finish.lut.name} (tuyo)</option>}
+                </select>
+                {project.finish.lut && (
+                  <label className="col small" style={{ gap: 2 }}>Fuerza: {Math.round(lutStrength * 100)} %
+                    <input type="range" min={0.2} max={1} step={0.05} value={lutStrength} disabled={!!grading} onChange={(e) => setLutStrength(Number(e.target.value))} onPointerUp={() => setLut('actual', lutStrength)} onKeyUp={() => setLut('actual', lutStrength)} />
+                  </label>
+                )}
+                <label className="btn rect" style={{ height: 34, justifyContent: 'center', cursor: 'pointer' }}>
+                  Subir mi LUT (.cube)
+                  <input type="file" accept=".cube" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLut(f); e.target.value = ''; }} />
+                </label>
+                <label className="btn rect" style={{ height: 34, cursor: grading ? 'default' : 'pointer' }} title="Sube una foto o un fotograma con el color que te gusta: la app crea un LUT para que tu video se parezca">
+                  Igualar a una imagen
+                  <input type="file" accept="image/*,video/*" hidden disabled={!!grading} onChange={(e) => { const f = e.target.files?.[0]; if (f) matchReference(f); e.target.value = ''; }} />
+                </label>
+                {grading ? <span className="small">{grading}</span> : <span className="small muted">Se aplica solo al video: textos, subtítulos y gráficos mantienen tus colores.</span>}
+              </div>
+              <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+              <button className="btn rect" style={{ height: 34 }} onClick={() => store.update((p) => {
+                p.scenes.forEach((sc) => { sc.look = 'cine'; if (sc.camera === 'ninguno') sc.camera = 'acercar'; });
+                Object.assign(p.finish, { grain: true, vignette: true, halation: true });
+              })}>Look de cine en un clic</button>
+              <span className="small muted">Pone en todas las escenas el color de cine, grano, bordes oscuros, brillo y la cámara acercándose despacio.</span>
+              <button className="btn rect" style={{ height: 34 }} onClick={async () => {
+                try {
+                  const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'igualar-color' }) });
+                  store.replace(d.project);
+                  ctx.toast(d.changed ? `Color igualado en ${d.changed} escena${d.changed > 1 ? 's' : ''}.` : 'Las escenas ya tenían un color parejo.');
+                } catch (e: any) { ctx.toast(e.message); }
+              }}>Igualar el color entre escenas</button>
+              <span className="small muted">Ajusta brillo y color de las tomas que se salen, para que todo parezca del mismo rodaje.</span>
+              </div>
+          </Group>
+          <Group id="herramientas" title="Herramientas de un clic" hint={hasTeaser ? 'Con adelanto' : undefined}>
+              <div className="col" style={{ gap: 6 }}>
+                <strong className="small">Adelanto</strong>
+                <button className="btn rect wrap" onClick={() => teaser(true)}>{hasTeaser ? 'Cambiar la frase del adelanto' : 'Poner la frase más fuerte en el primer segundo'}</button>
+            {hasTeaser && <button className="btn ghost" style={{ height: 30 }} onClick={() => teaser(false)}>Quitar el adelanto</button>}
+            <span className="small muted">{hasTeaser ? `Abre con: «${sceneSpeech(project.scenes[0], store.transcript).slice(0, 90)}»` : 'Como hacen los creadores grandes: el reel abre con tu mejor frase y luego empieza la historia. La escena original sigue en su sitio.'}</span>
+          
+              </div>
+              {project.source.width > project.source.height * 1.1 && (
+                <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                  <strong className="small">Encuadre</strong>
+
+                <label className="row"><input type="checkbox" checked={project.source.followSpeaker} disabled={Boolean(speakerBusy)} onChange={(e) => followSpeaker(e.target.checked)} /> Seguir a quien habla</label>
+                <span className="small muted">Para pódcast y entrevistas con dos o más personas: el recorte vertical pasa a la persona que está hablando (se mira quién mueve la boca). La primera vez tarda un poco.</span>
+                {speakerBusy && <span className="pill" role="status">{speakerBusy}</span>}
+                              </div>
+              )}
+              {longVideo && (
+                <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                  <strong className="small">Clips para redes</strong>
+
+                <span className="small muted">Los mejores tramos de 20–60 s de este video, con puntaje de gancho (G), cierre (C) y valor (V). Cada uno se vuelve un reel nuevo ya editado.</span>
+                {clips === null && <button className="btn rect" style={{ height: 32, alignSelf: 'flex-start' }} onClick={findClips}>Buscar los mejores clips</button>}
+                {clips?.length === 0 && <span className="small muted">No encontré tramos con un gancho y un cierre claros.</span>}
+                {clips?.map((c, i) => (
+                  <div key={c.start} className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--panel2)', gap: 4 }}>
+                    <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+                      <strong className="small" style={{ minWidth: 0 }}>«{c.title}»</strong>
+                      <span className="pill" style={{ flex: 'none' }}>{c.score}</span>
+                    </div>
+                    <span className="small muted">{Math.round(c.end - c.start)} s · G {c.hook} · C {c.flow} · V {c.value}</span>
+                    <span className="small muted">{c.reasons.join(' · ')}</span>
+                    <button className="btn rect" style={{ height: 30, alignSelf: 'flex-start' }} disabled={Boolean(makingClip)} onClick={() => makeClip(c, i + 1)}>{makingClip || 'Crear reel de este clip'}</button>
+                  </div>
+                ))}
+                              </div>
+              )}
+          </Group>
+          <Group id="acabados" title="Acabados" hint={(() => { const n = Number(project.finish.progressBar) + Number(project.finish.grain) + Number(project.finish.vignette) + Number(project.finish.keywordZoom) + Number(project.finish.halation) + Number(project.finish.letterbox); return n ? `${n} activos` : undefined; })()}>
+
+              <label className="row"><input type="checkbox" checked={project.finish.progressBar} onChange={(e) => store.update((p) => { p.finish.progressBar = e.target.checked; })} /> Barra de progreso arriba</label>
+              <label className="row"><input type="checkbox" checked={project.finish.grain} onChange={(e) => store.update((p) => { p.finish.grain = e.target.checked; })} /> Grano de película</label>
+              <label className="row"><input type="checkbox" checked={project.finish.vignette} onChange={(e) => store.update((p) => { p.finish.vignette = e.target.checked; })} /> Bordes oscuros en todo el reel</label>
+              <label className="row"><input type="checkbox" checked={project.finish.keywordZoom} onChange={(e) => store.update((p) => { p.finish.keywordZoom = e.target.checked; })} /> Zoom en la palabra importante de cada frase</label>
+              <label className="row"><input type="checkbox" checked={project.finish.halation} onChange={(e) => store.update((p) => { p.finish.halation = e.target.checked; })} /> Brillo de cine (halo en las luces)</label>
+              <label className="row"><input type="checkbox" checked={project.finish.letterbox} onChange={(e) => store.update((p) => { p.finish.letterbox = e.target.checked; })} /> Barras de cine</label>
+          </Group>
+          <Group id="quitadas" title="Partes quitadas" hint={String(removed.length)}>
+
+              <span className="small muted">Lo que el corte automático quitó: pausas largas, muletillas y tomas repetidas. Si quitó algo que querías, recupéralo.</span>
+              {removed.length === 0 && <span className="small muted">No se quitó nada con voz.</span>}
+              {removed.slice(0, 40).map((r) => (
+                <div key={r.start} className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap', padding: '6px 8px', borderRadius: 8, background: 'var(--panel2)' }}>
+                  <span className="small" style={{ minWidth: 0 }}><s style={{ opacity: 0.7 }}>{r.text}</s> <span className="muted">· {(r.end - r.start).toFixed(1)} s</span></span>
+                  <button className="btn rect" style={{ height: 30, flex: 'none' }} onClick={() => restore(r)}>Recuperar</button>
+                </div>
+              ))}
+                      </Group>
         </aside>
 
         <main className="stage">
@@ -834,11 +851,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <TrimSlider label="Quitar del final" value={scene.trimEnd} max={Math.max(0, fullLength - MIN_CLIP - scene.trimStart)} onCommit={(v) => edit((s) => { s.trimEnd = v; })} />
               {(scene.trimStart > 0 || scene.trimEnd > 0) && <button className="btn ghost" style={{ alignSelf: 'flex-start', height: 28 }} onClick={() => edit((s) => { s.trimStart = 0; s.trimEnd = 0; })}>Recuperar el clip entero</button>}
             </div>
-            <details className="grp" open>
-              <summary>Variantes para este clip</summary>
-              <div className="col">
-            <div className="col">
-                            <span className="muted small">Una de cada tipo: gráficos, b-roll, color y tipografía. Toca una para aplicarla.</span>
+            <Group id="variantes" title="Variantes" defaultOpen>
+              <span className="muted small">Una de cada tipo: gráficos, b-roll, color y tipografía. Toca una para aplicarla.</span>
               {quick.map((v) => {
                 const on = scene.chosenVariant === v.id && scene.variants.length > 0;
                 return (
@@ -852,13 +866,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 );
               })}
               <button className="btn cyan" onClick={() => ctx.go('variantes', { s: scene.id })}>Más opciones y pedir a Claude</button>
-            </div>
-              </div>
-            </details>
+            </Group>
             {(scene.visual === 'motion' || scene.visual === 'texto') && (
-              <details className="grp" open>
-                <summary>Motion graphic</summary>
-                <div className="col">
+              <Group id="motion" title="Gráfico animado" defaultOpen>
                   <span className="small muted">Cambia su aspecto y su contenido aquí, sin generarlo de nuevo.</span>
                   <label className="field">Plantilla
                     <select value={scene.visual === 'texto' ? 'texto' : scene.motionTemplate ?? 'lista'} onChange={(e) => edit((s) => { if (e.target.value === 'texto') { s.visual = 'texto'; } else { s.visual = 'motion'; s.motionTemplate = e.target.value; } })}>
@@ -883,12 +893,10 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   </label>
                   <Slider label="Tamaño" value={scene.motionStyle.scale} min={0.6} max={1.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.motionStyle.scale = v; })} />
                   <MotionData scene={scene} onChange={(data) => edit((s) => { s.motionData = data; })} />
-                </div>
-              </details>
+              </Group>
             )}
-            <details className="grp" open>
-              <summary>Texto en pantalla</summary>
-              <div className="col">
+            <Group id="texto" title="Texto en pantalla" hint={scene.onScreenText ? `«${scene.onScreenText.slice(0, 22)}»` : 'Sin texto'} defaultOpen>
+
             <label className="field">Texto en pantalla
               <textarea key={scene.id + 'o'} rows={2} defaultValue={scene.onScreenText ?? ''} placeholder="Máximo 6 palabras"
                 onBlur={(e) => { const v = e.target.value.trim(); if (v !== (scene.onScreenText ?? '')) edit((s) => { s.onScreenText = v || undefined; }); }} />
@@ -940,6 +948,8 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <Slider label="Vertical" value={scene.textY ?? (scene.textPosition === 'centro' ? 0.45 : 0.2)} min={0.1} max={0.85} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.textY = v; })} />
               </div>
             </div>
+            </Group>
+            <Group id="imagen" title="Imagen y cámara" hint={[LOOK_NAMES.find(([id]) => id === scene.look)?.[1], scene.camera !== 'ninguno' ? CAMERA_NAMES.find(([id]) => id === scene.camera)?.[1] : '', (scene.speed ?? 1) < 1 ? 'lenta' : ''].filter(Boolean).join(' · ')}>
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <label className="field" style={{ flex: 1 }}>Aspecto
                 <select value={scene.look} onChange={(e) => edit((s) => { s.look = e.target.value as Scene['look']; })}>
@@ -961,6 +971,20 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </select>
             </label>
             {slowing ? <span className="pill" role="status">{slowing}</span> : (scene.speed ?? 1) < 1 ? <span className="small muted">Suave: se crean los fotogramas intermedios. La voz de esta escena no suena (va bien con música).</span> : null}
+            <Slider label="Tamaño del video" value={scene.videoScale} min={0.4} max={2.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.videoScale = v; })} />
+            <span className="small muted">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
+            <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />
+            <Slider label="Brillo" value={scene.brightness} min={0.5} max={1.6} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.brightness = v; })} />
+            <Slider label="Contraste" value={scene.contrast} min={0.5} max={1.8} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.contrast = v; })} />
+            <Slider label="Color (saturación)" value={scene.saturation} min={0} max={2} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.saturation = v; })} />
+            <Slider label="Bordes oscuros (viñeta)" value={scene.vignette} min={0} max={1} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.vignette = v; })} />
+            <div className="row">
+              <button className="btn rect" style={{ height: 32 }} onClick={() => edit((s) => { s.brightness = 1; s.contrast = 1; s.saturation = 1; s.vignette = 0; s.look = 'normal'; })}>Imagen original</button>
+              <button className="btn rect" style={{ height: 32 }} title="Copia el aspecto, los ajustes y la cámara de este clip a todos" onClick={() => store.update((p) => { const o = p.scenes[idx]; for (const x of p.scenes) Object.assign(x, { look: o.look, brightness: o.brightness, contrast: o.contrast, saturation: o.saturation, vignette: o.vignette, camera: o.camera, cameraAmount: o.cameraAmount }); })}>Aplicar a todos los clips</button>
+            </div>
+            <label className="row"><input type="checkbox" checked={scene.punchZoom} onChange={(e) => edit((s) => { s.punchZoom = e.target.checked; })} /> Zoom de golpe al entrar</label>
+            </Group>
+            <Group id="fondo" title="Fondo" hint={scene.backdrop === 'ninguno' ? 'El del video' : 'Cambiado'}>
             <label className="field">Fondo detrás de la persona
               <select value={scene.backdrop} disabled={!store.extras?.cutout} onChange={(e) => edit((s) => { s.backdrop = e.target.value as Scene['backdrop']; })}>
                 <option value="ninguno">El del video (sin cambios)</option>
@@ -986,29 +1010,10 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <button className="btn rect" style={{ height: 34 }} disabled={Boolean(cutting)} onClick={backdropFromIdea}>{cutting || 'Crear fondo desde una idea'}</button>
               </div>
             )}
-            <Slider label="Tamaño del video" value={scene.videoScale} min={0.4} max={2.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.videoScale = v; })} />
-            <span className="small muted">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
-            <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />
-            <Slider label="Brillo" value={scene.brightness} min={0.5} max={1.6} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.brightness = v; })} />
-            <Slider label="Contraste" value={scene.contrast} min={0.5} max={1.8} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.contrast = v; })} />
-            <Slider label="Color (saturación)" value={scene.saturation} min={0} max={2} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.saturation = v; })} />
-            <Slider label="Bordes oscuros (viñeta)" value={scene.vignette} min={0} max={1} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.vignette = v; })} />
-            <div className="row">
-              <button className="btn rect" style={{ height: 32 }} onClick={() => edit((s) => { s.brightness = 1; s.contrast = 1; s.saturation = 1; s.vignette = 0; s.look = 'normal'; })}>Imagen original</button>
-              <button className="btn rect" style={{ height: 32 }} title="Copia el aspecto, los ajustes y la cámara de este clip a todos" onClick={() => store.update((p) => { const o = p.scenes[idx]; for (const x of p.scenes) Object.assign(x, { look: o.look, brightness: o.brightness, contrast: o.contrast, saturation: o.saturation, vignette: o.vignette, camera: o.camera, cameraAmount: o.cameraAmount }); })}>Aplicar a todos los clips</button>
-            </div>
-            <label className="row"><input type="checkbox" checked={scene.punchZoom} onChange={(e) => edit((s) => { s.punchZoom = e.target.checked; })} /> Zoom de golpe al entrar</label>
-              </div>
-            </details>
-            <details className="grp">
-              <summary>Lo que se dice</summary>
-              <div className="col">
-            <div className="col">
-              <span className="small muted">Lo que se dice</span>
+            </Group>
+            <Group id="dice" title="Lo que se dice">
               <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--panel2)' }}>{sceneSpeech(scene, store.transcript) || '—'}</div>
-            </div>
-              </div>
-            </details>
+            </Group>
             <button className="btn rect" onClick={() => store.update((p) => { p.scenes = p.scenes.filter((s) => s.id !== scene.id); applyPunchZooms(p.scenes, p.pacing.punchZoomEvery); })}>Eliminar escena</button>
           </aside>
         )}
