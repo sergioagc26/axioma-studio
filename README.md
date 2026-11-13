@@ -51,7 +51,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
 - **Skills** (`plugin/skills/`): `editar-reel`, `montaje`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
-- **Servidor MCP** (`packages/mcp`): 75 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
+- **Servidor MCP** (`packages/mcp`): 78 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.
 
@@ -102,6 +102,30 @@ Abre la interfaz en `http://127.0.0.1:4747`. Desde Claude se abre con la herrami
 - **Lote**: `npm run se -- lote <carpeta>` edita todos los videos de una carpeta.
 - Cada recurso externo queda registrado con su licencia en `project.json` (`assets`).
 
+## Flujo simple: subir, responder, listo
+
+Pensado para quien no sabe editar. Tres pasos:
+
+1. **Subir** el video (hablando a cámara, o varias tomas sin voz).
+2. **Brief en una página.** La IA oye el video (o mira las tomas, si no hay voz), dice qué entendió y deja marcadas las respuestas que propone: dónde se publica, qué se quiere lograr, tono, duración y cierre. Se responde tocando fichas con icono. Además pide solo los datos que le faltan a ese video (precio o promoción, contacto, lugar y horario, fecha límite, nombre y cargo de quien habla) y deja un campo libre para pedidos. Con todo eso escribe el **prompt profesional de edición** (se puede ver en «📝 Ver el prompt de edición»).
+3. **«✨ Editar mi video».** La app corta, pone gancho (redactado por la IA), textos, subtítulos, gráficos, transiciones, **música del ánimo del video** y **efectos de sonido**, y **exporta sola**. Se llega a la pantalla **🎬 Resultado**: el video grande, lo que se le hizo en iconos, «Abrir» y «Descargar», y cambios con un toque (más rápido, más calmado, letras más grandes, otro look, otra canción) o escritos con tus palabras.
+
+- **Música automática:** primero tu biblioteca; si no hay canciones de ese ánimo, baja una del banco gratuito (Freesound, solo CC0: uso libre sin dar crédito). Al abrir la app deja 3 de cada ánimo listas. Necesita la clave gratuita de Freesound.
+- **Menú:** 📝 Brief, 🎬 Resultado y 🎛️ Editor a la vista; lo avanzado (Texto, Storyboard, Variantes, Audio, Imágenes, Referencias) en «⋯ Más».
+- **Editor avanzado:** los estilos se eligen por miniaturas reales (un fotograma de tu video con cada estilo), los paneles llevan icono y las explicaciones largas solo se ven con el botón ❔.
+
+## Aprender de los resultados
+
+En el **Calendario**, al abrir un reel publicado se anotan sus vistas, me gusta, comentarios, compartidos y guardados. Con 4 o más reels de un cliente, la app compara diseño de subtítulos, estilo de textos, duración, música, hora, día y red, y deja como predeterminado lo que mejor le funciona (pide al menos 2 reels de cada lado y 25 % de diferencia). Herramientas para Claude: `guardar_resultados` y `aprender_resultados`.
+
+## Actualizar la app
+
+Botón **⬆️ Actualizar** en Proyectos: revisa el repositorio de la app, muestra las novedades y, con un clic, las baja, instala lo que haga falta, recompila la interfaz y se reinicia sola. No pisa cambios hechos a mano. Herramienta para Claude: `actualizar_app`.
+
+## Instalar en Windows
+
+`scripts/paquete-windows/` es el paquete: «Instalar Axioma Studio.bat» instala Git, baja la app del repositorio, trae el trabajo desde la copia de iCloud (si el PC tiene iCloud para Windows) e instala todo lo demás.
+
 ## Copia de seguridad
 
 En Proyectos, **☁️ Activar copia en iCloud** hace la primera copia del trabajo (`workspace`) a iCloud Drive, en la carpeta «Axioma Studio · copia de seguridad». Desde ahí, mientras la app está abierta, se repite sola una vez al día y el botón muestra cuándo fue la última. Copia solo lo nuevo o cambiado y nunca borra nada de la copia, así que si el disco de trabajo falla, la copia queda intacta. No copia lo que la app vuelve a crear sola (vistas previas, cámara lenta) ni las claves. Otra carpeta: `AXIOMA_BACKUP_DIR=/ruta`. En la terminal: `npm run se -- copia`.
@@ -120,9 +144,13 @@ La app corre en este computador (el Mac mini) y el portátil solo necesita un na
 2. La ventana muestra un enlace como `http://192.168.x.x:4747/?clave=…`. Ábrelo en el navegador del portátil, conectado a la misma red Wi-Fi.
 3. La primera vez el Mac puede preguntar si permites conexiones entrantes para «node»: pulsa Permitir.
 
-La clave queda guardada en ese navegador por 30 días; sin ella nadie más de la red puede entrar. Está en `workspace/clave-red.txt`; bórrala y reinicia la app para cambiarla. El Mac mini tiene que estar encendido y con la app abierta. Fuera de casa no funciona tal cual: para eso hace falta una red privada como Tailscale.
+La clave queda guardada en ese navegador por 30 días; sin ella nadie más de la red puede entrar. Está en `workspace/clave-red.txt`; bórrala y reinicia la app para cambiarla. El Mac mini tiene que estar encendido y con la app abierta. 
+
+**Fuera de casa:** instala [Tailscale](https://tailscale.com/download) (gratis) en el Mac mini y en el portátil o celular, con la misma cuenta. La app lo detecta sola y muestra el enlace para usarla desde cualquier lugar. Todos los enlaces están en Proyectos → **📱 Otros equipos**.
 
 ## IA local (gratis, sin internet)
+
+La app abre Ollama sola si está cerrado, elige el mejor modelo descargado que quepa en la memoria, lo deja cargado 30 minutos y reintenta si un pedido falla. Con `qwen3-vl:8b` descargado, además **ve imágenes**: al analizar una referencia elige la tipografía de los subtítulos mirando los fotogramas.
 
 Si Claude no está conectado, la app usa un modelo de lenguaje que corre en tu computador con [Ollama](https://ollama.com):
 
