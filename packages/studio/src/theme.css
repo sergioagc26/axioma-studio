@@ -197,6 +197,8 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .pactions .btn.sq { width: 30px; height: 30px; border-color: transparent; color: var(--muted); }
 .pcard:hover .pactions .btn.sq, .pactions .btn.sq[aria-expanded='true'] { border-color: var(--line); color: var(--text); }
 .pmenu { position: absolute; right: 0; top: 34px; z-index: 5; min-width: 190px; padding: 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 10px 30px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+.pmenu .pmenu-link { padding: 8px 10px; border-radius: 8px; color: var(--text); text-decoration: none; font-weight: 500; }
+.pmenu .pmenu-link:hover { background: var(--panel2); }
 .pmenu button { text-align: left; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; font-weight: 500; }
 .pmenu button:hover, .pmenu button:focus-visible { background: var(--panel2); }
 .pmenu button.danger { color: var(--pinkText); }
@@ -222,3 +224,15 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .score.flojo { border-color: var(--pinkText); color: var(--pinkText); }
 .meter { height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; }
 .meter > div { height: 100%; background: var(--cyanText); border-radius: 3px; }
+
+/* Calendario */
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-head { font-size: 12px; font-weight: 700; color: var(--muted); text-align: center; padding: 4px 0; }
+.cal-day { min-height: 104px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cal-day.out { opacity: .45; }
+.cal-day.today { border-color: var(--pink); box-shadow: 0 0 0 1px var(--pink) inset; }
+.cal-add { border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; padding: 0 4px; border-radius: 6px; }
+.cal-add:hover { background: var(--panel2); color: var(--text); }
+.cal-chip { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 6px; border: 0; border-left: 4px solid; border-radius: 6px; background: var(--panel2); text-align: left; }
+.cal-chip.publicado { opacity: .6; }
+@media (max-width: 760px) { .cal { grid-template-columns: 1fr; } .cal-head { display: none; } .cal-day.out { display: none; } .cal-day { min-height: 0; } }

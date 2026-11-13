@@ -41,6 +41,9 @@ import { duplicateProject, trashProject } from './manage.ts';
 import { saveClientLogo } from './kit.ts';
 import { addReviewComment, approveReview, ensureReviewToken, findByToken, publicReview, resetReviewToken, reviewVideo } from './review.ts';
 import { reviewPageHtml } from './review-page.ts';
+import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack } from './musiclib.ts';
+import { splitIntoParts } from './series.ts';
+import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -389,6 +392,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, { token, exported: (await reviewVideo(dir, await readProject(dir))).exported, network: Boolean(networkKey), links: lanAddresses().map((ip) => `http://${ip}:${port}/r/${token}`), local: `http://localhost:${port}/r/${token}` });
     }
     if (b.op === 'resolver-peticion') return json(res, { project: await ops.resolveRequest(dir, String(b.requestId ?? ''), b.status === 'descartada' ? 'descartada' : 'hecha') });
+    if (b.op === 'serie') return json(res, await splitIntoParts(dir, [60, 90, 180].includes(Number(b.max)) ? Number(b.max) : 60));
+    if (b.op === 'musica-biblioteca') {
+      const r = await useLibraryTrack(dir, b.file || undefined);
+      return json(res, { project: r.project, track: r.track, why: r.why });
+    }
     if (b.op === 'duplicar') return json(res, { id: (await duplicateProject(dir)).id });
     if (b.op === 'papelera') { await trashProject(dir); return json(res, { ok: true }); }
     if (b.op === 'idioma-subtitulos') {
@@ -669,6 +677,35 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     });
     return json(res, job);
   }
+
+  if (p === '/api/calendario') {
+    // Plan de publicación (workspace/calendario.json).
+    const entry = url.searchParams.get('entry') ?? '';
+    if (method === 'GET') return json(res, await listEntries());
+    if (method === 'POST') return json(res, await addEntry(await readBody(req)));
+    if (method === 'PUT') return json(res, await updateEntry(entry, await readBody(req)));
+    if (method === 'DELETE') return json(res, await removeEntry(entry));
+  }
+  if (p === '/api/musica' && method === 'GET') return json(res, await listTracks());
+  if (p === '/api/musica/archivo' && method === 'GET') {
+    const f = safeJoin(MUSIC_DIR, path.basename(url.searchParams.get('f') ?? ''));
+    if (!f || !sendFile(req, res, f)) res.writeHead(404).end();
+    return;
+  }
+  if (p === '/api/musica' && method === 'POST') {
+    // Agrega una canción a la biblioteca (con su licencia) y la analiza.
+    const tmpDir = path.join(os.tmpdir(), `axioma-cancion-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'cancion.mp3').replace(/[^\w.-]+/g, '_'));
+    await pipe(req, createWriteStream(tmp));
+    try {
+      const track = await addTrack(tmp, { license: url.searchParams.get('license') ?? '', name: (url.searchParams.get('filename') ?? '').replace(/\.[a-z0-9]+$/i, '') });
+      return json(res, { track, tracks: await listTracks() });
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  }
+  if (p === '/api/musica' && method === 'DELETE') return json(res, await removeTrack(url.searchParams.get('f') ?? ''));
 
   if (p === '/api/logo' && method === 'POST') {
     // Logo de la marca del cliente: sirve para todos sus reels (marca de agua, cierre, imágenes).

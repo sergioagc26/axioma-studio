@@ -10,8 +10,9 @@ import { Storyboard } from './screens/Storyboard.tsx';
 import { Variantes } from './screens/Variantes.tsx';
 import { Imagenes } from './screens/Imagenes.tsx';
 import { Texto } from './screens/Texto.tsx';
+import { Calendario } from './screens/Calendario.tsx';
 
-export type Screen = 'proyectos' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
+export type Screen = 'proyectos' | 'calendario' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
 
 export interface Ctx {
   store: ProjectStore;
@@ -24,7 +25,7 @@ export interface Ctx {
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   const q = new URLSearchParams(query);
-  const screen = (['proyectos', 'brief', 'storyboard', 'editor', 'texto', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
+  const screen = (['proyectos', 'calendario', 'brief', 'storyboard', 'editor', 'texto', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
   return { screen, p: q.get('p'), s: q.get('s') };
 }
 
@@ -148,7 +149,7 @@ export const App: React.FC = () => {
         <a className="brand" href="#/proyectos" title="Todos los proyectos" style={{ color: 'inherit', textDecoration: 'none' }}>
           <span className="logo" aria-hidden="true" />{route.p ? <span className="sr-only">{APP_NAME}</span> : APP_NAME}
         </a>
-        {route.p && (
+        {route.p && route.screen !== 'calendario' && (
           <nav className="nav" aria-label="Vistas">
             <a href="#/proyectos" className="back">‹ Proyectos</a>
             {TABS.map(([s, label]) => (
@@ -183,7 +184,8 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {!needsProject || !route.p ? <Projects ctx={ctx} />
+      {route.screen === 'calendario' ? <div className="scroll"><Calendario ctx={ctx} /></div>
+        : !needsProject || !route.p ? <Projects ctx={ctx} />
         : !project ? (
           <div className="page" style={{ display: 'grid', placeItems: 'center' }}>
             {store.error

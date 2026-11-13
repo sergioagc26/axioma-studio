@@ -228,6 +228,18 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
 
   const [allAdvice, setAllAdvice] = useState(false);
+  // Serie en partes (reels largos).
+  const reelLength = useMemo(() => project.scenes.reduce((a, sc) => a + sceneLength(sc), 0), [project]);
+  const [partMax, setPartMax] = useState(60);
+  const [splitting, setSplitting] = useState('');
+  const makeSeries = async () => {
+    setSplitting('Creando las partes…');
+    try {
+      const d = await api<{ ids: string[]; names: string[] }>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'serie', max: partMax }) });
+      ctx.toast(`Serie creada: ${d.names.length} partes. Abriendo la parte 1.`);
+      ctx.go('editor', { p: d.ids[0], s: null });
+    } catch (e: any) { ctx.toast(e.message); } finally { setSplitting(''); }
+  };
   const score = useMemo(() => (project.scenes.length ? reelScore(project, store.transcript) : null), [project, store.transcript]);
   // Revisión del cliente: enlace y comentarios.
   const [review, setReview] = useState<{ token: string; exported: boolean; network: boolean; links: string[]; local: string } | null>(null);
@@ -820,6 +832,18 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <span className="small muted">{hasTeaser ? `Abre con: «${sceneSpeech(project.scenes[0], store.transcript).slice(0, 90)}»` : 'Como hacen los creadores grandes: el reel abre con tu mejor frase y luego empieza la historia. La escena original sigue en su sitio.'}</span>
           
               </div>
+              {reelLength > 66 && (
+                <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                  <strong className="small">Serie en partes</strong>
+                  <span className="small muted">Dura {Math.round(reelLength)} s: divídelo en «Parte 1, 2…» que terminan con «Sigue en la parte 2 →». Cada parte es un proyecto nuevo; este no cambia.</span>
+                  <div className="row" style={{ flexWrap: 'nowrap' }}>
+                    <select value={partMax} onChange={(e) => setPartMax(Number(e.target.value))} aria-label="Duración máxima de cada parte">
+                      <option value={60}>Hasta 60 s cada una</option><option value={90}>Hasta 90 s</option><option value={180}>Hasta 3 min</option>
+                    </select>
+                    <button className="btn rect" style={{ height: 34, flex: 'none' }} disabled={Boolean(splitting) || reelLength <= partMax * 1.1} onClick={makeSeries}>{splitting || `Crear ${Math.ceil(reelLength / partMax)} partes`}</button>
+                  </div>
+                </div>
+              )}
               {Math.min(project.source.width, project.source.height) < 1000 && (
                 <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                   <strong className="small">Calidad del video</strong>

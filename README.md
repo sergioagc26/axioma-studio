@@ -172,6 +172,12 @@ En Variantes, «Busca en tu material» encuentra momentos en todos los reels del
 
 Claude: `ajustar_subtitulos` (emojis), `idioma_subtitulos`.
 
+## Biblioteca de música, series y calendario
+
+- **Tu biblioteca de música** (Audio → Música de fondo): agregas canciones con su licencia una vez (`workspace/musica`) y la app mide su tempo y energía. «Elegir la que mejor va» pone la que va con el reel: enérgica para montajes y ritmo rápido, tranquila para estilos sobrios. En un montaje, además, vuelve a cortar en los golpes de la canción. Claude: `musica_biblioteca`.
+- **Serie en partes** (Herramientas de un clic, en reels de más de 66 s): divide el reel en «Parte 1, 2…» de hasta 60 s, 90 s o 3 min, siempre en un cambio de escena. Cada parte termina con «Sigue en la parte N →» y las siguientes abren con «Parte N: …». Cada parte es un proyecto nuevo (los videos se enlazan). Claude: `dividir_en_partes`.
+- **Calendario de publicación** (Proyectos → 📅 Calendario, o «Programar publicación» en el menú de cada reel): qué reel sale qué día, a qué hora y en qué red. Desde cada publicación: abrir en el editor, copiar el texto para publicar, marcar como publicado o quitar. Es un plan: la app no publica sola en las redes. Se guarda en `workspace/calendario.json`.
+
 ## Pantalla dividida, puntaje, rótulo y 16:9
 
 - **Pantalla dividida y recuadro** (Imagen y cámara, en escenas con b-roll): el b-roll arriba y tú abajo (o al revés), con una línea del color de la marca, o tú en un recuadro sobre el b-roll (formato reacción). Claude: `editar_escena` con `distribucion_broll`.

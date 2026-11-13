@@ -524,6 +524,29 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('dividir_en_partes', 'Divide un reel largo en una serie «Parte 1, 2, 3» (cada parte un proyecto nuevo, en cambios de escena), con «Sigue en la parte N →» al final y «Parte N:» al inicio.', {
+    proyecto, max_segundos: z.number().min(30).max(300).default(60),
+  }, async (a) => {
+    const r = await E.splitIntoParts(await resolveProject(a.proyecto), a.max_segundos);
+    return `Serie creada:\n${r.ids.map((id, i) => `${id} · ${r.names[i]}`).join('\n')}`;
+  });
+
+  tool('musica_biblioteca', 'Biblioteca de música propia (workspace/musica): sin archivo, la app elige la canción que mejor va con el reel por tempo y energía; con archivo, pone esa. agregar suma una canción (con licencia).', {
+    proyecto, archivo: z.string().optional().describe('Nombre en la biblioteca (ver listado) para usar esa'),
+    agregar: z.string().optional().describe('Ruta absoluta de una canción para sumarla a la biblioteca'),
+    licencia: z.string().optional(),
+  }, async (a) => {
+    if (a.agregar) {
+      const t = await E.addTrack(a.agregar, { license: a.licencia ?? '' });
+      return `Agregada: ${t.name} (${t.mood}${t.bpm ? `, ${t.bpm} BPM` : ''}).`;
+    }
+    const dir = await resolveProject(a.proyecto);
+    const tracks = await E.listTracks();
+    if (!tracks.length) return 'La biblioteca está vacía. Agrega canciones con agregar + licencia.';
+    const r = await E.useLibraryTrack(dir, a.archivo);
+    return `${r.why ?? `Música: ${r.track.name}.`}\nBiblioteca: ${tracks.map((t) => `${t.file} (${t.mood})`).join(', ')}`;
+  });
+
   tool('puntaje_reel', 'Puntaje del reel (0–100) con lo que más pesa en la retención: gancho, ritmo, movimiento en pantalla, subtítulos, duración, cierre y audio, y qué hacer para subirlo.', { proyecto }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const r = reelScore(await E.readProject(dir), await E.readTranscript(dir));

@@ -104,9 +104,12 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     <main className="page projects" style={{ maxWidth: 1080, width: '100%', margin: '0 auto' }}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 28 }}>Nuevo reel</h1>
+        <div className="row">
+          <a className="btn rect" href="#/calendario">📅 Calendario</a>
         {items && items[0] && !job && (
           <a className="btn rect" href={`#/editor?p=${encodeURIComponent(items[0].id)}`} title={`Abrir «${items[0].name}»`}>Seguir con «{items[0].name.length > 28 ? items[0].name.slice(0, 27) + '…' : items[0].name}» →</a>
         )}
+        </div>
       </div>
       <div
         className={`drop ${over ? 'over' : ''}`}
@@ -191,6 +194,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <button className="btn sq" aria-label={`Más acciones para «${it.name}»`} aria-expanded={menu === it.id} onClick={() => setMenu(menu === it.id ? null : it.id)}>⋯</button>
                 {menu === it.id && (
                   <div className="pmenu" role="menu">
+                    <a role="menuitem" className="pmenu-link" href={`#/calendario?s=${encodeURIComponent(it.id)}`}>Programar publicación</a>
                     <button role="menuitem" onClick={() => duplicate(it)}>Duplicar</button>
                     <button role="menuitem" className="danger" onClick={() => trash(it)}>Mover a la papelera</button>
                   </div>

@@ -66,6 +66,42 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
+  // Biblioteca de música (workspace/musica): canciones con licencia que la app elige sola.
+  type Track = { file: string; name: string; license: string; bpm: number | null; energy: number; duration: number; mood: 'tranquila' | 'media' | 'energica' };
+  const [tracks, setTracks] = useState<Track[] | null>(null);
+  const [libLicense, setLibLicense] = useState('');
+  const [playing, setPlaying] = useState('');
+  const player = useRef<HTMLAudioElement>(null);
+  React.useEffect(() => { api<Track[]>('/api/musica').then(setTracks).catch(() => setTracks([])); }, []);
+  const preview = (file: string) => {
+    const el = player.current;
+    if (!el) return;
+    if (playing === file) { el.pause(); setPlaying(''); return; }
+    el.src = `/api/musica/archivo?f=${encodeURIComponent(file)}`;
+    el.play().then(() => setPlaying(file)).catch(() => ctx.toast('No se pudo reproducir.'));
+  };
+  const addToLibrary = async (files: File[]) => {
+    if (!libLicense.trim()) return ctx.toast('Escribe primero la licencia de las canciones.');
+    setBusy('Agregando a la biblioteca…');
+    try {
+      for (const [i, f] of files.entries()) {
+        setBusy(`Analizando ${i + 1} de ${files.length}: ${f.name}`);
+        const d = await api<{ tracks: Track[] }>(`/api/musica?filename=${encodeURIComponent(f.name)}&license=${encodeURIComponent(libLicense.trim())}`, { method: 'POST', body: f });
+        setTracks(d.tracks);
+      }
+      ctx.toast(`${files.length} canci${files.length === 1 ? 'ón agregada' : 'ones agregadas'} a la biblioteca.`);
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+  };
+  const fromLibrary = async (file?: string) => {
+    setBusy(file ? 'Poniendo la canción…' : 'Eligiendo la canción…');
+    try {
+      const d = await op({ op: 'musica-biblioteca', file });
+      store.replace(d.project);
+      await store.reloadExtras();
+      ctx.toast(d.why ?? `Música: «${d.track.name}».`);
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+  };
+
   // Montaje al ritmo de la música.
   const [density, setDensity] = useState('auto');
   const toBeat = async () => {
@@ -216,6 +252,37 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <span className="small muted">Usa solo música con licencia para uso comercial.</span>
             </>
           )}
+          <div className="col" style={{ gap: 8, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <strong>Tu biblioteca de música</strong>
+              <span className="small muted">{tracks ? `${tracks.length} canciones` : ''}</span>
+            </div>
+            <span className="small muted">Súbelas una vez con su licencia; la app elige la que va con el ritmo de cada reel (tempo y energía).</span>
+            {tracks && tracks.length > 0 && (
+              <>
+                <button className="btn primary" disabled={Boolean(busy)} onClick={() => fromLibrary()}>Elegir la que mejor va</button>
+                <div className="col" style={{ gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+                  {tracks.map((t) => (
+                    <div key={t.file} className="row" style={{ flexWrap: 'nowrap', gap: 8, padding: 8, borderRadius: 8, background: 'var(--panel2)' }}>
+                      <button className="btn sq" style={{ width: 32, height: 32, flex: 'none' }} aria-label={playing === t.file ? `Pausar ${t.name}` : `Escuchar ${t.name}`} onClick={() => preview(t.file)}>{playing === t.file ? '❚❚' : '▶'}</button>
+                      <span className="col" style={{ gap: 0, minWidth: 0, flex: 1 }}>
+                        <strong className="small pname">{t.name}</strong>
+                        <span className="small muted">{({ tranquila: 'Tranquila', media: 'Ritmo medio', energica: 'Enérgica' } as const)[t.mood]}{t.bpm ? ` · ${t.bpm} BPM` : ''} · {Math.floor(t.duration / 60)}:{String(Math.round(t.duration % 60)).padStart(2, '0')} · {t.license}</span>
+                      </span>
+                      <button className="btn rect" style={{ height: 30, flex: 'none' }} disabled={Boolean(busy)} onClick={() => fromLibrary(t.file)}>Usar</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="row" style={{ flexWrap: 'nowrap' }}>
+              <input className="input" style={{ flex: 1, minWidth: 0, minHeight: 34 }} value={libLicense} onChange={(e) => setLibLicense(e.target.value)} placeholder="Licencia (propia, Artlist…)" aria-label="Licencia de las canciones" />
+              <label className="btn rect" style={{ height: 34, cursor: 'pointer', flex: 'none' }}>Agregar canciones
+                <input type="file" accept="audio/*" multiple hidden onChange={(e) => { const fs = [...(e.target.files ?? [])]; if (fs.length) addToLibrary(fs); e.target.value = ''; }} />
+              </label>
+            </div>
+            <audio ref={player} onEnded={() => setPlaying('')} hidden />
+          </div>
         </section>
 
         <section className="card col" style={{ gap: 12 }}>

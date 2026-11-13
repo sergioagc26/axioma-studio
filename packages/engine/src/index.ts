@@ -45,3 +45,6 @@ export * from './hooks.ts';
 export * from './manage.ts';
 export * from './frames.ts';
 export * from './review.ts';
+export * from './musiclib.ts';
+export * from './series.ts';
+export * from './calendar.ts';
