@@ -44,7 +44,7 @@ if (-not (Tiene 'ffmpeg') -or -not (Tiene 'ffprobe')) {
 if (-not (Tiene 'node') -or -not (Tiene 'ffmpeg')) { Falla 'Node o FFmpeg no quedaron disponibles. Cierra esta ventana y abre el instalador otra vez.' }
 Ok "Node $(node -v) y FFmpeg."
 
-Paso '3/5 - IA local (opcional, unos 5 GB)'
+Paso '3/5 - IA local (opcional, unos 5 a 11 GB)'
 if (Tiene 'ollama') { Ok 'Ollama ya esta.' }
 else {
   $r = if ($env:AXIOMA_SIN_PREGUNTAS -eq '1') { 'n' } else { Read-Host '  ¿Instalar la IA local? [s/N]' }
@@ -53,6 +53,9 @@ else {
     if ((Corre 'winget install --id Ollama.Ollama -e --accept-package-agreements --accept-source-agreements')) {
       RefrescarPath; Start-Sleep 5
       if (Corre 'ollama pull qwen3:8b') { Ok 'IA local lista.' } else { Info 'No se pudo bajar el modelo; la app funciona igual.' }
+      # Con 16 GB o mas, tambien la IA que ve imagenes (elige la tipografia de las referencias).
+      $ramGb = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+      if ($ramGb -ge 15) { Info 'Bajando la IA que ve imagenes (6 GB)...'; if (Corre 'ollama pull qwen3-vl:8b') { Ok 'IA de vision lista.' } }
     } else { Info 'No se pudo instalar; la app funciona igual sin ella.' }
   } else { Info 'Saltado. La app funciona sin ella.' }
 }
