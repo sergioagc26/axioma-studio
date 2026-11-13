@@ -15,5 +15,5 @@ AXIOMA STUDIO PARA WINDOWS
 - Para actualizarla: boton «Actualizar» en la pantalla de Proyectos.
 - Si algo falla, abre el instalador otra vez: retoma donde quedo.
 
-IMPORTANTE: este paquete lleva tus claves de servicios (archivo claves.env).
-No lo compartas con nadie.
+Claves de servicios (Pixabay, Freesound, ElevenLabs): en la app, Proyectos > «Claves»,
+pegas cada una. Estan en tu Mac, en la app, en el mismo panel.
