@@ -6,6 +6,7 @@ import { getWhisperExecutablePath } from '@remotion/install-whisper-cpp/dist/ins
 import { run } from './exec.ts';
 import { REPO_ROOT, WHISPER_DIR, WHISPER_MODELS, WHISPER_VERSION, WORKSPACE } from './paths.ts';
 import { DEFAULT_MODEL } from './transcribe.ts';
+import { ensureOllama, LOCAL_MODEL, llmStatus } from './llm.ts';
 
 interface Check { name: string; ok: boolean; detail: string; fix?: string }
 
@@ -53,6 +54,13 @@ export async function doctor(): Promise<{ ok: boolean; checks: Check[] }> {
   const envText = existsSync(path.join(REPO_ROOT, '.env')) ? readFileSync(path.join(REPO_ROOT, '.env'), 'utf8') : '';
   const stock = ['PEXELS_API_KEY', 'PIXABAY_API_KEY'].filter((k) => Boolean(process.env[k]) || new RegExp(`^${k}\\s*=\\s*\\S`, 'm').test(envText));
   checks.push({ name: 'Clave de videos de stock (opcional: Pexels o Pixabay)', ok: true, detail: stock.length ? `ok (${stock.map((k) => k.split('_')[0].toLowerCase()).join(', ')})` : 'sin clave: usa b-roll de archivos locales' });
+
+  await ensureOllama();
+  const ia = await llmStatus();
+  checks.push({
+    name: 'IA local (opcional: Ollama)', ok: true,
+    detail: !ia.running ? 'no está abierta: sin Claude, la edición por chat no funciona' : ia.model ? `ok (${ia.model}${ia.loaded ? ', cargada en memoria' : ''}, Ollama ${ia.version})` : `abierta pero sin modelo: ollama pull ${LOCAL_MODEL}`,
+  });
 
   return { ok: checks.every((c) => c.ok), checks };
 }

@@ -22,7 +22,7 @@ import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
 import { autoEdit, planAutoEdit } from './auto.ts';
 import { outputDuration, speechOf } from '@axioma/schema';
-import { llmPublish, llmReady } from './llm.ts';
+import { llmPublish, llmReady, llmStatus, llmWarmUp } from './llm.ts';
 import { localEdit } from './localedit.ts';
 import { createClipProject, projectClips } from './clips.ts';
 import { matchSceneColors } from './colormatch.ts';
@@ -239,7 +239,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/plan' && method === 'GET') return json(res, { plan: await planAutoEdit(await findDir(id)) });
   if (p === '/api/clips' && method === 'GET') return json(res, { clips: await projectClips(await findDir(id)) });
   if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
-  if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1'), local: await llmReady() });
+  if (p === '/api/claude' && method === 'GET') return json(res, { conectado: await claudeReady(url.searchParams.get('revisar') === '1'), local: await llmReady(), ia: await llmStatus() });
   if (p === '/api/claude' && method === 'POST') { await openClaudeLogin(); return json(res, { ok: true }); }
 
   if (p === '/api/projects' && method === 'GET') {
@@ -899,7 +899,7 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
       } catch { /* no es nuestro */ }
       reject(new Error(`El puerto ${STUDIO_PORT} está ocupado por otro programa. Usa SE_STUDIO_PORT para cambiarlo.`));
     });
-    server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); resolve(base); });
+    server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); resolve(base); });
   });
   return running;
 }
