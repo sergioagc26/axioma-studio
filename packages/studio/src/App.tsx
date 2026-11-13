@@ -27,7 +27,8 @@ function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   return { screen, p: q.get('p'), s: q.get('s') };
 }
 
-const TABS: [Screen, string][] = [['brief', 'Brief'], ['storyboard', 'Storyboard'], ['editor', 'Editor'], ['variantes', 'Variantes'], ['audio', 'Audio'], ['imagenes', 'Imágenes'], ['referencias', 'Referencias']];
+// En el orden del trabajo real: casi siempre se llega al Editor (modo automático).
+const TABS: [Screen, string][] = [['editor', 'Editor'], ['storyboard', 'Storyboard'], ['variantes', 'Variantes'], ['audio', 'Audio'], ['imagenes', 'Imágenes'], ['brief', 'Brief'], ['referencias', 'Referencias']];
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
@@ -42,6 +43,7 @@ export const App: React.FC = () => {
   const [calidad, setCalidad] = useState<'maxima' | 'alta' | 'ligera'>('alta');
   const [carpeta, setCarpeta] = useState('');
   const [lufs, setLufs] = useState(-14);
+  const [ganchos, setGanchos] = useState(false);
   // ¿Claude tiene sesión iniciada? null = todavía comprobando.
   const [claude, setClaude] = useState<boolean | null>(null);
   const [local, setLocal] = useState(false);
@@ -123,10 +125,11 @@ export const App: React.FC = () => {
     setExportOpen(false);
     try {
       const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta, lufs }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta, lufs, ganchos }),
       });
       const done = await waitJob(job, setRender);
-      toast(`Exportado en: ${done.result?.path}`);
+      const files = done.result?.files as { id: string; label: string }[] | undefined;
+      toast(files ? `${files.length} versiones exportadas en ${done.result?.path}: ${files.map((f) => `${f.id} · ${f.label}`).join(' · ')}` : `Exportado en: ${done.result?.path}`);
       if (done.result?.file) window.open(`/media/${encodeURIComponent(project.id)}/${done.result.file}`, '_blank');
     } catch (e: any) {
       toast(`No se pudo exportar: ${e.message}`);
@@ -141,20 +144,21 @@ export const App: React.FC = () => {
   return (
     <div className="app">
       <header className="top">
-        <a className="brand" href="#/proyectos" style={{ color: 'inherit', textDecoration: 'none' }}>
-          <span className="logo" aria-hidden="true" />{APP_NAME}
+        <a className="brand" href="#/proyectos" title="Todos los proyectos" style={{ color: 'inherit', textDecoration: 'none' }}>
+          <span className="logo" aria-hidden="true" />{route.p ? <span className="sr-only">{APP_NAME}</span> : APP_NAME}
         </a>
         {route.p && (
           <nav className="nav" aria-label="Vistas">
+            <a href="#/proyectos" className="back">‹ Proyectos</a>
             {TABS.map(([s, label]) => (
-              <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''}>{label}</a>
+              <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} aria-current={route.screen === s ? 'page' : undefined}>{label}</a>
             ))}
           </nav>
         )}
         <div className="row spacer">
-          {project && <strong>{project.name}</strong>}
-          {project && <span className="pill">Cliente: {project.client ?? 'personal'}</span>}
-          {project && <span className="muted small" aria-live="polite">{store.error ? `Error: ${store.error}` : store.saving ? 'Guardando…' : 'Guardado'}</span>}
+          {project && <strong className="pname" style={{ maxWidth: 260 }} title={project.name}>{project.name}</strong>}
+          {project && <span className="pill">{project.client ?? 'personal'}</span>}
+          {project && <span className={`small ${store.error ? '' : 'muted'}`} style={store.error ? { color: 'var(--pinkText)' } : undefined} aria-live="polite">{store.error ? `Error: ${store.error}` : store.saving ? 'Guardando…' : '✓ Guardado'}</span>}
         </div>
         <div className="row">
           {project && (
@@ -163,13 +167,12 @@ export const App: React.FC = () => {
               <button className="btn sq" aria-label="Rehacer" title="Rehacer (⇧⌘Z)" disabled={!store.canRedo} onClick={store.redo}>↷</button>
             </>
           )}
-          {claude === false && (
-            <button className="btn rect" title="Abre una terminal: escribe /login y vuelve aquí" onClick={connect}>Conectar Claude</button>
-          )}
-          {claude === true && <span className="pill">Claude conectado</span>}
-          {claude === false && local && <span className="pill" title="Los pedidos de cambios los hace la IA de tu computador (Ollama)">IA local lista</span>}
-          <button className="btn rect" onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
-            Tema {theme === 'oscuro' ? 'claro' : 'oscuro'}
+          {/* Quién atiende los pedidos de cambios. Con la IA local lista, conectar Claude queda en el mismo botón. */}
+          {claude === true ? <span className="pill" title="Los pedidos de cambios los hace Claude">● Claude</span>
+            : claude === false && local ? <button className="pill" style={{ border: 0, cursor: 'pointer' }} title="Los pedidos de cambios los hace la IA de tu computador (Ollama). Clic para conectar Claude: se abre una terminal, escribe /login y vuelve aquí." onClick={connect}>● IA local</button>
+            : claude === false ? <button className="btn rect" title="Abre una terminal: escribe /login y vuelve aquí" onClick={connect}>Conectar Claude</button> : null}
+          <button className="btn sq" aria-label={`Cambiar a tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} title={`Tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
+            {theme === 'oscuro' ? '☀' : '☾'}
           </button>
           {project && (
             <button className="btn primary" disabled={Boolean(render) || !project.scenes.length} onClick={openExport}>
@@ -180,7 +183,13 @@ export const App: React.FC = () => {
       </header>
 
       {!needsProject || !route.p ? <Projects ctx={ctx} />
-        : !project ? <div className="page"><p className="muted">{store.error ?? 'Cargando proyecto…'}</p></div>
+        : !project ? (
+          <div className="page" style={{ display: 'grid', placeItems: 'center' }}>
+            {store.error
+              ? <div className="col" style={{ alignItems: 'center', textAlign: 'center' }}><strong>No se pudo abrir el proyecto</strong><span className="muted">{store.error}</span><a className="btn rect" href="#/proyectos">Volver a proyectos</a></div>
+              : <span className="muted" role="status">Cargando proyecto…</span>}
+          </div>
+        )
         : route.screen === 'brief' ? <Brief ctx={ctx} />
         : route.screen === 'storyboard' ? <Storyboard ctx={ctx} />
         : route.screen === 'editor' ? <Editor ctx={ctx} />
@@ -232,9 +241,10 @@ export const App: React.FC = () => {
               }}>{pubBusy ? 'Escribiendo…' : 'Redactar con IA local'}</button>
             )}
             <button className="btn rect" style={{ alignSelf: 'flex-start' }} onClick={() => { navigator.clipboard?.writeText(pubText).then(() => toast('Texto copiado.')).catch(() => toast('No se pudo copiar; selecciónalo y cópialo a mano.')); }}>Copiar texto</button>
+            <label className="row small" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}><input type="checkbox" style={{ marginTop: 3 }} checked={ganchos} onChange={(e) => setGanchos(e.target.checked)} /> Exportar 3 versiones del gancho para probar cuál funciona mejor (A tal cual · B con tu frase más fuerte primero · C con otro texto de gancho). Tarda el triple.</label>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setExportOpen(false)}>Cancelar</button>
-              <button className="btn primary" onClick={exportar}>Exportar MP4</button>
+              <button className="btn primary" onClick={exportar}>{ganchos ? 'Exportar 3 versiones' : 'Exportar MP4'}</button>
             </div>
           </div>
         </div>

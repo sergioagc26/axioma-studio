@@ -21,7 +21,7 @@ import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
 import { pickFolder, systemFonts } from './fonts.ts';
 import { autoEdit, planAutoEdit } from './auto.ts';
-import { speechOf } from '@axioma/schema';
+import { outputDuration, speechOf } from '@axioma/schema';
 import { llmPublish, llmReady } from './llm.ts';
 import { localEdit } from './localedit.ts';
 import { createClipProject, projectClips } from './clips.ts';
@@ -35,6 +35,8 @@ import { setFollowSpeaker } from './speakers.ts';
 import { matchToReference } from './colorref.ts';
 import { setSlowMotion } from './slowmo.ts';
 import { setVideoQuality } from './quality.ts';
+import { setCaptionLanguage } from './subtitles.ts';
+import { renderHookVariants } from './hooks.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -197,6 +199,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const all = await ops.listProjects();
     return json(res, all.map(({ project: x }) => ({
       id: x.id, name: x.name, client: x.client ?? 'personal', approval: x.approval, scenes: x.scenes.length, updatedAt: x.updatedAt,
+      kind: x.kind, duration: +outputDuration(x).toFixed(1),
+      // Miniatura: un fotograma del medio de la primera escena.
+      thumbT: (() => { const r = x.scenes[0]?.ranges[0]; return r ? +((r.start + r.end) / 2).toFixed(2) : 1; })(),
     })));
   }
 
@@ -332,6 +337,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Preparando las imágenes…';
         const r = await createImages(dir, tipo, (m) => { j.message = m; });
         return { files: r.files, ai: r.ai };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'idioma-subtitulos') {
+      const job = startJob('ia', async (j) => {
+        await setCaptionLanguage(dir, b.idioma || null, (m) => { j.message = m; });
+        return {};
       });
       return json(res, job);
     }
@@ -513,6 +525,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         if (['maxima', 'alta', 'ligera'].includes(b.calidad)) pr.export.quality = b.calidad;
         if (typeof b.carpeta === 'string') pr.export.folder = b.carpeta.trim() || undefined;
         await writeProject(dir, pr);
+      }
+      if (b.ganchos) {
+        // Tres versiones con distinto gancho, para probar cuál retiene más.
+        const job = startJob('render', async (j) => {
+          const files = await renderHookVariants(dir, { format: b.formato, onProgress: (m, pr) => { j.message = m; j.progress = pr; } });
+          return { files, path: path.dirname(files[0]?.path ?? dir) };
+        });
+        return json(res, job);
       }
       const job = startJob('render', async (j) => {
         j.message = 'Renderizando…';

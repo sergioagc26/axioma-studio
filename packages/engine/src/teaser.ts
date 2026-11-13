@@ -29,16 +29,14 @@ export function bestTeaser(project: Project, t: Transcript): TeaserIdea | null {
   return best;
 }
 
-/** Pone (o reemplaza) el adelanto al inicio. La escena original sigue en su sitio. */
-export async function addTeaser(dir: string): Promise<{ project: Project; teaser: TeaserIdea }> {
-  const project = await readProject(dir);
-  const t = await readTranscript(dir);
-  if (!t?.words.length) throw new Error('Este reel no tiene voz transcrita: no hay frases para adelantar.');
+/** El proyecto con el adelanto al inicio (sin guardar). Null si no hay una frase que sirva. */
+export function teaserProject(project: Project, t: Transcript): { project: Project; teaser: TeaserIdea } | null {
   const idea = bestTeaser(project, t);
-  if (!idea) throw new Error('No encontré una frase corta y fuerte para adelantar (hacen falta varias escenas con voz).');
+  if (!idea) return null;
+  const p: Project = structuredClone(project);
   // Se respetan los cortes de la escena de donde sale (sin muletillas ni pausas).
-  const home = project.scenes.filter((s) => s.id !== TEASER_ID)[idea.sceneIndex];
-  const ranges = effectiveRanges(home, project.source.duration)
+  const home = p.scenes.filter((s) => s.id !== TEASER_ID)[idea.sceneIndex];
+  const ranges = effectiveRanges(home, p.source.duration)
     .map((r) => ({ start: Math.max(r.start, idea.start - 0.06), end: Math.min(r.end, idea.end + 0.12) }))
     .filter((r) => r.end - r.start > 0.05);
   const scene = Scene.parse({
@@ -54,11 +52,21 @@ export async function addTeaser(dir: string): Promise<{ project: Project; teaser
     backdropFile: home.backdropFile,
     sfx: [{ id: 'impacto', offset: 0, volume: 0.5 }],
   });
-  project.scenes = [scene, ...project.scenes.filter((s) => s.id !== TEASER_ID)];
+  p.scenes = [scene, ...p.scenes.filter((s) => s.id !== TEASER_ID)];
   // La escena que venía primero entra con un corte marcado después del adelanto.
-  const next = project.scenes[1];
+  const next = p.scenes[1];
   if (next && !next.transition) next.transition = { id: 'destello' };
-  return { project: await writeProject(dir, project), teaser: idea };
+  return { project: p, teaser: idea };
+}
+
+/** Pone (o reemplaza) el adelanto al inicio. La escena original sigue en su sitio. */
+export async function addTeaser(dir: string): Promise<{ project: Project; teaser: TeaserIdea }> {
+  const project = await readProject(dir);
+  const t = await readTranscript(dir);
+  if (!t?.words.length) throw new Error('Este reel no tiene voz transcrita: no hay frases para adelantar.');
+  const made = teaserProject(project, t);
+  if (!made) throw new Error('No encontré una frase corta y fuerte para adelantar (hacen falta varias escenas con voz).');
+  return { project: await writeProject(dir, made.project), teaser: made.teaser };
 }
 
 export async function removeTeaser(dir: string) {

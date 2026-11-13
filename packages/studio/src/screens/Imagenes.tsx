@@ -39,11 +39,11 @@ export const Imagenes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <button key={id} className="opt" disabled={Boolean(busy)} onClick={() => create(id)}>
             <strong style={{ fontSize: 16 }}>{name}</strong>
             <span className="muted small">{desc}</span>
-            <span className="pill" style={{ marginTop: 4 }}>{busy ? busy : 'Crear'}</span>
+            <span className="btn primary" style={{ height: 34, marginTop: 6, alignSelf: 'flex-start' }} aria-hidden="true">{busy ? busy : `Crear ${name.toLowerCase()}`}</span>
           </button>
         ))}
       </div>
-      {sets.length === 0 && !busy && <p className="muted small" style={{ marginTop: 18 }}>Todavía no has creado imágenes para este reel.</p>}
+      {sets.length === 0 && !busy && <p className="muted small" style={{ marginTop: 18 }}>Todavía no has creado imágenes para este reel. Elige un tipo arriba: tarda unos segundos y las descargas una por una o todas juntas.</p>}
       {sets.map((set) => (
         <section key={set.name} className="col" style={{ marginTop: 22, gap: 8 }}>
           <strong>{set.tipo === 'carrusel' ? 'Carrusel' : set.tipo === 'post' ? 'Post' : 'Historia'} · {set.name.slice(0, 16).replace('T', ' ')}</strong>

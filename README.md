@@ -164,6 +164,14 @@ En «Acabados del reel», «LUT de color» trae seis looks incluidos (Teal & Ora
 
 En Variantes, «Busca en tu material» encuentra momentos en todos los reels del mismo cliente (sus videos y b-rolls) a partir de una descripción: lo que **se ve** («hombres entrenando en la calle», «manos en el portátil») con el modelo de visión local, y lo que **se dice**, en las transcripciones. Al elegir un resultado se corta ese tramo del video original (unos 3,5 s, sin audio) y entra como b-roll de la escena, con su origen anotado. La primera vez revisa todo el material (un fotograma por segundo) y guarda el índice en `indice-visual.json` de cada proyecto; después solo revisa lo nuevo. Si la IA local (Ollama) está abierta, la búsqueda se traduce al inglés porque el modelo de visión la entiende mejor. Claude tiene lo mismo con `buscar_material` y `usar_material`.
 
+## Emojis, subtítulos en otro idioma y variantes de gancho
+
+- **Emojis automáticos** (grupo Subtítulos): cuando suena una palabra con un emoji claro (dinero 💰, idea 💡, gimnasio 💪, error ❌…) aparece encima de la línea con un salto. Diccionario en español de unas 70 raíces; como mucho uno cada 1,6 s y sin repetir el mismo seguido.
+- **Idioma de los subtítulos** (grupo Subtítulos): inglés, portugués, francés, italiano o alemán, traducidos frase por frase con la IA local; la voz no cambia. Las palabras quedan en el tiempo del video original, así siguen bien aunque cambies los cortes. Para cambiar también la voz está el doblaje.
+- **Variantes de gancho** (ventana de exportar): exporta tres versiones para probar cuál retiene más: A tal cual, B con tu frase más fuerte en el primer segundo (o sin ella, si ya la tenía) y C con otro texto de gancho que redacta la IA local. Los archivos llevan `-gancho-A/B/C` y el proyecto no cambia.
+
+Claude: `ajustar_subtitulos` (emojis), `idioma_subtitulos`.
+
 ## Calidad en videos de baja resolución
 
 Los videos de menos de 1000 px por el lado corto (WhatsApp, capturas, celulares viejos) se preparan quitando los bloques de la compresión antes de agrandarlos a 1080 y con escalado lanczos. Medido contra un original nítido, se parece más que el escalado anterior (SSIM 0,959 frente a 0,951). En «Herramientas de un clic → Calidad del video» se elige «Fiel al original» o «Más nítido» (suma nitidez adaptativa); tarda segundos y no cambia cortes ni textos. Claude: `calidad_video`.

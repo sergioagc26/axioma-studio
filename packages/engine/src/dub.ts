@@ -86,7 +86,8 @@ export function spreadWords(text: string, at: number, duration: number): Transcr
   });
 }
 
-async function translate(lines: string[], lang: string): Promise<string[]> {
+/** Traduce frases sueltas (en orden) con la IA local, en tandas. */
+export async function translateLines(lines: string[], lang: string): Promise<string[]> {
   const target = DUB_LANGUAGES[lang].english;
   const out: string[] = [];
   for (let i = 0; i < lines.length; i += 18) {
@@ -118,7 +119,7 @@ export async function dubProject(dir: string, lang: string, opts: { provider?: T
   const progress = opts.onProgress ?? (() => {});
   progress(`Traduciendo ${lines.length} frases al ${L.name}…`, 0.05);
   const texts = src.scenes.map((s) => s.onScreenText ?? '');
-  const translated = await translate([...lines.map((l) => l.text), ...texts.filter(Boolean)], lang);
+  const translated = await translateLines([...lines.map((l) => l.text), ...texts.filter(Boolean)], lang);
   const spoken = translated.slice(0, lines.length);
   let k = lines.length;
   const sceneTexts = texts.map((x) => (x ? translated[k++] : x));

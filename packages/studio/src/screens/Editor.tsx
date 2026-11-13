@@ -228,6 +228,17 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
 
   const [allAdvice, setAllAdvice] = useState(false);
+  // Subtítulos en otro idioma (traducidos con la IA local; la voz no cambia).
+  const [translating, setTranslating] = useState('');
+  const captionLanguage = async (idioma: string) => {
+    setTranslating(idioma ? 'Traduciendo los subtítulos…' : 'Volviendo al idioma del video…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'idioma-subtitulos', idioma }) });
+      await waitJob(job, (j) => setTranslating(j.message || 'Traduciendo…'));
+      await reloadProject();
+      await store.reloadExtras();
+    } catch (e: any) { ctx.toast(e.message); } finally { setTranslating(''); }
+  };
   // Calidad del video (videos de baja resolución): rehace el master desde el original.
   const [improving, setImproving] = useState('');
   const setQuality = async (calidad: 'normal' | 'nitido') => {
@@ -264,7 +275,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     cutout: store.extras?.cutout,
     cutoutCoverage: store.extras?.cutoutCoverage,
     depth: store.extras?.depth,
-    faces: store.extras?.faces, speakers: store.extras?.speakers,
+    faces: store.extras?.faces, speakers: store.extras?.speakers, captionWords: store.extras?.captionWords,
     transitions: store.extras?.transitions,
   }), [project, store.transcript, store.brand, store.extras]);
 
@@ -679,6 +690,14 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <button className={project.captions.mode === 'word' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'word'; })}>Palabra a palabra</button>
             <button className={project.captions.mode === 'phrase' ? 'on' : ''} onClick={() => store.update((p) => { p.captions.mode = 'phrase'; })}>Frase completa</button>
           </div>
+          <label className="row"><input type="checkbox" checked={project.captions.emojis} onChange={(e) => store.update((p) => { p.captions.emojis = e.target.checked; })} /> Emojis automáticos (💰 💡 💪 cuando se dice la palabra)</label>
+          <label className="field">Idioma de los subtítulos
+            <select value={project.captions.language ?? ''} disabled={Boolean(translating)} onChange={(e) => captionLanguage(e.target.value)}>
+              <option value="">El del video</option>
+              <option value="en">Inglés</option><option value="pt">Portugués</option><option value="fr">Francés</option><option value="it">Italiano</option><option value="de">Alemán</option>
+            </select>
+          </label>
+          {translating ? <span className="pill" role="status">{translating}</span> : project.captions.language ? <span className="small muted">La voz sigue en el idioma original; solo cambian los subtítulos. Para cambiar también la voz, usa «Doblaje» en Audio.</span> : null}
           <Stepper label={`Diseño de los subtítulos (${CAPTION_DESIGNS.length})`} items={CAPTION_DESIGNS} value={project.captions.design} onChange={(id) => store.update((p) => { p.captions.design = id; })} />
           {CAPTION_DESIGNS.find((x) => x.id === project.captions.design)?.font && <span className="small muted">Este diseño trae su propia tipografía.</span>}
           <Stepper label={`Cómo se marca la palabra que suena (${CAPTION_EFFECTS.length})`} items={CAPTION_EFFECTS} value={project.captions.effect} onChange={(id) => store.update((p) => { p.captions.effect = id; })} />

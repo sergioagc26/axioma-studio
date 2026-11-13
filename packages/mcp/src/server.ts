@@ -257,11 +257,12 @@ export function createServer() {
     efecto: z.enum(['color', 'caja', 'pop', 'subrayado']).optional().describe('Cómo se marca la palabra que suena: color · caja detrás · pop (crece) · subrayado'),
     remarcar_clave: z.boolean().optional().describe('Remarca siempre la palabra más importante de cada línea'),
     diseno: z.string().optional().describe('clasico = básico; los demás son llamativos: impacto (enormes e inclinadas), bloque (línea en bloque de color), cinta (cada palabra en su tira), neon, elegante (cursiva fina)'),
+    emojis: z.boolean().optional().describe('Emojis automáticos encima de los subtítulos cuando suena una palabra con emoji claro (dinero 💰, idea 💡, gym 💪…)'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const patch = Object.fromEntries(Object.entries({
       mode: a.modo, wordsPerLine: a.palabras_por_linea, fontFamily: a.fuente, fontSize: a.tamano,
-      color: a.color, highlightColor: a.color_resaltado, uppercase: a.mayusculas, y: a.posicion_y, effect: a.efecto, emphasis: a.remarcar_clave, design: a.diseno,
+      color: a.color, highlightColor: a.color_resaltado, uppercase: a.mayusculas, y: a.posicion_y, effect: a.efecto, emphasis: a.remarcar_clave, design: a.diseno, emojis: a.emojis,
     }).filter(([, v]) => v !== undefined));
     await E.setCaptions(dir, patch);
     return E.summarize(await E.readProject(dir), dir);
@@ -519,6 +520,13 @@ export function createServer() {
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
+  });
+
+  tool('idioma_subtitulos', 'Pone los subtítulos en otro idioma sin doblar la voz (en, pt, fr, it, de), traducidos con la IA local y sincronizados frase por frase. idioma vacío vuelve al idioma del video.', {
+    proyecto, idioma: z.enum(['', 'en', 'pt', 'fr', 'it', 'de']),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    return E.summarize(await E.setCaptionLanguage(dir, a.idioma || null), dir);
   });
 
   tool('calidad_video', 'En videos de baja resolución (WhatsApp, capturas), rehace el video de edición desde el original: quita los bloques de compresión y agranda a 1080 con escalado fino (normal), o además le da nitidez (nitido). Cortes y textos no cambian.', {

@@ -40,3 +40,5 @@ export * from './speakers.ts';
 export * from './colorref.ts';
 export * from './slowmo.ts';
 export * from './quality.ts';
+export * from './subtitles.ts';
+export * from './hooks.ts';

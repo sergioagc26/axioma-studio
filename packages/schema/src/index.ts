@@ -8,3 +8,4 @@ export * from './trends.ts';
 export * from './captionStyles.ts';
 export * from './advice.ts';
 export * from './publish.ts';
+export * from './emoji.ts';

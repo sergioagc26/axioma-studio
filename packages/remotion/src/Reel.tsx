@@ -30,7 +30,7 @@ import { loadFont as loadLobster } from '@remotion/google-fonts/Lobster';
 import { loadFont as loadCaveat } from '@remotion/google-fonts/Caveat';
 import { loadFont as loadLora } from '@remotion/google-fonts/Lora';
 import type { CapColor, CaptionEffectSpec, Timeline, TimelineClip, TimelineOverlay } from '@axioma/schema';
-import { captionDesign, captionEffect } from '@axioma/schema';
+import { captionDesign, captionEffect, pickEmojis } from '@axioma/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
 import { MotionGraphic } from './Motion.tsx';
 
@@ -73,6 +73,17 @@ export const Reel: React.FC<Timeline> = (t) => {
     () => chunkWords(t.words, t.captions.mode === 'phrase' ? Math.max(t.captions.wordsPerLine, 5) : t.captions.wordsPerLine, t.fps),
     [t.words, t.captions.mode, t.captions.wordsPerLine, t.fps],
   );
+  // Emojis automáticos: uno por línea como mucho, separados al menos 1,6 s.
+  const emojis = useMemo(
+    () => (t.captions.emojis ? pickEmojis(chunks.map((c) => ({ text: c.words.map((w) => w.text).join(' '), startFrame: c.startFrame })), Math.round(t.fps * 1.6)) : []),
+    [chunks, t.captions.emojis, t.fps],
+  );
+  // Si la línea siguiente llega antes de 1,1 s, el emoji sigue encima de ella (sin volver a saltar).
+  const emojiAt = useMemo(() => chunks.map((c, i) => {
+    if (emojis[i]) return { emoji: emojis[i]!, fresh: true };
+    const prev = i > 0 ? emojis[i - 1] : null;
+    return prev && c.startFrame - chunks[i - 1].startFrame < t.fps * 1.1 ? { emoji: prev, fresh: false } : undefined;
+  }), [chunks, emojis, t.fps]);
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {t.clips.map((c, i) => (
@@ -87,7 +98,7 @@ export const Reel: React.FC<Timeline> = (t) => {
       ))}
       {chunks.map((ch, i) => (
         <Sequence key={`c${i}`} from={ch.startFrame} durationInFrames={Math.max(1, ch.endFrame - ch.startFrame)}>
-          <Caption chunk={ch} font={font} t={t} />
+          <Caption chunk={ch} font={font} t={t} emoji={emojiAt[i]} />
         </Sequence>
       ))}
       {t.finish.halation ? <AbsoluteFill style={{ backdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', WebkitBackdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', mixBlendMode: 'screen', opacity: 0.28, pointerEvents: 'none' }} /> : null}
@@ -356,7 +367,23 @@ const onColor = (hex: string) => {
   return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? '#000' : '#fff';
 };
 
-const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({ chunk, font: baseFont, t }) => {
+/** Emoji encima de la línea de subtítulos: va dentro del bloque, así nunca tapa una línea doble. */
+const EmojiPop: React.FC<{ emoji: string; fresh: boolean; size: number }> = ({ emoji, fresh, size }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const pop = fresh ? spring({ frame, fps, config: { damping: 9, stiffness: 200 }, durationInFrames: 12 }) : 1;
+  return (
+    <div aria-hidden="true" style={{
+      position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: size * 0.12, textAlign: 'center',
+      fontSize: size, lineHeight: 1,
+      fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+      transform: `scale(${interpolate(pop, [0, 1], [0.2, 1])}) rotate(${interpolate(pop, [0, 1], [-25, 0])}deg)`,
+      filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.45))',
+    }}>{emoji}</div>
+  );
+};
+
+const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?: { emoji: string; fresh: boolean } }> = ({ chunk, font: baseFont, t, emoji }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const s = t.captions;
@@ -473,6 +500,7 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline }> = ({
   return (
     <AbsoluteFill style={{ alignItems: 'center' }}>
       <div style={box}>
+        {emoji ? <EmojiPop emoji={emoji.emoji} fresh={emoji.fresh} size={s.fontSize * 1.7} /> : null}
         <span style={lineBg}>
           {chunk.words.map((w, i) => {
             const start = w.startFrame;

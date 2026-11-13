@@ -7,6 +7,7 @@ import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@axioma/schema';
 import { readSpeakers } from './speakers.ts';
+import { captionWords } from './subtitles.ts';
 import { readFaces } from './faces.ts';
 import { learnFromExport, readKit } from './kit.ts';
 import { allTransitions } from './transitions.ts';
@@ -47,11 +48,12 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
     ? { src: asset(vo.file), words: existsSync(wordsFile) ? (JSON.parse(await readFile(wordsFile, 'utf8')).words as Transcript['words']) : [] }
     : undefined;
   const speakers = project.source.followSpeaker ? (await readSpeakers(dir))?.turns : undefined;
-  return { voiceover, faces: await readFaces(dir), speakers, transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
+  const translated = await captionWords(dir, project.captions.language);
+  return { voiceover, faces: await readFaces(dir), speakers, captionWords: translated, transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
 }
 
-export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void } = {}) {
-  const project = await readProject(dir);
+export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void; /** Versión modificada del proyecto (sin guardarla), p. ej. otra variante de gancho. */ project?: Project; /** Se agrega al nombre del archivo. */ suffix?: string } = {}) {
+  const project = opts.project ?? (await readProject(dir));
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
   const transcript = await readTranscript(dir);
   await ensureUsedSfx(dir, project);
@@ -76,7 +78,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     // Carpeta elegida por el usuario, o la del proyecto.
     const folder = project.export.folder?.trim() ? path.resolve(project.export.folder.trim().replace(/^~(?=$|\/)/, os.homedir())) : path.join(dir, P.renders);
     await mkdir(folder, { recursive: true });
-    const out = opts.out ?? path.join(folder, `${project.id}-${stamp}${suffix}.mp4`);
+    const out = opts.out ?? path.join(folder, `${project.id}-${stamp}${suffix}${opts.suffix ?? ''}.mp4`);
     // Calidad: cuanto menor el CRF, menos compresión. 12 es prácticamente sin pérdida visible.
     const q = { maxima: { crf: 12, audio: '320k' }, alta: { crf: 17, audio: '256k' }, ligera: { crf: 23, audio: '160k' } }[opts.quality ?? project.export.quality];
     const raw = out.replace(/\.mp4$/i, '') + '.sin-nivelar.mp4';

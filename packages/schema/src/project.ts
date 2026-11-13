@@ -59,6 +59,10 @@ export const CaptionStyle = z.object({
   lineAnim: z.enum(['pop', 'subir', 'deslizar', 'ninguna']).default('pop'),
   /** Separación entre letras (em). */
   spacing: z.number().min(-0.05).max(0.3).default(0),
+  /** Emojis automáticos encima de los subtítulos cuando suena una palabra con emoji claro. */
+  emojis: z.boolean().default(false),
+  /** Subtítulos en otro idioma (la voz sigue igual). Sin valor: el idioma del video. */
+  language: z.string().optional(),
 });
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 

@@ -152,6 +152,8 @@ export interface TimelineUrls {
   cutoutCoverage?: number[];
   /** Posición de la cara a lo largo del video fuente. */
   faces?: FacePoint[];
+  /** Subtítulos traducidos (palabras en tiempo del video fuente), si se eligió otro idioma. */
+  captionWords?: Transcript['words'];
   /** Turnos de quién habla (reencuadre al hablante), si está activado. */
   speakers?: SpeakerTurn[];
   /** Transiciones propias del cliente (además de las incluidas). */
@@ -240,7 +242,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
   const auto = project.source.autoFocus;
   const manual = { x: project.source.focusX, y: 0.5 };
   // Con voz en off, los subtítulos salen de ella y no de lo que se dijo en el video.
-  const sourceWords = urls.voiceover ? null : transcript;
+  const sourceWords = urls.voiceover ? null : urls.captionWords ? { words: urls.captionWords } : transcript;
   const words: TimelineWord[] = [];
   const overlays: TimelineOverlay[] = [];
   let acc = 0;

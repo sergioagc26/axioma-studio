@@ -142,7 +142,8 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         {busy ? <span className="pill" role="status">{busy}</span> : <span className="muted">La mezcla final se nivela sola a {a.targetLufs} LUFS al exportar.</span>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
+      {/* Columnas tipo mosaico: las tarjetas de distinto alto no dejan huecos. */}
+      <div className="masonry">
         <section className="card col" style={{ gap: 12 }}>
           <h2 style={{ fontSize: 17 }}>Sonido original del video</h2>
           <span className="small muted">{hablado ? 'Tu voz grabada.' : 'El ambiente del video (golpes, sartén, pesas…).'}</span>
@@ -265,7 +266,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <span className="small muted">Usa la voz elegida arriba en «Voz» (la del computador si no hay otra). Tarda alrededor de un minuto.</span>
         </section>
 
-        <section className="card col" style={{ gap: 12, gridColumn: '1 / -1' }}>
+        <section className="card col" style={{ gap: 12 }}>
           <h2 style={{ fontSize: 17 }}>Efectos de sonido</h2>
           <label className="row"><input type="checkbox" checked={a.sfxAuto} onChange={(e) => run({ op: 'efectos-auto', on: e.target.checked }, e.target.checked ? 'Efectos automáticos activados.' : 'Efectos automáticos apagados.')} />
             Automáticos: un barrido en cada transición y un «pop» cuando entra un texto</label>

@@ -19,6 +19,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const pid = encodeURIComponent(project.id);
   const [list, setList] = useState<Report[]>([]);
   const [cur, setCur] = useState<Report | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const [touched, setTouched] = useState({ font: false, uppercase: false });
@@ -71,7 +72,17 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <section className="col" style={{ flex: '1 1 230px', maxWidth: 270, gap: 12 }}>
         <h1 style={{ fontSize: 22 }}>Referencia</h1>
         {cur ? <div className="frame" style={{ borderRadius: 14, backgroundImage: `url(${frameUrl(cur.frames[Math.floor(cur.frames.length / 2)])})` }} />
-          : <div className="frame" style={{ borderRadius: 14, display: 'grid', placeItems: 'center' }}><span className="muted small">Sin referencia</span></div>}
+          : (
+            <button className={`frame drop-ref ${dragOver ? 'over' : ''}`} style={{ borderRadius: 14, display: 'grid', placeItems: 'center', border: '2px dashed var(--line)', background: 'transparent', cursor: 'pointer' }}
+              onClick={() => input.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) upload(f); }}>
+              <span className="col" style={{ alignItems: 'center', gap: 6, padding: 12 }}>
+                <strong>{dragOver ? 'Suelta el video' : 'Arrastra aquí un reel'}</strong>
+                <span className="muted small">o haz clic para elegirlo</span>
+              </span>
+            </button>
+          )}
         {job ? (
           <div className="col"><strong>{job.message}</strong><div className="progress"><div style={{ width: '60%' }} /></div></div>
         ) : (
@@ -93,7 +104,17 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <h2 style={{ fontSize: 22 }}>Reporte de estilo</h2>
           {cur && <span className="pill">{cur.name} · {cur.duration.toFixed(1)} s</span>}
         </div>
-        {!cur ? <p className="muted">Sube un video que te guste. En 10–30 segundos tendrás su ritmo de cortes, tempo y colores.</p> : (
+        {!cur ? (
+          <div className="col" style={{ gap: 12 }}>
+            <p className="muted" style={{ margin: 0 }}>Sube un reel que te guste (tuyo o de otra cuenta) y en 10–30 segundos la app saca su estilo para aplicarlo a tus videos:</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+              {([['Ritmo de cortes', 'Cada cuánto cambia de plano: rápido, con ritmo o sobrio.'], ['Música', 'El tempo aproximado (BPM) para cortar al ritmo.'], ['Colores', 'La paleta dominante y el color de resaltado.'], ['Subtítulos', 'Posición, colores, caja y cuántas palabras a la vez.']] as const).map(([t, d]) => (
+                <article key={t} className="card col" style={{ gap: 4 }}><strong>{t}</strong><span className="small muted">{d}</span></article>
+              ))}
+            </div>
+            <span className="small muted">Solo se guarda el estilo: el video de referencia no se conserva.</span>
+          </div>
+        ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
             <article className="card col">
               <div className="row" style={{ justifyContent: 'space-between' }}><h3 style={{ fontSize: 15 }}>Ritmo de cortes</h3><span className="small muted">corte cada ~{cur.avgShot.toFixed(1)} s</span></div>
