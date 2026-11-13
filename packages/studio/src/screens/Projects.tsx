@@ -2,11 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../Icon.tsx';
 import type { IconName } from '../icons.ts';
 import type { Ctx } from '../App.tsx';
-import { api, waitJob, type Job } from '../useProject.ts';
-import { KeysPanel } from '../Bank.tsx';
+import { api, uploadFile, waitJob, type Job } from '../useProject.ts';
+import { KeysPanel, useBankKey } from '../Bank.tsx';
 import { CuentasPanel, useCuentas } from '../Cuentas.tsx';
 
-interface Item { id: string; name: string; client: string; approval: string; scenes: number; updatedAt: string; kind?: string; duration?: number; thumbT?: number }
+/** `edited` = ya se aplicó el brief; `creating` = el servidor aún lo está preparando. */
+interface Item { id: string; name: string; client: string; approval: string; scenes: number; updatedAt: string; kind?: string; duration?: number; thumbT?: number; edited?: boolean; creating?: boolean }
+
+/** A dónde lleva abrir un proyecto: a su resultado si ya se editó; si no, al brief. */
+const openHref = (it: Item) => `#/${it.edited ? 'listo' : 'brief'}?p=${encodeURIComponent(it.id)}`;
+const VIDEO = /\.(mp4|mov|m4v|webm|mkv)$/i;
 
 const STATUS: Record<string, string> = { borrador: 'Borrador', en_revision: 'En revisión', aprobado: 'Aprobado' };
 
@@ -64,7 +69,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         if (!restarting && done.result?.updated) ctx.toast('Actualizada. Cierra y vuelve a abrir la app para usar la versión nueva.');
       } catch (e: any) {
         // Si la app se reinició mientras se esperaba, la conexión se corta: es lo esperado.
-        if (/fetch|network|Failed/i.test(e.message)) restarting = true; else throw e;
+        if (/fetch|network|Failed|conexión|reinició/i.test(e.message)) restarting = true; else throw e;
       }
       if (restarting) {
         setUpdating('Reiniciando…');
@@ -81,13 +86,18 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const copy = async (url: string) => { try { await navigator.clipboard.writeText(url); ctx.toast('Enlace copiado.'); } catch { ctx.toast(url); } };
   const [preset, setPreset] = useState('rapido');
   const [kind, setKind] = useState<'hablado' | 'montaje'>('hablado');
-  const [job, setJob] = useState<Job | null>(null);
+  // La subida en curso vive en App: no se pierde al cambiar de pantalla.
+  const job = ctx.creating;
   const [over, setOver] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const ajustes = useRef<HTMLDetailsElement>(null);
+  const closeAjustes = () => ajustes.current?.removeAttribute('open');
+  const [freesound] = useBankKey('freesound');
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState<string | null>(null);
-  const reload = () => api<Item[]>('/api/projects').then(setItems).catch((e) => ctx.toast(e.message));
+  const reload = () => api<Item[]>('/api/projects').then((d) => { setItems(d); setLoadError(''); }).catch((e) => setLoadError(e.message));
   const duplicate = async (it: Item) => {
     setMenu(null);
     try {
@@ -99,64 +109,95 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
   const trash = async (it: Item) => {
     setMenu(null);
-    if (!window.confirm(`¿Mover «${it.name}» a la papelera?\n\nDeja de aparecer en la lista, pero no se borra: queda en workspace/papelera por si lo necesitas.`)) return;
+    if (!window.confirm(`¿Mover «${it.name}» a la papelera?\n\nDeja de aparecer en la lista, pero no se borra: queda guardado por si lo necesitas.`)) return;
     try {
       await api(`/api/op?id=${encodeURIComponent(it.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'papelera' }) });
       await reload();
       ctx.toast(`«${it.name}» está en la papelera.`);
     } catch (e: any) { ctx.toast(e.message); }
   };
-  // Automático: el video se edita solo al subirlo y se abre directo en el editor.
-  const [auto, setAuto] = useState(true);
+  /** Cambia el nombre o el cliente del proyecto (lo guarda con el PUT del proyecto; el id y la carpeta no cambian). */
+  const edit = async (it: Item, field: 'name' | 'client') => {
+    setMenu(null);
+    const now = field === 'name' ? it.name : it.client;
+    const v = window.prompt(field === 'name' ? 'Nuevo nombre del video:' : 'Cliente de este video (vacío = personal):', now);
+    if (v === null) return;
+    const value = v.trim().slice(0, 80);
+    if (field === 'name' && !value) return ctx.toast('El nombre no puede quedar vacío.');
+    if (value === now || (field === 'client' && !value && now === 'personal')) return;
+    try {
+      const d = await api(`/api/project?id=${encodeURIComponent(it.id)}`);
+      const pr = d.project;
+      if (field === 'name') pr.name = value; else pr.client = value && value !== 'personal' ? value : undefined;
+      await api(`/api/project?id=${encodeURIComponent(it.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pr) });
+      await reload();
+      ctx.toast(field === 'name' ? `Ahora se llama «${value}».` : `Ahora es de «${value || 'personal'}».`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
 
-  useEffect(() => { api<Item[]>('/api/projects').then(setItems).catch((e) => ctx.toast(e.message)); }, []);
+  useEffect(() => { void reload(); }, []);
+  // Al empezar y al terminar una subida, la lista se pone al día (el nuevo sale como «Preparando…»).
+  const wasCreating = useRef(Boolean(job));
+  useEffect(() => {
+    const now = Boolean(job && job.id);
+    if (now !== wasCreating.current) { wasCreating.current = now; void reload(); }
+  }, [job?.id]);
+  // El menú «⋯» se cierra al tocar fuera o con Escape.
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !(e.target as HTMLElement).closest?.('.pactions')) setMenu(null);
+    };
+    addEventListener('pointerdown', close);
+    addEventListener('keydown', close);
+    return () => { removeEventListener('pointerdown', close); removeEventListener('keydown', close); };
+  }, [menu]);
   const clients = useMemo(() => [...new Set((items ?? []).map((i) => i.client))].sort(), [items]);
+  // Si el cliente filtrado ya no tiene videos (p. ej. se mandó a la papelera el último), se quita el filtro.
+  useEffect(() => { if (filter && items && !clients.includes(filter)) setFilter(''); }, [clients]);
   const shown = useMemo(() => (items ?? []).filter((i) =>
     (!filter || i.client === filter) && (!q.trim() || `${i.name} ${i.client}`.toLowerCase().includes(q.trim().toLowerCase()))), [items, q, filter]);
+  const last = items?.find((i) => !i.creating);
 
   /** Montaje sin voz: se suben uno o varios videos y se arma con cortes rápidos. */
-  const uploadMontage = async (files: File[]) => {
-    const videos = files.filter((f) => /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name));
+  const uploadMontage = (files: File[]) => {
+    const videos = files.filter((f) => VIDEO.test(f.name));
     if (!videos.length) return ctx.toast('Sube uno o varios videos (.mp4 o .mov).');
-    try {
+    void ctx.startCreate(async (tick) => {
       const tokens: string[] = [];
       for (const [i, f] of videos.entries()) {
-        setJob({ id: '', status: 'running', message: `Subiendo video ${i + 1} de ${videos.length}…`, progress: (i / videos.length) * 0.2 });
-        tokens.push((await api<{ token: string }>(`/api/upload?filename=${encodeURIComponent(f.name)}`, { method: 'POST', body: f })).token);
+        const msg = `Subiendo video ${i + 1} de ${videos.length}…`;
+        tick({ id: '', status: 'running', message: msg, progress: (i / videos.length) * 0.3 });
+        const up = await uploadFile<{ token: string }>(`/api/upload?filename=${encodeURIComponent(f.name)}`, f,
+          (x) => tick({ id: '', status: 'running', message: `${msg} ${Math.round(x * 100)} %`, progress: ((i + x) / videos.length) * 0.3 }));
+        tokens.push(up.token);
       }
-      const started = await api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset, auto }) });
-      const done = await waitJob(started, setJob);
-      if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
-      ctx.go(auto ? 'listo' : 'brief', { p: done.result?.id, s: null });
-    } catch (e: any) {
-      ctx.toast(`No se pudo crear: ${e.message}`);
-    } finally {
-      setJob(null);
-    }
+      tick({ id: '', status: 'running', message: 'Preparando el montaje…', progress: 0.3 });
+      return api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset, auto: false }) });
+    });
+  };
+  const upload = (file: File) => {
+    if (!VIDEO.test(file.name)) return ctx.toast('Sube un video (.mp4 o .mov).');
+    const qs = new URLSearchParams({ filename: file.name, preset });
+    if (client.trim()) qs.set('client', client.trim());
+    void ctx.startCreate(async (tick) => {
+      tick({ id: '', status: 'running', message: 'Subiendo el video…', progress: 0 });
+      const started = await uploadFile<Job>(`/api/projects?${qs}`, file,
+        (x) => tick({ id: '', status: 'running', message: `Subiendo el video… ${Math.round(x * 100)} %`, progress: x * 0.3 }));
+      tick({ id: '', status: 'running', message: 'Preparando el video…', progress: 0.3 });
+      return started;
+    });
   };
   const take = (list: FileList | null) => {
     const files = [...(list ?? [])];
     if (!files.length) return;
+    // Una sola subida a la vez: soltar otro archivo encima no lanza otra.
+    if (job) return ctx.toast('Espera a que termine el video que se está subiendo.');
+    if (kind === 'hablado' && files.length > 1) return ctx.toast(`Soltaste ${files.length} videos. Para un video hablando a cámara suelta uno solo; para juntar varios elige «Sin voz».`);
     if (kind === 'montaje') uploadMontage(files); else upload(files[0]);
   };
-
-  const upload = async (file: File) => {
-    if (!/\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name)) return ctx.toast('Sube un video (.mp4 o .mov).');
-    const qs = new URLSearchParams({ filename: file.name, preset });
-    if (client.trim()) qs.set('client', client.trim());
-    if (auto) qs.set('auto', '1');
-    try {
-      setJob({ id: '', status: 'running', message: 'Subiendo el video…', progress: 0 });
-      const started = await api<Job>(`/api/projects?${qs}`, { method: 'POST', body: file });
-      const done = await waitJob(started, setJob);
-      if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
-      ctx.go(auto ? 'listo' : 'brief', { p: done.result?.id, s: null });
-    } catch (e: any) {
-      ctx.toast(`No se pudo crear: ${e.message}`);
-    } finally {
-      setJob(null);
-    }
-  };
+  // Un punto rosa en «Ajustes» cuando algo de adentro pide atención.
+  const aviso = Boolean(upd?.behind || upd?.error || cuentasAviso || backup?.error || (backup && !backup.last) || freesound === false);
 
   return (
     <main className="page projects" style={{ maxWidth: 1080, width: '100%', margin: '0 auto' }}>
@@ -195,26 +236,32 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         </div>
       )}
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h1 style={{ fontSize: 28 }}>Nuevo reel</h1>
+        <h1 style={{ fontSize: 28 }}>Nuevo video</h1>
         <div className="row">
+          {last && !job && (
+            <a className="btn rect" href={openHref(last)} title={`Abrir «${last.name}»`}>Seguir con «{last.name.length > 28 ? last.name.slice(0, 27) + '…' : last.name}»<Icon name="next" /></a>
+          )}
           <a className="btn rect" href="#/calendario"><Icon name="calendar" />Calendario</a>
-          <button className="btn rect" disabled={Boolean(updating)} onClick={update}
-            title={upd?.error ?? (upd?.behind ? `Novedades:\n${upd.changes.join('\n')}` : 'Revisa si hay una versión nueva de la app')}
-            style={upd?.behind ? { borderColor: 'var(--pink)' } : undefined}>
-            <Icon name="update" />{updating || (upd?.behind ? `Actualizar (${upd.behind})` : 'Actualizar')}
-          </button>
-          <button className="btn rect" onClick={openAccess} title="Abrir la app desde tu portátil o celular"><Icon name="devices" />Otros equipos</button>
-          <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pixabay, Pexels, Freesound y ElevenLabs"><Icon name="key" />Claves</button>
-          <button className="btn rect" onClick={() => setCuentasOpen(true)} title={cuentasAviso ?? 'Instagram: conecta tus cuentas para publicar desde la app'}
-            style={cuentasAviso ? { borderColor: 'var(--pink)' } : undefined}><Icon name="link" />Cuentas</button>
-          <button className="btn rect" disabled={Boolean(backingUp || backup?.running)} onClick={backupNow}
-            title={backup?.error ? backup.error : 'Copia de seguridad en iCloud Drive: se hace sola una vez al día. Clic para hacerla ahora.'}
-            style={backup?.error || (backup && !backup.last) ? { borderColor: 'var(--pink)' } : undefined}>
-            <Icon name="cloud" />{backingUp || (backup?.running ? 'Copiando…' : backup?.last ? `Copia: ${ago(backup.last)}` : 'Activar copia en iCloud')}
-          </button>
-        {items && items[0] && !job && (
-          <a className="btn rect" href={`#/editor?p=${encodeURIComponent(items[0].id)}`} title={`Abrir «${items[0].name}»`}>Seguir con «{items[0].name.length > 28 ? items[0].name.slice(0, 27) + '…' : items[0].name}» →</a>
-        )}
+          <details className="more ajustes" ref={ajustes}>
+            <summary className="btn rect" aria-label={aviso ? 'Ajustes (hay avisos)' : 'Ajustes'}><Icon name="settings" />Ajustes{aviso && <span className="dot" aria-hidden="true" />}</summary>
+            <div className="more-menu">
+              <button className={upd?.behind || upd?.error ? 'warn' : ''} disabled={Boolean(updating)} onClick={() => { closeAjustes(); void update(); }}
+                title={upd?.error ?? (upd?.behind ? `Novedades:\n${upd.changes.join('\n')}` : 'Revisa si hay una versión nueva de la app')}>
+                <Icon name={upd?.error ? 'warning' : 'update'} />{updating || (upd?.error ? 'Actualizar (no se pudo revisar)' : upd?.behind ? `Actualizar (${upd.behind} novedad${upd.behind === 1 ? '' : 'es'})` : 'Actualizar la app')}
+              </button>
+              <button onClick={() => { closeAjustes(); void openAccess(); }} title="Abrir la app desde tu portátil o celular"><Icon name="devices" />Otros equipos</button>
+              <button className={freesound === false ? 'warn' : ''} onClick={() => { closeAjustes(); setKeysOpen(true); }}
+                title={freesound === false ? 'Falta la clave gratuita de Freesound: sin ella no hay música automática' : 'Pixabay, Pexels, Freesound y ElevenLabs'}>
+                <Icon name="key" />{freesound === false ? 'Claves (falta la de la música)' : 'Claves'}
+              </button>
+              <button className={cuentasAviso ? 'warn' : ''} onClick={() => { closeAjustes(); setCuentasOpen(true); }} title={cuentasAviso ?? 'Instagram: conecta tus cuentas para publicar desde la app'}><Icon name="link" />Cuentas</button>
+              <button className={backup?.error || (backup && !backup.last) ? 'warn' : ''} disabled={Boolean(backingUp || backup?.running)}
+                onClick={() => { closeAjustes(); if (backup?.error) ctx.toast(`La última copia falló: ${backup.error}`); void backupNow(); }}
+                title={backup?.error ? backup.error : 'Copia de seguridad en iCloud Drive: se hace sola una vez al día. Clic para hacerla ahora.'}>
+                <Icon name={backup?.error ? 'warning' : 'cloud'} />{backingUp || (backup?.running ? 'Copiando…' : backup?.error ? 'Copia con error: reintentar' : backup?.last ? `Copia en iCloud: ${ago(backup.last)}` : 'Activar copia en iCloud')}
+              </button>
+            </div>
+          </details>
         </div>
       </div>
       <div
@@ -226,8 +273,8 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         {job ? (
           <>
             <strong>{job.message}</strong>
-            <div className="progress" style={{ maxWidth: 420 }} role="progressbar" aria-valuenow={Math.round(job.progress * 100)} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${Math.round(job.progress * 100)}%` }} /></div>
-            <span className="muted small">{auto ? 'Al terminar se abrirá la edición.' : 'Al terminar podrás completar el brief.'}</span>
+            <div className={`progress ${job.progress >= 0.3 && job.progress < 0.32 ? 'busy' : ''}`} style={{ maxWidth: 420 }} role="progressbar" aria-valuenow={Math.round(job.progress * 100)} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${Math.round(job.progress * 100)}%` }} /></div>
+            <span className="muted small">Al terminar podrás completar el brief. Puedes ir a otra pantalla: te aviso cuando esté.</span>
           </>
         ) : (
           <>
@@ -245,7 +292,6 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <datalist id="clientes">{clients.map((c) => <option key={c} value={c} />)}</datalist>
               </label>
             </div>
-            <label><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Editar automáticamente al subir</label>
             <button className="btn primary" onClick={() => input.current?.click()}>{kind === 'montaje' ? 'Elegir videos' : 'Elegir video'}</button>
             <input ref={input} type="file" accept="video/*" multiple={kind === 'montaje'} hidden onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
           </>
@@ -265,16 +311,18 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         )}
       </div>
       {items === null ? (
-        <div className="pgrid">{[0, 1, 2, 3].map((i) => <div key={i} className="pcard skeleton" aria-hidden="true" />)}</div>
+        loadError
+          ? <p className="muted" role="alert">No pude cargar tus proyectos ({loadError}). <button className="btn rect" style={{ height: 32 }} onClick={() => void reload()}><Icon name="refresh" />Reintentar</button></p>
+          : <div className="pgrid">{[0, 1, 2, 3].map((i) => <div key={i} className="pcard skeleton" aria-hidden="true" />)}</div>
       ) : items.length === 0 ? (
         <p className="muted">Todavía no hay proyectos. Sube tu primer video arriba: en unos minutos lo tienes editado.</p>
       ) : shown.length === 0 ? (
-        <p className="muted">Nada coincide con «{q}». <button className="btn ghost" style={{ height: 30 }} onClick={() => { setQ(''); setFilter(''); }}>Ver todos</button></p>
+        <p className="muted">{q.trim() ? `Nada coincide con «${q}».` : 'No hay videos de este cliente.'} <button className="btn ghost" style={{ height: 30 }} onClick={() => { setQ(''); setFilter(''); }}>Ver todos</button></p>
       ) : (
         <div className="pgrid">
           {shown.map((it) => (
-            <div key={it.id} className="pcard">
-              <a className="pcard-link" href={`#/editor?p=${encodeURIComponent(it.id)}`} title={`Abrir «${it.name}» en el editor`}>
+            <div key={it.id} className={`pcard ${menu === it.id ? 'menu-open' : ''} ${it.creating ? 'busy' : ''}`} aria-busy={it.creating || undefined}>
+              <a className="pcard-link" href={it.creating ? undefined : openHref(it)} aria-disabled={it.creating || undefined} title={it.creating ? 'Todavía se está preparando' : `Abrir «${it.name}»`}>
                 <span className="pthumb">
                   <img src={`/api/thumb?id=${encodeURIComponent(it.id)}&t=${it.thumbT ?? 1}`} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }} />
                   {it.duration ? <span className="pdur">{Math.floor(it.duration / 60)}:{String(Math.round(it.duration % 60)).padStart(2, '0')}</span> : null}
@@ -283,21 +331,28 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   <strong className="pname">{it.name}</strong>
                   <span className="small muted">{it.client} · {it.kind === 'montaje' ? 'montaje' : `${it.scenes} escenas`}</span>
                   <span className="row" style={{ gap: 6 }}>
-                    <span className={`pill ${it.approval === 'aprobado' ? '' : 'line'}`}>{STATUS[it.approval] ?? it.approval}</span>
+                    {it.creating ? <span className="pill line">Preparando…</span>
+                      : !it.edited ? <span className="pill line">Falta el brief</span>
+                      : <span className={`pill ${it.approval === 'aprobado' ? '' : 'line'}`}>{STATUS[it.approval] ?? it.approval}</span>}
                     <span className="small muted">{ago(it.updatedAt)}</span>
                   </span>
                 </span>
               </a>
-              <div className="pactions">
-                <button className="btn sq" aria-label={`Más acciones para «${it.name}»`} aria-expanded={menu === it.id} onClick={() => setMenu(menu === it.id ? null : it.id)}>⋯</button>
-                {menu === it.id && (
-                  <div className="pmenu" role="menu">
-                    <a role="menuitem" className="pmenu-link" href={`#/calendario?s=${encodeURIComponent(it.id)}`}>Programar publicación</a>
-                    <button role="menuitem" onClick={() => duplicate(it)}>Duplicar</button>
-                    <button role="menuitem" className="danger" onClick={() => trash(it)}>Mover a la papelera</button>
-                  </div>
-                )}
-              </div>
+              {!it.creating && (
+                <div className="pactions">
+                  <button className="btn sq" aria-label={`Más acciones para «${it.name}»`} aria-expanded={menu === it.id} onClick={() => setMenu(menu === it.id ? null : it.id)}><Icon name="more" /></button>
+                  {menu === it.id && (
+                    <div className="pmenu" role="menu">
+                      <a role="menuitem" className="pmenu-link" href={`#/calendario?s=${encodeURIComponent(it.id)}`}><Icon name="calendar" />Programar publicación</a>
+                      <button role="menuitem" onClick={() => edit(it, 'name')}><Icon name="edit" />Cambiar nombre</button>
+                      <button role="menuitem" onClick={() => edit(it, 'client')}><Icon name="users" />Cambiar cliente</button>
+                      <a role="menuitem" className="pmenu-link" href={`#/editor?p=${encodeURIComponent(it.id)}`}><Icon name="editor" />Abrir en el editor</a>
+                      <button role="menuitem" onClick={() => duplicate(it)}><Icon name="copy" />Duplicar</button>
+                      <button role="menuitem" className="danger" onClick={() => trash(it)}><Icon name="trash" />Mover a la papelera</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

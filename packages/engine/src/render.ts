@@ -147,3 +147,60 @@ export async function retryBrowser<T>(fn: () => Promise<T>): Promise<T> {
     }
   }
 }
+
+/** Registro de la última exportación del proyecto (renders/ultimo.json). */
+interface ExportRecord { file: string | null; path: string; at: string; projectUpdatedAt?: string; error?: string; errorAt?: string }
+const recordFile = (dir: string) => path.join(dir, P.renders, 'ultimo.json');
+
+async function readRecord(dir: string): Promise<ExportRecord | null> {
+  try { return JSON.parse(await readFile(recordFile(dir), 'utf8')) as ExportRecord; } catch { return null; }
+}
+
+/**
+ * Anota cómo terminó la última exportación: el archivo (y qué versión del proyecto se exportó) o
+ * el error. Un error no borra el último archivo bueno.
+ */
+export async function recordExport(dir: string, r: { out?: string; projectUpdatedAt?: string; error?: string }): Promise<ExportRecord> {
+  const prev = await readRecord(dir);
+  const now = new Date().toISOString();
+  const rec: ExportRecord = r.out
+    ? { file: path.relative(dir, r.out).startsWith('..') ? null : path.relative(dir, r.out).split(path.sep).join('/'), path: r.out, at: now, projectUpdatedAt: r.projectUpdatedAt }
+    : { ...(prev ?? { file: null, path: '', at: '' }), error: r.error ?? 'No se pudo exportar.', errorAt: now };
+  await mkdir(path.join(dir, P.renders), { recursive: true });
+  await writeFile(recordFile(dir), JSON.stringify(rec, null, 2));
+  return rec;
+}
+
+/**
+ * La última exportación: archivo (relativo al proyecto si está dentro), ruta, cuándo, si el
+ * proyecto cambió después (`stale`) y el último error si fue posterior. Null si nunca se exportó.
+ */
+export async function lastExport(dir: string): Promise<{ file: string | null; path: string; at: string; stale: boolean; error?: string } | null> {
+  const project = await readProject(dir);
+  const rec = await readRecord(dir);
+  let hit: { file: string | null; path: string; at: string; ref?: string } | null = rec?.path && existsSync(rec.path) ? { file: rec.file, path: rec.path, at: rec.at, ref: rec.projectUpdatedAt } : null;
+  if (!hit) {
+    // Sin registro (exportaciones viejas): el MP4 más nuevo de renders/ o de la carpeta elegida.
+    const { readdir, stat } = await import('node:fs/promises');
+    const folders = [path.join(dir, P.renders)];
+    if (project.export.folder?.trim()) folders.push(path.resolve(project.export.folder.trim().replace(/^~(?=$|\/)/, os.homedir())));
+    let best: { f: string; t: number } | null = null;
+    for (const folder of folders) {
+      if (!existsSync(folder)) continue;
+      for (const f of await readdir(folder)) {
+        if (!/\.mp4$/i.test(f) || /\.sin-nivelar\.mp4$/i.test(f) || !f.startsWith(project.id)) continue;
+        const t = (await stat(path.join(folder, f))).mtimeMs;
+        if (!best || t > best.t) best = { f: path.join(folder, f), t };
+      }
+    }
+    if (best) {
+      const rel = path.relative(dir, best.f);
+      hit = { file: rel.startsWith('..') ? null : rel.split(path.sep).join('/'), path: best.f, at: new Date(best.t).toISOString() };
+    }
+  }
+  const error = rec?.error && rec.errorAt && (!hit || rec.errorAt > hit.at) ? rec.error : undefined;
+  if (!hit) return error ? { file: null, path: '', at: rec?.errorAt ?? '', stale: true, error } : null;
+  // Cambió si su versión no es la exportada (o, sin ese dato, si se guardó después de exportar).
+  const stale = hit.ref ? project.updatedAt !== hit.ref : project.updatedAt > hit.at;
+  return { file: hit.file, path: hit.path, at: hit.at, stale, ...(error ? { error } : {}) };
+}

@@ -1,5 +1,5 @@
 import { Preset, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@axioma/schema';
-import { applyBrief, fitDuration } from './brief.ts';
+import { MONTAGE_ALL, applyBrief, ctaForGoal, fitDuration, maxSeconds, wantsAll } from './brief.ts';
 import { autoMusic } from './musiclib.ts';
 import { applyWishes, buildPrompt } from './briefai.ts';
 import { setAutoSfx } from './ops.ts';
@@ -15,7 +15,7 @@ import { envValue } from './env.ts';
 import { llmHook, llmReady } from './llm.ts';
 import { downloadBroll, searchBroll, stockSource } from './pexels.ts';
 import { keywords, speechOf } from '@axioma/schema';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createMontage, detectShots } from './montage.ts';
 import { prepareMedia, transcribeProject } from './pipeline.ts';
@@ -67,9 +67,9 @@ async function decideStyle(dir: string, project: Awaited<ReturnType<typeof readP
   const trend = sector ? TRENDS[sector] ?? TRENDS.otro : null;
   const sectorName = SECTORS.find(([id]) => id === sector)?.[1];
 
-  // Referencia: la que se pida o la más reciente guardada del cliente.
+  // Referencia: solo la que se eligió. Sin elegir (o «Sin referencia») no se usa ninguna.
   const refs = own.filter((p) => p.reference);
-  const ref = none ? undefined : (opts.referenceId ? refs.find((p) => p.reference === opts.referenceId || p.id === opts.referenceId) : undefined) ?? refs[refs.length - 1];
+  const ref = none || !opts.referenceId ? undefined : refs.find((p) => p.reference === opts.referenceId || p.id === opts.referenceId);
 
   let base: Preset;
   if (ref) {
@@ -77,7 +77,7 @@ async function decideStyle(dir: string, project: Awaited<ReturnType<typeof readP
     lines.push(`Seguí tu referencia «${ref.name}»: su ritmo de cortes, subtítulos y estilo de textos.`);
   } else if (trend) {
     base = getPreset(trend.preset, own);
-    lines.push(`No hay referencia guardada: usé lo que funciona en ${sectorName ?? 'tu nicho'} (${kit?.sector ? 'el nicho de tu marca' : rec0.reason.replace(/\.$/, '')}).`);
+    lines.push(`Sin referencia: usé lo que funciona en ${sectorName ?? 'tu nicho'} (${kit?.sector ? 'el nicho de tu marca' : rec0.reason.replace(/\.$/, '')}).`);
   } else {
     const rec = recommendPreset(project, transcript0, vision);
     base = getPreset(rec.id, own);
@@ -96,33 +96,71 @@ async function decideStyle(dir: string, project: Awaited<ReturnType<typeof readP
   return { kit, ref, trend, base, merged, lines, transcript0 };
 }
 
+/** Las respuestas del brief que deciden la edición. */
+const ANSWERS = ['ritmo', 'tono', 'duracion', 'cta', 'objetivo'] as const;
+
+/**
+ * Cómo se va a editar: con la referencia elegida en el brief (la única que manda), con el brief
+ * (si tiene 2 o más respuestas y no hay referencia) o con la tendencia del nicho. Solo lee.
+ */
+export async function editRoute(project: Awaited<ReturnType<typeof readProject>>, forced?: string): Promise<{ referenceId?: string; reference?: Awaited<ReturnType<typeof listReferences>>[number]; useBrief: boolean; answered: number }> {
+  const answered = ANSWERS.filter((k) => project.brief[k]).length;
+  const chosen = forced ?? project.brief.referencia;
+  let referenceId: string | undefined;
+  let reference: Awaited<ReturnType<typeof listReferences>>[number] | undefined;
+  if (chosen && chosen !== 'ninguna') {
+    reference = (await listReferences(project.client)).find((r) => r.id === chosen);
+    // Un estilo propio también vale como referencia (p. ej. desde «auto-editar» con refId de un estilo).
+    if (reference) referenceId = reference.id;
+    else if ((await listPresets(project.client)).some((p) => p.reference && (p.id === chosen || p.reference === chosen))) referenceId = chosen;
+  }
+  return { referenceId, reference, useBrief: answered >= 2 && !referenceId, answered };
+}
+
 /**
  * Plan de la edición con IA, sin aplicar nada: qué estilo, qué tendencia y qué hará con el
  * reel. Se muestra antes de «Editar todo con IA» para que el usuario lo apruebe.
  */
 export async function planAutoEdit(dir: string): Promise<string[]> {
   const project = await readProject(dir);
-  const { trend, merged, lines, transcript0 } = await decideStyle(dir, project);
+  const route = await editRoute(project);
+  const b = project.brief;
+  const max = maxSeconds(b.duracion);
+  const cta = /digo en el video/i.test(b.cta ?? '') ? '' : (b.cta ?? '').trim() || ctaForGoal(b.objetivo, /anuncio/i.test(b.formato ?? ''));
+  const musicLine = project.audio.music ? 'Dejaré la música que ya tiene.' : project.audio.musicOff ? 'No pondré música: la quitaste a mano.' : project.kind === 'montaje' ? 'Elegiré la música primero y cortaré en sus golpes.' : 'Pondré música del ánimo del video, bajita debajo de la voz.';
+  if (route.useBrief) {
+    // Con el brief respondido se edita con el brief: el plan dice eso, no la tendencia.
+    const plan = [`Editaré según tu brief${b.ritmo && !/decida/i.test(b.ritmo) ? `: ritmo ${b.ritmo}` : ''}${b.tono ? `${b.ritmo && !/decida/i.test(b.ritmo) ? ',' : ':'} tono ${b.tono}` : ''}. Sin referencia.`];
+    if (project.kind === 'hablado') plan.push('Cortaré silencios largos, muletillas y tomas repetidas, y abriré con el gancho.');
+    if (max) plan.push(`Lo dejaré en máximo ${max} s, como pediste.`);
+    else if (project.kind === 'montaje') plan.push(wantsAll(b.duracion) ? `Montaje con todo el material (hasta ${MONTAGE_ALL} s).` : 'Montaje con cortes al ritmo de la música.');
+    if (cta) plan.push(`Cierre con tu llamado a la acción: «${cta}».`);
+    plan.push(musicLine);
+    plan.push('Antes guardaré una versión para que puedas volver atrás.');
+    return plan;
+  }
+  const { trend, merged, lines, transcript0 } = await decideStyle(dir, project, route.referenceId ?? 'ninguna');
   const st = merged.style ?? {};
   const level = project.intensity ?? 'media';
   // En el plan se habla en futuro.
   const plan = lines.map((l) => l.replace(/^Seguí/, 'Seguiré').replace(/usé lo que/, 'usaré lo que').replace(/elegí el estilo/, 'elegiré el estilo').replace(/^Tendencia aplicada/, 'Aplicaré la tendencia'));
+  // La referencia elegida aún no tiene estilo guardado: se creará al editar.
+  if (route.reference && !lines.some((l) => l.startsWith('Seguí'))) plan[0] = `Seguiré tu referencia «${route.reference.name}»: su ritmo de cortes, subtítulos y estilo de textos.`;
   plan.push(`Intensidad ${level}: ${level === 'suave' ? 'pocos textos, sin zooms de golpe ni sonidos' : level === 'fuerte' ? 'textos en muchas escenas, zooms, gráficos frecuentes y sonidos' : `${st.texts === 'muchos' ? 'textos en una de cada dos escenas' : 'textos en una de cada tres escenas'}${st.zoomText ? ', zoom cuando aparece un texto' : ''}${st.motionEvery ? `, un gráfico cada ${st.motionEvery} escenas con tus cifras y frases` : ''}`}.`);
   if (project.kind === 'hablado') {
     plan.push('Cortaré silencios largos, muletillas y tomas repetidas.');
     const probe = { scenes: project.scenes.map((s) => ({ ranges: s.ranges.map((r) => ({ ...r })) })) };
     const g = skipGreeting(probe, transcript0);
     if (g) plan.push(`Quitaré el saludo del inicio («${g}») para abrir con el gancho.`);
-    const asked = (project.brief.duracion ?? '').match(/\d+/g)?.map(Number) ?? [];
-    if (asked.length) plan.push(`Lo dejaré en máximo ${Math.max(...asked)} s, como pediste en el brief.`);
+    if (max) plan.push(`Lo dejaré en máximo ${max} s, como pediste en el brief.`);
     const bank = await stockSource();
     if (bank) plan.push(`Pondré b-roll de ${bank} en algunas escenas del medio, elegido por lo que dices.`);
   } else {
-    plan.push(`Montaje con cortes al ritmo${trend ? `, de unos ${trend.seconds} s` : ''}.`);
+    plan.push(`Montaje con cortes al ritmo, de unos ${max ?? (wantsAll(b.duracion) ? MONTAGE_ALL : trend?.seconds ?? 30)} s.`);
   }
-  if (st.transitions) plan.push(`Transiciones recomendadas${st.flashes ? ' con destellos' : ''}${st.sfxAuto ? ' y efectos de sonido' : ''}.`);
-  const cta = /digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim();
+  if (st.transitions) plan.push(`Transiciones recomendadas${st.flashes ? ' con destellos' : ''}${st.sfxAuto && !project.audio.sfxOff ? ' y efectos de sonido' : ''}.`);
   if (cta) plan.push(`Cierre con tu llamado a la acción: «${cta}».`);
+  plan.push(musicLine);
   plan.push('Antes guardaré una versión para que puedas volver atrás.');
   return plan;
 }
@@ -148,7 +186,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   if (project.kind === 'montaje') {
     project.pacing = merged.pacing;
     await writeProject(dir, project);
-    const max = Number((project.brief.duracion ?? '').match(/\d+/g)?.map(Number).sort((a, b) => b - a)[0]) || trend?.seconds;
+    const max = maxSeconds(project.brief.duracion) ?? (wantsAll(project.brief.duracion) ? MONTAGE_ALL : trend?.seconds);
     const m = await buildMontage(dir, { duration: max });
     summary.push(`Montaje de ${m.duration.toFixed(0)} s con cortes de ~${m.clip.toFixed(1)} s.`);
   } else {
@@ -157,9 +195,8 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     // Abrir con el gancho, no con el saludo: los mejores reels no empiezan con «hola a todos».
     const greeting = skipGreeting(project, await readTranscript(dir).catch(() => null));
     if (greeting) { project = await writeProject(dir, project); summary.push(`Quité el saludo del inicio («${greeting}») para abrir directo con el gancho.`); }
-    const asked = (project.brief.duracion ?? '').match(/\d+/g)?.map(Number) ?? [];
     // Solo se acorta si el brief pidió una duración: quitar partes por cuenta propia rompe el mensaje.
-    const max = asked.length ? Math.max(...asked) : null;
+    const max = maxSeconds(project.brief.duracion);
     summary.push('Corté silencios largos, muletillas y tomas repetidas.');
     if (max && outputDuration(project) > max) {
       summary.push(fitDuration(project, max));
@@ -200,7 +237,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     const first = project.scenes[0];
     const said = speechOf(first, await readTranscript(dir).catch(() => null));
     try {
-      const hook = await llmHook(said);
+      const hook = await llmHook(said, project.brief.publico);
       if (hook) {
         first.onScreenText = hook;
         first.autoText = hook;
@@ -210,8 +247,8 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     } catch { /* sin IA local se queda el gancho sacado de lo que se dice */ }
   }
 
-  // 3. Cierre con el llamado a la acción del brief, si lo hay.
-  const cta = /digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim();
+  // 3. Cierre con el llamado a la acción del brief (o el de su objetivo), si lo hay.
+  const cta = /digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim() || ctaForGoal(project.brief.objetivo, /anuncio/i.test(project.brief.formato ?? ''));
   const last = project.scenes[project.scenes.length - 1];
   if (cta && last && project.scenes.length > 1) {
     last.onScreenText = cta;
@@ -269,21 +306,23 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
 export async function editEverything(dir: string, opts: { referenceId?: string; onProgress?: (m: string) => void } = {}): Promise<{ summary: string[] }> {
   const say = opts.onProgress ?? (() => {});
   let project = await readProject(dir);
-  const answered = ['ritmo', 'tono', 'duracion', 'cta', 'objetivo'].filter((k) => project.brief[k]).length;
-  // Referencia elegida en el brief: su estilo (ritmo, subtítulos, textos) manda sobre el tono; el
-  // brief sigue decidiendo la duración y el cierre. Si aún no hay un estilo guardado de esa
-  // referencia, se crea ahora.
-  let referenceId = opts.referenceId;
-  const chosen = project.brief.referencia;
-  if (!referenceId && chosen && chosen !== 'ninguna') {
-    const report = (await listReferences(project.client)).find((r) => r.id === chosen);
-    if (report) {
-      if (!(await listPresets(project.client)).some((p) => p.reference === report.id)) await savePreset(project.client, presetFromReference(report));
-      referenceId = report.id;
-    }
+  // La referencia elegida en el brief es la única que manda: su estilo (ritmo, subtítulos, textos)
+  // va sobre el tono; el brief sigue decidiendo la duración y el cierre. Sin elegir, ninguna.
+  const route = await editRoute(project, opts.referenceId);
+  const referenceId = route.referenceId;
+  // Si aún no hay un estilo guardado de esa referencia, se crea ahora.
+  if (route.reference && !(await listPresets(project.client)).some((p) => p.reference === route.reference!.id)) await savePreset(project.client, presetFromReference(route.reference));
+
+  // Montaje: la música se elige ANTES de cortar, para armarlo una sola vez en sus golpes con la
+  // duración del brief (si se pusiera después, se rehacía el montaje y se perdía todo).
+  const musicLines: string[] = [];
+  if (project.kind === 'montaje') {
+    say('Eligiendo la música…');
+    musicLines.push(...(await musicFor(dir)));
   }
+
   let summary: string[];
-  if (answered >= 2 && !referenceId) {
+  if (route.useBrief) {
     say('Cortando y armando según tu brief…');
     summary = (await applyBrief(dir)).summary;
     // Lo que el brief no hace y la edición automática sí: abrir con el gancho y redactarlo con la IA local.
@@ -295,7 +334,7 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
       const first = project.scenes[0];
       if (first && (await llmReady())) {
         try {
-          const hook = await llmHook(speechOf(first, await readTranscript(dir).catch(() => null)));
+          const hook = await llmHook(speechOf(first, await readTranscript(dir).catch(() => null)), project.brief.publico);
           if (hook) {
             first.onScreenText = hook; first.autoText = hook;
             await writeProject(dir, project);
@@ -308,29 +347,48 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
     }
   } else {
     say('Cortando y armando el video…');
-    summary = (await autoEdit(dir, { referenceId: referenceId ?? (chosen === 'ninguna' ? 'ninguna' : undefined) })).summary;
+    summary = (await autoEdit(dir, { referenceId: referenceId ?? 'ninguna' })).summary;
   }
 
   // Los pedidos puntuales del cliente (respuestas a las preguntas de la IA y su nota).
   say('Aplicando lo que pediste…');
-  summary.push(...(await applyWishes(dir).catch(() => [])));
+  summary.push(...(await applyWishes(dir).catch(() => ['No pude aplicar tus pedidos puntuales: cámbialos a mano en el editor.'])));
   // El prompt profesional con el que se editó queda guardado en el proyecto.
   project = await readProject(dir);
   project.brief.prompt = await buildPrompt(dir);
   await writeProject(dir, project);
 
-  // Música: sola, del ánimo que pide el reel.
-  say('Eligiendo la música…');
-  const music = await autoMusic(dir).catch(() => null);
-  if (music) summary.push(music);
+  // Música: sola, del ánimo que pide el reel (en los montajes ya se eligió antes de cortar).
+  if (project.kind !== 'montaje') {
+    say('Eligiendo la música…');
+    musicLines.push(...(await musicFor(dir)));
+  }
+  summary.push(...musicLines);
 
-  // Efectos de sonido: siempre, salvo que se haya pedido algo sobrio.
+  // Efectos de sonido: siempre, salvo que se haya pedido algo sobrio o se apagaron a mano.
   project = await readProject(dir);
   const calm = project.intensity === 'suave' || /elegante|serio|sobrio/i.test(`${project.brief.tono ?? ''} ${project.brief.ritmo ?? ''}`);
-  if (!calm && !project.audio.sfxAuto) {
+  if (project.audio.sfxOff) {
+    if (project.audio.sfxAuto) await setAutoSfx(dir, false);
+    summary.push('Sin efectos de sonido automáticos: los apagaste a mano.');
+  } else if (!calm && !project.audio.sfxAuto) {
     say('Poniendo efectos de sonido…');
     await setAutoSfx(dir, true);
     summary.push('Efectos de sonido en las transiciones y al entrar cada texto.');
   }
+  // Lo que se hizo queda guardado para mostrarlo en Resultado (también tras recargar).
+  await writeFile(path.join(dir, 'resumen-edicion.json'), JSON.stringify({ at: new Date().toISOString(), summary }, null, 2)).catch(() => {});
   return { summary };
+}
+
+/** Pone la música automática y dice qué pasó (también cuando no se pudo o se quitó a mano). */
+async function musicFor(dir: string): Promise<string[]> {
+  const before = await readProject(dir);
+  if (before.audio.music) return [];
+  if (before.audio.musicOff) return ['Sin música: la quitaste a mano (ponla de nuevo en Audio si la quieres).'];
+  // En el montaje no se rehace aquí: el corte viene justo después, ya con la canción.
+  const music = await autoMusic(dir, undefined, { rebuild: false }).catch(() => null);
+  if (music) return [music];
+  if (!(await envValue('FREESOUND_API_KEY'))) return ['Sin música: falta la clave gratuita de Freesound (Proyectos › Ajustes › Claves). También puedes agregar canciones en Audio.'];
+  return ['Sin música: no encontré una canción (revisa el internet) o agrega canciones en Audio.'];
 }

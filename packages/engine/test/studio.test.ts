@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const fixture = path.join(repo, 'workspace', 'clientes', 'personal', 'proyectos', '2026-11-12-prueba-sintetica');
+// El proyecto de prueba: en workspace/ o donde diga AXIOMA_FIXTURE (por ejemplo, si el workspace se archivó).
+const fixture = process.env.AXIOMA_FIXTURE ?? path.join(repo, 'workspace', 'clientes', 'personal', 'proyectos', '2026-11-12-prueba-sintetica');
 const hasFixture = existsSync(path.join(fixture, 'transcript.json'));
 const ws = mkdtempSync(path.join(os.tmpdir(), 'axioma-studio-'));
 const dir = path.join(ws, 'clientes', 'personal', 'proyectos', 'prueba');

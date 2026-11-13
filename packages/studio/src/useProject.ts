@@ -4,24 +4,72 @@ import type { Brand, BrandKit, VisionReport, FacePoint, SpeakerTurn, Preset, Pro
 
 export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; speakers?: SpeakerTurn[]; captionWords?: Transcript['words']; transitions: TransitionSpec[]; cutout?: string; cutoutCoverage?: number[]; depth?: string[] }
 
-export interface Job { id: string; status: 'running' | 'done' | 'error'; message: string; progress: number; result?: Record<string, any> }
+export interface Job { id: string; kind?: string; projectId?: string; status: 'running' | 'done' | 'error'; message: string; progress: number; result?: Record<string, any> }
+
+/** Error de la app con el código HTTP (sin código = no hubo respuesta del servidor). */
+export type ApiError = Error & { status?: number };
 
 export async function api<T = any>(url: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(url, init);
+  let r: Response;
+  try {
+    r = await fetch(url, init);
+  } catch {
+    // El navegador solo dice «Failed to fetch»: el servidor no respondió (cerrado, reiniciando o sin red).
+    throw new Error('No hay conexión con la app. Revisa que siga abierta.');
+  }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error ?? `Error ${r.status}`);
+  if (!r.ok) {
+    const err: ApiError = new Error(data.error ?? `Error ${r.status}`);
+    err.status = r.status;
+    throw err;
+  }
   return data as T;
 }
 
-/** Espera a que termine una tarea del servidor, informando el avance. */
+/**
+ * Sube un archivo informando el avance real (fetch no lo da). Mismo método, URL y cuerpo que api().
+ */
+export function uploadFile<T = any>(url: string, file: File, onProgress: (f: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && e.total) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      let data: any = {};
+      try { data = JSON.parse(xhr.responseText || '{}'); } catch { /* respuesta sin JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data as T);
+      else reject(Object.assign(new Error(data.error ?? `Error ${xhr.status}`), { status: xhr.status }));
+    };
+    xhr.onerror = () => reject(new Error('Se cortó la conexión al subir el video. Revisa que la app siga abierta y vuelve a intentarlo.'));
+    xhr.send(file);
+  });
+}
+
+/**
+ * Espera a que termine una tarea del servidor, informando el avance. Aguanta cortes cortos de red
+ * o un reinicio del servidor: reintenta unos segundos antes de rendirse, con un mensaje claro.
+ */
 export async function waitJob(job: Job, onTick: (j: Job) => void): Promise<Job> {
   let j = job;
+  let fails = 0, misses = 0;
   for (;;) {
     onTick(j);
     if (j.status === 'error') throw new Error(j.message);
     if (j.status === 'done') return j;
-    await new Promise((r) => setTimeout(r, 700));
-    j = await api<Job>(`/api/jobs/${j.id}`);
+    await new Promise((r) => setTimeout(r, fails || misses ? 1500 : 700));
+    try {
+      j = await api<Job>(`/api/jobs/${j.id}`);
+      fails = 0; misses = 0;
+    } catch (e: any) {
+      const status = (e as ApiError).status;
+      if (status === 404) {
+        // La tarea ya no existe: casi siempre porque la app se reinició a mitad del trabajo.
+        if (++misses > 3) throw new Error('La app se reinició a mitad del trabajo. Vuelve a pulsar el botón para hacerlo otra vez.');
+      } else if (!status || status >= 500) {
+        if (++fails > 12) throw new Error('Se perdió la conexión con la app. Revisa que siga abierta y vuelve a intentarlo.');
+      } else throw e;
+      j = { ...j, message: 'Reconectando con la app…' };
+    }
   }
 }
 
@@ -60,12 +108,16 @@ export interface ProjectStore {
   reloadExtras: () => Promise<void>;
   /** Cambia el proyecto: guarda, y queda en el historial de deshacer. */
   update: (fn: (p: Project) => void) => void;
-  /** Reemplaza el proyecto con uno que devolvió el servidor. */
-  replace: (p: Project) => void;
+  /** Reemplaza el proyecto con uno que devolvió el servidor. `reset` limpia el historial de deshacer (ops que crean o borran archivos). */
+  replace: (p: Project, opts?: { reset?: boolean }) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** El proyecto más reciente (aunque la pantalla aún no se haya vuelto a dibujar). */
+  latest: () => Project | null;
+  /** Espera a que se guarde el último cambio pendiente; lanza error si el guardado falla. */
+  flush: () => Promise<void>;
 }
 
 export function useProject(id: string | null): ProjectStore {
@@ -86,13 +138,20 @@ export function useProject(id: string | null): ProjectStore {
   const lastSaved = useRef('');
   const timer = useRef<number | undefined>(undefined);
   const pending = useRef(false);
+  // true mientras llegan cambios del servidor seguidos (una tarea, Claude, la CLI) sin una edición
+  // local en medio: toda la racha ocupa un solo paso de deshacer (el estado de antes).
+  const external = useRef(false);
+  // Envío del guardado (lo usa también flush) y el que esté en curso.
+  const sendRef = useRef<(() => Promise<boolean>) | null>(null);
+  const inflight = useRef<Promise<boolean> | null>(null);
+  const lastError = useRef('');
 
   const sync = () => setHist({ past: past.current.length, future: future.current.length });
   const show = (p: Project) => { current.current = p; setProject(p); };
 
   useEffect(() => {
     past.current = []; future.current = []; sync();
-    setProject(null); setError(null); current.current = null;
+    setProject(null); setError(null); current.current = null; external.current = false;
     if (!id) return;
     let alive = true;
     api(`/api/project?id=${encodeURIComponent(id)}`).then((d) => {
@@ -106,29 +165,64 @@ export function useProject(id: string | null): ProjectStore {
       const p = JSON.parse(ev.data) as Project;
       if (p.updatedAt === lastSaved.current || pending.current) return;
       lastSaved.current = p.updatedAt;
-      if (current.current) past.current.push(current.current);
+      if (current.current && !external.current) past.current.push(current.current);
+      external.current = true;
       future.current = [];
       show(p); sync();
     };
     return () => { alive = false; es.close(); };
   }, [id]);
 
-  const save = useCallback((p: Project) => {
+  // Avisa antes de cerrar la pestaña si queda un cambio sin guardar.
+  useEffect(() => {
+    const on = (e: BeforeUnloadEvent) => { if (pending.current) { e.preventDefault(); e.returnValue = ''; } };
+    addEventListener('beforeunload', on);
+    return () => removeEventListener('beforeunload', on);
+  }, []);
+
+  /**
+   * Guarda (con una pequeña espera para juntar cambios seguidos). Si el servidor no responde, reintenta
+   * cada pocos segundos con lo último que hay en pantalla, hasta que vuelva.
+   */
+  const save = useCallback((_p: Project) => {
     pending.current = true;
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(async () => {
+    const send = async (): Promise<boolean> => {
+      const p = current.current;
+      if (!p) { pending.current = false; return true; }
       setSaving(true);
-      try {
-        const d = await api(`/api/project?id=${encodeURIComponent(p.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
-        lastSaved.current = d.project.updatedAt;
-        setError(null);
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        pending.current = false;
-        setSaving(false);
-      }
-    }, 250);
+      const run = (async () => {
+        try {
+          const d = await api(`/api/project?id=${encodeURIComponent(p.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+          lastSaved.current = d.project.updatedAt;
+          setError(null); lastError.current = '';
+          // Si mientras se guardaba hubo otra edición, su propio envío ya está programado.
+          if (current.current === p) pending.current = false;
+          return true;
+        } catch (e: any) {
+          const status = (e as ApiError).status;
+          if (!status || status >= 500) {
+            lastError.current = 'Sin conexión con la app: tu cambio se guardará cuando vuelva.';
+            setError(lastError.current);
+            window.clearTimeout(timer.current);
+            timer.current = window.setTimeout(() => void send(), 3000);
+          } else {
+            lastError.current = e.message;
+            setError(e.message);
+            pending.current = false;
+          }
+          return false;
+        } finally {
+          setSaving(false);
+        }
+      })();
+      inflight.current = run;
+      const ok = await run;
+      if (inflight.current === run) inflight.current = null;
+      return ok;
+    };
+    sendRef.current = send;
+    timer.current = window.setTimeout(() => void send(), 250);
   }, []);
 
   const update = useCallback((fn: (p: Project) => void) => {
@@ -136,14 +230,24 @@ export function useProject(id: string | null): ProjectStore {
     if (!cur) return;
     const next = structuredClone(cur);
     fn(next);
+    external.current = false;
     past.current.push(cur);
     if (past.current.length > 100) past.current.shift();
     future.current = [];
     show(next); sync(); save(next);
   }, [save]);
 
-  const replace = useCallback((p: Project) => {
-    if (current.current) past.current.push(current.current);
+  const replace = useCallback((p: Project, opts?: { reset?: boolean }) => {
+    if (opts?.reset) {
+      past.current = []; future.current = []; external.current = false;
+      lastSaved.current = p.updatedAt;
+      show(p); sync();
+      return;
+    }
+    // Ya llegó en vivo por /api/events: solo se muestra, sin otro paso de deshacer.
+    if (p.updatedAt === lastSaved.current) { external.current = false; show(p); return; }
+    if (current.current && !external.current) past.current.push(current.current);
+    external.current = false;
     future.current = [];
     lastSaved.current = p.updatedAt;
     show(p); sync();
@@ -153,8 +257,15 @@ export function useProject(id: string | null): ProjectStore {
     const p = from.pop();
     if (!p || !current.current) return;
     to.push(current.current);
+    external.current = false;
     show(p); sync(); save(p);
   };
+  const flush = useCallback(async () => {
+    if (inflight.current) await inflight.current;
+    if (!pending.current || !sendRef.current) return;
+    window.clearTimeout(timer.current);
+    if (!(await sendRef.current())) throw new Error(lastError.current || 'No se pudo guardar el cambio.');
+  }, []);
   const reloadExtras = useCallback(async () => {
     if (!id) return;
     const d = await api(`/api/project?id=${encodeURIComponent(id)}`);
@@ -164,7 +275,7 @@ export function useProject(id: string | null): ProjectStore {
   const undo = useCallback(() => step(past.current, future.current), [save]);
   const redo = useCallback(() => step(future.current, past.current), [save]);
 
-  return { project, transcript, brand, extras, catalog, kit, vision, setKit, reloadExtras, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0 };
+  return { project, transcript, brand, extras, catalog, kit, vision, setKit, reloadExtras, presets, setPresets, error, saving, update, replace, undo, redo, canUndo: hist.past > 0, canRedo: hist.future > 0, latest: () => current.current, flush };
 }
 
 /**

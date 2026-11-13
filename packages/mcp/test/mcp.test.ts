@@ -8,7 +8,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..', '..');
-const fixture = path.join(repo, 'workspace', 'clientes', 'personal', 'proyectos', '2026-11-12-prueba-sintetica');
+// El proyecto de prueba: en workspace/ o donde diga AXIOMA_FIXTURE (por ejemplo, si el workspace se archivó).
+const fixture = process.env.AXIOMA_FIXTURE ?? path.join(repo, 'workspace', 'clientes', 'personal', 'proyectos', '2026-11-12-prueba-sintetica');
 
 // Usa una copia del proyecto de prueba en un workspace temporal.
 const hasFixture = existsSync(path.join(fixture, 'transcript.json'));

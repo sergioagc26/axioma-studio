@@ -347,6 +347,10 @@ export const Project = z.object({
     /** Audio de voz procesado (limpio y nivelado), relativo al proyecto. */
     processedVoice: z.string().optional(),
     music: z.string().optional(),
+    /** El usuario quitó la música a mano: la edición automática no vuelve a poner una. */
+    musicOff: z.boolean().optional(),
+    /** El usuario apagó los efectos automáticos a mano: la edición automática los respeta. */
+    sfxOff: z.boolean().optional(),
     musicVolume: z.number().min(0).max(1).default(0.18),
     /** Volumen del sonido original del video (0 = silenciado). */
     originalVolume: z.number().min(0).max(1).default(1),

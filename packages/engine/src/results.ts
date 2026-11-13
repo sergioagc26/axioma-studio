@@ -100,18 +100,28 @@ export async function learnFromResults(client?: string, apply = true): Promise<I
   const { findings, medianViews, engagement } = findInsights(reels);
   const applied: string[] = [];
   const kit = await readKit(client);
+  // Lo que se aplica solo a los próximos reels: subtítulos y textos. La hora y el día son una
+  // recomendación (se guardan, pero nada los aplica solo), así que no se cuentan como aplicados.
+  const usable = findings.filter((f) => f.feature === 'design' || f.feature === 'textStyle');
+  if (kit) {
+    for (const f of usable) applied.push(f.feature === 'design' ? `Subtítulos «${f.best}» por defecto` : `Textos «${f.best}» por defecto`);
+  }
   if (apply && kit) {
     // Lo que mejor funcionó pasa a mandar sobre lo que más se ha usado.
     for (const k of Object.keys(kit.learned)) if (k.startsWith('exito:')) delete kit.learned[k];
     for (const f of findings) {
-      if (f.feature === 'design') { kit.learned[`exito:design:${f.best}`] = f.bestCount; applied.push(`Subtítulos «${f.best}» por defecto`); }
-      if (f.feature === 'textStyle') { kit.learned[`exito:titulo:${f.best}`] = f.bestCount; applied.push(`Textos «${f.best}» por defecto`); }
-      if (f.feature === 'hora') { kit.learned[`exito:hora:${f.best}`] = f.bestCount; applied.push(`Publicar en la ${f.best}`); }
-      if (f.feature === 'dia') { kit.learned[`exito:dia:${f.best}`] = f.bestCount; applied.push(`Publicar el ${f.best}`); }
+      if (f.feature === 'design') kit.learned[`exito:design:${f.best}`] = f.bestCount;
+      if (f.feature === 'textStyle') kit.learned[`exito:titulo:${f.best}`] = f.bestCount;
+      if (f.feature === 'hora') kit.learned[`exito:hora:${f.best}`] = f.bestCount;
+      if (f.feature === 'dia') kit.learned[`exito:dia:${f.best}`] = f.bestCount;
     }
     await writeFile(kitFile(client), JSON.stringify(kit, null, 2));
   }
-  return { client: name, reels: reels.length, medianViews, engagement, findings, applied, note: findings.length ? undefined : 'Con estos resultados no hay una diferencia clara todavía: sigue publicando y poniendo las cifras.' };
+  const tips = findings.filter((f) => f.feature === 'hora' || f.feature === 'dia').map((f) => (f.feature === 'hora' ? `Mejor hora para publicar: la ${f.best}.` : `Mejor día para publicar: el ${f.best}.`));
+  const note = !findings.length ? 'Con estos resultados no hay una diferencia clara todavía: sigue publicando y poniendo las cifras.'
+    : usable.length && !kit ? `Guarda la marca del cliente (en Brief › Tu marca) para que esto se aplique solo a sus próximos reels.${tips.length ? ` ${tips.join(' ')}` : ''}`
+    : tips.length ? tips.join(' ') : undefined;
+  return { client: name, reels: reels.length, medianViews, engagement, findings, applied, note };
 }
 
 export function formatInsights(i: Insights): string {

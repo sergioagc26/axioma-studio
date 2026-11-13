@@ -3,15 +3,20 @@ import type { Scene, Transcript } from '@axioma/schema';
 import { sceneSpeech } from './useProject.ts';
 
 export const VISUAL_LABEL: Record<Scene['visual'], string> = {
-  original: 'Video original', broll: 'B-roll', motion: 'Motion graphics', texto: 'Texto',
+  original: 'Video original', broll: 'Video de apoyo', motion: 'Gráfico animado', texto: 'Texto',
 };
 export const ROLE_LABEL: Record<Scene['role'], string> = {
   gancho: 'Gancho', problema: 'Problema', beneficio: 'Beneficio', demostracion: 'Demostración', prueba: 'Prueba', cta: 'Llamado a la acción', otro: 'Otro',
 };
 
-const MOTION_LABEL: Record<string, string> = { barras: 'Gráfico de barras', contador: 'Contador', lista: 'Lista', logo: 'Logo de cierre' };
+/** Plantillas de gráfico animado con su nombre (el mismo en toda la app). */
+export const MOTION_NAMES: [string, string][] = [
+  ['pregunta', 'Pregunta'], ['contador', 'Número animado'], ['porcentaje', 'Porcentaje'], ['comparacion', 'Antes y después'], ['pasos', 'Pasos'],
+  ['checklist', 'Lista con vistos'], ['lista', 'Lista'], ['barras', 'Barras'], ['cita', 'Frase destacada'], ['palabras', 'Palabras en movimiento'], ['logo', 'Cierre con marca'], ['texto', 'Tarjeta de texto'],
+];
+const MOTION_LABEL: Record<string, string> = Object.fromEntries(MOTION_NAMES);
 
-/** Miniatura 9:16 de una escena: lo que se verá (toma, b-roll o plantilla), su texto y lo que se dice. */
+/** Miniatura 9:16 de una escena: lo que se verá (toma, video de apoyo o plantilla), su texto y lo que se dice. */
 export const SceneFrame: React.FC<{
   projectId: string; scene: Scene; transcript: Transcript | null;
   /** Para previsualizar una variante sin aplicarla. */
@@ -29,7 +34,7 @@ export const SceneFrame: React.FC<{
   if (kind === 'motion') {
     return (
       <div className="frame card-motion" style={style}>
-        <span className="tpl-name">{ost ? <>{ost}<br /></> : null}<span style={{ opacity: 0.7, fontWeight: 500 }}>{MOTION_LABEL[scene.motionTemplate ?? ''] ?? 'Motion graphics'}</span></span>
+        <span className="tpl-name">{ost ? <>{ost}<br /></> : null}<span style={{ opacity: 0.7, fontWeight: 500 }}>{MOTION_LABEL[scene.motionTemplate ?? ''] ?? 'Gráfico animado'}</span></span>
         {saidEl}
       </div>
     );

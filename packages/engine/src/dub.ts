@@ -136,10 +136,21 @@ export async function dubProject(dir: string, lang: string, opts: { provider?: T
   await mkdir(tmp, { recursive: true });
   try {
     const pieces: { file: string; duration: number }[] = [];
+    let used: TtsProvider = provider;
     for (const [i, text] of spoken.entries()) {
       progress(`Grabando la voz (${i + 1}/${spoken.length})…`, 0.3 + 0.5 * (i / spoken.length));
       const file = path.join(tmp, `${i}.wav`);
-      await synthesize(text, file, { provider, voice, rate });
+      if (used === provider) {
+        try {
+          await synthesize(text, file, { provider, voice, rate });
+        } catch (e) {
+          // ElevenLabs no respondió: se sigue con la voz del computador para no perder el doblaje.
+          if (provider !== 'elevenlabs') throw e;
+          used = 'sistema';
+          progress('ElevenLabs no respondió: sigo con la voz del computador…', 0.3 + 0.5 * (i / spoken.length));
+        }
+      }
+      if (used !== provider) await synthesize(text, file, { provider: 'sistema', voice: process.platform === 'darwin' ? L.voice : undefined, rate });
       // Sin silencios al inicio y al final, para aprovechar el espacio de la frase.
       const trimmed = path.join(tmp, `${i}-t.wav`);
       await ffmpeg(['-i', file, '-af', 'silenceremove=start_periods=1:start_threshold=-45dB,areverse,silenceremove=start_periods=1:start_threshold=-45dB,areverse', trimmed]);
@@ -185,7 +196,7 @@ export async function dubProject(dir: string, lang: string, opts: { provider?: T
         ...src.audio,
         // La voz original se apaga; la música y los efectos siguen igual.
         originalVolume: 0,
-        voiceover: { file: file.split(path.sep).join('/'), text: spoken.join(' '), provider, voice, duration: total, language: lang },
+        voiceover: { file: file.split(path.sep).join('/'), text: spoken.join(' '), provider: used, voice: used === provider ? voice : undefined, duration: total, language: lang },
       },
     };
     await writeProject(out, project);

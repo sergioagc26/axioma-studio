@@ -5,6 +5,8 @@ import { applyBrandStyle, applyPreset, saveVersion, setAutoSfx } from './ops.ts'
 import { cutProject } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
+import { CTA_FOR } from './briefai.ts';
+import type { BeatDensity } from './beats.ts';
 
 const RITMO: Record<string, string> = { rapido: 'rapido', 'con ritmo': 'con-ritmo', sobrio: 'sobrio', energico: 'energia', 'pausado y elegante': 'elegante', elegante: 'elegante' };
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
@@ -20,10 +22,56 @@ const TONO: Record<string, { textStyle: Scene['textStyle']; effect: Project['cap
   divertido: { textStyle: 'banda', effect: 'caja', look: 'contraste', camera: 'ninguno', why: 'bandas de titular y colores fuertes' },
 };
 
-/** "15–20 s" → 20; "Lo que dure" → null. */
-function maxSeconds(answer?: string): number | null {
-  const nums = (answer ?? '').match(/\d+/g)?.map(Number) ?? [];
-  return nums.length ? Math.max(...nums) : null;
+/**
+ * Duración máxima pedida, en segundos: "15–20 s" → 20; "1 minuto" → 60; "1:30" → 90;
+ * "Lo que dure" → null. Menos de 5 s no es una duración real y se ignora (null).
+ */
+export function maxSeconds(answer?: string): number | null {
+  const t = (answer ?? '').toLowerCase();
+  const mmss = t.match(/(\d+):(\d{1,2})/);
+  if (mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
+  const nums = t.match(/\d+(?:[.,]\d+)?/g)?.map((n) => Number(n.replace(',', '.'))) ?? [];
+  if (!nums.length) return /medio minuto/.test(t) ? 30 : /\bun minuto\b/.test(t) ? 60 : null;
+  const v = Math.round(Math.max(...nums) * (/\bmin/.test(t) ? 60 : 1));
+  return v >= 5 ? v : null;
+}
+
+/** «Lo que dure»: sin recortar ideas. En un montaje se usa todo el material (hasta 90 s). */
+export const wantsAll = (answer?: string) => /dure|todo|complet/i.test(answer ?? '') && maxSeconds(answer) == null;
+/** Tope de un montaje con «Lo que dure»: todo el material, sin pasar de 90 s. */
+export const MONTAGE_ALL = 90;
+
+/** Ritmo escrito a mano («Otra…»): se entiende por palabras clave. */
+function ritmoFor(answer?: string): string | undefined {
+  const t = norm(answer ?? '');
+  if (!t || /decida/.test(t)) return undefined;
+  if (RITMO[t]) return RITMO[t];
+  if (/rapid|dinamic|vivo|veloz|frenetic/.test(t)) return 'rapido';
+  if (/energ|potente|fuerte|intens/.test(t)) return 'energia';
+  if (/elegan|pausad|lent|calm|tranquil|suave/.test(t)) return 'elegante';
+  if (/sobri|serio|natural/.test(t)) return 'sobrio';
+  if (/ritmo|medio|normal/.test(t)) return 'con-ritmo';
+  return undefined;
+}
+
+/** Tono escrito a mano («Otra…»): se entiende por palabras clave; si no, «directo». */
+function toneFor(answer?: string): { key: string; known: boolean } {
+  const t = norm(answer ?? '');
+  if (TONO[t]) return { key: t, known: true };
+  const hit = ([['divert', 'divertido'], ['humor', 'divertido'], ['gracios', 'divertido'], ['energ', 'energico'], ['motiv', 'inspirador'], ['inspir', 'inspirador'], ['emoci', 'inspirador'],
+    ['elegan', 'elegante'], ['lujo', 'elegante'], ['premium', 'elegante'], ['serio', 'elegante'], ['sobri', 'elegante'], ['cercan', 'cercano'], ['calid', 'cercano'], ['amig', 'cercano'], ['famil', 'cercano'],
+    ['educ', 'educativo'], ['enseñ', 'educativo'], ['ensen', 'educativo'], ['explic', 'educativo'], ['directo', 'directo'], ['vend', 'directo']] as const).find(([k]) => t.includes(k));
+  return hit ? { key: hit[1], known: true } : { key: 'directo', known: !t };
+}
+
+/** Cadencia de los cortes al ritmo de la música según el ritmo elegido. */
+export function densityFor(presetId?: string): BeatDensity {
+  return presetId === 'rapido' || presetId === 'energia' ? 'pulso' : presetId === 'elegante' || presetId === 'sobrio' ? 'compas' : presetId === 'con-ritmo' ? 'medio' : 'auto';
+}
+
+/** Cierre según el objetivo, cuando no se eligió uno. En un anuncio siempre hay cierre. */
+export function ctaForGoal(objetivo?: string, ad = false): string {
+  return (objetivo && CTA_FOR[objetivo]) || (ad ? 'Escríbenos y te contamos' : '');
 }
 
 /** Acorta un reel hablado hasta el máximo: quita escenas del medio, de atrás hacia adelante, y si aún no cabe recorta el final. */
@@ -57,13 +105,26 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   const summary: string[] = [];
   await saveVersion(dir, 'antes-del-brief');
 
-  // 1. Ritmo
-  const presetId = RITMO[norm(b.ritmo ?? '')] ?? project.presetId;
-  const max = maxSeconds(b.duracion);
+  // 0. Formato: lo que promete cada uno.
+  const formato = b.formato ?? '';
+  const tiktok = /tiktok/i.test(formato);
+  const short = /short|youtube/i.test(formato);
+  const ad = /anuncio/i.test(formato);
+
+  // 1. Ritmo (el escrito a mano se entiende por palabras; TikTok sin ritmo elegido va rápido).
+  const asked = ritmoFor(b.ritmo);
+  const presetId = asked ?? (tiktok ? 'rapido' : project.presetId);
+  if (b.ritmo && !/decida/i.test(b.ritmo) && !asked) summary.push(`No entendí el ritmo «${b.ritmo}»: dejé el del estilo actual.`);
+  if (tiktok && !asked) summary.push('Formato TikTok: cortes rápidos.');
+  let max = maxSeconds(b.duracion);
+  if (b.duracion && max == null && !wantsAll(b.duracion)) summary.push(`No entendí la duración «${b.duracion}»: la dejé como salió.`);
+  if (short && (max == null || max > 60)) { max = 60; summary.push('Formato YouTube Short: máximo 60 s.'); }
   if (project.kind === 'montaje') {
     await applyPreset(dir, presetId);
-    const m = await buildMontage(dir, { duration: max ?? undefined });
-    summary.push(`Montaje de ${m.duration.toFixed(0)} s con cortes de ~${m.clip.toFixed(1)} s (ritmo ${b.ritmo ?? presetId}).`);
+    // «Lo que dure» en un montaje: todo el material (sin pasar de 90 s), no los 15–30 s de siempre.
+    const duration = max ?? (wantsAll(b.duracion) ? MONTAGE_ALL : undefined);
+    const m = await buildMontage(dir, { duration, density: asked ? densityFor(presetId) : undefined });
+    summary.push(`Montaje de ${m.duration.toFixed(0)} s con cortes de ~${m.clip.toFixed(1)} s (ritmo ${b.ritmo && asked ? b.ritmo : presetId}).`);
   } else {
     // Se vuelve a cortar con el ritmo elegido: cambia cuánta pausa se deja entre frases.
     await cutProject(dir, presetId);
@@ -75,8 +136,9 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   // 2. Duración (videos hablados).
   if (project.kind === 'hablado' && max) summary.push(fitDuration(project, max));
 
-  // 3. Tono → estilo
-  const tone = TONO[norm(b.tono ?? '')] ?? TONO.directo;
+  // 3. Tono → estilo (el escrito a mano se entiende por palabras clave).
+  const toneHit = toneFor(b.tono);
+  const tone = TONO[toneHit.key];
   project.captions.effect = tone.effect;
   project.captions.emphasis = true;
   if (/historia/i.test(b.formato ?? '')) project.captions.y = 0.62; // deja libre la zona de respuesta de las historias
@@ -89,7 +151,7 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
     // Texto en una de cada tres escenas del medio, sacado de lo que se dice.
     if (talk && i > 0 && i < project.scenes.length - 1 && i % 3 === 1) s.onScreenText ??= shortPhrases(speechOf(s, transcript))[0];
   });
-  summary.push(`Tono ${b.tono ?? 'directo'}: ${tone.why}.`);
+  summary.push(!b.tono || TONO[norm(b.tono)] ? `Tono ${b.tono ?? 'directo'}: ${tone.why}.` : `Tono «${b.tono}» (lo apliqué como ${toneHit.key}${toneHit.known ? '' : ', no lo entendí'}): ${tone.why}.`);
 
   // 4. Gancho
   const first = project.scenes[0];
@@ -107,13 +169,15 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   const last = project.scenes[project.scenes.length - 1];
   if (last && project.scenes.length > 1) {
     last.title ||= 'Cierre';
-    // «La que digo en el video» no añade texto: el cierre es el que ya se dijo.
-    const cta = /digo en el video/i.test(b.cta ?? '') ? '' : (b.cta ?? '').trim();
+    // «La que digo en el video» no añade texto: el cierre es el que ya se dijo. Sin cierre elegido,
+    // va el que corresponde al objetivo (y en un anuncio siempre hay cierre).
+    const spoken = /digo en el video/i.test(b.cta ?? '');
+    const cta = spoken ? '' : (b.cta ?? '').trim() || ctaForGoal(b.objetivo, ad);
     if (cta) {
       last.onScreenText = cta;
       last.textStyle = 'banda';
       last.textPosition = 'arriba';
-      summary.push(`Cierre con tu llamado a la acción: «${last.onScreenText}».`);
+      summary.push(`Cierre con tu llamado a la acción: «${last.onScreenText}»${(b.cta ?? '').trim() ? '' : b.objetivo && CTA_FOR[b.objetivo] ? ` (según tu objetivo: ${b.objetivo})` : ' (anuncio: cierre fuerte)'}.`);
     } else if (talk) {
       last.onScreenText ??= shortPhrases(speechOf(last, transcript))[0];
     }
@@ -130,7 +194,7 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
       s.chosenVariant = undefined;
       placed++;
     });
-    if (placed) summary.push(`Motion graphics: ${placed} hechos con tus cifras y frases.`);
+    if (placed) summary.push(`Gráficos animados: ${placed} hechos con tus cifras y frases.`);
   }
 
   applyPunchZooms(project.scenes, project.pacing.punchZoomEvery);

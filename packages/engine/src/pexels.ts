@@ -24,7 +24,7 @@ export async function stockSource(): Promise<StockSource | null> {
   return null;
 }
 
-const NO_KEY = 'Falta la clave de un banco de videos. Saca una gratis en pixabay.com/api/docs (al iniciar sesión aparece tu clave) y pégala en Proyectos → 🔑 Claves. Sin clave, usa un archivo local con usar_broll.';
+const NO_KEY = 'Falta la clave de un banco de videos. Saca una gratis en pixabay.com/api/docs (al iniciar sesión aparece tu clave) y pégala en Proyectos › Ajustes › Claves. Sin clave, usa un archivo local con usar_broll.';
 
 async function searchPexels(query: string, perPage: number, key: string): Promise<BrollResult[]> {
   // locale=es-ES: Pexels entiende la búsqueda en español.
@@ -54,7 +54,7 @@ export function pickPixabay(hits: any[], perPage: number): BrollResult[] {
 async function searchPixabay(query: string, perPage: number, key: string): Promise<BrollResult[]> {
   const n = Math.min(200, Math.max(3, perPage * 3));
   const r = await fetch(`https://pixabay.com/api/videos/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query.slice(0, 100))}&lang=es&safesearch=true&per_page=${n}`);
-  if (r.status === 400 || r.status === 401 || r.status === 403) throw new Error('Pixabay no aceptó la clave. Revísala en Proyectos → 🔑 Claves.');
+  if (r.status === 400 || r.status === 401 || r.status === 403) throw new Error('Pixabay no aceptó la clave. Revísala en Proyectos › Ajustes › Claves.');
   if (!r.ok) throw new Error(`Pixabay respondió ${r.status}. Prueba de nuevo en un momento.`);
   const data = (await r.json()) as { hits: any[] };
   return pickPixabay(data.hits ?? [], perPage);

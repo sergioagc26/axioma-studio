@@ -10,7 +10,7 @@ import { ffmpeg } from './exec.ts';
 import * as ops from './ops.ts';
 import { P, REPO_ROOT, WORKSPACE } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
-import { allPresets, savePreset } from './presets.ts';
+import { allPresets, deletePreset, renamePreset, savePreset } from './presets.ts';
 import { claudeBin, openClaudeLogin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, ensureUsedSfx, sfxFile } from './sfx.ts';
@@ -41,7 +41,7 @@ import { duplicateProject, trashProject } from './manage.ts';
 import { saveClientLogo } from './kit.ts';
 import { addReviewComment, approveReview, ensureReviewToken, findByToken, publicReview, resetReviewToken, reviewVideo } from './review.ts';
 import { reviewPageHtml } from './review-page.ts';
-import { MUSIC_DIR, addTrack, listTracks, removeTrack, useLibraryTrack , autoMusic, stockMusic } from './musiclib.ts';
+import { MUSIC_DIR, addTrack, listTracks, rebeatMontage, removeTrack, renameTrack, useLibraryTrack, autoMusic, stockMusic } from './musiclib.ts';
 import { splitIntoParts } from './series.ts';
 import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { brandbookFile, createBrandbook } from './brandbook.ts';
@@ -54,8 +54,8 @@ import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
-import { keyStatus, setEnvValue } from './env.ts';
-import { brandFor, renderProject, timelineExtras } from './render.ts';
+import { envValue, keyStatus, setEnvValue } from './env.ts';
+import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
 import { createProject, readProject, readTranscript, writeProject } from './store.ts';
@@ -70,27 +70,46 @@ interface Job {
   message: string;
   progress: number;
   result?: Record<string, unknown>;
+  /** Proyecto al que pertenece (para retomar el avance tras recargar). */
+  projectId?: string;
 }
 const jobs = new Map<string, Job>();
 /** Archivos subidos que esperan a convertirse en proyecto (ficha → carpeta temporal). */
 const uploads = new Map<string, string>();
 
-function startJob(kind: Job['kind'], fn: (job: Job) => Promise<Record<string, unknown>>): Job {
-  const job: Job = { id: `j${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, kind, status: 'running', message: 'Empezando…', progress: 0 };
+const startOpJob = (kind: Job['kind'], fn: (job: Job) => Promise<Record<string, unknown>>, projectId?: string) => startJob(kind, fn, projectId);
+function startJob(kind: Job['kind'], fn: (job: Job) => Promise<Record<string, unknown>>, projectId?: string): Job {
+  const job: Job = { id: `j${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, kind, status: 'running', message: 'Empezando…', progress: 0, ...(projectId ? { projectId } : {}) };
   jobs.set(job.id, job);
+  // Las tareas terminadas se olvidan a la hora, para no acumularlas.
+  const forget = () => { setTimeout(() => jobs.delete(job.id), 3_600_000).unref(); };
   fn(job).then(
-    (result) => Object.assign(job, { status: 'done', progress: 1, result, message: 'Listo' }),
-    (e) => Object.assign(job, { status: 'error', message: e instanceof Error ? e.message : String(e) }),
+    (result) => { Object.assign(job, { status: 'done', progress: 1, result, message: 'Listo' }); forget(); },
+    (e) => { Object.assign(job, { status: 'error', message: e instanceof Error ? e.message : String(e) }); forget(); },
   );
   return job;
 }
 
+/** Tarea en marcha de ese tipo para ese proyecto (para no lanzar dos iguales a la vez). */
+const runningJob = (projectId: string, kind: Job['kind'], tag?: string) => [...jobs.values()].find((j) => j.status === 'running' && j.projectId === projectId && j.kind === kind && (!tag || (j as Job & { tag?: string }).tag === tag));
+
+/** Carpeta de cada proyecto ya encontrada: evita leer todos los proyectos en cada miniatura. */
+const dirCache = new Map<string, string>();
 async function findDir(id: string | null): Promise<string> {
+  const known = id ? dirCache.get(id) : undefined;
+  if (known && existsSync(path.join(known, P.project))) return known;
   const all = await ops.listProjects();
+  for (const p of all) dirCache.set(p.project.id, p.dir);
   const hit = id ? all.find((p) => p.project.id === id) : all[0];
   if (!hit) throw Object.assign(new Error(id ? `No existe el proyecto ${id}.` : 'No hay proyectos.'), { status: 404 });
   return hit.dir;
 }
+
+/** Archivo exportado relativo al proyecto (para /media/<id>/<file>), o null si quedó fuera. */
+const relOut = (dir: string, out: string) => { const r = path.relative(dir, out); return r.startsWith('..') || path.isAbsolute(r) ? null : r.split(path.sep).join('/'); };
+
+/** La comprobación de versión nueva va por internet: se recuerda 15 minutos. */
+let updateCache: { at: number; data: unknown } | null = null;
 
 async function readBody(req: http.IncomingMessage): Promise<any> {
   const chunks: Buffer[] = [];
@@ -246,7 +265,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const speech = pr.scenes.map((s) => speechOf(s, t)).join(' ');
     const kit = await readKit(pr.client);
     const cta = /digo en el video/i.test(pr.brief.cta ?? '') ? undefined : pr.brief.cta;
-    return json(res, await llmPublish(speech, { sector: kit?.sector, cta }));
+    return json(res, await llmPublish(speech, { sector: kit?.sector, cta, publico: pr.brief.publico }));
   }
   if (p === '/api/imagenes' && method === 'GET') {
     // Juegos de imágenes ya creados (el más reciente primero).
@@ -269,9 +288,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 
   if (p === '/api/projects' && method === 'GET') {
     const all = await ops.listProjects();
+    const making = new Set([...jobs.values()].filter((j) => j.kind === 'crear' && j.status === 'running' && j.projectId).map((j) => j.projectId));
     return json(res, all.map(({ project: x }) => ({
       id: x.id, name: x.name, client: x.client ?? 'personal', approval: x.approval, scenes: x.scenes.length, updatedAt: x.updatedAt,
       kind: x.kind, duration: +outputDuration(x).toFixed(1),
+      edited: Boolean(x.briefAppliedAt), creating: making.has(x.id),
       // Miniatura: un fotograma del medio de la primera escena.
       thumbT: (() => { const r = x.scenes[0]?.ranges[0]; return r ? +((r.start + r.end) / 2).toFixed(2) : 1; })(),
     })));
@@ -284,6 +305,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     await mkdir(folder, { recursive: true });
     await pipe(req, createWriteStream(path.join(folder, path.basename(url.searchParams.get('filename') ?? 'video.mp4'))));
     uploads.set(token, folder);
+    // Si nunca se usa (montaje cancelado), se borra a las 2 horas.
+    setTimeout(() => { if (uploads.get(token) === folder) { uploads.delete(token); void rm(folder, { recursive: true, force: true }); } }, 2 * 3_600_000).unref();
     return json(res, { token });
   }
 
@@ -293,16 +316,24 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (!folders.length) return json(res, { error: 'Sube al menos un video.' }, 400);
     const job = startJob('crear', async (j) => {
       const log = (m: string) => { j.message = m.trim(); };
+      // Si falla antes de quedar armado, el proyecto a medias va a la papelera (no queda en la lista).
+      let made: string | undefined;
+      let ready = false;
       try {
         const { dir, project } = await createMontage({ inputs: folders, name: b.name || undefined, client: b.client || undefined, presetId: b.preset || undefined });
+        made = dir; j.projectId = project.id; dirCache.set(project.id, dir);
         j.progress = 0.2;
         await prepareMedia(dir, log);
         j.progress = 0.8;
         j.message = 'Detectando tomas y armando el montaje…';
         await detectShots(dir);
         await buildMontage(dir, { duration: b.duration || undefined });
+        ready = true;
         if (b.auto) { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await editEverything(dir, { onProgress: (m) => { j.message = m; } })).summary }; }
         return { id: project.id };
+      } catch (e) {
+        if (made && !ready) await trashProject(made).catch(() => {});
+        throw e;
       } finally {
         for (const [t, f] of uploads) if (folders.includes(f)) { uploads.delete(t); await rm(f, { recursive: true, force: true }); }
       }
@@ -319,6 +350,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     await pipe(req, createWriteStream(tmp));
     const job = startJob('crear', async (j) => {
       const log = (m: string) => { j.message = m.trim(); };
+      // Si falla antes de quedar cortado, el proyecto a medias va a la papelera (no queda en la lista).
+      let made: string | undefined;
+      let ready = false;
       try {
         const { dir, project, info } = await createProject({
           input: tmp,
@@ -326,6 +360,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
           client: url.searchParams.get('client') || undefined,
           presetId: url.searchParams.get('preset') || undefined,
         });
+        made = dir; j.projectId = project.id; dirCache.set(project.id, dir);
         if (!info.hasAudio) {
           project.kind = 'montaje';
           await writeProject(dir, project);
@@ -343,14 +378,35 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
           montage.project.kind = 'montaje';
           await writeProject(dir, montage.project);
         }
+        ready = true;
         // Edición automática al subir: el video llega al editor ya editado.
         if (url.searchParams.get('auto') === '1') { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await editEverything(dir, { onProgress: (m) => { j.message = m; } })).summary }; }
         return { id: project.id };
+      } catch (e) {
+        if (made && !ready) await trashProject(made).catch(() => {});
+        throw e;
       } finally {
         await rm(tmpDir, { recursive: true, force: true });
       }
     });
     return json(res, job);
+  }
+
+  // Tareas en marcha: las de un proyecto (?id=) o las de un tipo (?kind=crear), para retomar el avance.
+  if (p === '/api/jobs' && method === 'GET') {
+    const kind = url.searchParams.get('kind');
+    return json(res, [...jobs.values()].filter((j) => j.status === 'running' && (!id || j.projectId === id) && (!kind || j.kind === kind)));
+  }
+
+  // La última exportación del proyecto y si quedó vieja (el proyecto cambió después).
+  if (p === '/api/ultimo-export' && method === 'GET') return json(res, await lastExport(await findDir(id)));
+
+  // Estilos propios del cliente: renombrar y borrar (los de la app no se tocan).
+  if (p === '/api/presets' && (method === 'PUT' || method === 'DELETE')) {
+    const project = await readProject(await findDir(id));
+    const preset = url.searchParams.get('preset') ?? '';
+    if (method === 'DELETE') return json(res, await deletePreset(project.client, preset));
+    return json(res, await renamePreset(project.client, preset, String((await readBody(req)).name ?? '')));
   }
 
   if (p.startsWith('/api/jobs/')) {
@@ -376,6 +432,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/op' && method === 'POST') {
     const dir = await findDir(id);
     const b = await readBody(req);
+    // Cada tarea queda ligada al proyecto, para retomar su avance tras recargar.
+    const pid = (await readProject(dir)).id;
+    const startJob = (kind: Job['kind'], fn: (job: Job) => Promise<Record<string, unknown>>) => startOpJob(kind, fn, pid);
     if (b.op === 'preset') return json(res, { project: await ops.applyPreset(dir, b.presetId) });
     if (b.op === 'marca') {
       // Guarda el perfil de la marca y viste el proyecto con su estilo.
@@ -443,7 +502,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'serie') return json(res, await splitIntoParts(dir, [60, 90, 180].includes(Number(b.max)) ? Number(b.max) : 60));
     if (b.op === 'musica-biblioteca') {
       const r = await useLibraryTrack(dir, b.file || undefined);
-      return json(res, { project: r.project, track: r.track, why: r.why });
+      return json(res, { project: r.project, track: r.track, why: r.why, rebuilt: r.rebuilt });
     }
     if (b.op === 'duplicar') return json(res, { id: (await duplicateProject(dir)).id });
     if (b.op === 'papelera') { await trashProject(dir); return json(res, { ok: true }); }
@@ -477,7 +536,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'ritmo') {
       // Montaje con los cortes en los golpes de la música.
-      const r = await montageToBeat(dir, { density: ['auto', 'pulso', 'medio', 'compas'].includes(b.densidad) ? b.densidad : 'auto', duration: Number(b.duracion) || undefined });
+      // Sin duración pedida se mantiene la actual (con voz en off, la de la voz).
+      const cur = await readProject(dir);
+      const r = await montageToBeat(dir, { density: ['auto', 'pulso', 'medio', 'compas'].includes(b.densidad) ? b.densidad : 'auto', duration: Number(b.duracion) || (cur.audio.voiceover || !cur.scenes.length ? undefined : outputDuration(cur)) });
       return json(res, { project: r.project, bpm: r.bpm, cuts: r.cuts, duration: r.duration, drop: r.drop });
     }
     if (b.op === 'doblar') {
@@ -506,21 +567,26 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         const { summary } = await editEverything(dir, { referenceId: b.refId, onProgress: (m) => { j.message = m; } });
         return { summary };
       });
+      Object.assign(job, { tag: 'editar' });
       return json(res, job);
     }
     if (b.op === 'otra-musica') {
       // Cambia la canción por otra del mismo ánimo (de la biblioteca o del banco gratuito).
       const job = startJob('crear', async (j) => {
         j.message = 'Buscando otra canción…';
+        // Se cambia en un solo guardado (sin pasar por «sin música»); el montaje se recorta al ritmo
+        // de la canción nueva conservando duración, cierre, textos y transiciones.
         const pr = await readProject(dir);
-        const before = pr.audio.music;
-        pr.audio.music = undefined;
-        await writeProject(dir, pr);
-        let text = await autoMusic(dir, before).catch(() => null);
-        if (!text) { const back = await readProject(dir); back.audio.music = before; await writeProject(dir, back); text = 'No encontré otra canción (revisa el internet o la clave de Freesound en 🔑 Claves).'; }
-        return { text };
+        const text = await autoMusic(dir, pr.audio.music, { replace: true }).catch(() => null);
+        if (!text) return { text: 'No encontré otra canción. Revisa el internet o pon la clave de Freesound en Proyectos › Ajustes › Claves.' };
+        return { text: pr.kind === 'montaje' ? `${text} Rehíce los cortes al ritmo de la canción (con la misma duración, textos y cierre).` : text, rebuilt: pr.kind === 'montaje' };
       });
       return json(res, job);
+    }
+    if (b.op === 'aplicar-brief' || b.op === 'auto-editar') {
+      // Una sola edición completa a la vez por proyecto: si ya hay una en marcha, se devuelve esa.
+      const busy = runningJob(pid, 'crear', 'editar');
+      if (busy) return json(res, busy);
     }
     if (b.op === 'aplicar-brief') {
       // Arma la edición según las respuestas del brief.
@@ -529,6 +595,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         const { summary } = await editEverything(dir, { onProgress: (m) => { j.message = m; } });
         return { summary };
       });
+      Object.assign(job, { tag: 'editar' });
       return json(res, job);
     }
     if (b.op === 'guardar-referencia') {
@@ -538,7 +605,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       if (!report) return json(res, { error: 'No existe esa referencia.' }, 404);
       const base = presetFromReference(report, b.name);
       const preset = await savePreset(project.client, { ...base, captions: { ...base.captions, ...(b.captions ?? {}) }, style: { ...base.style, ...(b.style ?? {}) } });
-      const applied = b.aplicar === false ? project : await ops.applyPreset(dir, preset.id);
+      // Queda elegida en el brief: es la única referencia que manda al editar.
+      project.brief.referencia = report.id;
+      const saved = await writeProject(dir, project);
+      const applied = b.aplicar === false ? saved : await ops.applyPreset(dir, preset.id);
       return json(res, { preset, project: applied, presets: await allPresets(project.client) });
     }
     if (b.op === 'guardar-estilo') {
@@ -563,10 +633,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'voz-en-off') {
       const job = startJob('audio', async (j) => {
         j.message = 'Generando la voz en off…';
+        const before = await readProject(dir);
         const p = await ops.setVoiceover(dir, String(b.text ?? ''), { provider: b.provider || undefined, voice: b.voice || undefined });
         if (p.kind === 'montaje') {
           j.message = 'Ajustando el montaje a la voz…';
-          await buildMontage(dir, {});
+          await rebeatMontage(dir, before);
         }
         return {};
       });
@@ -574,7 +645,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'quitar-voz') return json(res, { project: await ops.removeVoiceover(dir) });
     if (b.op === 'efecto') return json(res, { project: await ops.addSfx(dir, b.sceneId, b.id, { offset: b.offset, volume: b.volume }) });
-    if (b.op === 'efectos-auto') return json(res, { project: await ops.setAutoSfx(dir, Boolean(b.on)) });
+    // Elegido a mano: queda recordado (audio.sfxOff) y la edición automática lo respeta.
+    if (b.op === 'efectos-auto') return json(res, { project: await ops.setAutoSfx(dir, Boolean(b.on), { manual: true }) });
     if (b.op === 'quitar-musica') return json(res, { project: await ops.setMusic(dir, null) });
     if (b.op === 'recomendar-transiciones') {
       const { advice } = await applyRecommendedTransitions(dir);
@@ -629,39 +701,52 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     if (b.op === 'render') {
       // La calidad y la carpeta se eligen en la ventana de exportar y quedan recordadas.
+      // Solo se guarda si algo cambió (si no, cada exportación dejaba un paso de deshacer vacío).
       if (b.calidad || typeof b.carpeta === 'string' || b.lufs) {
         const pr = await readProject(dir);
+        const was = JSON.stringify([pr.audio.targetLufs, pr.export.quality, pr.export.folder]);
         if ([-14, -16].includes(Number(b.lufs))) pr.audio.targetLufs = Number(b.lufs);
         if (['maxima', 'alta', 'ligera'].includes(b.calidad)) pr.export.quality = b.calidad;
         if (typeof b.carpeta === 'string') pr.export.folder = b.carpeta.trim() || undefined;
-        await writeProject(dir, pr);
+        if (JSON.stringify([pr.audio.targetLufs, pr.export.quality, pr.export.folder]) !== was) await writeProject(dir, pr);
       }
+      // Qué versión del proyecto se exporta: si cambia después, el resultado queda «viejo».
+      const version = (await readProject(dir)).updatedAt;
+      const track = async <T,>(run: () => Promise<T & { first?: string }>): Promise<T & { at: string }> => {
+        try {
+          const r = await run();
+          const rec = await recordExport(dir, { out: r.first, projectUpdatedAt: version });
+          return { ...r, at: rec.at };
+        } catch (e) {
+          await recordExport(dir, { error: e instanceof Error ? e.message : String(e) }).catch(() => {});
+          throw e;
+        }
+      };
       if (b.formato === 'todos') {
         // Los tres formatos seguidos: vertical, post 4:5 y cuadrado.
-        const job = startJob('render', async (j) => {
+        const job = startJob('render', (j) => track(async () => {
           const files: string[] = [];
           for (const [i, f] of (['9:16', '4:5', '1:1'] as const).entries()) {
             const { out } = await renderProject(dir, { format: f, onProgress: (x) => { j.progress = (i + x) / 3; j.message = `Exportando ${f} (${i + 1}/3)…`; } });
             files.push(out);
           }
-          return { files: files.map((f, i) => ({ id: ['9:16', '4:5', '1:1'][i], label: path.basename(f) })), path: path.dirname(files[0]) };
-        });
+          return { files: files.map((f, i) => ({ id: ['9:16', '4:5', '1:1'][i], label: path.basename(f), file: relOut(dir, f) })), path: path.dirname(files[0]), first: files[0] };
+        }));
         return json(res, job);
       }
       if (b.ganchos) {
         // Tres versiones con distinto gancho, para probar cuál retiene más.
-        const job = startJob('render', async (j) => {
+        const job = startJob('render', (j) => track(async () => {
           const files = await renderHookVariants(dir, { format: b.formato, onProgress: (m, pr) => { j.message = m; j.progress = pr; } });
-          return { files, path: path.dirname(files[0]?.path ?? dir) };
-        });
+          return { files: files.map((x) => ({ ...x, file: relOut(dir, x.path) })), path: path.dirname(files[0]?.path ?? dir), first: files[0]?.path };
+        }));
         return json(res, job);
       }
-      const job = startJob('render', async (j) => {
-        j.message = 'Renderizando…';
+      const job = startJob('render', (j) => track(async () => {
+        j.message = 'Exportando…';
         const { out } = await renderProject(dir, { format: b.formato, onProgress: (x) => { j.progress = x; } });
-        const inside = !path.relative(dir, out).startsWith('..');
-        return { file: inside ? path.relative(dir, out).split(path.sep).join('/') : null, path: out };
-      });
+        return { file: relOut(dir, out), path: out, first: out };
+      }));
       return json(res, job);
     }
     return json(res, { error: `Operación desconocida: ${b.op}` }, 400);
@@ -675,10 +760,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'musica.mp3'));
     await pipe(req, createWriteStream(tmp));
     try {
+      const before = await readProject(dir);
       const withMusic = await ops.setMusic(dir, tmp, { license: url.searchParams.get('license') ?? '', source: 'subida en el studio' });
-      // En un montaje, los cortes se vuelven a poner en los golpes de la canción nueva.
-      if (withMusic.kind === 'montaje') {
-        try { return json(res, { project: (await buildMontage(dir, {})).project, ritmo: true }); } catch { /* queda el montaje anterior */ }
+      // En un montaje, los cortes se vuelven a poner en los golpes de la canción nueva,
+      // conservando duración, cierre, textos y transiciones.
+      if (withMusic.kind === 'montaje' && withMusic.scenes.length) {
+        const r = await rebeatMontage(dir, before);
+        return json(res, { project: r.project, ritmo: r.rebuilt, rebuilt: r.rebuilt });
       }
       return json(res, { project: withMusic });
     } finally {
@@ -696,8 +784,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const job = startJob('audio', async (j) => {
       j.message = 'Limpiando y subtitulando tu voz…';
       try {
+        const before = await readProject(dir);
         const p2 = await ops.setVoiceoverFile(dir, tmp);
-        if (p2.kind === 'montaje') await buildMontage(dir, {});
+        if (p2.kind === 'montaje') await rebeatMontage(dir, before);
         return {};
       } finally {
         await rm(tmpDir, { recursive: true, force: true });
@@ -797,13 +886,21 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, { ...(await suggestBrief(dir, url.searchParams.get('otra') === '1')), prompt: await buildPrompt(dir) });
   }
   // Enlaces para abrir la app desde el portátil o el celular (misma Wi-Fi o Tailscale).
+  // Lo que hizo la última edición automática (para la pantalla Resultado).
+  if (p === '/api/resumen-edicion' && method === 'GET') {
+    const f = path.join(await findDir(id), 'resumen-edicion.json');
+    return json(res, existsSync(f) ? JSON.parse(await readFile(f, 'utf8')) : null);
+  }
   if (p === '/api/red' && method === 'GET') return json(res, await accessLinks());
   // Aprender de los resultados: qué le funciona a cada cliente. POST además lo deja por defecto.
   if (p === '/api/resultados' && (method === 'GET' || method === 'POST')) {
     return json(res, await learnFromResults(url.searchParams.get('cliente') || undefined, method === 'POST'));
   }
   // Actualizarse: revisar si hay versión nueva y aplicarla (se reinicia sola si se abrió como app).
-  if (p === '/api/actualizar' && method === 'GET') return json(res, await checkUpdate());
+  if (p === '/api/actualizar' && method === 'GET') {
+    if (!updateCache || Date.now() - updateCache.at > 15 * 60_000) updateCache = { at: Date.now(), data: await checkUpdate() };
+    return json(res, updateCache.data);
+  }
   if (p === '/api/actualizar' && method === 'POST') {
     const job = startJob('crear', async (j) => {
       j.message = 'Buscando la versión nueva…';
@@ -825,7 +922,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     });
     return json(res, job);
   }
-  if (p === '/api/musica' && method === 'GET') return json(res, await listTracks());
+  // Biblioteca de música y si la música automática puede bajar canciones (hay clave de Freesound).
+  if (p === '/api/musica' && method === 'GET') return json(res, { tracks: await listTracks(), auto: Boolean(await envValue('FREESOUND_API_KEY')) });
+  if (p === '/api/musica' && method === 'PUT') return json(res, await renameTrack(url.searchParams.get('f') ?? '', String((await readBody(req)).name ?? '')));
   if (p === '/api/musica/archivo' && method === 'GET') {
     const f = safeJoin(MUSIC_DIR, path.basename(url.searchParams.get('f') ?? ''));
     if (!f || !sendFile(req, res, f)) res.writeHead(404).end();
@@ -935,12 +1034,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const job = startJob('referencia', async (j) => {
       j.message = 'Analizando ritmo, música y colores…';
       try {
-        const { report } = await analyzeReference(tmp, { client: project.client, name: url.searchParams.get('nombre')?.trim().slice(0, 60) || undefined });
+        const { report } = await analyzeReference(tmp, { client: project.client, name: url.searchParams.get('nombre')?.trim().slice(0, 60) || undefined, onStep: (m, pr) => { j.message = m; j.progress = pr; } });
         return { report };
       } finally {
         await rm(tmpDir, { recursive: true, force: true });
       }
-    });
+    }, project.id);
     return json(res, job);
   }
 

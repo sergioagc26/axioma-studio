@@ -322,7 +322,8 @@ const saturation = (h: string) => {
  * y extrae fotogramas para que Claude mire subtítulos y tipografía. No se copia
  * nada del contenido: el video se borra al terminar salvo que `keepVideo` sea true.
  */
-export async function analyzeReference(input: string, opts: { client?: string; name?: string; keepVideo?: boolean } = {}): Promise<{ dir: string; report: ReferenceReport }> {
+export async function analyzeReference(input: string, opts: { client?: string; name?: string; keepVideo?: boolean; onStep?: (message: string, progress: number) => void } = {}): Promise<{ dir: string; report: ReferenceReport }> {
+  const step = opts.onStep ?? (() => {});
   const file = path.resolve(input);
   if (!existsSync(file)) throw new Error(`No existe el archivo: ${file}`);
   const name = opts.name ?? path.basename(file, path.extname(file));
@@ -332,11 +333,17 @@ export async function analyzeReference(input: string, opts: { client?: string; n
   const dir = path.join(root, id);
   await mkdir(path.join(dir, 'frames'), { recursive: true });
 
+  step('Midiendo el video…', 0.05);
   const info = await probe(file);
+  step('Contando los cortes…', 0.15);
   const cuts = await detectCuts(file);
+  step('Escuchando el ritmo de la música…', 0.35);
   const bpm = await detectBpm(file, dir);
+  step('Sacando los colores…', 0.5);
   const palette = await detectPalette(file, info.duration, dir);
+  step('Mirando los subtítulos y los textos…', 0.6);
   const visual = await detectVisualStyle(file, info.duration, cuts, dir);
+  step('Guardando fotogramas…', 0.8);
 
   const frames: string[] = [];
   const count = 8;
@@ -345,6 +352,7 @@ export async function analyzeReference(input: string, opts: { client?: string; n
     await ffmpeg(['-ss', (((i + 0.5) / count) * info.duration).toFixed(2), '-i', file, '-frames:v', '1', '-vf', 'scale=360:-2', '-q:v', '4', path.join(dir, rel)]);
     frames.push(rel);
   }
+  step('Revisando la tipografía…', 0.9);
   const typography = await detectTypography(frames.map((f) => path.join(dir, f))).catch(() => null);
   if (opts.keepVideo) await copyFile(file, path.join(dir, `referencia${path.extname(file).toLowerCase()}`));
 
@@ -413,12 +421,24 @@ export async function renameReference(client: string | undefined, id: string, na
 
 /**
  * Quita una referencia de la lista. No se borra: queda en workspace/papelera por si se quiere
- * recuperar. Los estilos que ya se guardaron a partir de ella siguen funcionando.
+ * recuperar. Con ella se van los estilos guardados a partir de ella (también a la papelera) y los
+ * videos del cliente que la tenían elegida en el brief quedan «sin referencia».
  */
 export async function deleteReference(client: string | undefined, id: string): Promise<ReferenceReport[]> {
   const dir = referenceDir(client, id);
   const trash = path.join(WORKSPACE, 'papelera');
   await mkdir(trash, { recursive: true });
   await rename(dir, path.join(trash, `referencia--${slugify(client ?? 'personal')}--${path.basename(id)}--${new Date().toISOString().replace(/[:.]/g, '-')}`));
+  // Se importan aquí para no crear un ciclo entre módulos.
+  const { deleteReferencePresets } = await import('./presets.ts');
+  const { listProjects } = await import('./ops.ts');
+  const { writeProject } = await import('./store.ts');
+  await deleteReferencePresets(client, path.basename(id));
+  const mine = slugify(client ?? 'personal');
+  for (const { dir: pdir, project } of await listProjects()) {
+    if (slugify(project.client ?? 'personal') !== mine || project.brief.referencia !== id) continue;
+    delete project.brief.referencia;
+    await writeProject(pdir, project);
+  }
   return listReferences(client);
 }

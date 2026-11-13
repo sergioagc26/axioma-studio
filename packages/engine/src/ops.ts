@@ -164,7 +164,7 @@ async function dressEdit(dir: string, project: Project, st: NonNullable<Preset['
     : level === 'fuerte'
       ? { ...st, texts: 'muchos', zoomText: true, motionEvery: Math.max(2, (st.motionEvery || 4) - 1), sfxAuto: true }
       : st;
-  if (level !== 'media' && st.sfxAuto !== undefined) project.audio.sfxAuto = st.sfxAuto;
+  if (level !== 'media' && st.sfxAuto !== undefined) project.audio.sfxAuto = st.sfxAuto && !project.audio.sfxOff;
   // Suave: solo el gancho lleva zoom de golpe.
   if (level === 'suave') project.scenes.forEach((sc, i) => { sc.punchZoom = i === 0 && sc.punchZoom; });
   const mode = st.texts ?? 'pocos';
@@ -236,8 +236,10 @@ export async function applyPresetObject(dir: string, preset: Preset) {
       }
     }
     if (st.sfxAuto !== undefined) {
-      if (st.sfxAuto) await ensureProjectSfx(dir, AUTO_SFX);
-      project.audio.sfxAuto = st.sfxAuto;
+      // Efectos apagados a mano: ningún estilo los vuelve a encender.
+      const on = st.sfxAuto && !project.audio.sfxOff;
+      if (on) await ensureProjectSfx(dir, AUTO_SFX);
+      project.audio.sfxAuto = on;
     }
     await dressEdit(dir, project, st);
   }
@@ -325,7 +327,8 @@ export async function listProjects(): Promise<{ dir: string; project: Project; m
       }
     }
   }
-  return out.sort((a, b) => b.mtime - a.mtime);
+  // Por la fecha que se ve en la tarjeta (la última vez que se tocó), no la del archivo.
+  return out.sort((a, b) => (b.project.updatedAt || '').localeCompare(a.project.updatedAt || '') || b.mtime - a.mtime);
 }
 
 function findScene(project: Project, id: string): Scene {
@@ -358,8 +361,11 @@ export async function setMusic(dir: string, file: string | null, opts: { license
   const project = await readProject(dir);
   if (file === null) {
     project.audio.music = undefined;
+    // Quitada a mano: la edición automática no vuelve a poner otra.
+    project.audio.musicOff = true;
   } else {
     project.audio.music = await importAsset(dir, project, file, 'musica', { source: opts.source ?? 'archivo local', license: opts.license ?? '' });
+    delete project.audio.musicOff;
   }
   if (opts.volume !== undefined) project.audio.musicVolume = opts.volume;
   return writeProject(dir, project);
@@ -550,10 +556,15 @@ export async function clearSfx(dir: string, sceneId?: string) {
   return writeProject(dir, project);
 }
 
-/** Efectos automáticos: barrido en cada transición y "pop" al entrar cada texto. */
-export async function setAutoSfx(dir: string, on: boolean) {
-  if (on) await ensureProjectSfx(dir, AUTO_SFX);
+/**
+ * Efectos automáticos: barrido en cada transición y "pop" al entrar cada texto.
+ * `manual` = lo eligió el usuario: queda recordado y la edición automática lo respeta.
+ */
+export async function setAutoSfx(dir: string, on: boolean, opts: { manual?: boolean } = {}) {
   const project = await readProject(dir);
+  if (opts.manual) { if (on) delete project.audio.sfxOff; else project.audio.sfxOff = true; }
+  else if (on && project.audio.sfxOff) return project; // apagados a mano: no se encienden solos
+  if (on) await ensureProjectSfx(dir, AUTO_SFX);
   project.audio.sfxAuto = on;
   return writeProject(dir, project);
 }
@@ -583,8 +594,9 @@ export async function applyBrandStyle(dir: string): Promise<{ project: Project; 
       if (s) s.transition = a.transition ? { id: st.flashes ? 'destello' : a.transition } : undefined;
     }
   }
-  if (st.sfxAuto) await ensureProjectSfx(dir, AUTO_SFX);
-  project.audio.sfxAuto = Boolean(st.sfxAuto);
+  const on = Boolean(st.sfxAuto) && !project.audio.sfxOff;
+  if (on) await ensureProjectSfx(dir, AUTO_SFX);
+  project.audio.sfxAuto = on;
   return { project: await writeProject(dir, project), why: brand.why };
 }
 

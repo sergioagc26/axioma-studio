@@ -124,7 +124,7 @@ export function motionIdeas(speech: string, scene: Scene, first: boolean): Draft
   const text = scene.onScreenText ?? phrases[0];
   const out: Draft[] = [];
   const add = (label: string, motionTemplate: string, motionData: Record<string, unknown>, notes: string, extra: Partial<Draft> = {}) =>
-    out.push({ label: `Motion graphics · ${label}`, category: 'motion', visual: 'motion', motionTemplate, motionData, transition: tr('golpe'), notes, ...extra });
+    out.push({ label: `Gráfico animado · ${label}`, category: 'motion', visual: 'motion', motionTemplate, motionData, transition: tr('golpe'), notes, ...extra });
 
   const question = speech.match(/¿[^?]{4,90}\?/)?.[0] ?? (/\?\s*$/.test(speech.trim()) ? clean(clauses[clauses.length - 1] ?? '') + '?' : null);
   if (question) add('pregunta', 'pregunta', { pregunta: question }, 'Tu pregunta en grande con un signo animado. Engancha.');
@@ -151,8 +151,8 @@ export function motionIdeas(speech: string, scene: Scene, first: boolean): Draft
     const quote = clauses.find((c) => c.split(/\s+/).length <= 10) ?? firstWords(speech, 10);
     if (quote) add('frase destacada', 'cita', { texto: quote }, 'Tu frase como una cita, con comillas grandes.', { transition: tr('fundido') });
   }
-  if (scene.role === 'cta') out.unshift({ label: 'Motion graphics · cierre con marca', category: 'motion', visual: 'motion', motionTemplate: 'logo', motionData: { texto: text }, transition: tr('destello'), notes: 'El nombre o logo de la marca con el llamado a la acción.' });
-  out.push({ label: 'Motion graphics · tarjeta de texto', category: 'motion', visual: 'texto', onScreenText: text ?? '[TU TEXTO]', transition: tr('golpe'), notes: 'La frase a pantalla completa sobre el color de la marca mientras sigue el audio.' });
+  if (scene.role === 'cta') out.unshift({ label: 'Gráfico animado · cierre con marca', category: 'motion', visual: 'motion', motionTemplate: 'logo', motionData: { texto: text }, transition: tr('destello'), notes: 'El nombre o logo de la marca con el llamado a la acción.' });
+  out.push({ label: 'Gráfico animado · tarjeta de texto', category: 'motion', visual: 'texto', onScreenText: text, transition: tr('golpe'), notes: 'La frase a pantalla completa sobre el color de la marca mientras sigue el audio.' });
   return out;
 }
 
@@ -175,7 +175,7 @@ export function suggestVariants(project: Project, scene: Scene, transcript: Tran
   const first = project.scenes[0]?.id === scene.id;
   const tr = (id: string) => (first ? undefined : id);
   const p0 = phrases[round % Math.max(1, phrases.length)];
-  const text = scene.onScreenText ?? p0 ?? '[TU TEXTO]';
+  const text = scene.onScreenText ?? p0;
   const out: Draft[] = [];
 
   // a) Motion graphics: con lo que se dijo, sin inventar datos.

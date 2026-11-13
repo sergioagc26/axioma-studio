@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './useProject.ts';
+import { Icon } from './Icon.tsx';
 
 type Keys = { pexels: boolean; pixabay: boolean; freesound: boolean; elevenlabs: boolean };
 let memo: Promise<Keys> | null = null;
@@ -13,7 +14,7 @@ export function useBankKey(banco: keyof Keys): [boolean | null, () => void] {
   return [ok, () => check(true)];
 }
 
-/** Recuadro para pegar la clave gratuita de un banco. La clave se guarda en este computador (.env) y no se vuelve a mostrar. */
+/** Recuadro para pegar la clave gratuita de un banco. La clave se guarda en este computador (archivo .env) y no se vuelve a mostrar. */
 export const BankKey: React.FC<{ banco: keyof Keys; name: string; link: string; onSaved: () => void; toast: (m: string) => void }> = ({ banco, name, link, onSaved, toast }) => {
   const [value, setValue] = useState('');
   const save = async () => {
@@ -36,9 +37,9 @@ export const BankKey: React.FC<{ banco: keyof Keys; name: string; link: string; 
 };
 
 const SERVICES: { id: keyof Keys; name: string; link: string; cost: string; unlocks: string }[] = [
-  { id: 'pixabay', name: 'Pixabay', link: 'https://pixabay.com/api/docs/#api_search_videos', cost: 'Gratis', unlocks: 'Videos de stock como b-roll, también en la edición automática. La clave aparece en esa página al iniciar sesión.' },
-  { id: 'pexels', name: 'Pexels', link: 'https://www.pexels.com/api/', cost: 'Gratis (claves nuevas pausadas)', unlocks: 'Otro banco de videos de stock. Si hay clave, se usa antes que Pixabay.' },
-  { id: 'freesound', name: 'Freesound', link: 'https://freesound.org/apiv2/apply', cost: 'Gratis', unlocks: 'Banco de efectos de sonido para buscar por palabra.' },
+  { id: 'pixabay', name: 'Pixabay', link: 'https://pixabay.com/api/docs/#api_search_videos', cost: 'Gratis', unlocks: 'Videos de apoyo (b-roll), también en la edición automática. La clave aparece en esa página al iniciar sesión.' },
+  { id: 'pexels', name: 'Pexels', link: 'https://www.pexels.com/api/', cost: 'Gratis (no da claves nuevas por ahora)', unlocks: 'Otro banco de videos de apoyo. No hace falta si ya tienes la de Pixabay; si la tienes, se usa primero.' },
+  { id: 'freesound', name: 'Freesound', link: 'https://freesound.org/apiv2/apply', cost: 'Gratis · Recomendada', unlocks: 'Música automática para tus videos y efectos de sonido. Sin esta clave, la app solo usa las canciones que subas tú: si no subes ninguna, tus videos salen sin música.' },
   { id: 'elevenlabs', name: 'ElevenLabs', link: 'https://elevenlabs.io/app/settings/api-keys', cost: 'De pago (opcional)', unlocks: 'Voz natural en la voz en off y el doblaje (sin ella se usa la voz del computador).' },
 ];
 
@@ -60,12 +61,12 @@ export const KeysPanel: React.FC<{ onClose: () => void; toast: (m: string) => vo
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal card col" role="dialog" aria-modal="true" aria-label="Claves de servicios" style={{ maxWidth: 520, gap: 14 }}>
         <h2 style={{ fontSize: 20 }}>Claves de servicios</h2>
-        <span className="small muted">Son opcionales: la app funciona sin ellas. Se guardan solo en este computador (archivo .env) y no se vuelven a mostrar. Ninguno de estos servicios recibe tus videos.</span>
+        <span className="small muted">La app funciona sin ellas, pero <strong>sin la de Freesound no pone música sola</strong>. Con las gratuitas (Freesound y Pixabay) pone música y videos de apoyo sin que hagas nada. Se guardan solo en este computador y no se vuelven a mostrar. Ninguno de estos servicios recibe tus videos.</span>
         {SERVICES.map((s) => (
-          <div key={s.id} className="col" style={{ gap: 6, padding: 12, borderRadius: 12, border: '1px solid var(--line)' }}>
+          <div key={s.id} className="col" style={{ gap: 6, padding: 12, borderRadius: 12, border: `1px solid ${s.id === 'freesound' && keys && !keys.freesound ? 'var(--pink)' : 'var(--line)'}` }}>
             <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
               <strong>{s.name} <span className="small muted" style={{ fontWeight: 400 }}>· {s.cost}</span></strong>
-              {keys == null ? <span className="small muted">…</span> : keys[s.id] ? <span className="pill" style={{ color: 'var(--ok, #12A150)' }}>✓ Puesta</span> : <span className="pill">Falta</span>}
+              {keys == null ? <span className="small muted">…</span> : keys[s.id] ? <span className="pill" style={{ color: 'var(--ok, #12A150)' }}><Icon name="check" />Puesta</span> : <span className="pill">Falta</span>}
             </div>
             <span className="small muted">{s.unlocks}</span>
             {edit === s.id ? (
@@ -75,7 +76,7 @@ export const KeysPanel: React.FC<{ onClose: () => void; toast: (m: string) => vo
               </div>
             ) : (
               <div className="row">
-                <a className="btn ghost small" href={s.link} target="_blank" rel="noreferrer">Sacar la clave ↗</a>
+                <a className="btn ghost small" href={s.link} target="_blank" rel="noreferrer">Sacar la clave<Icon name="open" style={{ marginLeft: 6 }} /></a>
                 <button className="btn rect small" onClick={() => { setEdit(s.id); setValue(''); }}>{keys?.[s.id] ? 'Cambiar' : 'Pegar clave'}</button>
               </div>
             )}

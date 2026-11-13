@@ -31,7 +31,7 @@ export const BRIEF_VALUES = {
   publico: ['Gente que aún no me conoce', 'Seguidores que ya me conocen', 'Clientes listos para comprar', 'Dueños de negocio y emprendedores', 'Jóvenes de 18 a 25', 'Adultos y familias'],
   tono: ['Directo', 'Cercano', 'Educativo', 'Inspirador', 'Divertido', 'Elegante'],
 };
-const CTA_FOR: Record<string, string> = {
+export const CTA_FOR: Record<string, string> = {
   'Mensajes por DM': 'Escríbeme «INFO» por DM', Comentarios: 'Comenta «QUIERO» y te lo envío', Guardados: 'Guárdalo para cuando lo necesites',
   'Ir al link': 'Entra al link de mi perfil', Seguidores: 'Sígueme para más como esto', Compartidos: 'Envíaselo a quien lo necesita',
 };
@@ -49,8 +49,24 @@ function durationFor(seconds: number): string {
 }
 
 /** Lo que la IA propone para el brief de este video. Se calcula una vez y se guarda. */
+const pending = new Map<string, Promise<BriefHelp>>();
 export async function suggestBrief(dir: string, refresh = false): Promise<BriefHelp> {
-  if (!refresh && existsSync(file(dir))) { try { return JSON.parse(await readFile(file(dir), 'utf8')); } catch { /* se recalcula */ } }
+  if (!refresh && existsSync(file(dir))) {
+    try {
+      const saved = JSON.parse(await readFile(file(dir), 'utf8')) as BriefHelp;
+      // Guardada sin IA y ahora la IA local está abierta: se calcula una vez más.
+      if (saved.ia || !(await llmReady())) return saved;
+    } catch { /* se recalcula */ }
+  }
+  // Si ya se está calculando para este video, se espera esa misma consulta.
+  const running = pending.get(dir);
+  if (running) return running;
+  const job = computeBrief(dir).finally(() => pending.delete(dir));
+  pending.set(dir, job);
+  return job;
+}
+
+async function computeBrief(dir: string): Promise<BriefHelp> {
   const project = await readProject(dir);
   const transcript = await readTranscript(dir).catch(() => null);
   const kit = await readKit(project.client);
@@ -150,23 +166,55 @@ export async function buildPrompt(dir: string): Promise<string> {
   return lines.join('\n');
 }
 
+/** Recorta un texto a `n` caracteres sin partir palabras. */
+function cutWords(t: string, n: number): string {
+  const x = t.trim().replace(/\s+/g, ' ');
+  return x.length <= n ? x : x.slice(0, n + 1).replace(/\s*\S*$/, '').replace(/[\s·|,–-]+$/, '') || x.slice(0, n);
+}
+
+/**
+ * Pedidos sencillos de la nota que se entienden sin IA («subtítulos en mayúsculas», «sin zooms»,
+ * «sin música»…). Cambia el proyecto y devuelve lo que aplicó.
+ */
+export function noteRules(project: Project, note: string): string[] {
+  const t = note.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const out: string[] = [];
+  if (/mayuscula/.test(t)) { project.captions.uppercase = !/sin mayuscula|minuscula/.test(t); out.push(project.captions.uppercase ? 'subtítulos en mayúsculas' : 'subtítulos en minúsculas'); }
+  else if (/minuscula/.test(t)) { project.captions.uppercase = false; out.push('subtítulos en minúsculas'); }
+  if (/sin (los )?zoom|no (hagas|pongas|metas) zoom|nada de zoom/.test(t)) { project.scenes.forEach((s) => { s.punchZoom = false; s.camera = 'ninguno'; }); out.push('sin zooms ni movimiento de cámara'); }
+  if (/sin (las )?transicion|no (pongas )?transicion|cortes secos/.test(t)) { project.scenes.forEach((s) => { s.transition = undefined; }); out.push('cortes secos, sin transiciones'); }
+  if (/sin (los )?(efectos|sonidos)|no (pongas )?(efectos|sonidos)/.test(t)) { project.audio.sfxAuto = false; project.audio.sfxOff = true; out.push('sin efectos de sonido'); }
+  if (/sin musica|no (pongas )?musica/.test(t)) { project.audio.music = undefined; project.audio.musicOff = true; out.push('sin música'); }
+  if (/barra de progreso/.test(t) && !/sin barra/.test(t)) { project.finish.progressBar = true; out.push('barra de progreso arriba'); }
+  return out;
+}
+
 /**
  * Después de la edición automática, aplica lo que el cliente pidió de forma puntual (respuestas a
- * las preguntas de la IA y su nota libre). Lo hace la IA local con su lista cerrada de cambios.
+ * las preguntas de la IA y su nota libre). Lo que se puede hacer sin IA se hace siempre (contacto en
+ * el cierre, rótulo, precio o lugar como texto en pantalla, pedidos sencillos de la nota); el resto
+ * lo hace la IA local con su lista cerrada de cambios. Devuelve qué se aplicó y qué no.
  */
 export async function applyWishes(dir: string): Promise<string[]> {
   const project = await readProject(dir);
   const help = existsSync(file(dir)) ? (JSON.parse(await readFile(file(dir), 'utf8')) as BriefHelp) : null;
   const { extras, notas } = wishes(project, help);
   const done: string[] = [];
-  // El cierre respondido en una pregunta puntual se suma al llamado a la acción.
+  // El contacto respondido en una pregunta puntual va en el cierre, junto al llamado a la acción si cabe.
   const close = extras.find((e) => e.uso === 'cierre');
   const last = project.scenes[project.scenes.length - 1];
-  if (close && last && project.scenes.length > 1 && !/digo en el video/i.test(project.brief.cta ?? '')) {
-    const text = `${(project.brief.cta ?? '').trim()} ${close.respuesta}`.trim().slice(0, 60);
+  if (close && last && project.scenes.length > 1) {
+    const spoken = /digo en el video/i.test(project.brief.cta ?? '');
+    const cta = spoken ? '' : ((project.brief.cta ?? '').trim() || CTA_FOR[project.brief.objetivo ?? ''] || '');
+    const both = `${cta} ${close.respuesta.trim()}`.trim();
+    // Si los dos no caben, gana el contacto: es lo que el cliente pidió.
+    const text = both.length <= 45 ? both : cutWords(close.respuesta, 60);
     last.onScreenText = text; last.autoText = text;
+    if (spoken) { last.textStyle = 'banda'; last.textPosition = 'arriba'; }
     await writeProject(dir, project);
     done.push(`Cierre con tu dato: «${text}».`);
+  } else if (close) {
+    done.push(`No pude poner «${close.respuesta}»: el video tiene una sola escena.`);
   }
   // Rótulo con nombre y cargo de quien habla.
   const tag = extras.find((e) => e.uso === 'rotulo');
@@ -177,15 +225,45 @@ export async function applyWishes(dir: string): Promise<string[]> {
     await writeProject(dir, p2);
     done.push(`Rótulo al inicio: ${name.trim()}${role.length ? ` · ${role.join(' ').trim()}` : ''}.`);
   }
+  const data = extras.filter((e) => e.uso === 'destacar');
   const asks = [
-    ...extras.filter((e) => e.uso === 'destacar').map((e) => `Pon como texto en pantalla, en la escena donde se habla de eso (si no se habla, en una escena del medio sin texto), este dato tal cual: «${e.respuesta}».`),
+    ...data.map((e) => `Pon como texto en pantalla, en la escena donde se habla de eso (si no se habla, en una escena del medio sin texto), este dato tal cual: «${e.respuesta}».`),
     ...(notas ? [`Nota del cliente (si es solo contexto y no pide un cambio concreto, no cambies nada por ella): ${notas}`] : []),
   ];
-  if (asks.length && (await llmReady())) {
+  const ai = asks.length ? await llmReady() : false;
+  let noteDone = false;
+  if (ai) {
     try {
       const r = await localEdit(dir, asks.join(' '));
-      if (r.applied.length) done.push(`Tus pedidos puntuales: ${r.text}`);
-    } catch { /* si la IA local falla, queda la edición automática */ }
+      if (r.applied.length) { done.push(`Tus pedidos puntuales: ${r.text}`); noteDone = true; }
+    } catch { done.push('La IA local falló con tus pedidos: hice lo que se puede sin ella.'); }
+  }
+  // Los datos que no quedaron en pantalla (sin IA, o la IA no los puso) van como texto en una escena del medio.
+  if (data.length) {
+    const p3 = await readProject(dir);
+    const has = (t: string) => p3.scenes.some((s) => (s.onScreenText ?? '').toLowerCase().includes(t.toLowerCase().slice(0, 12)));
+    const missing = data.filter((e) => !has(e.respuesta));
+    const n = p3.scenes.length;
+    const middle = p3.scenes.map((_, i) => i).filter((i) => i > 0 && i < n - 1);
+    const placed: string[] = [];
+    for (const [k, e] of missing.entries()) {
+      // Escenas repartidas por el medio, primero las que no tienen texto.
+      const free = middle.filter((i) => !p3.scenes[i].onScreenText);
+      const pool = free.length ? free : middle;
+      if (!pool.length) { done.push(`No pude poner «${e.respuesta}» en pantalla: el video es muy corto.`); continue; }
+      const i = pool[Math.min(pool.length - 1, Math.floor(((k + 1) * pool.length) / (missing.length + 1)))];
+      const text = cutWords(e.respuesta, 60);
+      p3.scenes[i].onScreenText = text; p3.scenes[i].autoText = text;
+      placed.push(text);
+    }
+    if (placed.length) { await writeProject(dir, p3); for (const t of placed) done.push(`Dato en pantalla: «${t}».`); }
+  }
+  // La nota: lo sencillo se aplica aunque no haya IA; lo demás se dice que quedó sin aplicar.
+  if (notas && !noteDone) {
+    const p4 = await readProject(dir);
+    const rules = noteRules(p4, notas);
+    if (rules.length) { await writeProject(dir, p4); done.push(`Tu nota: ${rules.join(', ')}.`); }
+    else done.push(`No pude aplicar tu nota «${cutWords(notas, 80)}»${ai ? '' : ': falta la IA local (Ollama)'}. Cámbialo a mano en el editor.`);
   }
   return done;
 }

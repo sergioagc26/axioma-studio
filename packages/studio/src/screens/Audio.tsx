@@ -1,9 +1,10 @@
 import { BankKey, useBankKey } from '../Bank.tsx';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Project } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
+import { Icon } from '../Icon.tsx';
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
@@ -25,11 +26,9 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const a = project.audio;
   const pid = encodeURIComponent(project.id);
   const [busy, setBusy] = useState('');
-  const [license, setLicense] = useState('');
   const [voText, setVoText] = useState(a.voiceover?.text ?? '');
   const [voProvider, setVoProvider] = useState('');
   const [fx, setFx] = useState({ scene: project.scenes[0]?.id ?? '', id: 'whoosh', offset: 0, volume: 0.6 });
-  const musicInput = useRef<HTMLInputElement>(null);
   // Banco de sonidos (Freesound).
   const [soundsOk, recheckSounds] = useBankKey('freesound');
   const [sq, setSq] = useState('');
@@ -46,13 +45,15 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
   const op = async (body: object): Promise<any> => api(`/api/op?id=${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   /** Operación corta que devuelve el proyecto. */
-  const run = async (body: object, ok?: string) => {
+  const run = async (body: object, ok?: string, label = 'Guardando…') => {
+    if (busy) return;
+    setBusy(label);
     try {
       const d = await op(body);
       if (d.project) store.replace(d.project);
       await store.reloadExtras();
       if (ok) ctx.toast(ok);
-    } catch (e: any) { ctx.toast(e.message); }
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
   /** Operación larga (tarea en el servidor). */
   const runJob = async (body: object, label: string, ok: string) => {
@@ -62,17 +63,31 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const d = await api(`/api/project?id=${pid}`);
       store.replace(d.project);
       await store.reloadExtras();
-      ctx.toast(ok);
+      // Si se pidió ElevenLabs y no respondió, la voz quedó con la del computador: se dice.
+      const pedido = (body as { provider?: string }).provider;
+      const usado = d.project?.audio?.voiceover?.provider;
+      ctx.toast(pedido === 'elevenlabs' && usado && usado !== 'elevenlabs' ? `${ok} ElevenLabs no respondió: usé la voz del computador.` : ok);
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
   // Biblioteca de música (workspace/musica): canciones con licencia que la app elige sola.
   type Track = { file: string; name: string; license: string; bpm: number | null; energy: number; duration: number; mood: 'tranquila' | 'media' | 'energica' };
   const [tracks, setTracks] = useState<Track[] | null>(null);
+  /** ¿Hay clave para la música automática? (null = no se sabe). */
+  const [autoOk, setAutoOk] = useState<boolean | null>(null);
+  /** Las respuestas de /api/musica pueden traer la lista sola o { tracks, auto }. */
+  const takeTracks = (d: any) => {
+    if (Array.isArray(d)) { setTracks(d); return d as Track[]; }
+    if (typeof d?.auto === 'boolean') setAutoOk(d.auto);
+    const list = Array.isArray(d?.tracks) ? (d.tracks as Track[]) : [];
+    setTracks(list);
+    return list;
+  };
   const [libLicense, setLibLicense] = useState('');
   const [playing, setPlaying] = useState('');
   const player = useRef<HTMLAudioElement>(null);
-  React.useEffect(() => { api<Track[]>('/api/musica').then(setTracks).catch(() => setTracks([])); }, []);
+  const loadTracks = () => api('/api/musica').then(takeTracks).catch(() => setTracks([]));
+  useEffect(() => { loadTracks(); }, []);
   const preview = (file: string) => {
     const el = player.current;
     if (!el) return;
@@ -81,24 +96,63 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     el.play().then(() => setPlaying(file)).catch(() => ctx.toast('No se pudo reproducir.'));
   };
   const addToLibrary = async (files: File[]) => {
-    if (!libLicense.trim()) return ctx.toast('Escribe primero la licencia de las canciones.');
+    if (!libLicense.trim()) return ctx.toast('Escribe primero la licencia de las canciones (por ejemplo: propia, Artlist, YouTube Audio Library).');
     setBusy('Agregando a la biblioteca…');
+    let last: Track | null = null;
     try {
       for (const [i, f] of files.entries()) {
         setBusy(`Analizando ${i + 1} de ${files.length}: ${f.name}`);
-        const d = await api<{ tracks: Track[] }>(`/api/musica?filename=${encodeURIComponent(f.name)}&license=${encodeURIComponent(libLicense.trim())}`, { method: 'POST', body: f });
-        setTracks(d.tracks);
+        const d = await api<{ track?: Track; tracks: Track[] }>(`/api/musica?filename=${encodeURIComponent(f.name)}&license=${encodeURIComponent(libLicense.trim())}`, { method: 'POST', body: f });
+        takeTracks(d.tracks);
+        last = d.track ?? null;
       }
       ctx.toast(`${files.length} canci${files.length === 1 ? 'ón agregada' : 'ones agregadas'} a la biblioteca.`);
-    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+    } catch (e: any) { ctx.toast(e.message); setBusy(''); return; }
+    setBusy('');
+    // Si el video no tenía música y se subió una sola canción, se pone de una vez.
+    if (!a.music && files.length === 1 && last) await fromLibrary(last.file);
   };
+  /** Cambia el nombre con que se ve una canción de la biblioteca. */
+  const renameTrack = async (t: Track) => {
+    const name = window.prompt('Nuevo nombre de la canción', t.name)?.trim();
+    if (!name || name === t.name) return;
+    try {
+      const d = await api(`/api/musica?f=${encodeURIComponent(t.file)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      if (Array.isArray(d) || Array.isArray(d?.tracks)) takeTracks(d); else await loadTracks();
+      ctx.toast(`Ahora se llama «${name}».`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+  /** Quita una canción de la biblioteca (la app ya no la elegirá). */
+  const removeTrack = async (t: Track) => {
+    if (!window.confirm(`¿Quitar «${t.name}» de la biblioteca? La app ya no la elegirá.`)) return;
+    if (playing === t.file) { player.current?.pause(); setPlaying(''); }
+    try {
+      const d = await api(`/api/musica?f=${encodeURIComponent(t.file)}`, { method: 'DELETE' });
+      if (Array.isArray(d) || Array.isArray(d?.tracks)) takeTracks(d); else await loadTracks();
+      ctx.toast(`«${t.name}» quitada de la biblioteca.`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+  /** En un montaje, cambiar de canción vuelve a poner los cortes en sus golpes. */
+  const rebuiltNote = (d: any) => (d?.rebuilt || d?.ritmo ? ' Los cortes se rehicieron al ritmo de la canción nueva; la duración, los textos y el cierre siguen igual.' : '');
   const fromLibrary = async (file?: string) => {
     setBusy(file ? 'Poniendo la canción…' : 'Eligiendo la canción…');
     try {
       const d = await op({ op: 'musica-biblioteca', file });
       store.replace(d.project);
       await store.reloadExtras();
-      ctx.toast(d.why ?? `Música: «${d.track.name}».`);
+      ctx.toast((d.why ?? `Música: «${d.track?.name ?? 'puesta'}».`) + rebuiltNote(d));
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+  };
+
+  /** La app elige y pone una canción sola (de la biblioteca o del banco gratuito). */
+  const autoMusic = async () => {
+    setBusy(a.music ? 'Buscando otra canción…' : 'Buscando una canción…');
+    try {
+      const done = await waitJob(await op({ op: 'otra-musica' }) as Job, (j) => setBusy(j.message || 'Buscando una canción…'));
+      const d = await api(`/api/project?id=${pid}`);
+      store.replace(d.project);
+      await store.reloadExtras();
+      ctx.toast(String(done.result?.text ?? 'Música puesta.') + rebuiltNote(done.result));
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
@@ -109,7 +163,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     try {
       const d = await op({ op: 'ritmo', densidad: density });
       store.replace(d.project);
-      ctx.toast(`Listo: ${d.cuts} cortes en los golpes de la música (${d.bpm} BPM, ${d.duration.toFixed(1)} s)${d.drop != null ? `, con un destello en el golpe más fuerte (${d.drop.toFixed(1)} s)` : ''}.`);
+      ctx.toast(`Listo: ${d.cuts} cortes en los golpes de la música (${d.duration.toFixed(1)} s)${d.drop != null ? `, con un destello en el golpe más fuerte (${d.drop.toFixed(1)} s)` : ''}.`);
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
@@ -120,26 +174,51 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     try {
       const done = await waitJob(await op({ op: 'doblar', idioma: dubLang, provider: voProvider }) as Job, (j) => setBusy(j.message));
       const r = done.result as { id: string; lines: number; tight: number; idioma: string };
-      ctx.toast(`Listo: copia en ${r.idioma} con ${r.lines} frases dobladas${r.tight ? ` (${r.tight} quedaron justas de tiempo; revísalas)` : ''}. El reel original no cambió.`);
-      ctx.go('editor', { p: r.id, s: null });
+      ctx.toast(`Listo: copia en ${r.idioma} con ${r.lines} frases dobladas${r.tight ? ` (${r.tight} quedaron justas de tiempo; revísalas)` : ''}. El video original no cambió. Abrí la copia doblada: mírala y expórtala.`);
+      ctx.go('listo', { p: r.id, s: null });
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
 
   // Grabación de voz con el micrófono.
   const [rec, setRec] = useState<MediaRecorder | null>(null);
   const [recSecs, setRecSecs] = useState(0);
+  // Grabación en curso: para cancelarla y para cerrar el micrófono al salir de la pantalla.
+  const recRef = useRef<{ r: MediaRecorder; stream: MediaStream; tick: number; cancel: boolean } | null>(null);
+  const endRec = (cancel: boolean) => {
+    const c = recRef.current;
+    if (!c) return;
+    c.cancel = cancel;
+    if (c.r.state !== 'inactive') c.r.stop();
+  };
+  useEffect(() => () => {
+    const c = recRef.current;
+    if (!c) return;
+    c.cancel = true;
+    window.clearInterval(c.tick);
+    if (c.r.state !== 'inactive') c.r.stop();
+    c.stream.getTracks().forEach((t) => t.stop());
+    recRef.current = null;
+  }, []);
   const startRec = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      return ctx.toast('Grabar solo funciona en el computador donde está instalada la app. Desde otro equipo, graba con el teléfono y sube el audio.');
+    }
+    if (a.voiceover && !window.confirm('Ya hay una voz en off. Tu grabación la va a reemplazar. ¿Seguir?')) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
       const r = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       const t0 = Date.now();
       const tick = window.setInterval(() => setRecSecs(Math.round((Date.now() - t0) / 1000)), 500);
+      const me = { r, stream, tick, cancel: false };
+      recRef.current = me;
       r.ondataavailable = (e) => chunks.push(e.data);
       r.onstop = async () => {
         window.clearInterval(tick);
         stream.getTracks().forEach((t) => t.stop());
+        if (recRef.current === me) recRef.current = null;
         setRec(null); setRecSecs(0);
+        if (me.cancel) return; // cancelada o se salió de la pantalla: no se sube nada
         setBusy('Subiendo tu grabación…');
         try {
           const job = await api<Job>(`/api/voz?id=${pid}`, { method: 'POST', body: new Blob(chunks, { type: r.mimeType }) });
@@ -152,46 +231,44 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       };
       r.start();
       setRec(r);
-    } catch { ctx.toast('No se pudo usar el micrófono. Revisa que el navegador tenga permiso.'); }
-  };
-  const stopRec = () => rec?.stop();
-
-  const uploadMusic = async (file: File) => {
-    if (!license.trim()) return ctx.toast('Escribe primero la licencia de la música (por ejemplo: propia, Artlist, YouTube Audio Library).');
-    setBusy('Subiendo la música…');
-    try {
-      const d = await api(`/api/music?id=${pid}&filename=${encodeURIComponent(file.name)}&license=${encodeURIComponent(license.trim())}`, { method: 'POST', body: file });
-      store.replace(d.project);
-      ctx.toast(d.ritmo ? 'Música puesta y el montaje cortado en sus golpes.' : 'Música puesta. Baja sola cuando hay voz.');
-    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+    } catch { ctx.toast('No se pudo usar el micrófono. Revisa que el navegador tenga permiso para usarlo.'); }
   };
 
   const set = (fn: (p: Project) => void) => store.update(fn);
   const musicAsset = project.assets.find((x) => x.file === a.music);
   const hablado = project.kind === 'hablado';
+  // Sin voz (montaje sin voz en off) la música nunca baja: se muestra el volumen que se oye.
+  const sinVoz = !hablado && !a.voiceover;
+  const musicOff = Boolean((a as typeof a & { musicOff?: boolean }).musicOff);
+  const song = musicAsset?.source?.replace(/^Biblioteca de música:\s*/, '') || a.music?.split('/').pop() || '';
+  const inUse = (t: Track) => Boolean(a.music) && (a.music!.split('/').pop() === t.file || t.name === song);
+  /** Nombre legible de un efecto (los del banco salen de su crédito en el proyecto). */
+  const fxName = (id: string) => store.catalog.sfx.find((x) => x.id === id)?.name
+    ?? project.assets.find((x) => x.file === `media/sfx/${id}.wav`)?.source?.replace(/^Freesound\s*·\s*/, '')
+    ?? id;
   const allFx = project.scenes.flatMap((s, i) => s.sfx.map((e, k) => ({ s, i, e, k })));
 
   return (
     <main className="page">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 26 }}>Audio</h1>
-        {busy ? <span className="pill" role="status">{busy}</span> : <span className="muted">La mezcla final se nivela sola a {a.targetLufs} LUFS al exportar.</span>}
+        {busy ? <span className="pill" role="status">{busy}</span> : <span className="muted">El volumen final se ajusta solo al exportar.</span>}
       </div>
 
       {/* Columnas tipo mosaico: las tarjetas de distinto alto no dejan huecos. */}
       <div className="masonry">
         <section className="card col" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 17 }}>Sonido original del video</h2>
+          <h2 style={{ fontSize: 17 }}><Icon name={a.originalVolume > 0 ? 'sound' : 'mute'} /> Sonido original del video</h2>
           <span className="small muted">{hablado ? 'Tu voz grabada.' : 'El ambiente del video (golpes, sartén, pesas…).'}</span>
           <Volume label="Volumen" value={a.originalVolume} onCommit={(v) => set((p) => { p.audio.originalVolume = v; })} />
-          <button className="btn rect" onClick={() => set((p) => { p.audio.originalVolume = p.audio.originalVolume > 0 ? 0 : 1; })}>
+          <button className="btn rect" disabled={Boolean(busy)} onClick={() => set((p) => { p.audio.originalVolume = p.audio.originalVolume > 0 ? 0 : 1; })}>
             {a.originalVolume > 0 ? 'Quitar el sonido original' : 'Devolver el sonido original'}
           </button>
           {a.originalVolume === 0 && <span className="small muted help">El video queda mudo: solo sonarán la música, la voz en off y los efectos.</span>}
         </section>
 
         <section className="card col" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 17 }}>Corrección de voz</h2>
+          <h2 style={{ fontSize: 17 }}><Icon name="wand" /> Corrección de voz</h2>
           {hablado ? (
             <>
               <label className="row"><input type="checkbox" checked={a.denoise} disabled={Boolean(busy)}
@@ -215,16 +292,25 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         </section>
 
         <section className="card col" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 17 }}>Música de fondo</h2>
+          <h2 style={{ fontSize: 17 }}><Icon name="music" /> Música de fondo</h2>
           {a.music ? (
             <>
               <div className="row" style={{ justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, background: 'var(--panel2)' }}>
-                <span>{a.music.split('/').pop()}</span>
-                <span className="small muted">Licencia: {musicAsset?.license ?? '—'}</span>
+                <span>{song}</span>
+                <span className="small muted">Licencia: {musicAsset?.license ?? 'sin dato'}</span>
               </div>
               <audio controls src={`/media/${pid}/${a.music.split('/').map(encodeURIComponent).join('/')}`} style={{ width: '100%' }} />
-              <Volume label="Volumen bajo la voz" value={a.musicVolume} onCommit={(v) => set((p) => { p.audio.musicVolume = v; })} />
-              <span className="small muted">Sube sola en los silencios y baja cuando hay voz.</span>
+              {sinVoz ? (
+                // En el video la música suena a min(1, volumen × 2,5) cuando no hay voz: la barra muestra eso.
+                <Volume label="Volumen de la música" value={Math.min(1, a.musicVolume * 2.5)} onCommit={(v) => set((p) => { p.audio.musicVolume = v / 2.5; })} />
+              ) : (
+                <>
+                  <Volume label="Volumen bajo la voz" value={a.musicVolume} onCommit={(v) => set((p) => { p.audio.musicVolume = v; })} />
+                  <span className="small muted">Sube sola en los silencios y baja cuando hay voz.</span>
+                </>
+              )}
+              <button className="btn primary" disabled={Boolean(busy)} onClick={autoMusic}><Icon name="refresh" /> Otra canción</button>
+              {project.kind === 'montaje' && <span className="small muted">Al cambiar de canción, los cortes se rehacen a su ritmo. La duración, los textos y el cierre siguen igual.</span>}
               {project.kind === 'montaje' && (
                 <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--panel2)', gap: 8 }}>
                   <strong>Cortar al ritmo</strong>
@@ -234,22 +320,20 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                       <option value="auto">Automático (sigue la energía)</option>
                       <option value="pulso">En cada golpe</option>
                       <option value="medio">Cada 2 golpes</option>
-                      <option value="compas">Cada compás (4 golpes)</option>
+                      <option value="compas">Cada 4 golpes</option>
                     </select>
-                    <button className="btn primary" disabled={Boolean(busy)} onClick={toBeat}>Cortar al ritmo</button>
+                    <button className="btn rect" disabled={Boolean(busy)} onClick={toBeat}>Cortar al ritmo</button>
                   </div>
                 </div>
               )}
-              <button className="btn rect" onClick={() => run({ op: 'quitar-musica' }, 'Música quitada.')}>Quitar la música</button>
+              <button className="btn rect" disabled={Boolean(busy)} onClick={() => run({ op: 'quitar-musica' }, 'Música quitada. La edición automática no pondrá otra.', 'Quitando la música…')}><Icon name="trash" /> Quitar la música</button>
             </>
           ) : (
             <>
-              <label className="field">Licencia de la música (obligatoria)
-                <input value={license} onChange={(e) => setLicense(e.target.value)} placeholder="Propia, Artlist, YouTube Audio Library…" />
-              </label>
-              <button className="btn primary" disabled={Boolean(busy)} onClick={() => musicInput.current?.click()}>Elegir archivo de música</button>
-              <input ref={musicInput} type="file" accept="audio/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadMusic(f); e.target.value = ''; }} />
-              <span className="small muted">Usa solo música con licencia para uso comercial.</span>
+              <span className="muted">{musicOff ? 'Quitaste la música: la edición automática no pondrá otra.' : 'Este video no tiene música.'}</span>
+              <button className="btn primary" disabled={Boolean(busy)} onClick={autoMusic}><Icon name="sparkle" /> Poner música automática</button>
+              {autoOk === false && !tracks?.length && <span className="small muted">Para la música automática hace falta la clave gratuita de Freesound (abajo, en Efectos de sonido), o sube tus canciones a la biblioteca.</span>}
+              <span className="small muted">O sube tu propia canción en la biblioteca de abajo. Usa solo música con licencia para uso comercial.</span>
             </>
           )}
           <div className="col" style={{ gap: 8, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
@@ -257,19 +341,20 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <strong>Tu biblioteca de música</strong>
               <span className="small muted">{tracks ? `${tracks.length} canciones` : ''}</span>
             </div>
-            <span className="small muted help">Súbelas una vez con su licencia; la app elige la que va con el ritmo de cada reel (tempo y energía).</span>
+            <span className="small muted help">Súbelas una vez con su licencia; la app elige la que va con el ritmo de cada video. Las de Freesound las trae la app sola: quita las que no te gusten.</span>
             {tracks && tracks.length > 0 && (
               <>
-                <button className="btn primary" disabled={Boolean(busy)} onClick={() => fromLibrary()}>Elegir la que mejor va</button>
                 <div className="col" style={{ gap: 6, maxHeight: 260, overflowY: 'auto' }}>
                   {tracks.map((t) => (
-                    <div key={t.file} className="row" style={{ flexWrap: 'nowrap', gap: 8, padding: 8, borderRadius: 8, background: 'var(--panel2)' }}>
-                      <button className="btn sq" style={{ width: 32, height: 32, flex: 'none' }} aria-label={playing === t.file ? `Pausar ${t.name}` : `Escuchar ${t.name}`} onClick={() => preview(t.file)}>{playing === t.file ? '❚❚' : '▶'}</button>
+                    <div key={t.file} className="row" style={{ flexWrap: 'nowrap', gap: 8, padding: 8, borderRadius: 8, background: 'var(--panel2)', ...(inUse(t) ? { outline: '2px solid var(--pink)' } : {}) }}>
+                      <button className="btn sq" style={{ width: 32, height: 32, flex: 'none' }} aria-label={playing === t.file ? `Pausar ${t.name}` : `Escuchar ${t.name}`} onClick={() => preview(t.file)}><Icon name={playing === t.file ? 'pause' : 'play'} /></button>
                       <span className="col" style={{ gap: 0, minWidth: 0, flex: 1 }}>
                         <strong className="small pname">{t.name}</strong>
-                        <span className="small muted">{({ tranquila: 'Tranquila', media: 'Ritmo medio', energica: 'Enérgica' } as const)[t.mood]}{t.bpm ? ` · ${t.bpm} BPM` : ''} · {Math.floor(t.duration / 60)}:{String(Math.round(t.duration % 60)).padStart(2, '0')} · {t.license}</span>
+                        <span className="small muted">{inUse(t) ? 'En uso · ' : ''}{({ tranquila: 'Tranquila', media: 'Ritmo medio', energica: 'Enérgica' } as const)[t.mood]} · {Math.floor(t.duration / 60)}:{String(Math.round(t.duration % 60)).padStart(2, '0')} · {t.license}</span>
                       </span>
-                      <button className="btn rect" style={{ height: 30, flex: 'none' }} disabled={Boolean(busy)} onClick={() => fromLibrary(t.file)}>Usar</button>
+                      <button className="btn rect" style={{ height: 30, flex: 'none' }} disabled={Boolean(busy) || inUse(t)} onClick={() => fromLibrary(t.file)}>Usar</button>
+                      <button className="btn sq" style={{ width: 30, height: 30, flex: 'none' }} aria-label={`Cambiar el nombre de ${t.name}`} title="Cambiar el nombre" disabled={Boolean(busy)} onClick={() => renameTrack(t)}><Icon name="edit" /></button>
+                      <button className="btn sq" style={{ width: 30, height: 30, flex: 'none' }} aria-label={`Quitar ${t.name}`} title="Quitar de la biblioteca" disabled={Boolean(busy)} onClick={() => removeTrack(t)}><Icon name="trash" /></button>
                     </div>
                   ))}
                 </div>
@@ -277,7 +362,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             )}
             <div className="row" style={{ flexWrap: 'nowrap' }}>
               <input className="input" style={{ flex: 1, minWidth: 0, minHeight: 34 }} value={libLicense} onChange={(e) => setLibLicense(e.target.value)} placeholder="Licencia (propia, Artlist…)" aria-label="Licencia de las canciones" />
-              <label className="btn rect" style={{ height: 34, cursor: 'pointer', flex: 'none' }}>Agregar canciones
+              <label className="btn rect" style={{ height: 34, cursor: 'pointer', flex: 'none', ...(busy ? { opacity: 0.5, pointerEvents: 'none' } : {}) }} aria-disabled={Boolean(busy)}><Icon name="upload" /> Agregar canciones
                 <input type="file" accept="audio/*" multiple hidden onChange={(e) => { const fs = [...(e.target.files ?? [])]; if (fs.length) addToLibrary(fs); e.target.value = ''; }} />
               </label>
             </div>
@@ -286,11 +371,16 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         </section>
 
         <section className="card col" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 17 }}>Voz en off</h2>
+          <h2 style={{ fontSize: 17 }}><Icon name="mic" /> Voz en off</h2>
           <div className="col" style={{ padding: 12, borderRadius: 10, background: 'var(--panel2)' }}>
             <strong>Graba tu voz</strong>
             <span className="small muted help">Usa el micrófono del computador. La app limpia el ruido, nivela el volumen y pone los subtítulos.</span>
-            <button className={`btn ${rec ? 'primary' : 'rect'}`} disabled={Boolean(busy)} onClick={rec ? stopRec : startRec}>{rec ? `Detener y usar (${recSecs} s)` : '● Grabar con el micrófono'}</button>
+            {rec ? (
+              <div className="row">
+                <button className="btn primary" onClick={() => endRec(false)}><Icon name="stop" /> Detener y usar ({recSecs} s)</button>
+                <button className="btn rect" onClick={() => endRec(true)}><Icon name="close" /> Cancelar</button>
+              </div>
+            ) : <button className="btn rect" disabled={Boolean(busy)} onClick={startRec}><Icon name="mic" /> Grabar con el micrófono</button>}
           </div>
           <span className="small muted">O deja que la app la genere:</span>
           <label className="field">Texto que dirá la voz
@@ -299,7 +389,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <label className="field">Voz
             <select value={voProvider} onChange={(e) => setVoProvider(e.target.value)}>
               <option value="">La mejor disponible</option>
-              {store.catalog.voices.map((v) => <option key={v} value={v}>{v === 'sistema' ? 'Del computador (gratis, más robótica)' : v === 'elevenlabs' ? 'ElevenLabs (natural)' : 'Piper (local)'}</option>)}
+              {store.catalog.voices.map((v) => <option key={v} value={v}>{v === 'sistema' ? 'Del computador (gratis, más robótica)' : v === 'elevenlabs' ? 'ElevenLabs (natural)' : 'Voz local'}</option>)}
             </select>
           </label>
           <button className="btn primary" disabled={voText.trim().length < 2 || Boolean(busy)}
@@ -310,15 +400,17 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <>
               <audio controls src={`/media/${pid}/${a.voiceover.file.split(/[\\/]/).map(encodeURIComponent).join('/')}?v=${encodeURIComponent(project.updatedAt)}`} style={{ width: '100%' }} />
               <span className="small muted">{a.voiceover.provider} · {a.voiceover.duration.toFixed(1)} s · se subtitula sola</span>
-              <button className="btn rect" onClick={() => run({ op: 'quitar-voz' }, 'Voz en off quitada.')}>Quitar la voz en off</button>
+              <button className="btn rect" disabled={Boolean(busy)} onClick={() => run({ op: 'quitar-voz' }, 'Voz en off quitada.', 'Quitando la voz en off…')}><Icon name="trash" /> Quitar la voz en off</button>
             </>
           )}
         </section>
 
         <section className="card col" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 17 }}>Doblaje a otro idioma</h2>
-          <span className="small muted help">Traduce lo que dices frase por frase con la IA local, genera la voz y la ajusta para que cada frase caiga en su momento. Los subtítulos y los textos en pantalla salen en el nuevo idioma. Se crea una copia: este reel no cambia. Hazlo cuando el corte ya esté listo. Los labios no se sincronizan.</span>
-          {a.voiceover?.language ? <span className="pill line">Este reel ya es un doblaje ({a.voiceover.language})</span> : (
+          <h2 style={{ fontSize: 17 }}><Icon name="globe" /> Doblaje a otro idioma</h2>
+          <span className="small muted help">Traduce lo que dices frase por frase con la IA local, genera la voz y la ajusta para que cada frase caiga en su momento. Los subtítulos y los textos en pantalla salen en el nuevo idioma. Se crea una copia: este video no cambia. Hazlo cuando el corte ya esté listo. Los labios no se sincronizan.</span>
+          {a.voiceover?.language ? <span className="pill line">Este video ya es un doblaje ({a.voiceover.language})</span> : !hablado ? (
+            <span className="muted">El doblaje es para videos donde hablas. En este video nadie habla, así que no hay voz que traducir: si quieres una voz, usa la voz en off.</span>
+          ) : (
             <div className="row" style={{ flexWrap: 'wrap' }}>
               <select value={dubLang} onChange={(e) => setDubLang(e.target.value)} aria-label="Idioma del doblaje">
                 <option value="en">Inglés</option>
@@ -327,15 +419,15 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <option value="it">Italiano</option>
                 <option value="de">Alemán</option>
               </select>
-              <button className="btn primary" disabled={Boolean(busy) || project.kind === 'montaje'} onClick={dub}>Crear versión doblada</button>
+              <button className="btn primary" disabled={Boolean(busy)} onClick={dub}>Crear versión doblada</button>
             </div>
           )}
-          <span className="small muted help">Usa la voz elegida arriba en «Voz» (la del computador si no hay otra). Tarda alrededor de un minuto.</span>
+          {hablado && <span className="small muted help">Usa la voz elegida arriba en «Voz» (la del computador si no hay otra). Tarda alrededor de un minuto.</span>}
         </section>
 
         <section className="card col" style={{ gap: 12 }}>
-          <h2 style={{ fontSize: 17 }}>Efectos de sonido</h2>
-          <label className="row"><input type="checkbox" checked={a.sfxAuto} onChange={(e) => run({ op: 'efectos-auto', on: e.target.checked }, e.target.checked ? 'Efectos automáticos activados.' : 'Efectos automáticos apagados.')} />
+          <h2 style={{ fontSize: 17 }}><Icon name="bolt" /> Efectos de sonido</h2>
+          <label className="row"><input type="checkbox" checked={a.sfxAuto} disabled={Boolean(busy)} onChange={(e) => run({ op: 'efectos-auto', on: e.target.checked }, e.target.checked ? 'Efectos automáticos activados.' : 'Efectos automáticos apagados. La edición automática no los volverá a poner.', 'Guardando…')} />
             Automáticos: un barrido en cada transición y un «pop» cuando entra un texto</label>
           <div className="row" style={{ alignItems: 'flex-end' }}>
             <label className="field">Escena
@@ -351,8 +443,8 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <label className="field">Segundo dentro de la escena
               <input type="number" min={0} step={0.1} value={fx.offset} style={{ width: 120 }} onChange={(e) => setFx({ ...fx, offset: Math.max(0, Number(e.target.value) || 0) })} />
             </label>
-            <button className="btn rect" onClick={() => new window.Audio(`/sfx/${fx.id}.wav`).play()}>Escuchar</button>
-            <button className="btn primary" disabled={!fx.scene} onClick={() => run({ op: 'efecto', sceneId: fx.scene, id: fx.id, offset: fx.offset, volume: fx.volume }, 'Efecto añadido.')}>Añadir efecto</button>
+            <button className="btn rect" onClick={() => new window.Audio(`/sfx/${fx.id}.wav`).play()}><Icon name="play" /> Escuchar</button>
+            <button className="btn primary" disabled={!fx.scene || Boolean(busy)} onClick={() => run({ op: 'efecto', sceneId: fx.scene, id: fx.id, offset: fx.offset, volume: fx.volume }, 'Efecto añadido.', 'Añadiendo el efecto…')}><Icon name="plus" /> Añadir efecto</button>
           </div>
           <span className="small muted">{store.catalog.sfx.find((x) => x.id === fx.id)?.description} Úsalos con medida: uno en un cambio fuerte o en un texto clave.</span>
           <strong className="small" style={{ marginTop: 6 }}>Más sonidos: banco Freesound (gratis)</strong>
@@ -369,8 +461,8 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <div key={x.id} className="row" style={{ justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'var(--panel2)', flexWrap: 'wrap' }}>
                   <span style={{ flex: '1 1 220px', minWidth: 0 }}>{x.name} <span className="small muted">· {x.duration} s · {x.author} · {x.license}</span></span>
                   <span className="row">
-                    <button className="btn rect" style={{ height: 34 }} onClick={() => new window.Audio(x.preview).play()}>Escuchar</button>
-                    <button className="btn primary" style={{ height: 34 }} disabled={!fx.scene} onClick={() => run({ op: 'efecto-banco', sceneId: fx.scene, soundId: x.id, offset: fx.offset, volume: fx.volume }, `«${x.name}» añadido a la escena elegida arriba.`)}>Añadir</button>
+                    <button className="btn rect" style={{ height: 34 }} onClick={() => new window.Audio(x.preview).play()}><Icon name="play" /> Escuchar</button>
+                    <button className="btn rect" style={{ height: 34 }} disabled={!fx.scene || Boolean(busy)} onClick={() => run({ op: 'efecto-banco', sceneId: fx.scene, soundId: x.id, offset: fx.offset, volume: fx.volume }, `«${x.name}» añadido a la escena elegida arriba.`, 'Añadiendo el sonido…')}><Icon name="plus" /> Añadir</button>
                   </span>
                 </div>
               ))}
@@ -381,8 +473,12 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <div className="col list">
               {allFx.map(({ s, i, e, k }) => (
                 <div key={`${s.id}-${k}`} className="row" style={{ justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'var(--panel2)' }}>
-                  <span>Escena {i + 1} · {store.catalog.sfx.find((x) => x.id === e.id)?.name ?? e.id} · a los {e.offset} s</span>
-                  <button className="btn ghost" onClick={() => set((p) => { p.scenes[i].sfx.splice(k, 1); })}>Quitar</button>
+                  <span>Escena {i + 1} · {fxName(e.id)} · a los {e.offset} s</span>
+                  <button className="btn ghost" disabled={Boolean(busy)} onClick={() => set((p) => {
+                    p.scenes[i].sfx.splice(k, 1);
+                    // Si era el último uso de un sonido del banco, se quita también su crédito.
+                    if (e.id.startsWith('banco-') && !p.scenes.some((x) => x.sfx.some((y) => y.id === e.id))) p.assets = p.assets.filter((x) => x.file !== `media/sfx/${e.id}.wav`);
+                  })}><Icon name="trash" /> Quitar</button>
                 </div>
               ))}
             </div>

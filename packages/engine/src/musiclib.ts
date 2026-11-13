@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { outputDuration, type Project } from '@axioma/schema';
+import { MONTAGE_ALL, maxSeconds, wantsAll } from './brief.ts';
 import { analyzeBeats } from './beats.ts';
 import { envValue } from './env.ts';
 import { ffmpeg } from './exec.ts';
@@ -81,6 +82,18 @@ export async function addTrack(file: string, info: { license: string; name?: str
   return track;
 }
 
+/** Cambia el nombre con el que se ve una canción (el archivo no cambia). */
+export async function renameTrack(file: string, name: string): Promise<MusicTrack[]> {
+  const clean = name.trim().replace(/\s+/g, ' ').slice(0, 80);
+  if (!clean) throw new Error('Escribe un nombre para la canción.');
+  const tracks = await listTracks();
+  const t = tracks.find((x) => x.file === file);
+  if (!t) throw Object.assign(new Error('Esa canción ya no está en la biblioteca.'), { status: 404 });
+  t.name = clean;
+  await saveTracks(tracks);
+  return tracks;
+}
+
 export async function removeTrack(file: string) {
   const tracks = await listTracks();
   const t = tracks.find((x) => x.file === file);
@@ -114,16 +127,72 @@ export function pickTrack(p: Project, tracks: MusicTrack[]): { track: MusicTrack
   return { track: best, why: `El reel pide música ${label[want]}: «${best.name}» es ${label[best.mood]}${best.bpm ? ` (~${best.bpm} BPM)` : ''}.` };
 }
 
-/** Pone la canción elegida (o la que mejor va) como música del reel. */
-export async function useLibraryTrack(dir: string, file?: string) {
+/**
+ * Pone la canción elegida (o la que mejor va) como música del reel. En un montaje recorta al
+ * ritmo de la canción nueva conservando la duración, el cierre, los textos y las transiciones
+ * (`rebuilt: true`). Con `rebuild: false` no toca los cortes (la edición automática corta después).
+ */
+export async function useLibraryTrack(dir: string, file?: string, opts: { rebuild?: boolean } = {}) {
   const tracks = await listTracks();
   const project = await readProject(dir);
   const chosen = file ? tracks.find((t) => t.file === file) : pickTrack(project, tracks)?.track;
   if (!chosen) throw new Error(file ? 'Esa canción ya no está en la biblioteca.' : 'Tu biblioteca de música está vacía: agrega canciones primero.');
   let p = await ops.setMusic(dir, path.join(MUSIC_DIR, chosen.file), { license: chosen.license, source: `Biblioteca de música: ${chosen.name}` });
-  // En un montaje, los cortes se vuelven a poner en los golpes de la canción nueva.
-  if (p.kind === 'montaje') p = (await buildMontage(dir, {})).project;
-  return { project: p, track: chosen, why: file ? undefined : pickTrack(project, tracks)?.why };
+  let rebuilt = false;
+  if (p.kind === 'montaje' && opts.rebuild !== false && p.scenes.length) {
+    const r = await rebeatMontage(dir, project);
+    p = r.project; rebuilt = r.rebuilt;
+  }
+  return { project: p, track: chosen, why: file ? undefined : pickTrack(project, tracks)?.why, rebuilt };
+}
+
+/** Campos de texto de una escena que se conservan al recortar de nuevo. */
+const TEXT_KEYS = ['onScreenText', 'autoText', 'textStyle', 'textPosition', 'textX', 'textY', 'textSize', 'textFont', 'textAnim', 'textColor', 'textKeyword', 'textRotate', 'textSpacing'] as const;
+/** Ajustes de imagen que se copian de la escena vieja que caía en el mismo momento. */
+const LOOK_KEYS = ['look', 'brightness', 'contrast', 'saturation', 'vignette', 'camera', 'cameraAmount', 'videoScale'] as const;
+
+/**
+ * Vuelve a cortar un montaje al ritmo de su música actual sin perder la edición: misma duración
+ * (o la de la voz en off, si la hay), mismo gancho y cierre, los textos del medio repartidos en el
+ * mismo orden, el color y la cámara de cada momento y las transiciones. Guarda una versión antes.
+ * `before` es el proyecto tal como estaba antes del cambio (si no, se lee ahora).
+ */
+export async function rebeatMontage(dir: string, before?: Project, opts: { duration?: number } = {}): Promise<{ project: Project; rebuilt: boolean }> {
+  const old = before ?? (await readProject(dir));
+  if (old.kind !== 'montaje' || !old.scenes.length) return { project: await readProject(dir), rebuilt: false };
+  await ops.saveVersion(dir, 'antes-de-cambiar-musica').catch(() => {});
+  const now = await readProject(dir);
+  const duration = opts.duration ?? (now.audio.voiceover ? undefined : outputDuration(old));
+  let built: Project;
+  try { built = (await buildMontage(dir, { duration })).project; } catch { return { project: now, rebuilt: false }; }
+  const n = built.scenes.length;
+  const m = old.scenes.length;
+  const at = (i: number, from: number, to: number) => (from <= 1 ? 0 : Math.round((i * (to - 1)) / (from - 1)));
+  // Imagen, cámara y estilo de texto: de la escena vieja del mismo momento.
+  built.scenes.forEach((s, i) => {
+    const o = old.scenes[at(i, n, m)];
+    for (const k of LOOK_KEYS) (s as Record<string, unknown>)[k] = o[k];
+    s.textStyle = o.textStyle;
+  });
+  // Textos y transiciones: cada uno a la escena nueva que cae en su lugar (gancho y cierre se quedan en su sitio).
+  const used = new Set<number>();
+  old.scenes.forEach((o, j) => {
+    let i = j === 0 ? 0 : j === m - 1 ? n - 1 : at(j, m, n);
+    if (o.onScreenText) {
+      // Si esa escena ya tiene texto, se busca la vecina libre más cercana (sin tocar gancho ni cierre).
+      for (let d = 1; used.has(i) && d < n; d++) { const c = [i + d, i - d].find((x) => x > 0 && x < n - 1 && !used.has(x)); if (c != null) { i = c; break; } }
+      if (used.has(i)) return;
+      used.add(i);
+      const s = built.scenes[i] as Record<string, unknown>;
+      for (const k of TEXT_KEYS) s[k] = (o as Record<string, unknown>)[k];
+    }
+    if (o.transition && i > 0 && !built.scenes[i].transition) built.scenes[i].transition = { ...o.transition };
+  });
+  const first = built.scenes[0];
+  const last = built.scenes[n - 1];
+  first.role = old.scenes[0].role; first.title = old.scenes[0].title || first.title;
+  if (n > 1 && m > 1) { last.role = old.scenes[m - 1].role; last.title = old.scenes[m - 1].title || last.title; }
+  return { project: await ops.writeProject(dir, built), rebuilt: true };
 }
 
 /** Qué se busca en el banco para cada ánimo: palabras sencillas (en inglés, como están etiquetadas) */
@@ -192,9 +261,10 @@ export function stockMusic(): Promise<void> {
  * Música automática: si el reel no tiene, elige de la biblioteca la que va con su ánimo; si la
  * biblioteca no tiene suficientes de ese ánimo, baja una del banco gratuito. Varía entre las que van.
  */
-export async function autoMusic(dir: string, avoid?: string): Promise<string | null> {
+export async function autoMusic(dir: string, avoid?: string, opts: { replace?: boolean; rebuild?: boolean } = {}): Promise<string | null> {
   const project = await readProject(dir);
-  if (project.audio.music) return null;
+  // Ya tiene, o se quitó a mano: no se pone otra (salvo que se pida cambiarla).
+  if (!opts.replace && (project.audio.music || project.audio.musicOff)) return null;
   const want = wantedMood(project);
   // La canción que se quiere cambiar no se repite.
   const not = avoid ? path.basename(avoid) : '';
@@ -204,8 +274,15 @@ export async function autoMusic(dir: string, avoid?: string): Promise<string | n
   if (fits.length < 3) void stockMusic();
   const tracks = (await listTracks()).filter((t) => t.file !== not);
   if (!tracks.length) return null;
-  const pick = fits.length ? fits[Math.floor(Math.random() * fits.length)] : pickTrack(project, tracks)!.track;
-  await useLibraryTrack(dir, pick.file);
+  // Que la canción dure al menos lo que el video (si no, se reinicia a mitad); si ninguna alcanza, la más larga.
+  // (en un montaje que aún se va a cortar, cuenta la duración pedida en el brief)
+  const asked = maxSeconds(project.brief.duracion) ?? (project.kind === 'montaje' && wantsAll(project.brief.duracion) ? MONTAGE_ALL : 0);
+  const dur = Math.max(outputDuration(project), asked);
+  const long = fits.filter((t) => t.duration >= dur);
+  const pool = long.length ? long : [...fits].sort((a, b) => b.duration - a.duration).slice(0, 1);
+  if (fits.length && !long.length) void fetchBankMusic(want).catch(() => null);
+  const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : pickTrack(project, tracks)!.track;
+  await useLibraryTrack(dir, pick.file, { rebuild: opts.rebuild });
   const label = { tranquila: 'tranquila', media: 'de ritmo medio', energica: 'enérgica' };
   return `Música ${label[pick.mood]}: «${pick.name}» (${pick.license.split(' · ')[0]})${project.kind === 'montaje' ? ', con los cortes en sus golpes' : ', bajita debajo de la voz'}.`;
 }

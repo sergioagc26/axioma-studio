@@ -132,22 +132,30 @@ select { min-height: 36px; padding: 6px 10px; border-radius: 8px; border: 1px so
   .stage { flex: 1 1 100%; overflow: visible; order: -1; }
   .playerbox { height: 60vh; }
   .page, .cols { overflow: visible; }
+  /* El menú «Más» se ancla a la cabecera: dentro de la fila que se desliza quedaría recortado. */
+  .top { position: relative; }
+  .nav .more { position: static; }
+  .nav .more-menu { top: 100%; left: 16px; right: 16px; min-width: 0; }
 }
 
 /* Grupos plegables de los paneles */
 details.grp { border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; }
 details.grp > summary { cursor: pointer; padding: 10px 2px; font: 600 14px 'Space Grotesk', sans-serif; list-style: none; display: flex; justify-content: space-between; align-items: center; }
 details.grp > summary::-webkit-details-marker { display: none; }
-details.grp > summary::after { content: '+'; color: var(--muted); font-weight: 400; font-size: 18px; margin-left: 8px; }
+/* Flecha dibujada con bordes (no un «+» de texto): apunta abajo cerrado y arriba abierto. */
+details.grp > summary::after { content: ''; flex: none; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: 0 4px 4px 10px; transition: transform .2s; }
 details.grp > summary .grp-title { flex: none; }
 details.grp > summary .grp-hint { flex: 1; min-width: 0; margin-left: 8px; text-align: right; font: 500 12px Inter, system-ui, sans-serif; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.wrap { height: auto; min-height: 34px; white-space: normal; line-height: 1.25; padding: 8px 12px; text-align: center; }
-details.grp[open] > summary::after { content: '–'; }
+details.grp[open] > summary::after { transform: rotate(-135deg); margin-bottom: -3px; }
 details.grp > .col { padding-bottom: 12px; gap: 10px; }
 /* Botón en la unión de dos clips */
 .joint { position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 999px; border: 2px solid var(--panel); background: var(--muted); color: var(--panel); font-size: 12px; line-height: 1; padding: 0; z-index: 3; display: grid; place-items: center; }
 .joint.has { background: var(--cyan); color: #000; }
 .joint.open, .joint:hover { transform: scale(1.25); background: var(--pink); color: var(--onPink); }
+/* Los puntos pequeños (lejos de la escena elegida) crecen a su tamaño normal al pasar el cursor o al enfocarlos. */
+.joint { transition: transform .12s, width .12s, height .12s, margin .12s; }
+.joint:hover, .joint:focus-visible, .joint.open { width: 22px !important; height: 22px !important; margin: -11px 0 0 -11px !important; z-index: 4 !important; }
 .trbar { flex: none; border-top: 1px solid var(--line); background: var(--panel); padding: 10px 18px; display: flex; flex-direction: column; gap: 8px; }
 .btn.opt-tr { height: 34px; font-weight: 500; padding: 0 12px; }
 .btn.opt-tr.on { border-color: var(--pink); background: var(--pinkSoft); font-weight: 700; }
@@ -202,6 +210,11 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .pmenu button { text-align: left; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; font-weight: 500; }
 .pmenu button:hover, .pmenu button:focus-visible { background: var(--panel2); }
 .pmenu button.danger { color: var(--pinkText); }
+.pmenu button, .pmenu .pmenu-link { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.pmenu button.danger { color: var(--pinkText); }
+/* La tarjeta con el menú abierto va por encima de la de abajo. */
+.pcard.menu-open { z-index: 6; }
+.pcard.busy { opacity: .6; pointer-events: none; }
 .pcard-link { padding-right: 26px; }
 
 /* Editar por texto */
@@ -291,3 +304,25 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .ico { flex: none; vertical-align: -0.2em; }
 .btn .ico, .bchip .ico, .nav a .ico, .pill .ico { margin-right: 6px; }
 .btn.sq .ico { margin-right: 0; }
+
+/* Avance sin porcentaje conocido: una franja que se mueve, para que se vea que sigue trabajando. */
+.progress.busy > div { width: 35% !important; animation: progress-busy 1.4s ease-in-out infinite; }
+@keyframes progress-busy { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) { .progress.busy > div { animation: none; width: 100% !important; opacity: .45; } }
+
+/* Aviso con enlace (p. ej. «Tu video nuevo ya está listo»): encima de los avisos normales. */
+.toast.notice { bottom: 72px; display: flex; align-items: center; gap: 10px; }
+.toast.notice a { color: inherit; font-weight: 700; }
+.toast.notice .btn.sq { width: 28px; height: 28px; border-color: transparent; color: inherit; }
+
+/* Proyectos: lo de mantenimiento (actualizar, claves, copia…) va guardado en «Ajustes». */
+.ajustes { position: relative; }
+.ajustes > summary { list-style: none; cursor: pointer; }
+.ajustes > summary::-webkit-details-marker { display: none; }
+.ajustes .more-menu { left: auto; right: 0; min-width: 250px; max-width: calc(100vw - 32px); }
+.more-menu > button { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--text); font-weight: 500; text-align: left; }
+.more-menu > button:hover, .more-menu > button:focus-visible { background: var(--panel2); }
+.more-menu > button.warn { border-color: var(--pink); }
+.more-menu > button .ico { margin-right: 0; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--pink); }
+.done-item .detail { font-size: 11px; line-height: 1.3; }

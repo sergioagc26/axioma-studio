@@ -202,10 +202,10 @@ export async function llmJson<T>(system: string, user: string, schema: object, o
  * Texto para publicar redactado por la IA local: título, descripción y hashtags en español,
  * a partir de lo que se dice en el reel. No inventa datos.
  */
-export async function llmPublish(speech: string, extra: { sector?: string | null; cta?: string }): Promise<{ title: string; description: string; hashtags: string[] }> {
+export async function llmPublish(speech: string, extra: { sector?: string | null; cta?: string; publico?: string }): Promise<{ title: string; description: string; hashtags: string[] }> {
   const r = await llmJson<{ titulo: string; descripcion: string; hashtags: string[] }>(
     'Eres community manager. Escribe en español el texto para publicar un reel de Instagram/TikTok a partir de lo que dice la persona: un título de máximo 8 palabras que enganche, una descripción de 2 a 3 frases cortas que resuma el valor y termine con un llamado a la acción, y de 5 a 8 hashtags relevantes sin tildes. No inventes cifras, nombres ni promesas que no estén en el texto. Responde solo JSON.',
-    `Sector de la marca: ${extra.sector ?? 'no indicado'}.${extra.cta ? ` Llamado a la acción preferido: «${extra.cta}».` : ''}\n\nLo que se dice en el reel: «${speech.slice(0, 2500)}»`,
+    `Sector de la marca: ${extra.sector ?? 'no indicado'}.${extra.publico ? ` Público: ${extra.publico}.` : ''}${extra.cta ? ` Llamado a la acción preferido: «${extra.cta}».` : ''}\n\nLo que se dice en el reel: «${speech.slice(0, 2500)}»`,
     { type: 'object', properties: { titulo: { type: 'string' }, descripcion: { type: 'string' }, hashtags: { type: 'array', items: { type: 'string' } } }, required: ['titulo', 'descripcion', 'hashtags'] },
     { temperature: 0.6, timeoutMs: 120_000 },
   );
@@ -217,7 +217,7 @@ export async function llmPublish(speech: string, extra: { sector?: string | null
  * Gancho para la pantalla (3 a 7 palabras) a partir de lo que se dice al inicio. No copia la
  * frase: la condensa. Si sale largo, se pide una segunda versión más corta.
  */
-export async function llmHook(said: string): Promise<string | null> {
+export async function llmHook(said: string, audience?: string): Promise<string | null> {
   const schema = { type: 'object', properties: { gancho: { type: 'string' } }, required: ['gancho'] };
   const system = `Eres guionista de reels en español. A partir de lo que dice la persona al inicio, escribe el texto de gancho que aparece en pantalla en el primer segundo.
 Reglas: de 3 a 7 palabras; NO copies la frase tal cual, condénsala en una idea que despierte curiosidad; fiel al mensaje; no inventes cifras ni datos; sin emojis, sin comillas, sin punto final.
@@ -227,10 +227,11 @@ Ejemplos:
 «Mucha gente piensa que vender más es la solución pero no» → Vender más no es la solución
 Responde solo JSON {"gancho": "..."}.`;
   const clean = (x: string) => x.replace(/["«»“”.]/g, '').replace(/\s+/g, ' ').trim();
-  let r = await llmJson<{ gancho: string }>(system, `Lo que dice: «${said.slice(0, 400)}»`, schema, { temperature: 0.7, timeoutMs: 60_000 });
+  const who = audience ? `\nPúblico: ${audience} (escribe para esa persona).` : '';
+  let r = await llmJson<{ gancho: string }>(system, `Lo que dice: «${said.slice(0, 400)}»${who}`, schema, { temperature: 0.7, timeoutMs: 60_000 });
   let hook = clean(r.gancho);
   if (hook.split(' ').length > 7) {
-    r = await llmJson<{ gancho: string }>(system, `Lo que dice: «${said.slice(0, 400)}»\nTu propuesta «${hook}» es muy larga: dame una de máximo 6 palabras.`, schema, { temperature: 0.7, timeoutMs: 60_000 });
+    r = await llmJson<{ gancho: string }>(system, `Lo que dice: «${said.slice(0, 400)}»${who}\nTu propuesta «${hook}» es muy larga: dame una de máximo 6 palabras.`, schema, { temperature: 0.7, timeoutMs: 60_000 });
     hook = clean(r.gancho);
   }
   const n = hook.split(' ').length;

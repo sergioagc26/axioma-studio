@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { publishPack, publishText } from '@axioma/schema';
 import { Icon } from '../Icon.tsx';
 import type { Ctx } from '../App.tsx';
@@ -55,8 +55,30 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       return true;
     } catch (e: any) { ctx.toast(e.message); return false; }
   };
+  const [adding, setAdding] = useState(false);
   const add = async () => {
-    if (await call('POST', form)) ctx.toast(`Programado: ${byId.get(form.projectId)?.name ?? 'reel'} · ${NET[form.network].label} · ${form.date}${form.time ? ` ${form.time}` : ''}.`);
+    if (adding) return;
+    setAdding(true);
+    try {
+      if (await call('POST', form)) {
+        ctx.toast(`Programado: ${byId.get(form.projectId)?.name ?? 'video'} · ${NET[form.network].label} · ${form.date}${form.time ? ` ${form.time}` : ''}.`);
+        // Se muestra el mes donde quedó, para verlo en el calendario.
+        const [y, m] = form.date.split('-').map(Number);
+        if (y && m) setMonth(new Date(y, m - 1, 1));
+      }
+    } finally { setAdding(false); }
+  };
+  // El «+» de un día lleva al formulario con ese día ya puesto, y se nota.
+  const formRef = useRef<HTMLElement>(null);
+  const reelRef = useRef<HTMLSelectElement>(null);
+  const [flash, setFlash] = useState(false);
+  const pickDay = (key: string, d: Date) => {
+    setForm((f) => ({ ...f, date: key }));
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    reelRef.current?.focus({ preventScroll: true });
+    setFlash(true);
+    window.setTimeout(() => setFlash(false), 1400);
+    ctx.toast(`Día ${d.getDate()} elegido: elige el video y pulsa «Programar».`);
   };
   const copyText = async (projectId: string) => {
     try {
@@ -67,11 +89,23 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
   const sel = (entries ?? []).find((e) => e.id === open) ?? null;
   const clients = useMemo(() => [...new Set(items.map((i) => i.client))].sort(), [items]);
+  // Nombres repetidos dentro de un cliente: se distinguen con un número.
+  const groups = useMemo(() => clients.map((c) => {
+    const list = items.filter((i) => i.client === c);
+    const seen = new Map<string, number>();
+    return { client: c, list: list.map((i) => { const n = (seen.get(i.name) ?? 0) + 1; seen.set(i.name, n); return { ...i, label: list.filter((x) => x.name === i.name).length > 1 ? `${i.name} (${n})` : i.name }; }) };
+  }), [clients, items]);
   const [client, setClient] = useState('');
   const [insights, setInsights] = useState<Insights | null>(null);
   const [nums, setNums] = useState<Record<string, string>>({});
   useEffect(() => { if (!client && clients.length) setClient(clients.includes('personal') ? 'personal' : clients[0]); }, [clients]);
-  useEffect(() => { if (client) api<Insights>(`/api/resultados?cliente=${encodeURIComponent(client)}`).then(setInsights).catch(() => setInsights(null)); }, [client, entries]);
+  useEffect(() => {
+    if (!client) return;
+    // La consulta no trae lo aplicado (solo lo da el guardado): se conserva lo último que se vio de ese cliente.
+    api<Insights>(`/api/resultados?cliente=${encodeURIComponent(client)}`)
+      .then((i) => setInsights((prev) => ({ ...i, applied: i.applied.length ? i.applied : prev?.client === i.client ? prev.applied : [] })))
+      .catch(() => setInsights(null));
+  }, [client, entries]);
   useEffect(() => {
     const m = sel?.metrics;
     setNums(m ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== 'at' && k !== 'source').map(([k, v]) => [k, String(v ?? '')])) : {});
@@ -107,16 +141,20 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
   return (
     <main className="page" style={{ maxWidth: 1180, width: '100%', margin: '0 auto' }}>
-      <a href="#/proyectos" className="small muted" style={{ textDecoration: 'none' }}>‹ Proyectos</a>
+      <a href="#/proyectos" className="small muted row" style={{ textDecoration: 'none', gap: 4, alignSelf: 'flex-start' }}><Icon name="back" size={13} />Proyectos</a>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 26 }}>Calendario de publicación</h1>
         <span className="small muted">{pending} por publicar · nada se publica solo: en Instagram publicas tú desde aquí</span>
       </div>
 
-      <section className="card row" style={{ flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }} aria-label="Programar una publicación">
-        <label className="field" style={{ flex: '2 1 240px' }}>Reel
-          <select value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
-            {items.map((i) => <option key={i.id} value={i.id}>{i.name} · {i.client}</option>)}
+      <section ref={formRef} className="card row" style={{ flexWrap: 'wrap', gap: 10, alignItems: 'flex-end', transition: 'box-shadow .3s', boxShadow: flash ? '0 0 0 3px var(--pink)' : undefined }} aria-label="Programar una publicación">
+        <label className="field" style={{ flex: '2 1 240px' }}>Video
+          <select ref={reelRef} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+            {groups.map((g) => (
+              <optgroup key={g.client} label={g.client}>
+                {g.list.map((i) => <option key={i.id} value={i.id}>{i.label}</option>)}
+              </optgroup>
+            ))}
           </select>
         </label>
         <label className="field" style={{ flex: '1 1 140px' }}>Día
@@ -130,13 +168,13 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             {(Object.keys(NET) as Network[]).map((n) => <option key={n} value={n}>{NET[n].label}</option>)}
           </select>
         </label>
-        <button className="btn primary" disabled={!form.projectId} onClick={add}>Programar</button>
+        <button className="btn primary" disabled={!form.projectId || adding} onClick={add}>{adding ? 'Programando…' : 'Programar'}</button>
       </section>
 
       <div className="row" style={{ justifyContent: 'space-between', marginTop: 4 }}>
-        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Mes anterior">‹</button>
+        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Mes anterior"><Icon name="prev" /></button>
         <strong style={{ fontSize: 18 }}>{(() => { const m = month.toLocaleDateString('es', { month: 'long', year: 'numeric' }); return m.charAt(0).toUpperCase() + m.slice(1); })()}</strong>
-        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Mes siguiente">›</button>
+        <button className="btn rect" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Mes siguiente"><Icon name="next" /></button>
       </div>
 
       <div className="cal" role="grid" aria-label="Calendario del mes">
@@ -147,11 +185,11 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <div key={key} role="gridcell" className={`cal-day ${inMonth(d) ? '' : 'out'} ${key === today ? 'today' : ''}`}>
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <span className="small" style={{ fontWeight: 600 }}>{d.getDate()}</span>
-                {inMonth(d) && <button className="cal-add" aria-label={`Programar el ${d.getDate()}`} onClick={() => setForm({ ...form, date: key })}>+</button>}
+                {inMonth(d) && <button className="cal-add" aria-label={`Programar el ${d.getDate()}`} title="Programar este día" onClick={() => pickDay(key, d)}><Icon name="plus" size={14} /></button>}
               </div>
               {dayEntries(key).map((e) => (
                 <button key={e.id} className={`cal-chip ${e.status}`} style={{ borderLeftColor: NET[e.network].color }} onClick={() => setOpen(e.id)} title={`${NET[e.network].label}${e.time ? ` · ${e.time}` : ''} · ${byId.get(e.projectId)?.name ?? 'reel borrado'}`}>
-                  <span className="small" style={{ fontWeight: 700 }}>{NET[e.network].short}</span>
+                  <span aria-label={NET[e.network].label} style={{ display: 'inline-flex', color: NET[e.network].color }}><Icon name={e.network} size={13} /></span>
                   <span className="small pname">{e.time ? `${e.time} ` : ''}{byId.get(e.projectId)?.name ?? 'Reel borrado'}</span>
                   {e.status === 'publicado' ? <span aria-label="publicado"><Icon name="check" size={13} /></span>
                     : e.remote?.state === 'error' ? <span aria-label="no se pudo publicar"><Icon name="warning" size={13} /></span>
@@ -172,12 +210,13 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </select>
           )}
         </div>
-        <span className="small muted">Las cifras de lo que publicas en Instagram desde la app se traen solas. De lo demás, abre el reel aquí y pon sus vistas y su interacción. Con 4 o más reels de un cliente, la app compara y usa lo que mejor le funciona en sus próximos reels.</span>
+        <span className="small muted">Las cifras de lo que publicas en Instagram desde la app se traen solas. De lo demás, abre el reel aquí y pon sus vistas y su interacción. Con 4 o más videos de un cliente, la app compara qué le va mejor. Lo que aplica sola en sus próximos videos es el diseño de subtítulos y el estilo de los textos que mejor funcionaron; la hora y el día son solo una sugerencia para que programes.</span>
         {insights && (
           <>
             {insights.reels >= 4 && <span className="small">{insights.reels} reels con cifras · vistas típicas <strong>{insights.medianViews.toLocaleString('es')}</strong> · interacción <strong>{String(insights.engagement).replace('.', ',')} %</strong></span>}
-            {insights.findings.map((f) => <span key={f.label}>• {f.text}</span>)}
-            {insights.applied.length > 0 && <span className="small" style={{ color: 'var(--accent, #25F4EE)' }}>Aplicado a sus próximos reels: {insights.applied.join(' · ')}.</span>}
+            {insights.findings.map((f) => <span key={f.label} className="row" style={{ gap: 6, alignItems: 'baseline', flexWrap: 'nowrap' }}><Icon name="bulb" size={14} style={{ flex: 'none' }} />{f.text}</span>)}
+            {insights.applied.some((a) => !a.startsWith('Publicar')) && <span className="small" style={{ color: 'var(--accent, #25F4EE)' }}>Se aplica solo en sus próximos videos: {insights.applied.filter((a) => !a.startsWith('Publicar')).join(' · ')}.</span>}
+            {insights.applied.some((a) => a.startsWith('Publicar')) && <span className="small muted">Sugerencia para programar: {insights.applied.filter((a) => a.startsWith('Publicar')).join(' · ').toLowerCase()}.</span>}
             {insights.note && <span className="small muted">{insights.note}</span>}
           </>
         )}
@@ -198,7 +237,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </select>
             </label>
             {sel.remote?.state === 'publicado' && (
-              <span><Icon name="check" style={{ marginRight: 6 }} />Publicado en Instagram desde la app{sel.remote.url?.startsWith('https://') ? <> · <a href={sel.remote.url} target="_blank" rel="noreferrer">Ver ↗</a></> : null}</span>
+              <span><Icon name="check" style={{ marginRight: 6 }} />Publicado en Instagram desde la app{sel.remote.url?.startsWith('https://') ? <> · <a href={sel.remote.url} target="_blank" rel="noreferrer">Ver <Icon name="open" size={12} /></a></> : null}</span>
             )}
             {canPublish && (
               <div className="col" style={{ gap: 6 }}>
@@ -208,7 +247,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </div>
             )}
             <div className="row" style={{ flexWrap: 'wrap' }}>
-              {byId.has(sel.projectId) && <a className="btn rect" href={`#/editor?p=${encodeURIComponent(sel.projectId)}`}>Abrir en el editor</a>}
+              {byId.has(sel.projectId) && <a className="btn rect" href={`#/listo?p=${encodeURIComponent(sel.projectId)}`}>Ver el video</a>}
               {byId.has(sel.projectId) && <button className="btn rect" onClick={() => copyText(sel.projectId)}>Copiar texto para publicar</button>}
               <button className={`btn ${sel.status === 'publicado' || canPublish ? 'rect' : 'primary'}`} onClick={() => call('PUT', { status: sel.status === 'publicado' ? 'planificado' : 'publicado' }, sel.id)}>{sel.status === 'publicado' ? 'Marcar como pendiente' : 'Marcar como publicado'}</button>
             </div>
@@ -228,7 +267,12 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               </div>
             </details>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <button className="btn ghost" onClick={async () => { if (await call('DELETE', undefined, sel.id)) { setOpen(null); ctx.toast('Quitado del calendario.'); } }}>Quitar del calendario</button>
+              <button className="btn ghost" onClick={async () => {
+                const extra = sel.metrics ? `\n\nTambién se borran sus resultados (${sel.metrics.views.toLocaleString('es')} vistas) y dejan de contar en «Lo que funciona».` : '';
+                const ig = sel.remote?.id ? '\n\nEn Instagram no se borra nada.' : '';
+                if (sel.metrics && !window.confirm(`¿Quitar esta publicación del calendario?${extra}${ig}\n\nNo se puede deshacer. El proyecto y el video no se tocan.`)) return;
+                if (await call('DELETE', undefined, sel.id)) { setOpen(null); ctx.toast('Quitado del calendario.'); }
+              }}><Icon name="trash" />Quitar del calendario</button>
               <button className="btn" onClick={() => setOpen(null)}>Cerrar</button>
             </div>
           </div>

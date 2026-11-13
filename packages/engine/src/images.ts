@@ -36,17 +36,23 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
   const cta = ctaBrief || (kind === 'historia' ? 'Respóndeme esta historia' : kind === 'carrusel' ? 'Guárdalo para después' : 'Escríbeme por DM');
   const scenes = project.scenes;
   const speech = scenes.map((s) => speechOf(s, transcript));
-  const hook = clean(scenes[0]?.onScreenText || shortPhrases(speech[0] ?? '')[0] || project.name);
+  // Sin voz (montaje): los textos salen del brief y de los textos del video, no del nombre del archivo.
+  const said = speech.join(' ').trim();
+  const briefText = [project.brief.notas, project.brief.objetivo && !project.brief.cta ? project.brief.objetivo : ''].filter(Boolean).join('. ').trim();
+  const onScreen = scenes.slice(0, -1).map((s) => s.onScreenText).filter((t): t is string => Boolean(t));
+  const source = said || [briefText, ...onScreen].filter(Boolean).join('. ');
+  const hook = clean(scenes[0]?.onScreenText || shortPhrases(speech[0] || '')[0] || onScreen[0] || shortPhrases(briefText)[0] || project.name);
 
   // 1. Textos
   let slides: SlideText[] = [];
   let ai = false;
+  if (kind === 'carrusel' && !source) throw new Error('Este video no tiene voz: escribe en el brief de qué trata (en la nota) o añade un texto a la primera escena para crear el carrusel.');
   if (kind === 'carrusel' && (await llmReady())) {
     onProgress('La IA local está escribiendo el carrusel…');
     try {
       const r = await llmJson<{ portada: { titulo: string; subtitulo: string }; puntos: { titulo: string; texto: string; escena: number }[]; cierre: { titulo: string; texto: string } }>(
         'Eres creador de carruseles de Instagram en español. A partir de lo que dice la persona en su video (dividido en escenas numeradas), escribe un carrusel: una portada con un título de máximo 7 palabras que enganche y un subtítulo de máximo 12; de 3 a 5 puntos, cada uno con un título de máximo 6 palabras, un texto de máximo 22 palabras y el número de la escena de donde sale; y un cierre con un título de máximo 6 palabras y un texto corto. Fiel a lo que se dice: no inventes cifras, nombres ni promesas. Responde solo JSON.',
-        speech.map((s, i) => `Escena ${i + 1}: ${s}`).join('\n').slice(0, 4000),
+        (said ? speech.map((s, i) => `Escena ${i + 1}: ${s}`).join('\n') : `El video no tiene voz. Lo que se sabe de él (no inventes más): ${source}\n${scenes.map((s, i) => `Escena ${i + 1}: ${s.onScreenText ?? ''}`).join('\n')}`).slice(0, 4000),
         { type: 'object', properties: { portada: { type: 'object', properties: { titulo: { type: 'string' }, subtitulo: { type: 'string' } }, required: ['titulo', 'subtitulo'] }, puntos: { type: 'array', items: { type: 'object', properties: { titulo: { type: 'string' }, texto: { type: 'string' }, escena: { type: 'integer' } }, required: ['titulo', 'texto', 'escena'] } }, cierre: { type: 'object', properties: { titulo: { type: 'string' }, texto: { type: 'string' } }, required: ['titulo', 'texto'] } }, required: ['portada', 'puntos', 'cierre'] },
         { temperature: 0.5, timeoutMs: 180_000 },
       );
@@ -72,7 +78,8 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
     } else {
       // Post, historia o portada del reel: una imagen con el gancho, escrito por la IA local si está.
       let title = hook;
-      if (await llmReady()) { try { title = (await llmHook(speech[0] ?? hook)) ?? hook; ai = title !== hook; } catch { /* queda el gancho del video */ } }
+      const from = speech[0] || source;
+      if (from && (await llmReady())) { try { title = (await llmHook(from)) ?? hook; ai = title !== hook; } catch { /* queda el gancho del video */ } }
       slides = [{ kind: 'portada', title, sceneIndex: 0 }];
     }
   }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cutInterval, keptMask, outputDuration, restoreInterval, wordsSpan } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
+import { Icon } from '../Icon.tsx';
 
 /**
  * Editar por texto (como Descript): todo lo que se dice, palabra por palabra. Las tachadas no
@@ -45,7 +46,16 @@ export const Texto: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   }, []);
 
   if (!t?.words.length) {
-    return <div className="page"><p className="muted">Este proyecto no tiene voz transcrita: no hay texto que editar. (En un montaje sin voz, los cortes se cambian en el editor.)</p></div>;
+    return (
+      <main className="page" style={{ maxWidth: 980, width: '100%', margin: '0 auto' }}>
+        <h1 style={{ fontSize: 26 }}>Este video no tiene voz</h1>
+        <p className="muted">Aquí se edita quitando palabras de lo que dices, y en este video nadie habla. Los cortes se cambian en el editor.</p>
+        <div className="row">
+          <button className="btn primary" onClick={() => ctx.go('listo')}>Ver resultado</button>
+          <button className="btn rect" onClick={() => ctx.go('editor', { s: null })}><Icon name="scissors" /> Cambiar los cortes en el editor</button>
+        </div>
+      </main>
+    );
   }
 
   const [a, b] = sel ?? [-1, -1];
@@ -69,17 +79,17 @@ export const Texto: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       for (const [i, j] of r) { const s = wordsSpan(t, i, j); n = cutInterval(n, s.start, s.end); }
       p.scenes = n.scenes;
     });
-    ctx.toast(`Quitadas ${r.reduce((x, [i, j]) => x + j - i + 1, 0)} palabras. ⌘Z para deshacer.`);
+    ctx.toast(`Quitadas ${r.reduce((x, [i, j]) => x + j - i + 1, 0)} palabras. Deshacer las recupera.`);
   };
   const restoreSel = () => {
     if (!sel) return;
     const r = runs(false);
     if (!r.length) return;
-    store.update((p) => {
-      let n = p;
-      for (const [i, j] of r) { const s = wordsSpan(t, i, j); n = restoreInterval(n, s.start, s.end); }
-      p.scenes = n.scenes;
-    });
+    let n = project;
+    for (const [i, j] of r) { const s = wordsSpan(t, i, j); n = restoreInterval(n, s.start, s.end); }
+    // Si no cambió nada (por ejemplo, se quitaron todas las escenas), no se dice que se recuperó.
+    if (n.scenes === project.scenes || JSON.stringify(n.scenes) === JSON.stringify(project.scenes)) return ctx.toast('No se pudo recuperar ese texto. Usa Deshacer.');
+    store.update((p) => { p.scenes = n.scenes; });
     ctx.toast(`Recuperadas ${r.reduce((x, [i, j]) => x + j - i + 1, 0)} palabras.`);
   };
   const listen = () => {
@@ -104,15 +114,15 @@ export const Texto: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     <main className="page texto" style={{ maxWidth: 980, width: '100%', margin: '0 auto' }}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 26 }}>Editar por texto</h1>
-        <span className="muted small">El reel dura {outputDuration(project).toFixed(1)} s · {removedCount} palabras fuera del corte</span>
+        <span className="muted small">El video dura {outputDuration(project).toFixed(1)} s · {removedCount} palabras fuera del corte</span>
       </div>
-      <p className="muted" style={{ margin: 0 }}>Selecciona palabras (clic, arrastrar o Mayús+clic) y quítalas del video o recupéralas. Las <s>tachadas</s> no están en el reel. Teclas: ⌫ quitar · R recuperar · espacio escuchar · Esc soltar.</p>
+      <p className="muted" style={{ margin: 0 }}>Selecciona palabras (clic, arrastrar o Mayús+clic) y quítalas del video o recupéralas. Las <s>tachadas</s> no están en el video. Teclas: Borrar quita · R recupera · Espacio escucha · Esc suelta.</p>
 
       <div className="texto-bar" role="toolbar" aria-label="Acciones sobre la selección">
         <span className="small muted" style={{ minWidth: 160 }}>{sel ? `${b - a + 1} palabra${b > a ? 's' : ''} seleccionada${b > a ? 's' : ''}` : 'Nada seleccionado'}</span>
-        <button className="btn rect" disabled={!sel} onClick={listen}>▶ Escuchar</button>
-        <button className="btn primary" disabled={!selKept} onClick={removeSel}>Quitar del video</button>
-        <button className="btn rect" disabled={!selRemoved} onClick={restoreSel}>Recuperar</button>
+        <button className="btn rect" disabled={!sel} onClick={listen}><Icon name="play" /> Escuchar</button>
+        <button className="btn primary" disabled={!selKept} onClick={removeSel}><Icon name="scissors" /> Quitar del video</button>
+        <button className="btn rect" disabled={!selRemoved} onClick={restoreSel}><Icon name="undo" /> Recuperar</button>
         <button className="btn ghost" disabled={!sel} onClick={() => setSel(null)}>Soltar</button>
       </div>
 
