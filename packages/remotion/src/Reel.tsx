@@ -111,6 +111,7 @@ export const Reel: React.FC<Timeline> = (t) => {
       {t.finish.vignette ? <AbsoluteFill style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.6) 100%)', pointerEvents: 'none' }} /> : null}
       {t.finish.grain ? <Grain /> : null}
       {t.finish.progressBar ? <Progress t={t} /> : null}
+      {t.finish.watermark ? <Watermark t={t} /> : null}
       {t.voiceoverSrc ? <Audio src={t.voiceoverSrc} /> : null}
       {t.sfx.map((e, i) => (
         <Sequence key={`fx${i}`} from={e.fromFrame}>
@@ -184,6 +185,24 @@ const Grain: React.FC = () => {
 };
 
 /** Barra de progreso arriba, con el color de la marca. */
+/**
+ * Marca de agua: el logo (o el nombre de la marca) fijo en una esquina. Separada del borde lo
+ * justo para no chocar con la barra de progreso ni con los botones de Reels y TikTok.
+ */
+const Watermark: React.FC<{ t: Timeline }> = ({ t }) => {
+  const w = t.finish.watermark!;
+  const top = w.corner.startsWith('arriba');
+  const left = w.corner.endsWith('izq');
+  const pos: React.CSSProperties = { position: 'absolute', [top ? 'top' : 'bottom']: top ? '4.5%' : '17%', [left ? 'left' : 'right']: '5%', opacity: w.opacity };
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      {t.brand.logoSrc
+        ? <Img src={t.brand.logoSrc} style={{ ...pos, width: `${w.size * 100}%`, height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))' }} />
+        : <span style={{ ...pos, font: `800 ${Math.round(t.width * w.size * 0.24)}px Montserrat, sans-serif`, color: '#fff', letterSpacing: '0.04em', textTransform: 'uppercase', textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>{t.brand.name ?? ''}</span>}
+    </AbsoluteFill>
+  );
+};
+
 const Progress: React.FC<{ t: Timeline }> = ({ t }) => {
   const frame = useCurrentFrame();
   return (

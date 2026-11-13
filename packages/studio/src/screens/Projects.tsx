@@ -28,6 +28,26 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('');
   const input = useRef<HTMLInputElement>(null);
+  const [menu, setMenu] = useState<string | null>(null);
+  const reload = () => api<Item[]>('/api/projects').then(setItems).catch((e) => ctx.toast(e.message));
+  const duplicate = async (it: Item) => {
+    setMenu(null);
+    try {
+      const d = await api<{ id: string }>(`/api/op?id=${encodeURIComponent(it.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'duplicar' }) });
+      await reload();
+      ctx.toast(`Copia creada: «${it.name} (copia)».`);
+      return d;
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+  const trash = async (it: Item) => {
+    setMenu(null);
+    if (!window.confirm(`¿Mover «${it.name}» a la papelera?\n\nDeja de aparecer en la lista, pero no se borra: queda en workspace/papelera por si lo necesitas.`)) return;
+    try {
+      await api(`/api/op?id=${encodeURIComponent(it.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'papelera' }) });
+      await reload();
+      ctx.toast(`«${it.name}» está en la papelera.`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
   // Automático: el video se edita solo al subirlo y se abre directo en el editor.
   const [auto, setAuto] = useState(true);
 
@@ -152,20 +172,31 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ) : (
         <div className="pgrid">
           {shown.map((it) => (
-            <a key={it.id} className="pcard" href={`#/editor?p=${encodeURIComponent(it.id)}`} title={`Abrir «${it.name}» en el editor`}>
-              <span className="pthumb">
-                <img src={`/api/thumb?id=${encodeURIComponent(it.id)}&t=${it.thumbT ?? 1}`} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }} />
-                {it.duration ? <span className="pdur">{Math.floor(it.duration / 60)}:{String(Math.round(it.duration % 60)).padStart(2, '0')}</span> : null}
-              </span>
-              <span className="col" style={{ gap: 4, minWidth: 0 }}>
-                <strong className="pname">{it.name}</strong>
-                <span className="small muted">{it.client} · {it.kind === 'montaje' ? 'montaje' : `${it.scenes} escenas`}</span>
-                <span className="row" style={{ gap: 6 }}>
-                  <span className={`pill ${it.approval === 'aprobado' ? '' : 'line'}`}>{STATUS[it.approval] ?? it.approval}</span>
-                  <span className="small muted">{ago(it.updatedAt)}</span>
+            <div key={it.id} className="pcard">
+              <a className="pcard-link" href={`#/editor?p=${encodeURIComponent(it.id)}`} title={`Abrir «${it.name}» en el editor`}>
+                <span className="pthumb">
+                  <img src={`/api/thumb?id=${encodeURIComponent(it.id)}&t=${it.thumbT ?? 1}`} alt="" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; }} />
+                  {it.duration ? <span className="pdur">{Math.floor(it.duration / 60)}:{String(Math.round(it.duration % 60)).padStart(2, '0')}</span> : null}
                 </span>
-              </span>
-            </a>
+                <span className="col" style={{ gap: 4, minWidth: 0 }}>
+                  <strong className="pname">{it.name}</strong>
+                  <span className="small muted">{it.client} · {it.kind === 'montaje' ? 'montaje' : `${it.scenes} escenas`}</span>
+                  <span className="row" style={{ gap: 6 }}>
+                    <span className={`pill ${it.approval === 'aprobado' ? '' : 'line'}`}>{STATUS[it.approval] ?? it.approval}</span>
+                    <span className="small muted">{ago(it.updatedAt)}</span>
+                  </span>
+                </span>
+              </a>
+              <div className="pactions">
+                <button className="btn sq" aria-label={`Más acciones para «${it.name}»`} aria-expanded={menu === it.id} onClick={() => setMenu(menu === it.id ? null : it.id)}>⋯</button>
+                {menu === it.id && (
+                  <div className="pmenu" role="menu">
+                    <button role="menuitem" onClick={() => duplicate(it)}>Duplicar</button>
+                    <button role="menuitem" className="danger" onClick={() => trash(it)}>Mover a la papelera</button>
+                  </div>
+                )}
+              </div>
+            </div>
           ))}
         </div>
       )}

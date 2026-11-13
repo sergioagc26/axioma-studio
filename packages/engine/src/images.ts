@@ -1,8 +1,9 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { renderStill, selectComposition } from '@remotion/renderer';
-import { effectiveRanges, shortPhrases, speechOf, type Project } from '@axioma/schema';
+import { shortPhrases, speechOf, type Project } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
+import { bestFrameTime, sceneRanges } from './frames.ts';
 import { readKit } from './kit.ts';
 import { llmHook, llmJson, llmReady } from './llm.ts';
 import { P } from './paths.ts';
@@ -10,7 +11,7 @@ import { brandFor, getBundle, retryBrowser } from './render.ts';
 import { serveFolder } from './server.ts';
 import { readProject, readTranscript } from './store.ts';
 
-export type ImageKind = 'carrusel' | 'post' | 'historia';
+export type ImageKind = 'carrusel' | 'post' | 'historia' | 'portada';
 
 interface SlideText { kind: 'portada' | 'punto' | 'cierre'; title: string; body?: string; sceneIndex: number }
 
@@ -69,7 +70,7 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
         { kind: 'cierre', title: 'Guárdalo para después', body: 'Y compártelo con quien lo necesita', sceneIndex: scenes.length - 1 },
       ];
     } else {
-      // Post o historia: una portada con el gancho, escrito por la IA local si está.
+      // Post, historia o portada del reel: una imagen con el gancho, escrito por la IA local si está.
       let title = hook;
       if (await llmReady()) { try { title = (await llmHook(speech[0] ?? hook)) ?? hook; ai = title !== hook; } catch { /* queda el gancho del video */ } }
       slides = [{ kind: 'portada', title, sceneIndex: 0 }];
@@ -81,15 +82,16 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
   await mkdir(path.join(dir, 'proxies', 'fotos'), { recursive: true });
   for (const sl of slides) {
     if (frames.has(sl.sceneIndex)) continue;
-    const r = effectiveRanges(scenes[sl.sceneIndex], project.source.duration)[0];
-    const at = r ? (r.start + r.end) / 2 : 0;
+    // El mejor fotograma (nítido, con la cara y buena luz), no simplemente el del medio. La portada
+    // del reel elige entre las primeras escenas con el video propio.
+    const at = await bestFrameTime(dir, project, sceneRanges(project, kind === 'portada' && sl.kind === 'portada' ? null : sl.sceneIndex));
     const rel = path.join('proxies', 'fotos', `foto-${sl.sceneIndex}-${Math.round(at * 10)}.jpg`);
     await ffmpeg(['-ss', at.toFixed(2), '-i', path.join(dir, P.master), '-frames:v', '1', '-q:v', '2', path.join(dir, rel)]);
     frames.set(sl.sceneIndex, rel);
   }
 
   // 3. Render de cada imagen.
-  const size = kind === 'historia' ? { width: 1080, height: 1920 } : { width: 1080, height: 1350 };
+  const size = kind === 'historia' || kind === 'portada' ? { width: 1080, height: 1920 } : { width: 1080, height: 1350 };
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const outDir = path.join(dir, P.renders, 'imagenes', `${stamp}-${kind}`);
   await mkdir(outDir, { recursive: true });
@@ -104,8 +106,8 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
       const props = {
         ...size, kind: sl.kind, title: sl.title, body: sl.body ?? '', index: i, total: slides.length,
         bg: server.url(frames.get(sl.sceneIndex)!.split(path.sep).join('/')),
-        cta: sl.kind === 'portada' && kind !== 'carrusel' ? cta : sl.kind === 'cierre' ? cta : '',
-        story: kind === 'historia', carousel: kind === 'carrusel', brand: { primary: brand.primary, secondary: brand.secondary, name: brand.name ?? '', logoSrc: brand.logoSrc ?? '' }, font,
+        cta: kind === 'portada' ? '' : sl.kind === 'portada' && kind !== 'carrusel' ? cta : sl.kind === 'cierre' ? cta : '',
+        story: kind === 'historia' || kind === 'portada', carousel: kind === 'carrusel', brand: { primary: brand.primary, secondary: brand.secondary, name: brand.name ?? '', logoSrc: brand.logoSrc ?? '' }, font,
       };
       const composition = await retryBrowser(() => selectComposition({ serveUrl, id: 'Imagen', inputProps: props, timeoutInMilliseconds: 120_000 }));
       const out = path.join(outDir, `${String(i + 1).padStart(2, '0')}-${sl.kind}.png`);

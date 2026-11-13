@@ -42,3 +42,5 @@ export * from './slowmo.ts';
 export * from './quality.ts';
 export * from './subtitles.ts';
 export * from './hooks.ts';
+export * from './manage.ts';
+export * from './frames.ts';

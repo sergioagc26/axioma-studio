@@ -126,7 +126,7 @@ export type Timeline = {
   captions: CaptionStyle;
   brand: Brand;
   /** Acabados de todo el reel. */
-  finish: { progressBar: boolean; grain: boolean; vignette: boolean; keywordZoom: boolean; halation: boolean; letterbox: boolean };
+  finish: { progressBar: boolean; grain: boolean; vignette: boolean; keywordZoom: boolean; halation: boolean; letterbox: boolean; watermark?: { corner: 'arriba-izq' | 'arriba-der' | 'abajo-izq' | 'abajo-der'; size: number; opacity: number } };
   /** Fotogramas donde el zoom cambia (acercar/alejar) en la palabra importante de una frase. */
   emphasis: number[];
   /** Efectos de sonido colocados en la salida. */

@@ -522,6 +522,34 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('marca_de_agua', 'Pone (o quita) el logo de la marca fijo en una esquina del reel. Si la marca no tiene logo, usa su nombre. Sube el logo con logo_marca.', {
+    proyecto, on: z.boolean().default(true),
+    esquina: z.enum(['arriba-izq', 'arriba-der', 'abajo-izq', 'abajo-der']).default('arriba-der'),
+    tamano: z.number().min(0.06).max(0.3).default(0.13).describe('Ancho del logo respecto al video'),
+    opacidad: z.number().min(0.2).max(1).default(0.85),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const p = await E.readProject(dir);
+    p.finish.watermark = a.on ? { corner: a.esquina, size: a.tamano, opacity: a.opacidad } : undefined;
+    return E.summarize(await E.writeProject(dir, p), dir);
+  });
+
+  tool('logo_marca', 'Guarda el logo en la marca del cliente del proyecto (sirve para todos sus reels: marca de agua, cierre e imágenes). Mejor PNG con fondo transparente.', {
+    proyecto, archivo: z.string().describe('Ruta absoluta de la imagen del logo'),
+  }, async (a) => {
+    const p = await E.readProject(await resolveProject(a.proyecto));
+    const kit = await E.saveClientLogo(p.client, a.archivo);
+    return `Logo guardado en la marca «${kit.name}».`;
+  });
+
+  tool('crear_imagenes', 'Crea imágenes para redes a partir del reel: portada (mejor fotograma + gancho, 9:16), carrusel (4:5), post (4:5) o historia (9:16).', {
+    proyecto, tipo: z.enum(['portada', 'carrusel', 'post', 'historia']),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const r = await E.createImages(dir, a.tipo);
+    return `Imágenes creadas:\n${r.files.map((f) => path.join(dir, f)).join('\n')}`;
+  });
+
   tool('idioma_subtitulos', 'Pone los subtítulos en otro idioma sin doblar la voz (en, pt, fr, it, de), traducidos con la IA local y sincronizados frase por frase. idioma vacío vuelve al idioma del video.', {
     proyecto, idioma: z.enum(['', 'en', 'pt', 'fr', 'it', 'de']),
   }, async (a) => {

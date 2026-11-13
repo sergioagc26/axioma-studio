@@ -228,6 +228,14 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
 
   const [allAdvice, setAllAdvice] = useState(false);
+  /** Sube el logo a la marca del cliente. */
+  const uploadLogo = async (file: File) => {
+    try {
+      await api(`/api/logo?id=${encodeURIComponent(project.id)}&filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+      await store.reloadExtras();
+      ctx.toast('Logo guardado en la marca.');
+    } catch (e: any) { ctx.toast(e.message); }
+  };
   // Subtítulos en otro idioma (traducidos con la IA local; la voz no cambia).
   const [translating, setTranslating] = useState('');
   const captionLanguage = async (idioma: string) => {
@@ -818,9 +826,30 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                               </div>
               )}
           </Group>
-          <Group id="acabados" title="Acabados" hint={(() => { const n = Number(project.finish.progressBar) + Number(project.finish.grain) + Number(project.finish.vignette) + Number(project.finish.keywordZoom) + Number(project.finish.halation) + Number(project.finish.letterbox); return n ? `${n} activos` : undefined; })()}>
+          <Group id="acabados" title="Acabados" hint={(() => { const n = Number(Boolean(project.finish.watermark)) + Number(project.finish.progressBar) + Number(project.finish.grain) + Number(project.finish.vignette) + Number(project.finish.keywordZoom) + Number(project.finish.halation) + Number(project.finish.letterbox); return n ? `${n} activos` : undefined; })()}>
 
               <label className="row"><input type="checkbox" checked={project.finish.progressBar} onChange={(e) => store.update((p) => { p.finish.progressBar = e.target.checked; })} /> Barra de progreso arriba</label>
+              <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                <label className="row"><input type="checkbox" checked={Boolean(project.finish.watermark)} onChange={(e) => store.update((p) => { p.finish.watermark = e.target.checked ? { corner: 'arriba-der', size: 0.13, opacity: 0.85 } : undefined; })} /> Marca de agua {store.brand?.logoSrc ? '(tu logo)' : `(«${store.brand?.name ?? 'tu marca'}»)`}</label>
+                {project.finish.watermark && (
+                  <>
+                    <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }} role="group" aria-label="Esquina de la marca de agua">
+                      {(['arriba-izq', 'arriba-der', 'abajo-izq', 'abajo-der'] as const).map((c) => (
+                        <button key={c} className={project.finish.watermark?.corner === c ? 'on' : ''} aria-pressed={project.finish.watermark?.corner === c} onClick={() => store.update((p) => { if (p.finish.watermark) p.finish.watermark.corner = c; })}>
+                          {{ 'arriba-izq': '↖ Arriba izq.', 'arriba-der': '↗ Arriba der.', 'abajo-izq': '↙ Abajo izq.', 'abajo-der': '↘ Abajo der.' }[c]}
+                        </button>
+                      ))}
+                    </div>
+                    <Slider label="Tamaño" value={project.finish.watermark.size} min={0.06} max={0.3} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => store.update((p) => { if (p.finish.watermark) p.finish.watermark.size = v; })} />
+                    <Slider label="Opacidad" value={project.finish.watermark.opacity} min={0.2} max={1} step={0.05} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => store.update((p) => { if (p.finish.watermark) p.finish.watermark.opacity = v; })} />
+                  </>
+                )}
+                <label className="btn rect" style={{ height: 34, cursor: 'pointer' }}>
+                  {store.brand?.logoSrc ? 'Cambiar el logo de la marca' : 'Subir el logo de la marca'}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }} />
+                </label>
+                <span className="small muted">El logo queda en la marca de {project.client ?? 'personal'}: se usa en todos sus reels (marca de agua, cierre e imágenes). Mejor PNG con fondo transparente.</span>
+              </div>
               <label className="row"><input type="checkbox" checked={project.finish.grain} onChange={(e) => store.update((p) => { p.finish.grain = e.target.checked; })} /> Grano de película</label>
               <label className="row"><input type="checkbox" checked={project.finish.vignette} onChange={(e) => store.update((p) => { p.finish.vignette = e.target.checked; })} /> Bordes oscuros en todo el reel</label>
               <label className="row"><input type="checkbox" checked={project.finish.keywordZoom} onChange={(e) => store.update((p) => { p.finish.keywordZoom = e.target.checked; })} /> Zoom en la palabra importante de cada frase</label>

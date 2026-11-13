@@ -1,6 +1,6 @@
 import { cutoutCoverage } from './matte.ts';
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { existsSync, statSync } from 'node:fs';
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
@@ -9,7 +9,7 @@ import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type T
 import { readSpeakers } from './speakers.ts';
 import { captionWords } from './subtitles.ts';
 import { readFaces } from './faces.ts';
-import { learnFromExport, readKit } from './kit.ts';
+import { clientLogo, learnFromExport, readKit } from './kit.ts';
 import { allTransitions } from './transitions.ts';
 import { normalizeMix } from './media.ts';
 import { ensureUsedSfx } from './sfx.ts';
@@ -30,7 +30,20 @@ export function getBundle() {
 /** Colores, nombre y logo del kit del cliente para las plantillas. */
 export async function brandFor(project: Project, asset: (rel: string) => string, dir: string): Promise<Brand> {
   const kit = await readKit(project.client);
-  const logo = project.assets.find((a) => a.kind === 'logo')?.file;
+  let logo = project.assets.find((a) => a.kind === 'logo')?.file;
+  // Sin logo propio del proyecto: el de la marca del cliente (se copia dentro para poder servirlo).
+  if (!logo || !existsSync(path.join(dir, logo))) {
+    const fromKit = await clientLogo(project.client);
+    if (fromKit) {
+      const rel = path.join('media', 'marca', `logo-marca${path.extname(fromKit)}`);
+      const dest = path.join(dir, rel);
+      if (!existsSync(dest) || statSync(dest).mtimeMs < statSync(fromKit).mtimeMs) {
+        await mkdir(path.dirname(dest), { recursive: true });
+        await copyFile(fromKit, dest);
+      }
+      logo = rel.split(path.sep).join('/');
+    }
+  }
   return {
     primary: kit?.colors.primary ?? project.captions.highlightColor,
     secondary: kit?.colors.secondary ?? '#25F4EE',

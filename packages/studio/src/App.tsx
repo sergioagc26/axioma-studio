@@ -125,11 +125,11 @@ export const App: React.FC = () => {
     setExportOpen(false);
     try {
       const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta, lufs, ganchos }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta, lufs, ganchos: ganchos && formato !== 'todos' }),
       });
       const done = await waitJob(job, setRender);
       const files = done.result?.files as { id: string; label: string }[] | undefined;
-      toast(files ? `${files.length} versiones exportadas en ${done.result?.path}: ${files.map((f) => `${f.id} · ${f.label}`).join(' · ')}` : `Exportado en: ${done.result?.path}`);
+      toast(files ? (formato === 'todos' ? `Los 3 formatos exportados en ${done.result?.path}.` : `${files.length} versiones exportadas en ${done.result?.path}: ${files.map((f) => `${f.id} · ${f.label}`).join(' · ')}`) : `Exportado en: ${done.result?.path}`);
       if (done.result?.file) window.open(`/media/${encodeURIComponent(project.id)}/${done.result.file}`, '_blank');
     } catch (e: any) {
       toast(`No se pudo exportar: ${e.message}`);
@@ -203,10 +203,10 @@ export const App: React.FC = () => {
           <div className="modal card col" role="dialog" aria-modal="true" aria-label="Exportar video">
             <h2 style={{ fontSize: 22 }}>Exportar video</h2>
             <span className="small muted">Formato</span>
-            <div className="opts" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios']] as const).map(([id, name, desc]) => (
+            <div className="opts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios'], ['todos', 'Los 3', 'Un video de cada formato']] as const).map(([id, name, desc]) => (
                 <button key={id} className={`opt ${formato === id ? 'on' : ''}`} aria-pressed={formato === id} onClick={() => setFormato(id)}>
-                  <strong>{name} · {id}</strong><span className="muted small">{desc}</span>
+                  <strong>{name}{id === 'todos' ? '' : ` · ${id}`}</strong><span className="muted small">{desc}</span>
                 </button>
               ))}
             </div>
@@ -241,10 +241,10 @@ export const App: React.FC = () => {
               }}>{pubBusy ? 'Escribiendo…' : 'Redactar con IA local'}</button>
             )}
             <button className="btn rect" style={{ alignSelf: 'flex-start' }} onClick={() => { navigator.clipboard?.writeText(pubText).then(() => toast('Texto copiado.')).catch(() => toast('No se pudo copiar; selecciónalo y cópialo a mano.')); }}>Copiar texto</button>
-            <label className="row small" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}><input type="checkbox" style={{ marginTop: 3 }} checked={ganchos} onChange={(e) => setGanchos(e.target.checked)} /> Exportar 3 versiones del gancho para probar cuál funciona mejor (A tal cual · B con tu frase más fuerte primero · C con otro texto de gancho). Tarda el triple.</label>
+            <label className="row small" style={{ flexWrap: 'nowrap', alignItems: 'flex-start', opacity: formato === 'todos' ? 0.5 : 1 }}><input type="checkbox" style={{ marginTop: 3 }} disabled={formato === 'todos'} checked={ganchos && formato !== 'todos'} onChange={(e) => setGanchos(e.target.checked)} /> Exportar 3 versiones del gancho para probar cuál funciona mejor (A tal cual · B con tu frase más fuerte primero · C con otro texto de gancho). Tarda el triple.</label>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setExportOpen(false)}>Cancelar</button>
-              <button className="btn primary" onClick={exportar}>{ganchos ? 'Exportar 3 versiones' : 'Exportar MP4'}</button>
+              <button className="btn primary" onClick={exportar}>{formato === 'todos' ? 'Exportar los 3 formatos' : ganchos ? 'Exportar 3 versiones' : 'Exportar MP4'}</button>
             </div>
           </div>
         </div>

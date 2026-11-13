@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 
-type Tipo = 'carrusel' | 'post' | 'historia';
+type Tipo = 'carrusel' | 'post' | 'historia' | 'portada';
 interface ImageSet { name: string; tipo: string; files: string[] }
 
 const TIPOS: [Tipo, string, string][] = [
+  ['portada', 'Portada del reel', 'El mejor fotograma (nítido, con tu cara) y el gancho grande. Para elegirla como portada al publicar. Formato 9:16.'],
   ['carrusel', 'Carrusel', 'Portada con el gancho, 3 a 5 ideas clave y un cierre. Formato 4:5.'],
   ['post', 'Post estático', 'Una imagen con el gancho sobre un fotograma del video. Formato 4:5.'],
   ['historia', 'Historia estática', 'El gancho y un botón de llamado a la acción, sin tapar la barra de respuesta. Formato 9:16.'],

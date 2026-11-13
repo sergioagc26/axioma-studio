@@ -371,6 +371,12 @@ export const Project = z.object({
     letterbox: z.boolean().default(false),
     /** LUT de color aplicado a todo el video (incluido o .cube propio). */
     lut: z.object({ name: z.string(), strength: z.number().min(0.1).max(1).default(0.8), builtin: z.string().optional() }).optional(),
+    /** Marca de agua: el logo (o el nombre) de la marca fijo en una esquina. */
+    watermark: z.object({
+      corner: z.enum(['arriba-izq', 'arriba-der', 'abajo-izq', 'abajo-der']).default('arriba-der'),
+      size: z.number().min(0.06).max(0.3).default(0.13),
+      opacity: z.number().min(0.2).max(1).default(0.85),
+    }).optional(),
   }).default({ progressBar: false, grain: false, vignette: false, keywordZoom: true, halation: false, letterbox: false }),
   /** Cómo y dónde se exporta. */
   export: z.object({

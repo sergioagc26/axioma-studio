@@ -172,6 +172,16 @@ En Variantes, «Busca en tu material» encuentra momentos en todos los reels del
 
 Claude: `ajustar_subtitulos` (emojis), `idioma_subtitulos`.
 
+## Portada, marca de agua, formatos y proyectos
+
+- **Portada del reel** (Imágenes): elige el mejor fotograma de las primeras escenas (nítido, con la cara cerca del centro y buena luz) y le pone el gancho grande, en 9:16, para elegirla como portada al publicar. Todas las imágenes (carrusel, post, historia) usan ahora el mejor fotograma de su escena, no el del medio.
+- **Marca de agua** (Acabados): el logo de la marca fijo en una esquina, con tamaño y opacidad; sin logo, el nombre de la marca. El logo se sube ahí mismo y queda en la marca del cliente (`clientes/<cliente>/marca/`), así sirve para todos sus reels.
+- **Los 3 formatos de una vez** (Exportar): 9:16, 4:5 y 1:1 seguidos.
+- **Duplicar y mover a la papelera** (Proyectos, botón «⋯» de cada tarjeta). La papelera es `workspace/papelera`: el proyecto no se borra; para recuperarlo, se mueve su carpeta de vuelta.
+- **Capítulos** en el texto para publicar de videos de 90 s o más («0:00 …», como pide YouTube), donde cambia la idea o cada ~45 s.
+
+Claude: `crear_imagenes` (portada), `marca_de_agua`, `logo_marca`.
+
 ## Calidad en videos de baja resolución
 
 Los videos de menos de 1000 px por el lado corto (WhatsApp, capturas, celulares viejos) se preparan quitando los bloques de la compresión antes de agrandarlos a 1080 y con escalado lanczos. Medido contra un original nítido, se parece más que el escalado anterior (SSIM 0,959 frente a 0,951). En «Herramientas de un clic → Calidad del video» se elige «Fiel al original» o «Más nítido» (suma nitidez adaptativa); tarda segundos y no cambia cortes ni textos. Claude: `calidad_video`.

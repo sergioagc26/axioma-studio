@@ -37,6 +37,8 @@ import { setSlowMotion } from './slowmo.ts';
 import { setVideoQuality } from './quality.ts';
 import { setCaptionLanguage } from './subtitles.ts';
 import { renderHookVariants } from './hooks.ts';
+import { duplicateProject, trashProject } from './manage.ts';
+import { saveClientLogo } from './kit.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -332,7 +334,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'igualar-color') { const r = await matchSceneColors(dir); return json(res, { project: r.project, changed: r.changed }); }
     if (b.op === 'crear-imagenes') {
       // Carrusel, post o historia a partir del reel.
-      const tipo = ['carrusel', 'post', 'historia'].includes(b.tipo) ? b.tipo : 'carrusel';
+      const tipo = ['carrusel', 'post', 'historia', 'portada'].includes(b.tipo) ? b.tipo : 'carrusel';
       const job = startJob('crear', async (j) => {
         j.message = 'Preparando las imágenes…';
         const r = await createImages(dir, tipo, (m) => { j.message = m; });
@@ -340,6 +342,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       });
       return json(res, job);
     }
+    if (b.op === 'duplicar') return json(res, { id: (await duplicateProject(dir)).id });
+    if (b.op === 'papelera') { await trashProject(dir); return json(res, { ok: true }); }
     if (b.op === 'idioma-subtitulos') {
       const job = startJob('ia', async (j) => {
         await setCaptionLanguage(dir, b.idioma || null, (m) => { j.message = m; });
@@ -526,6 +530,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         if (typeof b.carpeta === 'string') pr.export.folder = b.carpeta.trim() || undefined;
         await writeProject(dir, pr);
       }
+      if (b.formato === 'todos') {
+        // Los tres formatos seguidos: vertical, post 4:5 y cuadrado.
+        const job = startJob('render', async (j) => {
+          const files: string[] = [];
+          for (const [i, f] of (['9:16', '4:5', '1:1'] as const).entries()) {
+            const { out } = await renderProject(dir, { format: f, onProgress: (x) => { j.progress = (i + x) / 3; j.message = `Exportando ${f} (${i + 1}/3)…`; } });
+            files.push(out);
+          }
+          return { files: files.map((f, i) => ({ id: ['9:16', '4:5', '1:1'][i], label: path.basename(f) })), path: path.dirname(files[0]) };
+        });
+        return json(res, job);
+      }
       if (b.ganchos) {
         // Tres versiones con distinto gancho, para probar cuál retiene más.
         const job = startJob('render', async (j) => {
@@ -605,6 +621,22 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       }
     });
     return json(res, job);
+  }
+
+  if (p === '/api/logo' && method === 'POST') {
+    // Logo de la marca del cliente: sirve para todos sus reels (marca de agua, cierre, imágenes).
+    const dir = await findDir(id);
+    const project = await readProject(dir);
+    const tmpDir = path.join(os.tmpdir(), `axioma-logo-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const tmp = path.join(tmpDir, path.basename(url.searchParams.get('filename') ?? 'logo.png').replace(/[^\w.-]+/g, '_'));
+    await pipe(req, createWriteStream(tmp));
+    try {
+      const kit = await saveClientLogo(project.client, tmp);
+      return json(res, { kit, brand: await brandFor(project, (rel) => `/media/${encodeURIComponent(project.id)}/${rel.split(path.sep).map(encodeURIComponent).join('/')}`, dir) });
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
   }
 
   if (p === '/api/color-referencia' && method === 'POST') {
