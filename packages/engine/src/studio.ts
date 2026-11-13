@@ -388,7 +388,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const port = new URL(`http://${req.headers.host ?? 'localhost'}`).port || String(STUDIO_PORT);
       return json(res, { token, exported: (await reviewVideo(dir, await readProject(dir))).exported, network: Boolean(networkKey), links: lanAddresses().map((ip) => `http://${ip}:${port}/r/${token}`), local: `http://localhost:${port}/r/${token}` });
     }
-    if (b.op === 'peticion') return json(res, { project: await ops.resolveRequest(dir, String(b.requestId ?? ''), b.status === 'descartada' ? 'descartada' : 'hecha') });
+    if (b.op === 'resolver-peticion') return json(res, { project: await ops.resolveRequest(dir, String(b.requestId ?? ''), b.status === 'descartada' ? 'descartada' : 'hecha') });
     if (b.op === 'duplicar') return json(res, { id: (await duplicateProject(dir)).id });
     if (b.op === 'papelera') { await trashProject(dir); return json(res, { ok: true }); }
     if (b.op === 'idioma-subtitulos') {

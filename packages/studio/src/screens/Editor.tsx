@@ -240,7 +240,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   useEffect(() => { if (project.review?.token) shareReview(false); }, [project.id]);
   const resolveRequest = async (requestId: string, status: 'hecha' | 'descartada') => {
     try {
-      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'peticion', requestId, status }) });
+      const d = await api<any>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'resolver-peticion', requestId, status }) });
       store.replace(d.project);
     } catch (e: any) { ctx.toast(e.message); }
   };
