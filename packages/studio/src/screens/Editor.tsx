@@ -828,7 +828,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <div className="col" style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--panel2)' }}>
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <strong>Duración del clip</strong>
-                <span className="small muted">{sceneLength(scene).toFixed(1)} s de {fullLength.toFixed(1)} s</span>
+                <span className="small muted">{(scene.speed ?? 1) < 1 ? `${sceneLength(scene).toFixed(1)} s en cámara lenta (${(sceneLength(scene) * (scene.speed ?? 1)).toFixed(1)} s del video, de ${fullLength.toFixed(1)} s)` : `${sceneLength(scene).toFixed(1)} s de ${fullLength.toFixed(1)} s`}</span>
               </div>
               <TrimSlider label="Quitar del inicio" value={scene.trimStart} max={Math.max(0, fullLength - MIN_CLIP - scene.trimEnd)} onCommit={(v) => edit((s) => { s.trimStart = v; })} />
               <TrimSlider label="Quitar del final" value={scene.trimEnd} max={Math.max(0, fullLength - MIN_CLIP - scene.trimStart)} onCommit={(v) => edit((s) => { s.trimEnd = v; })} />
