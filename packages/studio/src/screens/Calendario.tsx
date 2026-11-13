@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { publishPack, publishText } from '@axioma/schema';
+import { Icon } from '../Icon.tsx';
 import type { Ctx } from '../App.tsx';
-import { api } from '../useProject.ts';
+import { api, syncResults } from '../useProject.ts';
+import { CuentasPanel, PublicarBox } from '../Cuentas.tsx';
 
 type Network = 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'linkedin';
-interface Entry { id: string; projectId: string; date: string; time?: string; network: Network; status: 'planificado' | 'publicado'; note?: string; metrics?: Metrics }
-interface Metrics { views: number; likes?: number; comments?: number; shares?: number; saves?: number }
+interface Entry { id: string; projectId: string; date: string; time?: string; network: Network; status: 'planificado' | 'publicado'; note?: string; metrics?: Metrics; remote?: Remote }
+interface Metrics { views: number; likes?: number; comments?: number; shares?: number; saves?: number; at?: string; source?: 'api' | 'manual' }
+/** Lo que pasó al publicar desde la app (lo anota el servidor; aquí solo se lee). */
+interface Remote { state: 'subiendo' | 'procesando' | 'publicado' | 'error'; id?: string; url?: string; error?: string }
 interface Insights { client: string; reels: number; medianViews: number; engagement: number; findings: { label: string; text: string }[]; applied: string[]; note?: string }
 interface Item { id: string; name: string; client: string; thumbT?: number }
 
@@ -19,7 +23,7 @@ const NET: Record<Network, { label: string; short: string; color: string }> = {
 const DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** Calendario de publicación: qué reel sale qué día y en qué red (un plan: la app no publica sola). */
+/** Calendario de publicación: qué reel sale qué día y en qué red. Nada se publica solo: en Instagram se publica desde aquí, siempre con confirmación. */
 export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -70,8 +74,23 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   useEffect(() => { if (client) api<Insights>(`/api/resultados?cliente=${encodeURIComponent(client)}`).then(setInsights).catch(() => setInsights(null)); }, [client, entries]);
   useEffect(() => {
     const m = sel?.metrics;
-    setNums(m ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== 'at').map(([k, v]) => [k, String(v ?? '')])) : {});
-  }, [sel?.id]);
+    setNums(m ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== 'at' && k !== 'source').map(([k, v]) => [k, String(v ?? '')])) : {});
+  }, [sel?.id, sel?.metrics?.at]);
+  // Publicar en Instagram desde la publicación abierta, y traer sus cifras reales.
+  const [publicar, setPublicar] = useState(false);
+  const [cuentasOpen, setCuentasOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const reload = () => api<Entry[]>('/api/calendario').then(setEntries).catch((e) => ctx.toast(e.message));
+  const fetchResults = async () => {
+    if (!sel) return;
+    setSyncing(true);
+    try {
+      const r = (await syncResults({ entrada: sel.id }, () => {})).result as { actualizadas: number; errores: string[] };
+      await reload();
+      ctx.toast(r.errores[0] ?? (r.actualizadas ? 'Cifras actualizadas.' : 'Instagram todavía no tiene cifras de este reel (pueden tardar hasta 48 h).'));
+    } catch (e: any) { ctx.toast(e.message); } finally { setSyncing(false); }
+  };
+  const canPublish = Boolean(sel && sel.network === 'instagram' && byId.has(sel.projectId) && sel.remote?.state !== 'publicado');
   const saveResults = async () => {
     if (!sel || !(Number(nums.views) > 0)) return ctx.toast('Pon al menos las vistas.');
     if (!(await call('PUT', { metrics: nums }, sel.id))) return;
@@ -91,7 +110,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <a href="#/proyectos" className="small muted" style={{ textDecoration: 'none' }}>‹ Proyectos</a>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 26 }}>Calendario de publicación</h1>
-        <span className="small muted">{pending} por publicar · es un plan: la app no publica sola en las redes</span>
+        <span className="small muted">{pending} por publicar · nada se publica solo: en Instagram publicas tú desde aquí</span>
       </div>
 
       <section className="card row" style={{ flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }} aria-label="Programar una publicación">
@@ -134,7 +153,9 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <button key={e.id} className={`cal-chip ${e.status}`} style={{ borderLeftColor: NET[e.network].color }} onClick={() => setOpen(e.id)} title={`${NET[e.network].label}${e.time ? ` · ${e.time}` : ''} · ${byId.get(e.projectId)?.name ?? 'reel borrado'}`}>
                   <span className="small" style={{ fontWeight: 700 }}>{NET[e.network].short}</span>
                   <span className="small pname">{e.time ? `${e.time} ` : ''}{byId.get(e.projectId)?.name ?? 'Reel borrado'}</span>
-                  {e.status === 'publicado' ? <span aria-label="publicado">✓</span> : null}
+                  {e.status === 'publicado' ? <span aria-label="publicado"><Icon name="check" size={13} /></span>
+                    : e.remote?.state === 'error' ? <span aria-label="no se pudo publicar"><Icon name="warning" size={13} /></span>
+                    : e.remote && e.remote.state !== 'publicado' ? <span aria-label="publicándose"><Icon name="clock" size={13} /></span> : null}
                 </button>
               ))}
             </div>
@@ -144,14 +165,14 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
       <section className="card col" style={{ gap: 10 }} aria-label="Lo que funciona">
         <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: 18 }}>📊 Lo que funciona</h2>
+          <h2 style={{ fontSize: 18 }}><Icon name="chart" style={{ marginRight: 8 }} />Lo que funciona</h2>
           {clients.length > 1 && (
             <select value={client} onChange={(e) => setClient(e.target.value)} aria-label="Cliente">
               {clients.map((c) => <option key={c}>{c}</option>)}
             </select>
           )}
         </div>
-        <span className="small muted">Cuando publiques un reel, ábrelo aquí y pon sus vistas y su interacción (las ves en Instagram o TikTok). Con 4 o más reels de un cliente, la app compara y usa lo que mejor le funciona en sus próximos reels.</span>
+        <span className="small muted">Las cifras de lo que publicas en Instagram desde la app se traen solas. De lo demás, abre el reel aquí y pon sus vistas y su interacción. Con 4 o más reels de un cliente, la app compara y usa lo que mejor le funciona en sus próximos reels.</span>
         {insights && (
           <>
             {insights.reels >= 4 && <span className="small">{insights.reels} reels con cifras · vistas típicas <strong>{insights.medianViews.toLocaleString('es')}</strong> · interacción <strong>{String(insights.engagement).replace('.', ',')} %</strong></span>}
@@ -176,13 +197,23 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 {(Object.keys(NET) as Network[]).map((n) => <option key={n} value={n}>{NET[n].label}</option>)}
               </select>
             </label>
+            {sel.remote?.state === 'publicado' && (
+              <span><Icon name="check" style={{ marginRight: 6 }} />Publicado en Instagram desde la app{sel.remote.url?.startsWith('https://') ? <> · <a href={sel.remote.url} target="_blank" rel="noreferrer">Ver ↗</a></> : null}</span>
+            )}
+            {canPublish && (
+              <div className="col" style={{ gap: 6 }}>
+                {sel.remote?.state === 'error' && <span className="small" style={{ color: 'var(--pinkText)' }}><Icon name="warning" style={{ marginRight: 6 }} />No se publicó: {sel.remote.error ?? 'falló la subida'}</span>}
+                {(sel.remote?.state === 'subiendo' || sel.remote?.state === 'procesando') && <span className="small muted"><Icon name="clock" style={{ marginRight: 6 }} />{sel.remote.state === 'subiendo' ? 'Subiendo a Instagram…' : 'Instagram está procesando el video…'}</span>}
+                <button className="btn primary" style={{ alignSelf: 'flex-start' }} onClick={() => setPublicar(true)}><Icon name="publish" />Publicar en Instagram</button>
+              </div>
+            )}
             <div className="row" style={{ flexWrap: 'wrap' }}>
               {byId.has(sel.projectId) && <a className="btn rect" href={`#/editor?p=${encodeURIComponent(sel.projectId)}`}>Abrir en el editor</a>}
               {byId.has(sel.projectId) && <button className="btn rect" onClick={() => copyText(sel.projectId)}>Copiar texto para publicar</button>}
-              <button className={`btn ${sel.status === 'publicado' ? 'rect' : 'primary'}`} onClick={() => call('PUT', { status: sel.status === 'publicado' ? 'planificado' : 'publicado' }, sel.id)}>{sel.status === 'publicado' ? 'Marcar como pendiente' : 'Marcar como publicado'}</button>
+              <button className={`btn ${sel.status === 'publicado' || canPublish ? 'rect' : 'primary'}`} onClick={() => call('PUT', { status: sel.status === 'publicado' ? 'planificado' : 'publicado' }, sel.id)}>{sel.status === 'publicado' ? 'Marcar como pendiente' : 'Marcar como publicado'}</button>
             </div>
             <details className="grp" open={sel.status === 'publicado'}>
-              <summary>📊 Resultados {sel.metrics ? `· ${sel.metrics.views.toLocaleString('es')} vistas` : ''}</summary>
+              <summary><Icon name="chart" style={{ marginRight: 6 }} />Resultados {sel.metrics ? `· ${sel.metrics.views.toLocaleString('es')} vistas` : ''}</summary>
               <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                 {FIELDS.map(([k, label]) => (
                   <label key={k} className="field" style={{ flex: '1 1 110px' }}>{label}
@@ -190,7 +221,11 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   </label>
                 ))}
               </div>
-              <button className="btn primary" style={{ marginTop: 8 }} onClick={saveResults}>Guardar resultados</button>
+              <div className="row" style={{ margin: '8px 0 10px' }}>
+                <button className="btn primary" onClick={saveResults}>Guardar resultados</button>
+                {sel.network === 'instagram' && sel.remote?.id && <button className="btn rect" disabled={syncing} onClick={fetchResults} title="Trae de Instagram las cifras reales de este reel"><Icon name="refresh" />{syncing ? 'Trayendo…' : 'Traer cifras'}</button>}
+                {sel.metrics?.source === 'api' && sel.metrics.at && <span className="small muted">Traídas de Instagram el {new Date(sel.metrics.at).toLocaleDateString('es', { day: 'numeric', month: 'long' })}.</span>}
+              </div>
             </details>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <button className="btn ghost" onClick={async () => { if (await call('DELETE', undefined, sel.id)) { setOpen(null); ctx.toast('Quitado del calendario.'); } }}>Quitar del calendario</button>
@@ -199,6 +234,8 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </div>
         </div>
       )}
+      {sel && publicar && <PublicarBox projectId={sel.projectId} red="instagram" entrada={sel.id} onClose={() => setPublicar(false)} onCuentas={() => setCuentasOpen(true)} onChange={reload} toast={ctx.toast} />}
+      {cuentasOpen && <CuentasPanel onClose={() => setCuentasOpen(false)} toast={ctx.toast} />}
     </main>
   );
 };

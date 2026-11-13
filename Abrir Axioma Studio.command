@@ -14,4 +14,5 @@ if [ ! -d node_modules ]; then
   exit 1
 fi
 echo "Abriendo Axioma Studio… (cierra esta ventana para apagarla)"
-npm run studio:red
+export OLLAMA_HOST=http://127.0.0.1:11434
+npm run studio:red -- --elegir-ia

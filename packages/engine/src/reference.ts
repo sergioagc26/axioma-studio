@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ffmpeg } from './exec.ts';
 import { probe } from './media.ts';
@@ -391,4 +391,34 @@ export function formatReport(r: ReferenceReport, dir: string): string {
     'Fotogramas (opcional: míralos solo para afinar la tipografía; el estilo ya está detectado):',
     ...r.frames.map((f) => `  ${path.join(dir, f)}`),
   ].join('\n');
+}
+
+/** Carpeta de una referencia, comprobando que el id es solo un nombre de carpeta (no una ruta). */
+function referenceDir(client: string | undefined, id: string): string {
+  const dir = path.join(referencesDir(client), path.basename(id));
+  if (!id || path.basename(id) !== id || !existsSync(path.join(dir, 'report.json'))) throw new Error('Esa referencia ya no existe.');
+  return dir;
+}
+
+/** Cambia el nombre con el que se ve una referencia (la carpeta no cambia). */
+export async function renameReference(client: string | undefined, id: string, name: string): Promise<ReferenceReport> {
+  const clean = name.trim().replace(/\s+/g, ' ').slice(0, 60);
+  if (!clean) throw new Error('Escribe un nombre para la referencia.');
+  const file = path.join(referenceDir(client, id), 'report.json');
+  const report = JSON.parse(await readFile(file, 'utf8')) as ReferenceReport;
+  report.name = clean;
+  await writeFile(file, JSON.stringify(report, null, 2));
+  return report;
+}
+
+/**
+ * Quita una referencia de la lista. No se borra: queda en workspace/papelera por si se quiere
+ * recuperar. Los estilos que ya se guardaron a partir de ella siguen funcionando.
+ */
+export async function deleteReference(client: string | undefined, id: string): Promise<ReferenceReport[]> {
+  const dir = referenceDir(client, id);
+  const trash = path.join(WORKSPACE, 'papelera');
+  await mkdir(trash, { recursive: true });
+  await rename(dir, path.join(trash, `referencia--${slugify(client ?? 'personal')}--${path.basename(id)}--${new Date().toISOString().replace(/[:.]/g, '-')}`));
+  return listReferences(client);
 }

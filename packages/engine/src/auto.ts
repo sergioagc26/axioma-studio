@@ -7,7 +7,8 @@ import { readKit } from './kit.ts';
 import { buildMontage } from './montage.ts';
 import { applyPresetObject, saveVersion } from './ops.ts';
 import { cutProject } from './pipeline.ts';
-import { listPresets } from './presets.ts';
+import { listPresets, savePreset } from './presets.ts';
+import { listReferences, presetFromReference } from './reference.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { readVision } from './vision.ts';
 import { envValue } from './env.ts';
@@ -48,6 +49,8 @@ export function skipGreeting(project: { scenes: { ranges: { start: number; end: 
 
 /** Decide con qué estilo editar: referencia del cliente, tendencia del nicho o lo que se ve y se oye. */
 async function decideStyle(dir: string, project: Awaited<ReturnType<typeof readProject>>, referenceId?: string) {
+  // «Sin referencia» en el brief: no se usa ninguna, aunque el cliente tenga guardadas.
+  const none = referenceId === 'ninguna';
   const lines: string[] = [];
   const opts = { referenceId };
   const kit = await readKit(project.client);
@@ -66,7 +69,7 @@ async function decideStyle(dir: string, project: Awaited<ReturnType<typeof readP
 
   // Referencia: la que se pida o la más reciente guardada del cliente.
   const refs = own.filter((p) => p.reference);
-  const ref = (opts.referenceId ? refs.find((p) => p.reference === opts.referenceId || p.id === opts.referenceId) : undefined) ?? refs[refs.length - 1];
+  const ref = none ? undefined : (opts.referenceId ? refs.find((p) => p.reference === opts.referenceId || p.id === opts.referenceId) : undefined) ?? refs[refs.length - 1];
 
   let base: Preset;
   if (ref) {
@@ -267,8 +270,20 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
   const say = opts.onProgress ?? (() => {});
   let project = await readProject(dir);
   const answered = ['ritmo', 'tono', 'duracion', 'cta', 'objetivo'].filter((k) => project.brief[k]).length;
+  // Referencia elegida en el brief: su estilo (ritmo, subtítulos, textos) manda sobre el tono; el
+  // brief sigue decidiendo la duración y el cierre. Si aún no hay un estilo guardado de esa
+  // referencia, se crea ahora.
+  let referenceId = opts.referenceId;
+  const chosen = project.brief.referencia;
+  if (!referenceId && chosen && chosen !== 'ninguna') {
+    const report = (await listReferences(project.client)).find((r) => r.id === chosen);
+    if (report) {
+      if (!(await listPresets(project.client)).some((p) => p.reference === report.id)) await savePreset(project.client, presetFromReference(report));
+      referenceId = report.id;
+    }
+  }
   let summary: string[];
-  if (answered >= 2 && !opts.referenceId) {
+  if (answered >= 2 && !referenceId) {
     say('Cortando y armando según tu brief…');
     summary = (await applyBrief(dir)).summary;
     // Lo que el brief no hace y la edición automática sí: abrir con el gancho y redactarlo con la IA local.
@@ -293,7 +308,7 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
     }
   } else {
     say('Cortando y armando el video…');
-    summary = (await autoEdit(dir, { referenceId: opts.referenceId })).summary;
+    summary = (await autoEdit(dir, { referenceId: referenceId ?? (chosen === 'ninguna' ? 'ninguna' : undefined) })).summary;
   }
 
   // Los pedidos puntuales del cliente (respuestas a las preguntas de la IA y su nota).

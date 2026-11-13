@@ -11,6 +11,8 @@ import { Variantes } from './screens/Variantes.tsx';
 import { Imagenes } from './screens/Imagenes.tsx';
 import { Texto } from './screens/Texto.tsx';
 import { Calendario } from './screens/Calendario.tsx';
+import { Icon } from './Icon.tsx';
+import type { IconName } from './icons.ts';
 import { Listo } from './screens/Listo.tsx';
 
 export type Screen = 'proyectos' | 'calendario' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
@@ -39,8 +41,8 @@ function parseHash(): { screen: Screen; p: string | null; s: string | null } {
 
 // En el orden del trabajo real: casi siempre se llega al Editor (modo automático).
 // Lo de todos los días a la vista; lo avanzado, guardado en «Más».
-const TABS: [Screen, string, string][] = [['brief', '📝', 'Brief'], ['listo', '🎬', 'Resultado'], ['editor', '🎛️', 'Editor']];
-const MORE: [Screen, string, string][] = [['texto', '🔤', 'Texto'], ['storyboard', '🧩', 'Storyboard'], ['variantes', '🎲', 'Variantes'], ['audio', '🎵', 'Audio'], ['imagenes', '🖼️', 'Imágenes'], ['referencias', '⭐', 'Referencias']];
+const TABS: [Screen, IconName, string][] = [['brief', 'brief', 'Brief'], ['listo', 'result', 'Resultado'], ['editor', 'editor', 'Editor']];
+const MORE: [Screen, IconName, string][] = [['texto', 'text', 'Texto'], ['storyboard', 'storyboard', 'Storyboard'], ['variantes', 'variants', 'Variantes'], ['audio', 'audio', 'Audio'], ['imagenes', 'image', 'Imágenes'], ['referencias', 'reference', 'Referencias']];
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
@@ -187,15 +189,15 @@ export const App: React.FC = () => {
         </a>
         {route.p && route.screen !== 'calendario' && (
           <nav className="nav" aria-label="Vistas">
-            <a href="#/proyectos" className="back">‹ Proyectos</a>
+            <a href="#/proyectos" className="back"><Icon name="back" />Proyectos</a>
             {TABS.map(([s, icon, label]) => (
-              <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} aria-current={route.screen === s ? 'page' : undefined}><span aria-hidden="true">{icon}</span> {label}</a>
+              <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} aria-current={route.screen === s ? 'page' : undefined}><Icon name={icon} />{label}</a>
             ))}
             <details className="more" ref={moreRef}>
-              <summary className={MORE.some(([s]) => s === route.screen) ? 'on' : ''}>{MORE.find(([s]) => s === route.screen)?.slice(1).join(' ') ?? '⋯ Más'}</summary>
+              <summary className={MORE.some(([s]) => s === route.screen) ? 'on' : ''}>{(() => { const m = MORE.find(([s]) => s === route.screen); return m ? <><Icon name={m[1]} /> {m[2]}</> : <><Icon name="more" /> Más</>; })()}</summary>
               <div className="more-menu">
                 {MORE.map(([s, icon, label]) => (
-                  <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} onClick={() => moreRef.current?.removeAttribute('open')}><span aria-hidden="true">{icon}</span> {label}</a>
+                  <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} onClick={() => moreRef.current?.removeAttribute('open')}><Icon name={icon} />{label}</a>
                 ))}
               </div>
             </details>
@@ -209,21 +211,21 @@ export const App: React.FC = () => {
         <div className="row">
           {project && (
             <>
-              <button className="btn sq" aria-label="Deshacer" title="Deshacer (⌘Z)" disabled={!store.canUndo} onClick={store.undo}>↶</button>
-              <button className="btn sq" aria-label="Rehacer" title="Rehacer (⇧⌘Z)" disabled={!store.canRedo} onClick={store.redo}>↷</button>
+              <button className="btn sq" aria-label="Deshacer" title="Deshacer (⌘Z)" disabled={!store.canUndo} onClick={store.undo}><Icon name="undo" /></button>
+              <button className="btn sq" aria-label="Rehacer" title="Rehacer (⇧⌘Z)" disabled={!store.canRedo} onClick={store.redo}><Icon name="redo" /></button>
             </>
           )}
           {/* Quién atiende los pedidos de cambios. Con la IA local lista, conectar Claude queda en el mismo botón. */}
           {claude === true ? <span className="pill" title="Los pedidos de cambios los hace Claude">● Claude</span>
             : claude === false && local ? <button className="pill" style={{ border: 0, cursor: 'pointer' }} title="Los pedidos de cambios los hace la IA de tu computador (Ollama). Clic para conectar Claude: se abre una terminal, escribe /login y vuelve aquí." onClick={connect}>● IA local</button>
             : claude === false ? <button className="btn rect" title="Abre una terminal: escribe /login y vuelve aquí" onClick={connect}>Conectar Claude</button> : null}
-          <button className="btn sq" aria-pressed={help} aria-label={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones'} title={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones de cada función'} style={help ? { borderColor: 'var(--pink)' } : undefined} onClick={() => setHelp(!help)}>❔</button>
+          <button className="btn sq" aria-pressed={help} aria-label={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones'} title={help ? 'Ocultar las explicaciones' : 'Mostrar las explicaciones de cada función'} style={help ? { borderColor: 'var(--pink)' } : undefined} onClick={() => setHelp(!help)}><Icon name="help" /></button>
           <button className="btn sq" aria-label={`Cambiar a tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} title={`Tema ${theme === 'oscuro' ? 'claro' : 'oscuro'}`} onClick={() => setTheme(theme === 'oscuro' ? 'claro' : 'oscuro')}>
-            {theme === 'oscuro' ? '☀' : '☾'}
+            <Icon name={theme === 'oscuro' ? 'sun' : 'moon'} />
           </button>
           {project && (
             <button className="btn primary" disabled={Boolean(render) || !project.scenes.length} onClick={openExport}>
-              {render ? `Exportando ${Math.round(render.progress * 100)}%` : 'Exportar'}
+              {render ? `Exportando ${Math.round(render.progress * 100)}%` : <><Icon name="export" />Exportar</>}
             </button>
           )}
         </div>

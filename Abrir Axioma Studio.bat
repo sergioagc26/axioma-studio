@@ -4,4 +4,5 @@ cd /d "%~dp0"
 curl -s -o nul --max-time 2 http://127.0.0.1:4747/ && (start "" http://127.0.0.1:4747/ & exit /b 0)
 if not exist node_modules (echo Falta instalar la app: abre "Instalar Axioma Studio.bat". & pause & exit /b 1)
 echo Abriendo Axioma Studio... (cierra esta ventana para apagarla)
-npm run studio:red
+set "OLLAMA_HOST=http://127.0.0.1:11434"
+npm run studio:red -- --elegir-ia

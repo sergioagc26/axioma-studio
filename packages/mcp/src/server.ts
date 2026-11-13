@@ -474,7 +474,31 @@ export function createServer() {
     cliente: z.string().optional().describe('Cliente (carpeta). Por defecto "personal".'),
   }, async ({ cliente }) => E.formatInsights(await E.learnFromResults(cliente, true)));
 
-  tool('actualizar_app', 'Revisa si hay una versión nueva de la app y, con aplicar=true, la instala (no pisa cambios hechos a mano). Después hay que reiniciar la app.', {
+  tool('publicar_en_redes', 'Publica el último video vertical exportado del reel como Reel de Instagram, en la cuenta conectada. ES PÚBLICO Y NO SE PUEDE DESHACER desde la app: úsala solo cuando el usuario pida explícitamente publicar ese reel en esa red, nunca por iniciativa propia ni como parte de «termina el video». Antes dile en qué cuenta saldrá y con qué texto.', {
+    proyecto, red: z.enum(['instagram']).default('instagram'),
+    confirmado: z.boolean().describe('true solo si el usuario pidió explícitamente publicar este reel ahora.'),
+    cuenta: z.string().optional().describe('Id de la cuenta (ig-…), si hay varias conectadas.'),
+    texto: z.string().optional().describe('Texto de la publicación. Por defecto, el texto para publicar del reel.'),
+    repetir: z.boolean().optional().describe('Publicarlo aunque ya se haya publicado antes desde la app.'),
+  }, async (a) => {
+    if (!a.confirmado) return 'No se publicó nada: publicar es público y no se deshace, y hace falta que el usuario lo pida explícitamente.';
+    const dir = await resolveProject(a.proyecto);
+    const r = await E.publishReel(dir, { red: a.red, cuenta: a.cuenta, texto: a.texto, repetir: a.repetir }, (m) => log(m));
+    return [`Publicado en Instagram (@${r.cuenta})${r.url ? `: ${r.url}` : '.'}`, ...(r.aviso ? [r.aviso] : [])].join('\n');
+  });
+
+  tool('traer_resultados', 'Trae de Instagram las cifras reales (vistas, me gusta, comentarios, compartidos y guardados) de lo publicado desde la app y actualiza lo que le funciona al cliente. No inventa cifras: lo que Instagram aún no da queda pendiente. Úsala solo cuando el usuario pida ver o actualizar sus resultados.', {
+    cliente: z.string().optional().describe('Cliente (carpeta). Por defecto, todos.'),
+  }, async ({ cliente }) => {
+    const r = await E.syncMetrics({ cliente, force: true });
+    return [
+      `Cifras actualizadas: ${r.actualizadas}. Sin datos todavía: ${r.pendientes}.`,
+      ...r.errores.map((x) => `• ${x}`),
+      ...(cliente ? ['', E.formatInsights(await E.learnFromResults(cliente, false))] : []),
+    ].join('\n');
+  });
+
+  tool('actualizar_app','Revisa si hay una versión nueva de la app y, con aplicar=true, la instala (no pisa cambios hechos a mano). Después hay que reiniciar la app.', {
     aplicar: z.boolean().default(false),
   }, async ({ aplicar }) => {
     if (!aplicar) {

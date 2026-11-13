@@ -14,7 +14,8 @@ export const MODEL_CHOICES = ['qwen3:14b', 'qwen3:8b', 'qwen2.5:7b', 'llama3.1:8
 export const VISION_CHOICES = ['qwen3-vl:8b', 'qwen2.5vl:7b', 'qwen3-vl:4b', 'gemma3:4b'];
 export const LOCAL_MODEL = process.env.AXIOMA_LLM || 'qwen3:8b';
 /** Tiempo que el modelo queda cargado en memoria entre pedidos (respuestas inmediatas mientras trabajas). */
-const KEEP_ALIVE = process.env.AXIOMA_LLM_KEEP_ALIVE || '30m';
+// 10 minutos: suficiente para una sesión de edición sin dejar 5 GB ocupados media hora.
+const KEEP_ALIVE = process.env.AXIOMA_LLM_KEEP_ALIVE || '10m';
 
 export interface LlmStatus { running: boolean; version?: string; model?: string; vision?: string; installed: string[]; loaded: boolean; error?: string }
 
@@ -227,4 +228,15 @@ export async function visionJson<T>(system: string, user: string, images: string
     const d = (await r.json()) as { message?: { content?: string } };
     return JSON.parse((d.message?.content ?? '').replace(/^```(json)?|```$/g, '').trim()) as T;
   });
+}
+
+/**
+ * Saca de la memoria los modelos de IA que estén cargados. Se llama antes de exportar: el render
+ * necesita esa memoria (un modelo ocupa de 5 a 7 GB) y, con 16 GB, competir por ella lo deja colgado.
+ */
+export async function llmUnload(): Promise<void> {
+  const ps = await getJson<{ models?: { name: string }[] }>('/api/ps', 1500);
+  await Promise.all((ps?.models ?? []).map((m) => fetch(`${HOST}/api/generate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10_000), body: JSON.stringify({ model: m.name, keep_alive: 0 }),
+  }).catch(() => {})));
 }

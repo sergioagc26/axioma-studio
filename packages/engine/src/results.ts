@@ -9,7 +9,8 @@ import { slugify } from './paths.ts';
  * Aprender de los resultados: con las vistas y la interacción de cada reel publicado, la app ve
  * qué decisiones de edición le funcionan mejor a cada cliente (diseño de subtítulos, textos,
  * duración, música, hora y día) y las usa por defecto en los reels siguientes.
- * Las cifras las pone el usuario (las ve en Instagram/TikTok); la app no inventa nada.
+ * Las cifras las pone el usuario o, en lo publicado desde la app, se traen de Instagram; la app
+ * no inventa nada.
  */
 export interface Metrics { views: number; likes?: number; comments?: number; shares?: number; saves?: number; at?: string }
 

@@ -22,6 +22,10 @@ export const PresetPreview: React.FC<{ project: Project; preset: Preset; store: 
       // Sin transición ni cámara: la miniatura es una foto fija.
       s.transition = undefined;
     });
+    // Solo la primera escena: la miniatura es una foto y no necesita armar el reel entero
+    // (con montajes de decenas de cortes, armarlo para cada estilo dejaba la app colgada).
+    copy.scenes = copy.scenes.slice(0, 1);
+    copy.audio = { ...copy.audio, music: undefined, voiceover: undefined };
     const first = copy.scenes[0];
     if (first && !first.onScreenText && copy.kind !== 'montaje') first.onScreenText = preset.name;
     const t = timelineFor(copy, store);

@@ -269,3 +269,25 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 
 /* Las explicaciones largas se muestran solo con la ayuda encendida (botón ❔). */
 :root:not([data-ayuda="1"]) .help { display: none; }
+
+/* Brief: referencias como tarjetas con un fotograma del video. */
+.refs { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.refcard { flex: none; width: 96px; display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 6px; border-radius: 12px; border: 1px solid var(--line); background: transparent; color: var(--text); cursor: pointer; text-align: center; }
+.refcard strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.refcard.on { border: 2px solid var(--pink); background: var(--pinkSoft); padding: 5px; }
+.refcard.add { border-style: dashed; }
+.refthumb { width: 100%; aspect-ratio: 9 / 16; border-radius: 8px; background: #000 center / cover no-repeat; display: grid; place-items: center; }
+.refthumb.none { background: var(--panel2); color: var(--muted); font-size: 26px; }
+
+/* Referencias: lista con miniatura, nombre editable y quitar. */
+.refrow { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 10px; border: 1px solid var(--line); }
+.refrow.on { border-color: var(--pink); background: var(--pinkSoft); }
+.refrow-pick { border: 0; background: transparent; padding: 0; cursor: pointer; flex: none; }
+.refrow-thumb { display: block; width: 30px; height: 52px; border-radius: 6px; background: #000 center / cover no-repeat; }
+.refrow-name { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; color: var(--text); font-weight: 600; padding: 6px 8px; border-radius: 8px; }
+.refrow-name:hover, .refrow-name:focus { border-color: var(--line); background: var(--panel); outline: none; }
+
+/* Iconos de la línea propia: alineados con el texto que acompañan. */
+.ico { flex: none; vertical-align: -0.2em; }
+.btn .ico, .bchip .ico, .nav a .ico, .pill .ico { margin-right: 6px; }
+.btn.sq .ico { margin-right: 0; }

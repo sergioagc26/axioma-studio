@@ -112,7 +112,7 @@ export async function cloneProjectFiles(dir: string, out: string) {
   await mkdir(out, { recursive: true });
   // Archivos de la raíz (transcripción, análisis, caras, visión) y las carpetas de medios.
   for (const f of await readdir(dir, { withFileTypes: true })) {
-    if (f.isFile() && f.name.endsWith('.json') && f.name !== 'project.json') await linkOrCopy(path.join(dir, f.name), path.join(out, f.name));
+    if (f.isFile() && f.name.endsWith('.json') && f.name !== 'project.json') await copyFile(path.join(dir, f.name), path.join(out, f.name));
   }
   for (const sub of ['media', 'proxies']) {
     const base = path.join(dir, sub);
@@ -121,7 +121,15 @@ export async function cloneProjectFiles(dir: string, out: string) {
       for (const f of await readdir(path.join(base, rel), { withFileTypes: true })) {
         const r = path.join(rel, f.name);
         if (f.isDirectory()) { if (!/recorte-tmp|thumbs/.test(f.name)) await walk(r); }
-        else await linkOrCopy(path.join(base, r), path.join(out, sub, r));
+        else {
+          const dest = path.join(out, sub, r);
+          if (sub === 'media' && (r === 'master.mp4' || /^original\.[a-z0-9]+$/i.test(r))) {
+            await linkOrCopy(path.join(base, r), dest);
+          } else {
+            await mkdir(path.dirname(dest), { recursive: true });
+            await copyFile(path.join(base, r), dest);
+          }
+        }
       }
     };
     await walk('');

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -16,6 +17,7 @@ import { AUTO_SFX, ensureProjectSfx } from './sfx.ts';
 import { generateImage } from './imagegen.ts';
 import { ensureDepth } from './depth.ts';
 import { transcribeWav } from './transcribe.ts';
+import { spreadWords } from './dub.ts';
 import { synthesize, type TtsProvider } from './tts.ts';
 
 /** Frases del proyecto (para que Claude arme el storyboard). */
@@ -263,7 +265,7 @@ export async function setStatus(dir: string, status: Project['approval']) {
 /** Copia project.json a versions/ con fecha y una etiqueta. */
 export async function saveVersion(dir: string, label = '') {
   await mkdir(path.join(dir, P.versions), { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-') + '-' + randomUUID().slice(0, 8);
   const name = `${stamp}${label ? '-' + label.replace(/[^\w-]+/g, '_').slice(0, 40) : ''}.json`;
   await copyFile(path.join(dir, P.project), path.join(dir, P.versions, name));
   return name;
@@ -458,17 +460,34 @@ export async function setOriginalVolume(dir: string, volume: number) {
  * hablado y deja el ambiente bajo en un montaje.
  */
 export async function setVoiceover(dir: string, text: string, opts: { provider?: TtsProvider; voice?: string; originalVolume?: number } = {}) {
-  const project = await readProject(dir);
-  const out = path.join(dir, P.voiceover);
-  const used = await synthesize(text, out, opts);
-  const wav = path.join(dir, 'media', 'voz-en-off-16k.wav');
-  await extractWav16k(out, wav);
-  const transcript = await transcribeWav(wav);
-  await rm(wav, { force: true });
-  await writeFile(path.join(dir, P.voiceoverWords), JSON.stringify(transcript, null, 2));
-  project.audio.voiceover = { file: P.voiceover, text, provider: used.provider, voice: used.voice, duration: await mediaDuration(out) };
-  project.audio.originalVolume = opts.originalVolume ?? (project.kind === 'montaje' ? Math.min(project.audio.originalVolume, 0.25) : 0);
-  return writeProject(dir, project);
+  return recordVoiceover(dir, opts.originalVolume, async (out) => ({
+    ...await synthesize(text, out, opts), text,
+  }));
+}
+
+async function recordVoiceover(dir: string, volume: number | undefined, generate: (file: string) => Promise<{ provider: string; voice?: string; text?: string }>) {
+  const folder = `media/narraciones/${randomUUID()}`;
+  const file = folder + '/voz-en-off.wav';
+  const wordsFile = folder + '/palabras.json';
+  const out = path.join(dir, file);
+  const wav = path.join(dir, folder, '16k.wav');
+  await mkdir(path.dirname(out), { recursive: true });
+  try {
+    const used = await generate(out);
+    await extractWav16k(out, wav);
+    const transcript = await transcribeWav(wav);
+    await rm(wav);
+    const duration = await mediaDuration(out);
+    if (!transcript.words.length && used.text) transcript.words = spreadWords(used.text, 0, duration);
+    await writeFile(path.join(dir, wordsFile), JSON.stringify(transcript));
+    const project = await readProject(dir);
+    project.audio.voiceover = { file, wordsFile, duration, provider: used.provider, voice: used.voice, text: used.text ?? transcript.words.map(w => w.text).join(' ') };
+    project.audio.originalVolume = volume ?? (project.kind === 'montaje' ? Math.min(project.audio.originalVolume, 0.25) : 0);
+    return await writeProject(dir, project);
+  } catch (error) {
+    await rm(path.dirname(out), { recursive: true, force: true });
+    throw error;
+  }
 }
 
 export async function removeVoiceover(dir: string) {
@@ -591,15 +610,8 @@ export async function saveCurrentStyle(dir: string, name: string) {
  */
 export async function setVoiceoverFile(dir: string, file: string, opts: { originalVolume?: number } = {}) {
   const project = await readProject(dir);
-  const out = path.join(dir, P.voiceover);
-  await mkdir(path.dirname(out), { recursive: true });
-  await processVoice(file, out, { denoise: true, denoiseLevel: 'media', enhance: true, targetLufs: project.audio.targetLufs });
-  const wav = path.join(dir, 'media', 'voz-en-off-16k.wav');
-  await extractWav16k(out, wav);
-  const transcript = await transcribeWav(wav);
-  await rm(wav, { force: true });
-  await writeFile(path.join(dir, P.voiceoverWords), JSON.stringify(transcript, null, 2));
-  project.audio.voiceover = { file: P.voiceover, text: transcript.words.map((w) => w.text).join(' '), provider: 'grabada', duration: await mediaDuration(out) };
-  project.audio.originalVolume = opts.originalVolume ?? (project.kind === 'montaje' ? Math.min(project.audio.originalVolume, 0.25) : 0);
-  return writeProject(dir, project);
+  return recordVoiceover(dir, opts.originalVolume, async (out) => {
+    await processVoice(file, out, { denoise: true, denoiseLevel: 'media', enhance: true, targetLufs: project.audio.targetLufs });
+    return { provider: 'grabada' };
+  });
 }

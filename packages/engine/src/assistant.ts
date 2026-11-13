@@ -60,6 +60,23 @@ export function askClaude(projectId: string, request: string, onStep: (msg: stri
   // Sin las variables de una sesión de Claude que esté abierta, y sin clave de API: debe usar la suscripción.
   const env = { ...process.env };
   for (const k of Object.keys(env)) if (/^(CLAUDECODE|CLAUDE_CODE_|ANTHROPIC_API_KEY$)/.test(k)) delete env[k];
+  if (env.AXIOMA_EMERGENCIA === '1' && env.AXIOMA_LLM) {
+    const model = env.AXIOMA_LLM;
+    for (const key of Object.keys(env)) {
+      if (/^(ANTHROPIC_|CLAUDE_CONFIG_DIR$|CLAUDE_CODE_)/.test(key)) delete env[key];
+    }
+    Object.assign(env, {
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:11434',
+      ANTHROPIC_AUTH_TOKEN: 'ollama',
+      ANTHROPIC_MODEL: model,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+      CLAUDE_CONFIG_DIR: path.join(os.homedir(), '.claude-emergencia'),
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    });
+    args.push('--model', model);
+  }
   const isScript = /\.(c|m)?js$/.test(bin);
 
   return new Promise((resolve, reject) => {
@@ -109,6 +126,7 @@ let cached: { at: number; ok: boolean } | null = null;
 
 /** ¿Claude tiene sesión iniciada en este computador? Se comprueba como mucho una vez por minuto. */
 export async function claudeReady(force = false): Promise<boolean> {
+  if (process.env.AXIOMA_EMERGENCIA === '1') return Boolean(claudeBin());
   if (!force && cached && Date.now() - cached.at < 60_000) return cached.ok;
   const bin = claudeBin();
   if (!bin) return false;

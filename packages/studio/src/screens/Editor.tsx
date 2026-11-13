@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Player, type PlayerRef } from '@remotion/player';
 import { PresetPreview } from '../PresetPreview.tsx';
+import { Icon } from '../Icon.tsx';
+import type { IconName } from '../icons.ts';
 import { reelScore, adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, type Scene, VISION_TOPICS } from '@axioma/schema';
 import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
@@ -185,9 +187,9 @@ const ROLES = Object.keys(ROLE_LABEL) as Scene['role'][];
 
 /** Grupo plegable que recuerda si lo dejaste abierto (en este navegador) y muestra su valor actual. */
 /** Un icono por panel: se reconoce de un vistazo. */
-const GROUP_ICON: Record<string, string> = {
-  sugerencias: '💡', estilos: '🎨', subtitulos: '💬', color: '🌈', herramientas: '🪄', acabados: '✨', revision: '👀', quitadas: '🗑️',
-  variantes: '🎲', motion: '📊', texto: '🔤', imagen: '🎥', fondo: '🖼️', dice: '🗣️',
+const GROUP_ICON: Record<string, IconName> = {
+  sugerencias: 'bulb', estilos: 'palette', subtitulos: 'captions', color: 'color', herramientas: 'wand', acabados: 'finish', revision: 'eye', quitadas: 'trash',
+  variantes: 'variants', motion: 'chart', texto: 'title', imagen: 'camera', fondo: 'layers', dice: 'speech',
 };
 const Group: React.FC<{ id: string; title: string; hint?: string; defaultOpen?: boolean; onOpen?: () => void; children: React.ReactNode }> = ({ id, title, hint, defaultOpen = false, onOpen, children }) => {
   const key = `axioma:grupo:${id}`;
@@ -202,8 +204,9 @@ const Group: React.FC<{ id: string; title: string; hint?: string; defaultOpen?: 
       try { localStorage.setItem(key, now ? '1' : '0'); } catch { /* sin almacenamiento: no pasa nada */ }
       if (now) onOpen?.();
     }}>
-      <summary><span className="grp-title">{GROUP_ICON[id] ? <span aria-hidden="true">{GROUP_ICON[id]} </span> : null}{title}</span>{hint ? <span className="grp-hint">{hint}</span> : null}</summary>
-      <div className="col">{children}</div>
+      <summary><span className="grp-title">{GROUP_ICON[id] ? <Icon name={GROUP_ICON[id]} style={{ marginRight: 8 }} /> : null}{title}</span>{hint ? <span className="grp-hint">{hint}</span> : null}</summary>
+      {/* Lo plegado no se dibuja: el editor abre rápido y no gasta memoria en lo que no se ve. */}
+      {open ? <div className="col">{children}</div> : null}
     </details>
   );
 };
@@ -727,7 +730,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           )}
           <Group id="estilos" title="Estilo" hint={store.presets.find((p) => p.id === project.presetId)?.name}>
 
-              <button className="btn rect" style={{ height: 34 }} onClick={saveStyle} title="Guarda cómo está este reel (subtítulos, textos, ritmo) para usarlo en otros">💾 Guardar como mi estilo</button>
+              <button className="btn rect" style={{ height: 34 }} onClick={saveStyle} title="Guarda cómo está este reel (subtítulos, textos, ritmo) para usarlo en otros"><Icon name="save" />Guardar como mi estilo</button>
               {rec && rec.id !== project.presetId && (
                 <div className="col" style={{ padding: 10, borderRadius: 10, background: 'var(--cyanSoft)', gap: 6 }}>
                   <strong className="small">Recomendado: {store.presets.find((p) => p.id === rec.id)?.name}</strong>
@@ -1007,9 +1010,9 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             {safe && <div className="safe" aria-hidden="true" style={SAFE[safeNet]} title="Fuera de este recuadro los botones de la red tapan el contenido" />}
           </div>
           <div className="row">
-            <button className="btn sq" aria-label="Escena anterior" disabled={idx <= 0} onClick={() => select(project.scenes[idx - 1].id)}>⏮</button>
-            <button className="btn primary sq" style={{ borderRadius: 999, width: 44, height: 44 }} aria-label="Reproducir o pausar" onClick={() => player.current?.toggle()}>▶</button>
-            <button className="btn sq" aria-label="Escena siguiente" disabled={idx >= project.scenes.length - 1} onClick={() => select(project.scenes[idx + 1].id)}>⏭</button>
+            <button className="btn sq" aria-label="Escena anterior" disabled={idx <= 0} onClick={() => select(project.scenes[idx - 1].id)}><Icon name="prev" /></button>
+            <button className="btn primary sq" style={{ borderRadius: 999, width: 44, height: 44 }} aria-label="Reproducir o pausar" onClick={() => player.current?.toggle()}><Icon name="play" /></button>
+            <button className="btn sq" aria-label="Escena siguiente" disabled={idx >= project.scenes.length - 1} onClick={() => select(project.scenes[idx + 1].id)}><Icon name="next" /></button>
           </div>
         </main>
 

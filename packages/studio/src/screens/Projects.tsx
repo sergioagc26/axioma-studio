@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from '../Icon.tsx';
+import type { IconName } from '../icons.ts';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 import { KeysPanel } from '../Bank.tsx';
+import { CuentasPanel, useCuentas } from '../Cuentas.tsx';
 
 interface Item { id: string; name: string; client: string; approval: string; scenes: number; updatedAt: string; kind?: string; duration?: number; thumbT?: number }
 
@@ -23,6 +26,10 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [items, setItems] = useState<Item[] | null>(null);
   const [client, setClient] = useState('');
   const [keysOpen, setKeysOpen] = useState(false);
+  // Cuentas de Instagram para publicar: el botón avisa si alguna hay que conectarla otra vez.
+  const [cuentasOpen, setCuentasOpen] = useState(false);
+  const ig = useCuentas()?.instagram;
+  const cuentasAviso = ig?.cuentas.some((c) => c.estado === 'reconectar') ? 'Hay una cuenta de Instagram que conectar otra vez' : ig?.aviso;
   // Copia de seguridad a iCloud: se hace sola una vez al día; aquí se ve cuándo fue y se puede forzar.
   const [backup, setBackup] = useState<{ last?: string; error?: string; running?: boolean; copied?: number; bytes?: number } | null>(null);
   const [backingUp, setBackingUp] = useState('');
@@ -100,7 +107,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(e.message); }
   };
   // Automático: el video se edita solo al subirlo y se abre directo en el editor.
-  const auto = false; // la edición completa se lanza desde el brief, con lo que responda el cliente
+  const [auto, setAuto] = useState(true);
 
   useEffect(() => { api<Item[]>('/api/projects').then(setItems).catch((e) => ctx.toast(e.message)); }, []);
   const clients = useMemo(() => [...new Set((items ?? []).map((i) => i.client))].sort(), [items]);
@@ -120,7 +127,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const started = await api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset, auto }) });
       const done = await waitJob(started, setJob);
       if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
-      ctx.go('brief', { p: done.result?.id, s: null });
+      ctx.go(auto ? 'listo' : 'brief', { p: done.result?.id, s: null });
     } catch (e: any) {
       ctx.toast(`No se pudo crear: ${e.message}`);
     } finally {
@@ -143,7 +150,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       const started = await api<Job>(`/api/projects?${qs}`, { method: 'POST', body: file });
       const done = await waitJob(started, setJob);
       if (done.result?.summary) ctx.toast((done.result.summary as string[]).join(' '));
-      ctx.go('brief', { p: done.result?.id, s: null });
+      ctx.go(auto ? 'listo' : 'brief', { p: done.result?.id, s: null });
     } catch (e: any) {
       ctx.toast(`No se pudo crear: ${e.message}`);
     } finally {
@@ -154,21 +161,22 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   return (
     <main className="page projects" style={{ maxWidth: 1080, width: '100%', margin: '0 auto' }}>
       {keysOpen && <KeysPanel onClose={() => setKeysOpen(false)} toast={ctx.toast} />}
+      {cuentasOpen && <CuentasPanel onClose={() => setCuentasOpen(false)} toast={ctx.toast} />}
       {access && (
         <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setAccess(null); }}>
           <div className="modal card col" role="dialog" aria-modal="true" aria-label="Abrir desde otros equipos" style={{ maxWidth: 480, gap: 14 }}>
-            <h2 style={{ fontSize: 20 }}>📱 Abrir desde otros equipos</h2>
+            <h2 style={{ fontSize: 20 }}>Abrir desde otros equipos</h2>
             {!access.active ? <span className="muted">La app se abrió solo para este computador. Ciérrala y ábrela con «Abrir Axioma Studio» para compartirla en tu red.</span> : (
               <>
                 <section className="col" style={{ gap: 6 }}>
-                  <strong>🏠 En la misma Wi-Fi</strong>
+                  <strong><Icon name="wifi" style={{ marginRight: 6 }} />En la misma Wi-Fi</strong>
                   {access.links.filter((l) => l.kind === 'wifi').map((l) => (
                     <div key={l.url} className="row" style={{ flexWrap: 'nowrap' }}><code className="small" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</code><button className="btn rect" onClick={() => copy(l.url)}>Copiar</button></div>
                   ))}
                   {!access.links.some((l) => l.kind === 'wifi') && <span className="small muted">No hay una red Wi-Fi activa en este computador.</span>}
                 </section>
                 <section className="col" style={{ gap: 6 }}>
-                  <strong>🌍 Fuera de casa</strong>
+                  <strong><Icon name="globe" style={{ marginRight: 6 }} />Fuera de casa</strong>
                   {access.tailscale ? access.links.filter((l) => l.kind === 'fuera').map((l) => (
                     <div key={l.url} className="row" style={{ flexWrap: 'nowrap' }}><code className="small" style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</code><button className="btn rect" onClick={() => copy(l.url)}>Copiar</button></div>
                   )) : (
@@ -189,18 +197,20 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 28 }}>Nuevo reel</h1>
         <div className="row">
-          <a className="btn rect" href="#/calendario">📅 Calendario</a>
+          <a className="btn rect" href="#/calendario"><Icon name="calendar" />Calendario</a>
           <button className="btn rect" disabled={Boolean(updating)} onClick={update}
             title={upd?.error ?? (upd?.behind ? `Novedades:\n${upd.changes.join('\n')}` : 'Revisa si hay una versión nueva de la app')}
             style={upd?.behind ? { borderColor: 'var(--pink)' } : undefined}>
-            {updating || (upd?.behind ? `⬆️ Actualizar (${upd.behind})` : '⬆️ Actualizar')}
+            <Icon name="update" />{updating || (upd?.behind ? `Actualizar (${upd.behind})` : 'Actualizar')}
           </button>
-          <button className="btn rect" onClick={openAccess} title="Abrir la app desde tu portátil o celular">📱 Otros equipos</button>
-          <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pixabay, Pexels, Freesound y ElevenLabs">🔑 Claves</button>
+          <button className="btn rect" onClick={openAccess} title="Abrir la app desde tu portátil o celular"><Icon name="devices" />Otros equipos</button>
+          <button className="btn rect" onClick={() => setKeysOpen(true)} title="Pixabay, Pexels, Freesound y ElevenLabs"><Icon name="key" />Claves</button>
+          <button className="btn rect" onClick={() => setCuentasOpen(true)} title={cuentasAviso ?? 'Instagram: conecta tus cuentas para publicar desde la app'}
+            style={cuentasAviso ? { borderColor: 'var(--pink)' } : undefined}><Icon name="link" />Cuentas</button>
           <button className="btn rect" disabled={Boolean(backingUp || backup?.running)} onClick={backupNow}
             title={backup?.error ? backup.error : 'Copia de seguridad en iCloud Drive: se hace sola una vez al día. Clic para hacerla ahora.'}
             style={backup?.error || (backup && !backup.last) ? { borderColor: 'var(--pink)' } : undefined}>
-            {backingUp || (backup?.running ? '☁️ Copiando…' : backup?.last ? `☁️ Copia: ${ago(backup.last)}` : '☁️ Activar copia en iCloud')}
+            <Icon name="cloud" />{backingUp || (backup?.running ? 'Copiando…' : backup?.last ? `Copia: ${ago(backup.last)}` : 'Activar copia en iCloud')}
           </button>
         {items && items[0] && !job && (
           <a className="btn rect" href={`#/editor?p=${encodeURIComponent(items[0].id)}`} title={`Abrir «${items[0].name}»`}>Seguir con «{items[0].name.length > 28 ? items[0].name.slice(0, 27) + '…' : items[0].name}» →</a>
@@ -217,17 +227,17 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <>
             <strong>{job.message}</strong>
             <div className="progress" style={{ maxWidth: 420 }} role="progressbar" aria-valuenow={Math.round(job.progress * 100)} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${Math.round(job.progress * 100)}%` }} /></div>
-            <span className="muted small">Tarda de 1 a 5 minutos. Después te hago unas preguntas.</span>
+            <span className="muted small">{auto ? 'Al terminar se abrirá la edición.' : 'Al terminar podrás completar el brief.'}</span>
           </>
         ) : (
           <>
             <div className="seg" style={{ gridTemplateColumns: '1fr 1fr', width: '100%', maxWidth: 420 }}>
-              <button className={kind === 'hablado' ? 'on' : ''} aria-pressed={kind === 'hablado'} onClick={() => setKind('hablado')}>🎙️ Hablando a cámara</button>
-              <button className={kind === 'montaje' ? 'on' : ''} aria-pressed={kind === 'montaje'} onClick={() => setKind('montaje')}>🎬 Sin voz</button>
+              <button className={kind === 'hablado' ? 'on' : ''} aria-pressed={kind === 'hablado'} onClick={() => setKind('hablado')}><Icon name="mic" style={{ marginRight: 6 }} />Hablando a cámara</button>
+              <button className={kind === 'montaje' ? 'on' : ''} aria-pressed={kind === 'montaje'} onClick={() => setKind('montaje')}><Icon name="clapper" style={{ marginRight: 6 }} />Sin voz</button>
             </div>
             <strong style={{ fontSize: 17 }}>{over ? 'Suelta el video aquí' : kind === 'hablado' ? 'Arrastra aquí tu video hablando a cámara' : 'Arrastra aquí uno o varios videos'}</strong>
             <span className="muted">{kind === 'hablado'
-              ? 'Súbelo, responde unas preguntas y la app lo edita sola.'
+              ? 'La app prepara el video y detecta las partes habladas.'
               : 'Gimnasio, comida o producto: sube tus tomas y la app arma el montaje con música.'}</span>
             <div className="row" style={{ justifyContent: 'center' }}>
               <label className="field">Cliente
@@ -235,6 +245,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <datalist id="clientes">{clients.map((c) => <option key={c} value={c} />)}</datalist>
               </label>
             </div>
+            <label><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Editar automáticamente al subir</label>
             <button className="btn primary" onClick={() => input.current?.click()}>{kind === 'montaje' ? 'Elegir videos' : 'Elegir video'}</button>
             <input ref={input} type="file" accept="video/*" multiple={kind === 'montaje'} hidden onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
           </>

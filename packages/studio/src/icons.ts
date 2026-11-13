@@ -1,0 +1,123 @@
+/**
+ * Línea de iconos de Axioma Studio. Una sola familia, dibujada para la app:
+ * - Retícula de 24 × 24 con 2 de margen (el dibujo vive en 20 × 20).
+ * - Solo trazo: 1.75 de grosor, extremos y uniones redondeados, sin rellenos.
+ * - Formas simples: rectángulos de esquina 2–3, círculos y diagonales a 45°.
+ * - Un color: el del texto donde va (currentColor). El acento rosa lo pone el estado, no el icono.
+ * Cada icono es el contenido de un <svg viewBox="0 0 24 24">. Lo usan <Icon> y el manual de marca.
+ */
+export const ICONS = {
+  // Navegación y pantallas
+  brief: '<path d="M7 3h7l4 4v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/>',
+  result: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/>',
+  editor: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  text: '<path d="M5 7V5h14v2M12 5v14M9 19h6"/>',
+  storyboard: '<rect x="3" y="4" width="7" height="7" rx="2"/><rect x="14" y="4" width="7" height="7" rx="2"/><rect x="3" y="13" width="7" height="7" rx="2"/><rect x="14" y="13" width="7" height="7" rx="2"/>',
+  variants: '<path d="M4 7h3c5 0 5 10 10 10h3M4 17h3c2 0 3.2-1.4 4.2-3.2M20 7h-3c-1.6 0-2.7.9-3.6 2.2"/><path d="M17.5 4.5 20 7l-2.5 2.5M17.5 14.5 20 17l-2.5 2.5"/>',
+  audio: '<path d="M4 10v4M8 6v12M12 9v6M16 4v16M20 10v4"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-4.5 4 3.5 3-2.5 4 3.5"/>',
+  reference: '<path d="m12 3.5 2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  back: '<path d="m14 6-6 6 6 6"/>',
+  home: '<path d="m4 11 8-7 8 7v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M10 21v-6h4v6"/>',
+
+  // Acciones
+  sparkle: '<path d="M11 3.5 12.8 9l5.7 2-5.7 2L11 18.5 9.2 13 3.5 11l5.7-2z"/><path d="M18.5 3.5v3M17 5h3M19 17v3M17.5 18.5h3"/>',
+  export: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  upload: '<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
+  publish: '<path d="M20.5 3.5 10 14M20.5 3.5 14 20.5 10 14l-6.5-4z"/>',
+  play: '<path d="M7 4.5v15l12-7.5z"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
+  prev: '<path d="M18 5v14L8 12zM6 5v14"/>',
+  next: '<path d="M6 5v14l10-7zM18 5v14"/>',
+  undo: '<path d="M8 5 4 9l4 4"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  redo: '<path d="m16 5 4 4-4 4"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+  refresh: '<path d="M20 12a8 8 0 0 1-14.5 4.6M4 12a8 8 0 0 1 14.5-4.6"/><path d="M19 3v4.5h-4.5M5 21v-4.5h4.5"/>',
+  update: '<circle cx="12" cy="12" r="9"/><path d="M12 16.5v-9M8.5 11 12 7.5l3.5 3.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  check: '<path d="m4.5 12.5 5 5 10-11"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/>',
+  trash: '<path d="M4 7h16M10 3h4M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M10 11v6M14 11v6"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  open: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
+  save: '<path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a1 1 0 0 1 1-1z"/><path d="M8 3v5h7V3M8 21v-6h8v6"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  scissors: '<circle cx="6.5" cy="6.5" r="2.5"/><circle cx="6.5" cy="17.5" r="2.5"/><path d="M8.5 8.2 20 18M8.5 15.8 20 6"/>',
+  wand: '<path d="m4 20 11-11M13.5 7.5l3 3"/><path d="M18 3v3M16.5 4.5h3M20 11v2M19 12h2M10 3v2M9 4h2"/>',
+
+  // Sistema
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8"/><circle cx="12" cy="16.8" r=".6"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M16 7l3 3M13.5 9.5l2 2"/>',
+  cloud: '<path d="M7 19a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 18 11a4 4 0 0 1 0 8z"/>',
+  devices: '<rect x="2.5" y="5" width="13" height="10" rx="2"/><path d="M6 19h6"/><rect x="15.5" y="9" width="6" height="11" rx="1.5"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.500 12H21M5.600 5.600l1.800 1.800M16.600 16.600l1.800 1.800M5.600 18.400l1.800-1.800M16.600 7.400l1.800-1.800"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  wifi: '<path d="M3 9.500a13 13 0 0 1 18 0M6 13a8.500 8.500 0 0 1 12 0M9 16.500a4.200 4.200 0 0 1 6 0"/><circle cx="12" cy="19.500" r=".7"/>',
+  warning: '<path d="M12 4 2.500 20h19z"/><path d="M12 10v5"/><circle cx="12" cy="17.500" r=".5"/>',
+  eye: '<path d="M2.500 12S6 5.500 12 5.500 21.500 12 21.500 12 18 18.500 12 18.500 2.500 12 2.500 12z"/><circle cx="12" cy="12" r="2.800"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.500 2"/>',
+  bulb: '<path d="M9 17h6M10 20.500h4"/><path d="M8.500 14a6 6 0 1 1 7 0c-.700.600-1 1.300-1 2.200v.800h-5v-.800c0-.900-.300-1.600-1-2.200z"/>',
+
+  // Lo que la app le hace al video
+  captions: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 14h4M14 14h3M7 10.500h2M12 10.500h5"/>',
+  title: '<path d="M4 6h16M4 6v3M20 6v3M12 6v13M9 19h6"/>',
+  chart: '<path d="M4 20h16M7 20v-7M12 20V5M17 20v-10"/>',
+  film: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 4v16M16 4v16M3 9h5M3 15h5M16 9h5M16 15h5"/>',
+  transition: '<rect x="3" y="6" width="10" height="12" rx="2.500"/><path d="M16 7.500v9M20 9v6"/>',
+  music: '<path d="M9 18V6l11-2.500V15"/><circle cx="6.500" cy="18" r="2.500"/><circle cx="17.500" cy="15" r="2.500"/>',
+  sound: '<path d="M4 9.500h3.500L12 5.500v13l-4.500-4H4z"/><path d="M15.500 9a4.200 4.200 0 0 1 0 6M18.300 6.500a8 8 0 0 1 0 11"/>',
+  mute: '<path d="M4 9.500h3.500L12 5.500v13l-4.500-4H4z"/><path d="m16 9.500 5 5M21 9.500l-5 5"/>',
+  tag: '<path d="M3.500 12.500V5a1.500 1.500 0 0 1 1.500-1.500h7.500L21 12l-8.500 8.500z"/><circle cx="8" cy="8" r="1.300"/>',
+  color: '<path d="M12 3.500s6 6 6 10.500a6 6 0 0 1-12 0c0-4.500 6-10.500 6-10.500z"/>',
+  palette: '<path d="M12 3a9 9 0 0 0 0 18c1.500 0 2-1 2-2 0-1.500-1-2-1-3s1-2 2.500-2H18a3 3 0 0 0 3-3c0-4.500-4-8-9-8z"/><circle cx="7.500" cy="11.500" r=".9"/><circle cx="10" cy="7.500" r=".9"/><circle cx="15" cy="7.500" r=".9"/>',
+  camera: '<path d="M4 8a2 2 0 0 1 2-2h1.500l1.500-2h6l1.500 2H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.500" r="3.500"/>',
+  layers: '<path d="m12 3.500 9 4.500-9 4.500L3 8z"/><path d="m3 12.500 9 4.500 9-4.500M3 17l9 4.500 9-4.500"/>',
+  speech: '<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11.500a6.500 6.500 0 0 0 13 0M12 18v3"/>',
+  frame: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/>',
+  finish: '<path d="M12 3.500 14 10l6.500 2-6.500 2-2 6.500-2-6.500L3.500 12 10 10z"/>',
+
+  // Respuestas del brief
+  phone: '<rect x="7" y="2.500" width="10" height="19" rx="2.500"/><path d="M11 18.500h2"/>',
+  story: '<circle cx="12" cy="12" r="9" stroke-dasharray="3.300 2.400"/><circle cx="12" cy="12" r="4.500"/>',
+  megaphone: '<path d="M4 10v4h3l8 4.500v-13L7 10z"/><path d="M18.500 9.500a4 4 0 0 1 0 5M8 14l1 5.500h2.500"/>',
+  message: '<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-6l-5 4v-4H6a2 2 0 0 1-2-2z"/><path d="M8 9.500h8M8 13h5"/>',
+  bookmark: '<path d="M6.500 3.500h11a1 1 0 0 1 1 1V21L12 16.500 5.500 21V4.500a1 1 0 0 1 1-1z"/>',
+  share: '<circle cx="6" cy="12" r="2.500"/><circle cx="17.500" cy="6" r="2.500"/><circle cx="17.500" cy="18" r="2.500"/><path d="m8.200 10.800 7-3.600M8.200 13.200l7 3.600"/>',
+  follow: '<circle cx="9.500" cy="8" r="3.800"/><path d="M2.500 20.500c.500-4 3.500-6 7-6s6.500 2 7 6M19 7.500v6M16 10.500h6"/>',
+  users: '<circle cx="9" cy="8" r="3.500"/><path d="M2.500 20c.500-3.800 3.200-5.500 6.500-5.500s6 1.700 6.500 5.500"/><path d="M15.500 4.800a3.500 3.500 0 0 1 0 6.400M18 14.800c2 .700 3.200 2.400 3.500 5.200"/>',
+  heart: '<path d="M12 20.500s-8.500-5-8.500-11A4.800 4.800 0 0 1 12 6.500a4.800 4.800 0 0 1 8.500 3c0 6-8.500 11-8.500 11z"/>',
+  cart: '<path d="M3 4h2.500l2.500 11.500h10l2-8.500H6.500"/><circle cx="9" cy="19.500" r="1.300"/><circle cx="17" cy="19.500" r="1.300"/>',
+  briefcase: '<rect x="3" y="7.500" width="18" height="12.500" rx="2.500"/><path d="M9 7.500V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.500M3 13h18"/>',
+  family: '<circle cx="7.500" cy="7" r="2.800"/><circle cx="16.500" cy="7" r="2.800"/><path d="M2.500 19.500c.300-3.500 2.300-5.500 5-5.500s4.200 1.500 4.500 4c.300-2.500 1.800-4 4.500-4s4.700 2 5 5.500"/>',
+  bolt: '<path d="M13.500 2.500 4.500 13.500h6.500l-1 8 9-11h-6.500z"/>',
+  rhythm: '<path d="M3 12h3l2.500-6 4 12 3-9 1.500 3h4"/>',
+  calm: '<path d="M3 9c2.500-2.500 5-2.500 7.500 0s5 2.500 7.500 0 2-1.500 3-1.500M3 15c2.500-2.500 5-2.500 7.500 0s5 2.500 7.500 0 2-1.500 3-1.500"/>',
+  flame: '<path d="M12 21.500c-4 0-6.500-2.800-6.500-6.500 0-3 2-4.500 3-7 .500 2 1.500 2.800 2.500 3 0-3 1-6 3.500-8.500 0 4 4 6 4 12.500 0 3.700-2.500 6.500-6.500 6.500z"/>',
+  clapper: '<rect x="3" y="9.500" width="18" height="11" rx="2.500"/><path d="m3.500 9.500 16-4.500-.800-2.500-16 4.500zM8 5.800l2.500 3M13 4.400l2.500 3"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  book: '<path d="M4 5.500A2.500 2.500 0 0 1 6.500 3H20v15H6.500A2.500 2.500 0 0 0 4 20.500z"/><path d="M4 20.500A2.500 2.500 0 0 0 6.500 21H20v-3"/>',
+  rocket: '<path d="M12 15.500 8.500 12c1-5 4-8.500 9.500-9.500 1 .500 1.500 1 1.500 1.500-1 5.500-4.500 8.500-9.500 9.500z"/><circle cx="15" cy="9" r="1.500"/><path d="M8.500 12 5 12.500l-2 3 3.500.500M12 15.500l-.500 3.500-3 2-.500-3.500"/>',
+  smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14a4.500 4.500 0 0 0 8 0"/><circle cx="9" cy="9.500" r=".700"/><circle cx="15" cy="9.500" r=".700"/>',
+  diamond: '<path d="M7 4h10l4 5.500L12 21 3 9.500z"/><path d="M3 9.500h18M9.500 9.500 12 21l2.500-11.500M7 4l2.500 5.500L12 4l2.500 5.500L17 4"/>',
+  timer: '<circle cx="12" cy="13.500" r="7.500"/><path d="M12 9.500v4l2.500 1.500M9.500 3h5M12 3v3"/>',
+  infinity: '<path d="M12 12c-2-3-3.500-4.500-5.500-4.500a4.500 4.500 0 0 0 0 9c2 0 3.500-1.500 5.500-4.500zm0 0c2 3 3.500 4.500 5.500 4.500a4.500 4.500 0 0 0 0-9c-2 0-3.500 1.500-5.500 4.500z"/>',
+  letters: '<path d="M3 19 8 6l5 13M4.800 15h6.400"/><path d="M15 19l3-8 3 8M16 16.500h4"/>',
+  hand: '<path d="M8 12V5.500a1.500 1.500 0 0 1 3 0V11M11 10.500V4.500a1.500 1.500 0 0 1 3 0V11M14 10.500V6a1.500 1.500 0 0 1 3 0v8c0 4-2.500 7-6.500 7-3 0-4.500-1.500-6-4.500L3 13.500c-.500-1.200 1-2.200 2-1.200L8 15"/>',
+  pin: '<path d="M12 21.500s7-6.500 7-12a7 7 0 0 0-14 0c0 5.500 7 12 7 12z"/><circle cx="12" cy="9.500" r="2.500"/>',
+
+  // Redes
+  instagram: '<rect x="3.500" y="3.500" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r=".800"/>',
+  tiktok: '<path d="M13 3.500v11.500a3.700 3.700 0 1 1-3.700-3.700"/><path d="M13 3.500c.300 2.800 2.200 4.700 5.500 5"/>',
+  youtube: '<rect x="2.500" y="5.500" width="19" height="13" rx="4"/><path d="M10 9.200v5.600l5-2.800z"/>',
+  facebook: '<circle cx="12" cy="12" r="9"/><path d="M13 21v-8h2.500M10 13h3M13 13v-2.500c0-1.500 1-2.500 2.800-2.300"/>',
+  linkedin: '<rect x="3.500" y="3.500" width="17" height="17" rx="3.500"/><path d="M8 10.500v6M8 7.500v.100M12 16.500v-6M12 13c0-1.500 1-2.500 2.300-2.500s2.200 1 2.200 2.500v3.500"/>',
+} as const;
+
+export type IconName = keyof typeof ICONS;

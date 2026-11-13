@@ -1,4 +1,6 @@
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { createInterface } from 'node:readline/promises';
+import { ensureOllama, llmStatus } from './llm.ts';
 import { autoVideo } from './auto.ts';
 import path from 'node:path';
 import { Command } from 'commander';
@@ -12,6 +14,31 @@ import { cutProject, editMontage, editVideo, prepareMedia, transcribeProject } f
 import { renderProject } from './render.ts';
 import { isTailscale, lanAddresses, lanKey, openBrowser, startStudio, studioUrl } from './studio.ts';
 import { ensureWhisper } from './transcribe.ts';
+
+async function chooseStudioModel(): Promise<void> {
+  if (!process.stdin.isTTY) throw new Error('Abre el lanzador en una terminal para seleccionar tu modelo.');
+  const terminal = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    while (true) {
+      const models = await ensureOllama() ? (await llmStatus()).installed : [];
+      console.log('\nModelos de Ollama en este computador');
+      models.forEach((name, index) => console.log(`  ${index + 1}. ${name}`));
+      if (!models.length) console.log('No hay modelos disponibles. Abre Ollama y descarga un modelo para usar la IA local.');
+      console.log('  R. Actualizar lista\n  C. Continuar con la configuración anterior');
+      const choice = (await terminal.question('Elige una opción: ')).trim().toLowerCase();
+      if (choice === 'c') return;
+      if (choice === 'r') continue;
+      const model = /^\d+$/.test(choice) ? models[Number(choice) - 1] : undefined;
+      if (model) {
+        process.env.AXIOMA_LLM = model;
+        process.env.AXIOMA_EMERGENCIA = '1';
+        console.log(`IA de esta sesión: ${model}`);
+        return;
+      }
+      console.log('Escribe el número de un modelo o una de las letras indicadas.');
+    }
+  } finally { terminal.close(); }
+}
 
 const program = new Command();
 program.name('se').description(`${APP_NAME} · editor de reels con IA`);
@@ -47,9 +74,11 @@ program
   .command('studio')
   .argument('[proyecto]', 'id del proyecto a abrir')
   .option('--no-open', 'no abrir el navegador')
+  .option('--elegir-ia', 'elegir el modelo local antes de iniciar')
   .option('--red', 'permitir abrirla desde otros equipos de tu red (con clave)')
   .description('Abre la interfaz (storyboard, editor, variantes)')
   .action(async (id, o) => {
+    if (o.elegirIa) await chooseStudioModel();
     const network = Boolean(o.red) || process.env.AXIOMA_RED === '1';
     const url = studioUrl(await startStudio({ network }), id ? 'storyboard' : 'proyectos', id);
     console.log(`Studio: ${url}`);

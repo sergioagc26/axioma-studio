@@ -33,6 +33,13 @@ export async function writeProject(dir: string, project: Project) {
   return next;
 }
 
+/** Guarda un JSON de forma atómica: quien lo lea a la vez ve el archivo viejo o el nuevo, nunca uno a medias. */
+export async function writeJsonAtomic(file: string, data: unknown) {
+  const tmp = `${file}.${process.pid}.${++seq}.tmp`;
+  await writeFile(tmp, JSON.stringify(data, null, 2));
+  await rename(tmp, file);
+}
+
 export async function readTranscript(dir: string): Promise<Transcript | null> {
   const f = path.join(dir, P.transcript);
   if (!existsSync(f)) return null;

@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PERSONALITIES, SECTORS, VISION_TOPICS } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
+import { Icon } from '../Icon.tsx';
+import type { IconName } from '../icons.ts';
 
 interface Help { resumen: string; sugerido: Record<string, string>; preguntas: { id: string; pregunta: string; ejemplo: string }[]; ia: boolean; prompt: string }
+interface Ref { id: string; name: string; client: string; duration: number; avgShot: number; frames: string[]; suggested: { ritmo: string } }
 interface Opt { value: string; title: string; desc: string }
 interface Q { key: string; label: string; title: string; help: string; placeholder: string; options: Opt[] }
 
@@ -17,14 +20,14 @@ const CTA_FOR: Record<string, string> = {
   Compartidos: 'Envíaselo a quien lo necesita',
 };
 /** Un icono por respuesta: se entiende de un vistazo, sin leer. */
-const ICON: Record<string, string> = {
-  'Reel 9:16': '📱', 'Historia 9:16': '⭕', 'TikTok 9:16': '🎵', 'YouTube Short 9:16': '▶️', 'Anuncio 9:16': '📣',
-  'Mensajes por DM': '💬', Comentarios: '🗨️', Guardados: '🔖', Compartidos: '📤', 'Ir al link': '🔗', Seguidores: '➕',
-  'Gente que aún no me conoce': '👋', 'Seguidores que ya me conocen': '🫶', 'Clientes listos para comprar': '🛒', 'Dueños de negocio y emprendedores': '💼', 'Jóvenes de 18 a 25': '🧑', 'Adultos y familias': '👨‍👩‍👧',
-  'Rápido': '⚡', 'Con ritmo': '🎶', Sobrio: '🧘', 'Enérgico': '🔥', 'Pausado y elegante': '🎬', 'Que decida la app': '✨',
-  Directo: '🎯', Cercano: '🤝', Educativo: '📚', Inspirador: '🚀', Divertido: '😄', Elegante: '🖤',
-  '10–15 s': '⏱️', '15–20 s': '⏱️', '20–30 s': '⏱️', '30–45 s': '⏱️', '45–60 s': '⏱️', 'Lo que dure': '♾️',
-  'La que digo en el video': '🎙️', 'Escríbeme «INFO» por DM': '💬', 'Comenta «QUIERO» y te lo envío': '🗨️', 'Guárdalo para cuando lo necesites': '🔖', 'Entra al link de mi perfil': '🔗', 'Sígueme para más como esto': '➕', 'Envíaselo a quien lo necesita': '📤',
+const ICON: Record<string, IconName> = {
+  'Reel 9:16': 'instagram', 'Historia 9:16': 'story', 'TikTok 9:16': 'tiktok', 'YouTube Short 9:16': 'youtube', 'Anuncio 9:16': 'megaphone',
+  'Mensajes por DM': 'message', Comentarios: 'speech', Guardados: 'bookmark', Compartidos: 'share', 'Ir al link': 'link', Seguidores: 'follow',
+  'Gente que aún no me conoce': 'hand', 'Seguidores que ya me conocen': 'heart', 'Clientes listos para comprar': 'cart', 'Dueños de negocio y emprendedores': 'briefcase', 'Jóvenes de 18 a 25': 'users', 'Adultos y familias': 'family',
+  'Rápido': 'bolt', 'Con ritmo': 'rhythm', Sobrio: 'calm', 'Enérgico': 'flame', 'Pausado y elegante': 'clapper', 'Que decida la app': 'sparkle',
+  Directo: 'target', Cercano: 'heart', Educativo: 'book', Inspirador: 'rocket', Divertido: 'smile', Elegante: 'diamond',
+  '10–15 s': 'timer', '15–20 s': 'timer', '20–30 s': 'timer', '30–45 s': 'timer', '45–60 s': 'timer', 'Lo que dure': 'infinity',
+  'La que digo en el video': 'mic', 'Escríbeme «INFO» por DM': 'message', 'Comenta «QUIERO» y te lo envío': 'speech', 'Guárdalo para cuando lo necesites': 'bookmark', 'Entra al link de mi perfil': 'link', 'Sígueme para más como esto': 'follow', 'Envíaselo a quien lo necesita': 'share',
 };
 export const SPOKEN_CTA = 'La que digo en el video';
 
@@ -93,6 +96,23 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     }).catch(() => setHelp({ resumen: '', sugerido: {}, preguntas: [], ia: false, prompt: '' }));
     return () => { alive = false; };
   }, [project.id]);
+  // Referencias del cliente: si ya hay un video que muestra cómo debe quedar, se elige aquí y la
+  // edición copia su ritmo, subtítulos y textos. También se puede subir una nueva sin salir del brief.
+  const [refs, setRefs] = useState<Ref[]>([]);
+  const [refJob, setRefJob] = useState('');
+  const refInput = useRef<HTMLInputElement>(null);
+  const pid = encodeURIComponent(project.id);
+  useEffect(() => { api<Ref[]>(`/api/references?id=${pid}`).then(setRefs).catch(() => {}); }, [project.id]);
+  const uploadRef = async (file: File) => {
+    setRefJob('Subiendo la referencia…');
+    try {
+      const started = await api<Job>(`/api/references?id=${pid}&filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+      const done = await waitJob(started, (j) => setRefJob(j.message));
+      const report = done.result!.report as Ref;
+      setRefs((l) => [report, ...l]);
+      set('referencia', report.id);
+    } catch (e: any) { ctx.toast(`No se pudo analizar la referencia: ${e.message}`); } finally { setRefJob(''); }
+  };
   const set = (key: string, v: string) => { store.update((p) => { if (v) p.brief[key] = v; else delete p.brief[key]; }); setSuggested((x) => x.filter((k) => k !== key)); };
   const [prompt, setPrompt] = useState('');
   const loadPrompt = () => { setPrompt('Escribiendo…'); setTimeout(() => api<Help>(`/api/brief-ia?id=${encodeURIComponent(project.id)}`).then((h) => setPrompt(h.prompt)).catch(() => setPrompt('')), 900); };
@@ -158,19 +178,19 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <section key={x.key} className="col" style={{ gap: 8 }}>
         <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
           <h2 style={{ fontSize: 17 }}>{x.title}</h2>
-          {suggested.includes(x.key) && <span className="pill" title="Lo propuso la IA al oír tu video. Cámbialo si no es.">✨ sugerido</span>}
+          {suggested.includes(x.key) && <span className="pill" title="Lo propuso la IA al oír tu video. Cámbialo si no es."><Icon name="sparkle" size={12} />sugerido</span>}
         </div>
         <div className="bchips">
           {opts.map((o) => (
             <button key={o.value} className={`bchip ${value === o.value ? 'on' : ''}`} aria-pressed={value === o.value} title={o.desc} onClick={() => set(x.key, o.value)}>
-              <span aria-hidden="true">{ICON[o.value] ?? '•'}</span> {o.title}
+              {ICON[o.value] ? <Icon name={ICON[o.value]} /> : null}{o.title}
             </button>
           ))}
           <input
             key={`${x.key}-${custom ? value : ''}`}
             className={`bchip-input ${custom ? 'on' : ''}`}
             defaultValue={custom ? value : ''}
-            placeholder="✏️ Otra…"
+            placeholder="Otra…"
             aria-label={`${x.label}: otra respuesta`}
             onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== value) set(x.key, v); else if (!v && custom) set(x.key, ''); }}
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
@@ -187,8 +207,32 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <main className="card col" style={{ flex: '1 1 640px', maxWidth: 820, minWidth: 0, gap: 22, padding: 26, borderRadius: 20 }}>
         <header className="col" style={{ gap: 6 }}>
           <h1 style={{ fontSize: 26, lineHeight: 1.15 }}>Cuéntame cómo lo quieres</h1>
-          <span className="muted">{help === null ? '✨ Estoy viendo y oyendo tu video…' : help.resumen ? `✨ Esto entendí: ${help.resumen}` : 'Toca una opción en cada fila. Con eso edito todo el video.'}</span>
+          <span className="muted">{help === null ? 'Estoy viendo y oyendo tu video…' : help.resumen ? `Esto entendí: ${help.resumen}` : 'Toca una opción en cada fila. Con eso edito todo el video.'}</span>
         </header>
+
+        <section className="col" style={{ gap: 8 }}>
+          <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+            <h2 style={{ fontSize: 17 }}>¿Quieres que se parezca a otro video?</h2>
+            <span className="small muted">Copia su ritmo, letras y textos. Nunca su contenido.</span>
+          </div>
+          <div className="refs">
+            <button className={`refcard ${!project.brief.referencia || project.brief.referencia === 'ninguna' ? 'on' : ''}`} aria-pressed={!project.brief.referencia || project.brief.referencia === 'ninguna'} onClick={() => set('referencia', 'ninguna')}>
+              <span className="refthumb none" aria-hidden="true"><Icon name="close" size={22} /></span>
+              <strong className="small">Sin referencia</strong>
+            </button>
+            {refs.map((r) => (
+              <button key={r.id} className={`refcard ${project.brief.referencia === r.id ? 'on' : ''}`} aria-pressed={project.brief.referencia === r.id} onClick={() => set('referencia', r.id)} title={`${r.duration.toFixed(0)} s · un corte cada ${r.avgShot.toFixed(1)} s`}>
+                <span className="refthumb" style={{ backgroundImage: `url(/ref/${encodeURIComponent(r.client)}/${encodeURIComponent(r.id)}/${r.frames[Math.min(2, r.frames.length - 1)]})` }} aria-hidden="true" />
+                <strong className="small">{r.name}</strong>
+              </button>
+            ))}
+            <button className="refcard add" disabled={Boolean(refJob)} onClick={() => refInput.current?.click()}>
+              <span className="refthumb none" aria-hidden="true"><Icon name="upload" size={22} /></span>
+              <strong className="small">{refJob || 'Subir video'}</strong>
+            </button>
+            <input ref={refInput} type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadRef(f); e.target.value = ''; }} />
+          </div>
+        </section>
 
         {MAIN.map(row)}
 
@@ -203,20 +247,20 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             onBlur={(e) => set('notas', e.target.value.trim())} />
         </label>
 
-        <button className="btn primary" style={{ height: 54, fontSize: 18 }} disabled={Boolean(building)} onClick={build}>{building || (project.briefAppliedAt ? '✨ Volver a editar mi video' : '✨ Editar mi video')}</button>
+        <button className="btn primary" style={{ height: 54, fontSize: 18 }} disabled={Boolean(building)} onClick={build}>{building ? building : <><Icon name="sparkle" />{project.briefAppliedAt ? 'Volver a editar mi video' : 'Editar mi video'}</>}</button>
         <span className="small muted" style={{ textAlign: 'center' }}>La app corta, pone textos, subtítulos, música y efectos de sonido. Al terminar lo ves y lo exportas.</span>
 
         <details className="grp">
-          <summary>⚙️ Más opciones</summary>
+          <summary><Icon name="settings" /> Más opciones</summary>
           <div className="col" style={{ gap: 18 }}>{MORE.map(row)}</div>
         </details>
         <details className="grp" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) loadPrompt(); }}>
-          <summary>📝 Ver el prompt de edición</summary>
+          <summary><Icon name="brief" /> Ver el prompt de edición</summary>
           <pre className="small" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', lineHeight: 1.5 }}>{prompt}</pre>
         </details>
         <details className="grp">
-          <summary>{store.kit?.sector ? `🎨 Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : '🎨 Tu marca'}
-            {store.kit?.sector && <button className="btn ghost small" style={{ float: 'right', marginTop: -4 }} disabled={!!manual} onClick={(e) => { e.preventDefault(); brandbook(); }} title="PDF de una página por tema: colores, letras, logo, cómo se ven sus reels y tono de voz">{manual || '📘 Manual de marca'}</button>}
+          <summary><Icon name="palette" /> {store.kit?.sector ? `Marca: ${store.kit.name} · ${SECTORS.find(([id]) => id === store.kit!.sector)?.[1]}` : 'Tu marca'}
+            {store.kit?.sector && <button className="btn ghost small" style={{ float: 'right', marginTop: -4 }} disabled={!!manual} onClick={(e) => { e.preventDefault(); brandbook(); }} title="PDF de una página por tema: colores, letras, logo, cómo se ven sus reels y tono de voz">{manual || 'Manual de marca'}</button>}
           </summary>
           <div className="col">
             {store.vision && (

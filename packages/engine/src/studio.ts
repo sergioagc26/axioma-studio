@@ -15,7 +15,7 @@ import { AssistantError, askClaude, claudeBin, claudeReady, openClaudeLogin } fr
 import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, ensureUsedSfx, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
-import { analyzeReference, listReferences, presetFromReference, referencesDir } from './reference.ts';
+import { analyzeReference, deleteReference, listReferences, presetFromReference, referencesDir, renameReference } from './reference.ts';
 import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
@@ -47,6 +47,7 @@ import { addEntry, listEntries, removeEntry, updateEntry } from './calendar.ts';
 import { brandbookFile, createBrandbook } from './brandbook.ts';
 import { backupStatus, runBackup, scheduleBackups } from './backup.ts';
 import { learnFromResults } from './results.ts';
+import { connectPage, connectUrl, connectWithToken, disconnectAccount, finishConnect, prePublish, publishReel, redact, socialStatus, startMetricsTimer, syncMetrics } from './social.ts';
 import { buildPrompt, suggestBrief } from './briefai.ts';
 import { applyUpdate, checkUpdate, restartStudio } from './update.ts';
 import { createImages } from './images.ts';
@@ -64,7 +65,7 @@ const DIST = path.join(REPO_ROOT, 'packages', 'studio', 'dist');
 
 interface Job {
   id: string;
-  kind: 'crear' | 'render' | 'referencia' | 'ia' | 'audio';
+  kind: 'crear' | 'render' | 'referencia' | 'ia' | 'audio' | 'publicar' | 'metricas';
   status: 'running' | 'done' | 'error';
   message: string;
   progress: number;
@@ -119,6 +120,11 @@ async function thumb(dir: string, t: number, rel?: string | null): Promise<strin
 // --- Acceso desde otros equipos de la red (por ejemplo, el portátil) ---
 let networkKey: string | null = null;
 const isLoopback = (a?: string) => !a || a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+/** Las cuentas de las redes y los datos de la app de Meta solo se tocan desde este mismo computador. */
+function soloLocal(req: http.IncomingMessage) {
+  if (!isLoopback(req.socket.remoteAddress)) throw Object.assign(new Error('Las cuentas se conectan desde el computador donde está instalada la app.'), { status: 403 });
+}
+const escHtml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** Clave de acceso para la red: se crea una vez y se guarda en workspace/clave-red.txt. */
 export async function lanKey(): Promise<string> {
@@ -223,7 +229,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/claves' && method === 'GET') return json(res, await keyStatus());
   if (p === '/api/claves' && method === 'POST') {
     const b = await readBody(req);
-    await setEnvValue(({ pexels: 'PEXELS_API_KEY', pixabay: 'PIXABAY_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY' } as Record<string, string>)[String(b.banco)] ?? '', String(b.clave ?? ''));
+    // Los datos de la app de Meta (para publicar en Instagram) solo se cambian desde este computador.
+    if (String(b.banco).startsWith('meta_')) soloLocal(req);
+    await setEnvValue(({ pexels: 'PEXELS_API_KEY', pixabay: 'PIXABAY_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY', meta_app_id: 'META_APP_ID', meta_app_secret: 'META_APP_SECRET', meta_config_id: 'META_CONFIG_ID', meta_api_version: 'META_API_VERSION' } as Record<string, string>)[String(b.banco)] ?? '', String(b.clave ?? ''));
     return json(res, await keyStatus());
   }
   if (p === '/api/pexels' && method === 'GET') return json(res, { results: await searchBroll(String(url.searchParams.get('q') ?? '').slice(0, 80), 9) });
@@ -311,18 +319,29 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const job = startJob('crear', async (j) => {
       const log = (m: string) => { j.message = m.trim(); };
       try {
-        const { dir, project } = await createProject({
+        const { dir, project, info } = await createProject({
           input: tmp,
           name: url.searchParams.get('name') || undefined,
           client: url.searchParams.get('client') || undefined,
           presetId: url.searchParams.get('preset') || undefined,
         });
+        if (!info.hasAudio) {
+          project.kind = 'montaje';
+          await writeProject(dir, project);
+        }
         j.progress = 0.1;
         await prepareMedia(dir, log);
         j.progress = 0.4;
-        await transcribeProject(dir, log);
+        const transcript = info.hasAudio ? await transcribeProject(dir, log) : null;
         j.progress = 0.9;
-        await cutProject(dir);
+        if (transcript?.words.length) {
+          await cutProject(dir);
+        } else {
+          j.message = 'Sin palabras reconocidas. Preparando el montaje visual…';
+          const montage = await buildMontage(dir);
+          montage.project.kind = 'montaje';
+          await writeProject(dir, montage.project);
+        }
         // Edición automática al subir: el video llega al editor ya editado.
         if (url.searchParams.get('auto') === '1') { j.message = 'Editando todo el video…'; return { id: project.id, summary: (await editEverything(dir, { onProgress: (m) => { j.message = m; } })).summary }; }
         return { id: project.id };
@@ -561,14 +580,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, { project: await readProject(dir), advice });
     }
     if (b.op === 'ia') {
-      // Le pide el cambio a Claude desde la app. Si Claude no está disponible, queda como petición.
-      const project = await readProject(dir);
+      // El asistente recibe la carpeta exacta incluso si dos clientes comparten un id.
       const text = String(b.text ?? '').slice(0, 2000).trim();
       if (!text) return json(res, { error: 'Escribe qué quieres pedir.' }, 400);
       const job = startJob('ia', async (j) => {
         j.message = 'Claude está trabajando…';
         try {
-          const r = await askClaude(project.id, text, (m) => { j.message = m; });
+          const r = await askClaude(dir, text, (m) => { j.message = m; });
+          if (process.env.AXIOMA_EMERGENCIA === '1' && !r.tools.length) {
+            j.message = 'Aplicando el pedido con el modelo local…';
+            const edit = await localEdit(dir, text, b.sceneId);
+            return { text: edit.applied.length ? edit.applied.join('; ') : 'El modelo no aplicó ningún cambio.', local: true };
+          }
           return { text: r.text, tools: r.tools };
         } catch (e) {
           // Sin Claude, lo hace la IA local (Ollama) si está instalada.
@@ -728,6 +751,60 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (method === 'PUT') return json(res, await updateEntry(entry, await readBody(req)));
     if (method === 'DELETE') return json(res, await removeEntry(entry));
   }
+  // Publicar en redes (hoy Instagram). Nunca se devuelve un permiso: solo nombres y estados.
+  if (p === '/api/redes' && method === 'GET') return json(res, await socialStatus());
+  if (p === '/api/redes/conectar' && method === 'POST') {
+    soloLocal(req);
+    return json(res, { url: await connectUrl((await readBody(req)).red) });
+  }
+  if (p === '/api/redes/instagram/callback' && method === 'GET') {
+    // Aquí vuelve Facebook tras dar permiso. Se responde una página sencilla para cerrar la pestaña.
+    soloLocal(req);
+    let ok = true, title = 'Cuenta conectada', body = '';
+    try {
+      const r = await finishConnect('instagram', url.searchParams);
+      body = `${r.conectadas.join(', ')}. Ya puedes cerrar esta pestaña.${r.avisos.length ? ` ${r.avisos.join(' ')}` : ''}`;
+    } catch (e) { ok = false; title = 'No se pudo conectar'; body = e instanceof Error ? e.message : String(e); }
+    res.writeHead(ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' })
+      .end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${APP_NAME}</title><body style="font-family:system-ui;background:#111;color:#eee;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px"><div style="max-width:420px"><h1>${title}</h1><p>${escHtml(body)}</p></div>`);
+    return;
+  }
+  if (p === '/api/redes/token' && method === 'POST') {
+    soloLocal(req);
+    const b = await readBody(req);
+    return json(res, { ...(await connectWithToken(b.red, String(b.token ?? ''))), estado: await socialStatus() });
+  }
+  if (p === '/api/redes/pagina' && method === 'POST') {
+    // Cuando la página de un cliente no sale sola: se añade por su ID.
+    soloLocal(req);
+    const b = await readBody(req);
+    return json(res, { ...(await connectPage(b.red, String(b.pagina ?? ''))), estado: await socialStatus() });
+  }
+  if (p === '/api/redes/desconectar' && method === 'POST') {
+    soloLocal(req);
+    await disconnectAccount(String((await readBody(req)).cuenta ?? ''));
+    return json(res, await socialStatus());
+  }
+  if (p === '/api/redes/previo' && method === 'GET' && id) {
+    return json(res, await prePublish(await findDir(id), (url.searchParams.get('red') ?? 'instagram') as 'instagram', url.searchParams.get('cuenta') || undefined));
+  }
+  if (p === '/api/redes/publicar' && method === 'POST' && id) {
+    const dir = await findDir(id);
+    const b = await readBody(req);
+    // Publicar es público y no se deshace: sin la confirmación de la persona no se hace nada.
+    if (b.confirmado !== true) return json(res, { error: 'Confirma antes de publicar: es público y no se puede deshacer.' }, 400);
+    const str = (x: unknown) => (typeof x === 'string' && x ? x : undefined);
+    const job = startJob('publicar', async (j) => ({ ...(await publishReel(dir, { red: b.red, cuenta: str(b.cuenta), texto: str(b.texto), entrada: str(b.entrada), repetir: b.repetir === true, portadaMs: Number.isFinite(b.portadaMs) ? Number(b.portadaMs) : undefined }, (m, pr) => { j.message = m; j.progress = pr; })) }));
+    return json(res, job);
+  }
+  if (p === '/api/redes/metricas' && method === 'POST') {
+    const b = await readBody(req);
+    const job = startJob('metricas', async (j) => {
+      j.message = 'Trayendo las cifras de Instagram…';
+      return { ...(await syncMetrics({ entrada: typeof b.entrada === 'string' ? b.entrada : undefined, cliente: typeof b.cliente === 'string' ? b.cliente : undefined, force: true })) };
+    });
+    return json(res, job);
+  }
   // Brief inteligente: lo que la IA propone para este video y el prompt de edición que resulta.
   if (p === '/api/brief-ia' && method === 'GET' && id) {
     const dir = await findDir(id);
@@ -853,6 +930,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, await listReferences(project.client));
   }
 
+  // Renombrar o quitar una referencia (va a la papelera, no se borra).
+  if (p === '/api/references' && (method === 'PUT' || method === 'DELETE')) {
+    const project = await readProject(await findDir(id));
+    const ref = url.searchParams.get('ref') ?? '';
+    if (method === 'DELETE') return json(res, await deleteReference(project.client, ref));
+    await renameReference(project.client, ref, String((await readBody(req)).name ?? ''));
+    return json(res, await listReferences(project.client));
+  }
+
   if (p === '/api/references' && method === 'POST') {
     const project = await readProject(await findDir(id));
     const filename = path.basename(url.searchParams.get('filename') ?? 'referencia.mp4');
@@ -863,7 +949,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const job = startJob('referencia', async (j) => {
       j.message = 'Analizando ritmo, música y colores…';
       try {
-        const { report } = await analyzeReference(tmp, { client: project.client });
+        const { report } = await analyzeReference(tmp, { client: project.client, name: url.searchParams.get('nombre')?.trim().slice(0, 60) || undefined });
         return { report };
       } finally {
         await rm(tmpDir, { recursive: true, force: true });
@@ -937,7 +1023,8 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
     const server = http.createServer((req, res) => {
       handle(req, res).catch((e) => {
         // Queda escrito qué falló, para poder diagnosticarlo después.
-        const line = `${new Date().toISOString()} ${req.method} ${req.url} → ${e instanceof Error ? e.stack ?? e.message : e}\n`;
+        // Sin permisos ni claves: la dirección puede traer el código de conexión de una red.
+        const line = redact(`${new Date().toISOString()} ${req.method} ${req.url} → ${e instanceof Error ? e.stack ?? e.message : e}\n`);
         mkdir(WORKSPACE, { recursive: true }).then(() => appendFile(path.join(WORKSPACE, 'studio-errores.log'), line)).catch(() => {});
         if (!res.headersSent) json(res, { error: e instanceof Error ? e.message : String(e) }, e?.status ?? 500);
         else res.end();
@@ -955,7 +1042,7 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
     // Tras actualizarse, el proceso nuevo espera a que el anterior suelte el puerto.
     const wait = process.env.AXIOMA_RESTART_WAIT ? 2500 : 0;
     delete process.env.AXIOMA_RESTART_WAIT;
-    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); if (!process.env.VITEST) void stockMusic(); resolve(base); }), wait);
+    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); if (!process.env.VITEST) { void stockMusic(); startMetricsTimer(); } resolve(base); }), wait);
   });
   return running;
 }

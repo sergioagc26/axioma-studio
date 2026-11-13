@@ -352,6 +352,7 @@ export const Project = z.object({
     originalVolume: z.number().min(0).max(1).default(1),
     /** Voz en off generada: suena desde el inicio del reel, sobre el video. */
     voiceover: z.object({
+      wordsFile: z.string().optional(),
       file: z.string(),
       text: z.string(),
       provider: z.string(),

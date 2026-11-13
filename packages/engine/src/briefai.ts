@@ -7,6 +7,7 @@ import { llmJson, llmReady } from './llm.ts';
 import { localEdit } from './localedit.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { readVision } from './vision.ts';
+import { listReferences } from './reference.ts';
 
 /**
  * Brief inteligente, pensado para quien no sabe editar: la IA local lee lo que se dice en el
@@ -127,12 +128,14 @@ export async function buildPrompt(dir: string): Promise<string> {
   const b = p.brief;
   const { extras, notas } = wishes(p, help);
   const talk = p.kind !== 'montaje' && Boolean((await readTranscript(dir).catch(() => null))?.words.length);
+  const refName = b.referencia && b.referencia !== 'ninguna' ? (await listReferences(p.client)).find((r) => r.id === b.referencia)?.name : undefined;
   const lines = [
     `Edita este video ${talk ? 'hablado a cámara' : 'sin voz como un montaje de cortes al ritmo de la música'} para ${b.formato ?? 'Reel 9:16'}${kit?.name ? `, de la marca «${kit.name}»${kit.sector ? ` (${kit.sector})` : ''}` : ''}.`,
     help?.resumen ? `De qué trata: ${help.resumen}` : '',
     b.objetivo ? `Objetivo: que quien lo vea haga esto → ${b.objetivo}. Todo el video debe llevar a ese resultado.` : '',
     b.publico ? `Público: ${b.publico}.` : '',
     b.tono ? `Tono: ${b.tono}. Los textos, los subtítulos, el color y la música deben sentirse así.` : '',
+    refName ? `Referencia: debe parecerse al video «${refName}» en ritmo de cortes, subtítulos y textos (solo el estilo, nunca el contenido).` : '',
     b.ritmo && !/decida/i.test(b.ritmo) ? `Ritmo de cortes: ${b.ritmo}.` : 'Ritmo de cortes: el que mejor le va al contenido y al nicho.',
     b.duracion ? (/dure/i.test(b.duracion) ? 'Duración: la que pida el contenido, sin cortar ideas.' : `Duración final: ${b.duracion}. Quita lo redundante antes que lo importante.`) : '',
     talk ? 'Apertura: nada de saludos. El primer segundo abre con un gancho en pantalla de 3 a 7 palabras, fiel a lo que se dice.' : 'Apertura: la toma más llamativa primero.',
@@ -176,7 +179,7 @@ export async function applyWishes(dir: string): Promise<string[]> {
   }
   const asks = [
     ...extras.filter((e) => e.uso === 'destacar').map((e) => `Pon como texto en pantalla, en la escena donde se habla de eso (si no se habla, en una escena del medio sin texto), este dato tal cual: «${e.respuesta}».`),
-    ...(notas ? [notas] : []),
+    ...(notas ? [`Nota del cliente (si es solo contexto y no pide un cambio concreto, no cambies nada por ella): ${notas}`] : []),
   ];
   if (asks.length && (await llmReady())) {
     try {

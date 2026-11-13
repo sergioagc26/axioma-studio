@@ -1,4 +1,5 @@
 import { cutoutCoverage } from './matte.ts';
+import { llmUnload } from './llm.ts';
 import { existsSync, statSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -56,7 +57,7 @@ export async function brandFor(project: Project, asset: (rel: string) => string,
 /** Voz en off (con sus palabras) y seguimiento de cara, para armar la línea de tiempo. */
 export async function timelineExtras(dir: string, project: Project, asset: (rel: string) => string) {
   const vo = project.audio.voiceover;
-  const wordsFile = path.join(dir, P.voiceoverWords);
+  const wordsFile = path.join(dir, vo?.wordsFile ?? P.voiceoverWords);
   const voiceover = vo && existsSync(path.join(dir, vo.file))
     ? { src: asset(vo.file), words: existsSync(wordsFile) ? (JSON.parse(await readFile(wordsFile, 'utf8')).words as Transcript['words']) : [] }
     : undefined;
@@ -69,6 +70,8 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
   const project = opts.project ?? (await readProject(dir));
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
   const transcript = await readTranscript(dir);
+  // La IA local suelta su memoria: exportar la necesita.
+  await llmUnload().catch(() => {});
   await ensureUsedSfx(dir, project);
   await ensureProjectDepth(dir, project);
   const server = await serveFolder(dir);
@@ -105,7 +108,8 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       audioBitrate: q.audio as never,
       pixelFormat: 'yuv420p',
       outputLocation: raw,
-      concurrency: Math.max(1, Math.min(8, Math.floor(os.cpus().length / 2))),
+      // Cada pestaña de render ocupa cerca de 1 GB con video vertical: se limita por la memoria del equipo.
+      concurrency: Math.max(1, Math.min(8, Math.floor(os.cpus().length / 2), Math.max(2, Math.floor(os.totalmem() / 2 ** 30 / 4)))),
       onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
     }));
     // Siempre se nivela el resultado final al volumen elegido (−14 LUFS para redes).

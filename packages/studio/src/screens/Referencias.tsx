@@ -44,6 +44,23 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     } catch (e: any) { ctx.toast(`No se pudo analizar: ${e.message}`); } finally { setJob(null); }
   };
 
+  const rename = async (r: Report, name: string) => {
+    try {
+      const l = await api<Report[]>(`/api/references?id=${pid}&ref=${encodeURIComponent(r.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      setList(l);
+      setCur((c) => (c ? l.find((x) => x.id === c.id) ?? null : c));
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+  const remove = async (r: Report) => {
+    if (!window.confirm(`¿Quitar la referencia «${r.name}»?\n\nDeja de aparecer aquí y en el brief. Queda en la papelera por si la necesitas, y los estilos que guardaste con ella siguen funcionando.`)) return;
+    try {
+      const l = await api<Report[]>(`/api/references?id=${pid}&ref=${encodeURIComponent(r.id)}`, { method: 'DELETE' });
+      setList(l);
+      setCur((c) => (c?.id === r.id ? l[0] ?? null : c));
+      ctx.toast(`«${r.name}» quitada.`);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
+
   /** Un solo paso: guarda todo el estilo detectado como plantilla y lo aplica al reel. */
   const save = async (aplicar: boolean) => {
     if (!cur) return;
@@ -90,12 +107,22 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <button className="btn rect" style={{ borderStyle: 'dashed', height: 44 }} onClick={() => input.current?.click()}>{cur ? 'Analizar otra referencia' : 'Subir video de referencia'}</button>
         )}
         <input ref={input} type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
-        {list.length > 1 && (
-          <label className="field">Referencias analizadas
-            <select value={cur?.id} onChange={(e) => setCur(list.find((r) => r.id === e.target.value) ?? null)}>
-              {list.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-          </label>
+        {list.length > 0 && (
+          <div className="col" style={{ gap: 6 }}>
+            <span className="small muted" style={{ fontWeight: 600 }}>Tus referencias ({list.length})</span>
+            {list.map((r) => (
+              <div key={r.id} className={`refrow ${cur?.id === r.id ? 'on' : ''}`}>
+                <button className="refrow-pick" onClick={() => setCur(r)} aria-label={`Ver ${r.name}`}>
+                  <span className="refrow-thumb" style={{ backgroundImage: `url(${`/ref/${encodeURIComponent(r.client)}/${encodeURIComponent(r.id)}/${r.frames[Math.min(2, r.frames.length - 1)]}`})` }} aria-hidden="true" />
+                </button>
+                <input className="refrow-name" defaultValue={r.name} key={`${r.id}-${r.name}`} aria-label="Nombre de la referencia" title="Toca para cambiarle el nombre"
+                  onFocus={() => setCur(r)}
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.name) rename(r, v); else e.target.value = r.name; }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+                <button className="btn ghost small" onClick={() => remove(r)} aria-label={`Quitar ${r.name}`} title="Quitar esta referencia">Quitar</button>
+              </div>
+            ))}
+          </div>
         )}
         <span className="muted small">La app toma el estilo, nunca el contenido. También sirve con tus propios reels que mejor funcionaron.</span>
       </section>
@@ -153,7 +180,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                     {cur.captions.highlight ? ` · resalta en ${cur.captions.highlight}${cur.captions.box ? ' con caja' : ''}` : ' · sin color de resaltado'}
                     {' '}· unas {cur.captions.wordsPerLine} palabra{cur.captions.wordsPerLine > 1 ? 's' : ''} a la vez
                   </span>
-                  {cur.typography && <span className="small muted">👁 La IA local vio la letra: <strong style={{ color: 'var(--text)' }}>{cur.typography.fontFamily}</strong>{cur.typography.uppercase ? ' en mayúsculas' : ''} · {cur.typography.style}</span>}
+                  {cur.typography && <span className="small muted">La IA local vio la letra: <strong style={{ color: 'var(--text)' }}>{cur.typography.fontFamily}</strong>{cur.typography.uppercase ? ' en mayúsculas' : ''} · {cur.typography.style}</span>}
                 </>
               ) : <span className="muted">No se encontraron subtítulos en la imagen. Se usarán los del ritmo detectado.</span>}
             </article>

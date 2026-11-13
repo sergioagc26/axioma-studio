@@ -178,3 +178,21 @@ export async function askAssistant(projectId: string, text: string, sceneId: str
   const done = await waitJob(job, (j) => onStep(j.message));
   return done.result as { text: string; saved?: boolean };
 }
+
+/** Redes donde la app puede publicar. Hoy solo Instagram; TikTok queda para después. */
+export type Red = 'instagram' | 'tiktok';
+
+/**
+ * Publica el reel en una red y espera a que termine. Es público y no se puede deshacer:
+ * solo se llama cuando la persona lo confirmó en pantalla (por eso `confirmado` es obligatorio).
+ */
+export async function publishTo(projectId: string, body: { red: Red; confirmado: true; cuenta?: string; texto?: string; entrada?: string; repetir?: boolean }, onTick: (j: Job) => void): Promise<Job> {
+  const job = await api<Job>(`/api/redes/publicar?id=${encodeURIComponent(projectId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return waitJob(job, onTick);
+}
+
+/** Trae de la red las cifras reales de lo publicado desde la app (de una publicación o de un cliente). */
+export async function syncResults(body: { entrada?: string; cliente?: string }, onTick: (j: Job) => void): Promise<Job> {
+  const job = await api<Job>('/api/redes/metricas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return waitJob(job, onTick);
+}
