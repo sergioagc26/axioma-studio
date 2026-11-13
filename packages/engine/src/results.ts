@@ -95,7 +95,7 @@ export async function learnFromResults(client?: string, apply = true): Promise<I
     return p && slugify(p.client ?? 'personal') === slug ? [{ features: reelFeatures(p, e), metrics: e.metrics! }] : [];
   });
   const name = client ?? 'personal';
-  if (reels.length < 4) return { client: name, reels: reels.length, medianViews: 0, engagement: 0, findings: [], applied: [], note: `Faltan resultados: hay ${reels.length} reel${reels.length === 1 ? '' : 'es'} con cifras y se necesitan al menos 4 para comparar. En Calendario, marca cada reel como publicado y pon sus vistas.` };
+  if (reels.length < 4) return { client: name, reels: reels.length, medianViews: 0, engagement: 0, findings: [], applied: [], note: `Faltan resultados: hay ${reels.length} reel${reels.length === 1 ? '' : 's'} con cifras y se necesitan al menos 4 para comparar. En Calendario, marca cada reel como publicado y pon sus vistas.` };
   const { findings, medianViews, engagement } = findInsights(reels);
   const applied: string[] = [];
   const kit = await readKit(client);
