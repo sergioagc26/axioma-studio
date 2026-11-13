@@ -521,6 +521,13 @@ export function createServer() {
     return E.summarize(await E.useLibraryHit(dir, a.escena, { projectId: a.proyecto_origen, file: a.archivo, t: a.segundo }, { seconds: a.segundos, asBackdrop: a.fondo }), dir);
   });
 
+  tool('calidad_video', 'En videos de baja resolución (WhatsApp, capturas), rehace el video de edición desde el original: quita los bloques de compresión y agranda a 1080 con escalado fino (normal), o además le da nitidez (nitido). Cortes y textos no cambian.', {
+    proyecto, calidad: z.enum(['normal', 'nitido']),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    return E.summarize(await E.setVideoQuality(dir, a.calidad), dir);
+  });
+
   tool('camara_lenta', 'Pone una escena en cámara lenta suave (crea los fotogramas intermedios siguiendo el movimiento): velocidad 0.5 (2×), 0.33 (3×) o 0.25 (4×); 1 la devuelve a normal. La voz de esa escena no suena: úsala en montajes con música o tomas sin diálogo. Tarda unos 20 s por cada segundo de video en 4K.', {
     proyecto, escena: z.string(), velocidad: z.number().min(0.2).max(1),
   }, async (a) => {

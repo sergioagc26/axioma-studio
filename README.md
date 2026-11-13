@@ -164,6 +164,12 @@ En «Acabados del reel», «LUT de color» trae seis looks incluidos (Teal & Ora
 
 En Variantes, «Busca en tu material» encuentra momentos en todos los reels del mismo cliente (sus videos y b-rolls) a partir de una descripción: lo que **se ve** («hombres entrenando en la calle», «manos en el portátil») con el modelo de visión local, y lo que **se dice**, en las transcripciones. Al elegir un resultado se corta ese tramo del video original (unos 3,5 s, sin audio) y entra como b-roll de la escena, con su origen anotado. La primera vez revisa todo el material (un fotograma por segundo) y guarda el índice en `indice-visual.json` de cada proyecto; después solo revisa lo nuevo. Si la IA local (Ollama) está abierta, la búsqueda se traduce al inglés porque el modelo de visión la entiende mejor. Claude tiene lo mismo con `buscar_material` y `usar_material`.
 
+## Calidad en videos de baja resolución
+
+Los videos de menos de 1000 px por el lado corto (WhatsApp, capturas, celulares viejos) se preparan quitando los bloques de la compresión antes de agrandarlos a 1080 y con escalado lanczos. Medido contra un original nítido, se parece más que el escalado anterior (SSIM 0,959 frente a 0,951). En «Herramientas de un clic → Calidad del video» se elige «Fiel al original» o «Más nítido» (suma nitidez adaptativa); tarda segundos y no cambia cortes ni textos. Claude: `calidad_video`.
+
+Se probó también un modelo de IA de superresolución (Swin2SR) y no mejoró este tipo de video (0,930) y tardaría horas por minuto; Real-ESRGAN necesitaría una GPU dedicada.
+
 ## Cámara lenta suave
 
 En el inspector de la escena, «Cámara lenta»: a la mitad, a un tercio o a un cuarto. En vez de repetir fotogramas (que se ve a saltos), se crean los intermedios siguiendo el movimiento de cada zona de la imagen (interpolación por compensación de movimiento de FFmpeg), en este computador. Tarda unos 20 s por cada segundo de video en 4K; los tramos quedan en `media/lento/` y se reutilizan. La voz de esa escena no suena ni lleva subtítulos (va bien en montajes con música). Mientras se prepara, la vista previa la muestra más lenta sin suavizar. Claude puede hacerlo con `camara_lenta`.

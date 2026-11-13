@@ -228,6 +228,17 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   };
 
   const [allAdvice, setAllAdvice] = useState(false);
+  // Calidad del video (videos de baja resolución): rehace el master desde el original.
+  const [improving, setImproving] = useState('');
+  const setQuality = async (calidad: 'normal' | 'nitido') => {
+    setImproving('Rehaciendo el video…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'calidad', calidad }) });
+      await waitJob(job, (j) => setImproving(j.message || 'Rehaciendo el video…'));
+      await reloadProject();
+      ctx.toast(calidad === 'nitido' ? 'Video más nítido.' : 'Video fiel al original.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setImproving(''); }
+  };
   // Reencuadre al hablante (videos horizontales con varias personas).
   const [speakerBusy, setSpeakerBusy] = useState('');
   const followSpeaker = async (on: boolean) => {
@@ -744,6 +755,20 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <span className="small muted">{hasTeaser ? `Abre con: «${sceneSpeech(project.scenes[0], store.transcript).slice(0, 90)}»` : 'Como hacen los creadores grandes: el reel abre con tu mejor frase y luego empieza la historia. La escena original sigue en su sitio.'}</span>
           
               </div>
+              {Math.min(project.source.width, project.source.height) < 1000 && (
+                <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                  <strong className="small">Calidad del video</strong>
+                  <span className="small muted">Tu video es de {project.source.width}×{project.source.height}: se agranda a 1080 quitando los bloques de la compresión (como los de WhatsApp).{project.source.quality ? '' : ' Este proyecto se preparó antes de esta mejora: elige una opción para aplicarla.'}</span>
+                  <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }} role="group" aria-label="Calidad del video">
+                    {(['normal', 'nitido'] as const).map((q) => (
+                      <button key={q} className={project.source.quality === q ? 'on' : ''} aria-pressed={project.source.quality === q} disabled={Boolean(improving)} onClick={() => q !== project.source.quality && setQuality(q)}>
+                        {q === 'normal' ? 'Fiel al original' : 'Más nítido'}
+                      </button>
+                    ))}
+                  </div>
+                  {improving && <span className="pill" role="status">{improving}</span>}
+                </div>
+              )}
               {project.source.width > project.source.height * 1.1 && (
                 <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                   <strong className="small">Encuadre</strong>

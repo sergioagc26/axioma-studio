@@ -36,8 +36,21 @@ export async function probe(file: string): Promise<ProbeInfo> {
  * Master de edición: H.264 a fps constante (los celulares graban con fps
  * variable y eso desfasa los cortes), lado corto 1080 px, rotación aplicada.
  */
-export async function makeMaster(input: string, out: string, fps: number, info: ProbeInfo) {
-  const scale = info.width <= info.height ? 'scale=1080:-2' : 'scale=-2:1080';
+/**
+ * Cadena de imagen para el master. En videos de baja resolución (WhatsApp, capturas) se quitan
+ * los bloques de la compresión antes de agrandar y se escala con lanczos: medido contra el
+ * original, se parece más que el escalado normal (SSIM 0,959 frente a 0,951). «nitido» suma
+ * nitidez adaptativa (se ve más definido, aunque se aleja un poco del original).
+ */
+export function masterScale(info: Pick<ProbeInfo, 'width' | 'height'>, quality: 'normal' | 'nitido' = 'normal') {
+  const short = Math.min(info.width, info.height);
+  const scale = `${info.width <= info.height ? 'scale=1080:-2' : 'scale=-2:1080'}:flags=lanczos`;
+  if (short >= 1000) return scale;
+  return ['deblock=filter=weak:block=8', scale, quality === 'nitido' ? 'cas=0.3' : ''].filter(Boolean).join(',');
+}
+
+export async function makeMaster(input: string, out: string, fps: number, info: ProbeInfo, quality: 'normal' | 'nitido' = 'normal') {
+  const scale = masterScale(info, quality);
   await ffmpeg([
     '-i', input,
     // HDR → color estándar (BT.709). Sin esto los colores salen lavados.

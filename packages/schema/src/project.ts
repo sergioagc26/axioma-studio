@@ -273,6 +273,8 @@ export const SourceMedia = z.object({
   focusX: z.number().min(0).max(1).default(0.5),
   /** El encuadre sigue la cara automáticamente. Si es false, manda focusX. */
   autoFocus: z.boolean().default(true),
+  /** Calidad del master en videos de baja resolución: normal (quita bloques de compresión y escala fino) o más nítido. Sin valor: master hecho antes de esta mejora. */
+  quality: z.enum(['normal', 'nitido']).optional(),
   /** Con dos o más personas, el encuadre va hacia quien habla (necesita hablantes.json). */
   followSpeaker: z.boolean().default(false),
 });

@@ -39,3 +39,4 @@ export * from './beats.ts';
 export * from './speakers.ts';
 export * from './colorref.ts';
 export * from './slowmo.ts';
+export * from './quality.ts';

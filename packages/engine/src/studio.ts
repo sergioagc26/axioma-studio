@@ -34,6 +34,7 @@ import { montageToBeat } from './beats.ts';
 import { setFollowSpeaker } from './speakers.ts';
 import { matchToReference } from './colorref.ts';
 import { setSlowMotion } from './slowmo.ts';
+import { setVideoQuality } from './quality.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -331,6 +332,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Preparando las imágenes…';
         const r = await createImages(dir, tipo, (m) => { j.message = m; });
         return { files: r.files, ai: r.ai };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'calidad') {
+      const job = startJob('ia', async (j) => {
+        await setVideoQuality(dir, b.calidad === 'nitido' ? 'nitido' : 'normal', (m) => { j.message = m; });
+        return {};
       });
       return json(res, job);
     }
