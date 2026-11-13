@@ -71,7 +71,7 @@ export const Storyboard: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <h1 style={{ fontSize: 26 }}>{project.scenes.length} escenas · {total.toFixed(1)} s</h1>
           <span className="muted">Arrastra las tarjetas para reordenar. La línea de tiempo se actualiza sola.</span>
         </div>
-        {project.scenes.length === 0 && <p className="muted">No hay escenas. Pídele a Claude: «arma el storyboard de este proyecto».</p>}
+        {project.scenes.length === 0 && <p className="muted">No hay escenas. Crea el proyecto desde Subir para armar el storyboard.</p>}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={project.scenes.map((s) => s.id)} strategy={rectSortingStrategy}>
             <div className="grid">

@@ -168,8 +168,8 @@ export function useProject(id: string | null): ProjectStore {
 }
 
 /**
- * Le pide un cambio a Claude desde la app y espera el resultado. Si Claude no
- * está disponible (falta iniciar sesión), la petición queda guardada y se avisa.
+ * Le pide un cambio a la IA local (Ollama) y espera el resultado. Si la IA local
+ * está apagada, la petición queda guardada y se avisa.
  */
 export async function askAssistant(projectId: string, text: string, sceneId: string | undefined, onStep: (msg: string) => void): Promise<{ text: string; saved?: boolean }> {
   const job = await api<Job>(`/api/op?id=${encodeURIComponent(projectId)}`, {
