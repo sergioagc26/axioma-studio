@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { APP_NAME, FORMAT_INFO, publishPack, publishText, type Project } from '@axioma/schema';
+import { APP_NAME, FORMAT_INFO, nativeFormat, shapeOf, publishPack, publishText, type Project } from '@axioma/schema';
 import { api, useProject, waitJob, type Job, type ProjectStore } from './useProject.ts';
 import { Audio } from './screens/Audio.tsx';
 import { Brief } from './screens/Brief.tsx';
@@ -145,6 +145,8 @@ export const App: React.FC = () => {
     if (!project) return;
     setCalidad(project.export.quality);
     setUhd(Boolean(project.export.uhd));
+    // Por defecto, la forma propia del proyecto (un proyecto horizontal sale horizontal).
+    setFormato(nativeFormat(project.format));
     setCarpeta(project.export.folder ?? '');
     setLufs(project.audio.targetLufs <= -15 ? -16 : -14);
     setPubAi(null);
@@ -238,7 +240,7 @@ export const App: React.FC = () => {
     let job: Job;
     try {
       job = await api<Job>(`/api/op?id=${encodeURIComponent(p.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato: '9:16', calidad: p.export.quality, carpeta: p.export.folder ?? '', lufs: p.audio.targetLufs <= -15 ? -16 : -14, ganchos: false }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato: nativeFormat(p.format), calidad: p.export.quality, carpeta: p.export.folder ?? '', lufs: p.audio.targetLufs <= -15 ? -16 : -14, ganchos: false }),
       });
     } catch (e: any) { return releaseRender(p.id, e); }
     const done = await followRender(job, p.id, sig);
@@ -335,7 +337,7 @@ export const App: React.FC = () => {
   const needsProject = route.screen !== 'proyectos';
 
   return (
-    <div className="app">
+    <div className={`app${project && shapeOf(project.format) !== 'vertical' ? ' wide' : ''}`} style={project ? ({ '--ar': `${project.format.width} / ${project.format.height}` } as React.CSSProperties) : undefined}>
       <header className="top">
         <a className="brand" href="#/proyectos" title="Todos los proyectos" style={{ color: 'inherit', textDecoration: 'none' }}>
           <span className="logo" aria-hidden="true" />{route.p ? <span className="sr-only">{APP_NAME}</span> : APP_NAME}
@@ -429,7 +431,7 @@ export const App: React.FC = () => {
                 </button>
               ))}
             </div>
-            {project.kind === 'montaje' && Math.min(project.source.width, project.source.height) >= 2000 && (
+            {(project.source.master4k || (project.kind === 'montaje' && Math.min(project.source.width, project.source.height) >= 2000)) && (
               <label className="row small" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}><input type="checkbox" style={{ marginTop: 3 }} checked={uhd} onChange={(e) => setUhd(e.target.checked)} /> Exportar en 4K (tu material está en 4K; tarda más y el archivo pesa mucho más)</label>
             )}
             <span className="small muted">Volumen</span>

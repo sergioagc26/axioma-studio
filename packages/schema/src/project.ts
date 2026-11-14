@@ -283,6 +283,8 @@ export const SourceMedia = z.object({
   autoFocus: z.boolean().default(true),
   /** Calidad del master en videos de baja resolución: normal (quita bloques de compresión y escala fino) o más nítido. Sin valor: master hecho antes de esta mejora. */
   quality: z.enum(['normal', 'nitido']).optional(),
+  /** El video de edición se hizo en 4K (lado corto 2160): se puede exportar en 4K sin perder nitidez. */
+  master4k: z.boolean().optional(),
   /** Con dos o más personas, el encuadre va hacia quien habla (necesita hablantes.json). */
   followSpeaker: z.boolean().default(false),
 });

@@ -57,7 +57,7 @@ import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
 import { envValue, keyStatus, removeEnvValue, setEnvValue } from './env.ts';
 import { applyScript, readScript, saveScript, writeScript } from './script.ts';
-import { Guion, guionMarkdown } from '@axioma/schema';
+import { Guion, PROJECT_SHAPES, guionMarkdown, type ProjectShape } from '@axioma/schema';
 import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots, asMontage } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -123,6 +123,9 @@ const relOut = (dir: string, out: string) => { const r = path.relative(dir, out)
 
 /** La comprobación de versión nueva va por internet: se recuerda 15 minutos. */
 let updateCache: { at: number; data: unknown } | null = null;
+
+/** Forma del proyecto pedida al crearlo (si no es válida, vertical). */
+const shapeParam = (v: unknown): ProjectShape | undefined => (typeof v === 'string' && v in PROJECT_SHAPES ? (v as ProjectShape) : undefined);
 
 async function readBody(req: http.IncomingMessage): Promise<any> {
   const chunks: Buffer[] = [];
@@ -345,7 +348,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       let made: string | undefined;
       let ready = false;
       try {
-        const { dir, project } = await createMontage({ inputs: folders, name: b.name || undefined, client: b.client || undefined, presetId: b.preset || undefined });
+        const { dir, project } = await createMontage({ inputs: folders, name: b.name || undefined, client: b.client || undefined, presetId: b.preset || undefined, shape: shapeParam(b.forma), uhd: b.uhd === true ? true : undefined });
         made = dir; j.projectId = project.id; dirCache.set(project.id, dir);
         j.progress = 0.2;
         await prepareMedia(dir, log);
@@ -384,6 +387,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
           name: url.searchParams.get('name') || undefined,
           client: url.searchParams.get('client') || undefined,
           presetId: url.searchParams.get('preset') || undefined,
+          shape: shapeParam(url.searchParams.get('forma')),
+          uhd: url.searchParams.get('uhd') === '1',
         });
         made = dir; j.projectId = project.id; dirCache.set(project.id, dir);
         if (!info.hasAudio) {

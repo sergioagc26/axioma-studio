@@ -1,3 +1,4 @@
+import { PROJECT_SHAPES, type ProjectShape } from '@axioma/schema';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../Icon.tsx';
 import type { IconName } from '../icons.ts';
@@ -158,6 +159,9 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const copy = async (url: string) => { try { await navigator.clipboard.writeText(url); ctx.toast('Enlace copiado.'); } catch { ctx.toast(url); } };
   const [preset, setPreset] = useState('rapido');
   const [kind, setKind] = useState<'hablado' | 'montaje'>('hablado');
+  // Forma del video (se elige antes de subir) y si se conserva el 4K del material.
+  const [forma, setForma] = useState<ProjectShape>('vertical');
+  const [uhd, setUhd] = useState(false);
   // La subida en curso vive en App: no se pierde al cambiar de pantalla.
   const job = ctx.creating;
   const [over, setOver] = useState(false);
@@ -252,12 +256,13 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         tokens.push(up.token);
       }
       tick({ id: '', status: 'running', message: 'Preparando el montaje…', progress: 0.3 });
-      return api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset, auto: false }) });
+      return api<Job>('/api/montajes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, client: client.trim(), preset, forma, uhd: uhd || undefined, auto: false }) });
     });
   };
   const upload = (file: File) => {
     if (!VIDEO.test(file.name)) return ctx.toast('Sube un video (.mp4 o .mov).');
-    const qs = new URLSearchParams({ filename: file.name, preset });
+    const qs = new URLSearchParams({ filename: file.name, preset, forma });
+    if (uhd) qs.set('uhd', '1');
     if (client.trim()) qs.set('client', client.trim());
     void ctx.startCreate(async (tick) => {
       tick({ id: '', status: 'running', message: 'Subiendo el video…', progress: 0 });
@@ -363,6 +368,15 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <button className={kind === 'hablado' ? 'on' : ''} aria-pressed={kind === 'hablado'} onClick={() => setKind('hablado')}><Icon name="mic" style={{ marginRight: 6 }} />Hablando a cámara</button>
               <button className={kind === 'montaje' ? 'on' : ''} aria-pressed={kind === 'montaje'} onClick={() => setKind('montaje')}><Icon name="clapper" style={{ marginRight: 6 }} />Sin voz</button>
             </div>
+            <div className="seg" role="group" aria-label="Forma del video" style={{ gridTemplateColumns: '1fr 1fr 1fr', width: '100%', maxWidth: 420 }}>
+              {(Object.keys(PROJECT_SHAPES) as ProjectShape[]).map((id) => (
+                <button key={id} className={forma === id ? 'on' : ''} aria-pressed={forma === id} title={PROJECT_SHAPES[id].use} onClick={() => setForma(id)}>
+                  <span aria-hidden="true" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 6, border: '2px solid currentColor', borderRadius: 3, width: id === 'horizontal' ? 18 : id === 'cuadrado' ? 13 : 9, height: id === 'horizontal' ? 10 : id === 'cuadrado' ? 13 : 16 }} />{PROJECT_SHAPES[id].name}
+                </button>
+              ))}
+            </div>
+            <span className="muted small">{PROJECT_SHAPES[forma].name}: {PROJECT_SHAPES[forma].use.toLowerCase()}.</span>
+            <label className="row small" style={{ flexWrap: 'nowrap', maxWidth: 420 }}><input type="checkbox" checked={uhd} onChange={(e) => setUhd(e.target.checked)} /> Mi material está en 4K y quiero conservarlo (tarda más y pesa más)</label>
             <strong style={{ fontSize: 17 }}>{over ? 'Suelta el video aquí' : kind === 'hablado' ? 'Arrastra aquí tu video hablando a cámara' : 'Arrastra aquí uno o varios videos'}</strong>
             <span className="muted">{kind === 'hablado'
               ? 'La app prepara el video y detecta las partes habladas.'

@@ -207,6 +207,17 @@ export const FORMATS = {
   '9:16': { width: 1080, height: 1920 }, '4:5': { width: 1080, height: 1350 }, '3:4': { width: 1080, height: 1440 }, '1:1': { width: 1080, height: 1080 },
   '16:9': { width: 1920, height: 1080 }, '21:9': { width: 2520, height: 1080 },
 } as const;
+/** Forma del proyecto: se elige al crearlo y es como se arma, se ve y se exporta por defecto. */
+export const PROJECT_SHAPES = {
+  vertical: { width: 1080, height: 1920, name: 'Vertical', use: 'Reels, TikTok, Shorts, historias' },
+  horizontal: { width: 1920, height: 1080, name: 'Horizontal', use: 'YouTube, web, televisores, cursos' },
+  cuadrado: { width: 1080, height: 1080, name: 'Cuadrado', use: 'Feed y anuncios' },
+} as const;
+export type ProjectShape = keyof typeof PROJECT_SHAPES;
+export const shapeOf = (f: { width: number; height: number }): ProjectShape => (f.width > f.height * 1.2 ? 'horizontal' : f.height > f.width * 1.2 ? 'vertical' : 'cuadrado');
+/** El formato de salida propio del proyecto (el que se exporta si no se pide otro). */
+export const nativeFormat = (f: { width: number; height: number }): keyof typeof FORMATS => ({ vertical: '9:16', horizontal: '16:9', cuadrado: '1:1' } as const)[shapeOf(f)];
+
 /** Formatos de salida con su nombre y para qué sirve cada uno (en el orden en que se ofrecen). */
 export const FORMAT_INFO: { id: keyof typeof FORMATS; name: string; use: string }[] = [
   { id: '9:16', name: 'Vertical', use: 'Reels, TikTok, Shorts, historias' },

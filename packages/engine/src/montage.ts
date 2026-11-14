@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Scene, getPreset } from '@axioma/schema';
+import { CaptionStyle, PROJECT_SHAPES, Pacing, Project, SCHEMA_VERSION, Scene, getPreset, type ProjectShape } from '@axioma/schema';
 import { applyPunchZooms } from './cuts.ts';
 import { ffmpeg } from './exec.ts';
 import { kitCaptions, readKit } from './kit.ts';
@@ -41,11 +41,12 @@ export async function expandInputs(inputs: string[]): Promise<string[]> {
   return out;
 }
 
-/** Deja un clip en 1080×1920, fps constante, color estándar y con pista de audio. */
-async function normalizeClip(input: string, out: string, fps: number, k = 1) {
+/** Deja un clip con la forma del proyecto (1080×1920 en vertical), fps constante, color estándar y con pista de audio. */
+async function normalizeClip(input: string, out: string, fps: number, k = 1, shape: { width: number; height: number } = PROJECT_SHAPES.vertical) {
+  const W = shape.width * k, H = shape.height * k;
   const info = await probe(input);
   const vf = [
-    `scale=${1080 * k}:${1920 * k}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${1080 * k}:${1920 * k}`, `fps=${fps}`,
+    `scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}`, `fps=${fps}`,
     info.hdr ? 'colorspace=all=bt709:iall=bt2020:itrc=bt2020-10:format=yuv420p' : 'format=yuv420p',
   ].join(',');
   const audioIn = info.hasAudio ? [] : ['-f', 'lavfi', '-t', info.duration.toFixed(3), '-i', 'anullsrc=r=48000:cl=stereo'];
@@ -63,7 +64,8 @@ async function normalizeClip(input: string, out: string, fps: number, k = 1) {
  * Crea un proyecto de montaje (sin depender de la voz) con uno o varios videos.
  * Varios videos se unen en un solo master vertical; se recuerda dónde empieza cada uno.
  */
-export async function createMontage(opts: { inputs: string[]; name?: string; client?: string; presetId?: string; fps?: number; /** 2 = master en 4K (2160×3840) y exportación en 4K. */ uhd?: boolean }) {
+export async function createMontage(opts: { inputs: string[]; name?: string; client?: string; presetId?: string; fps?: number; /** Master y exportación en 4K. */ uhd?: boolean; /** Forma del video: vertical (por defecto), horizontal o cuadrado. */ shape?: ProjectShape }) {
+  const shape = PROJECT_SHAPES[opts.shape ?? 'vertical'];
   const files = await expandInputs(opts.inputs);
   const name = opts.name ?? (files.length === 1 ? path.basename(files[0], path.extname(files[0])) : `Montaje ${files.length} clips`);
   const stamp = new Date().toISOString().slice(0, 10);
@@ -94,7 +96,7 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
     let t = 0;
     for (const [i, f] of files.entries()) {
       const part = path.join(dir, 'media', 'originales', `${String(i + 1).padStart(2, '0')}.mp4`);
-      const d = await normalizeClip(f, part, fps, opts.uhd ? 2 : 1);
+      const d = await normalizeClip(f, part, fps, opts.uhd ? 2 : 1, shape);
       boundaries.push({ file: path.basename(f), start: t, end: t + d });
       t += d;
       parts.push(part);
@@ -104,13 +106,13 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
     await ffmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', path.join(dir, P.master)]);
     await rm(list, { force: true });
     for (const p of parts) await rm(p, { force: true });
-    source = { file: P.master, duration: t, width: 1080 * (opts.uhd ? 2 : 1), height: 1920 * (opts.uhd ? 2 : 1), fps, rotation: 0 };
+    source = { file: P.master, duration: t, width: shape.width * (opts.uhd ? 2 : 1), height: shape.height * (opts.uhd ? 2 : 1), fps, rotation: 0, master4k: opts.uhd || undefined };
   }
 
   const now = new Date().toISOString();
   const project = Project.parse({
     version: SCHEMA_VERSION, id: slug, name, client: opts.client, kind: 'montaje', createdAt: now, updatedAt: now,
-    format: { width: 1080, height: 1920, fps },
+    format: { width: shape.width, height: shape.height, fps },
     source,
     presetId: preset.id,
     pacing: Pacing.parse(preset.pacing),

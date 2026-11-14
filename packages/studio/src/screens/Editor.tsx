@@ -3,7 +3,7 @@ import { Player, type PlayerRef } from '@remotion/player';
 import { PresetPreview } from '../PresetPreview.tsx';
 import { Icon } from '../Icon.tsx';
 import type { IconName } from '../icons.ts';
-import { reelScore, adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, fontWeightFor, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, BUILTIN_PRESETS, type Project, type Scene, VISION_TOPICS } from '@axioma/schema';
+import { reelScore, adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, fontWeightFor, shapeOf, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, BUILTIN_PRESETS, type Project, type Scene, VISION_TOPICS } from '@axioma/schema';
 import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { MOTION_NAMES, ROLE_LABEL } from '../SceneFrame.tsx';
@@ -1131,11 +1131,12 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         <main className="stage">
           <div className="row small muted">
             {/* Sin la píldora «9:16 · 1080×1920»: era siempre igual y no decía nada a quien no edita. */}
+            {shapeOf(project.format) === 'vertical' && (
             <label className="row" title="Marca la parte del video que no tapan los botones, el perfil ni la barra de respuesta de la red"><input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} /> Zonas seguras
               <select value={safeNet} onChange={(e) => setSafeNet(e.target.value as keyof typeof SAFE)} style={{ marginLeft: 6 }} aria-label="Red para las zonas seguras">
                 <option value="reel">Reel</option><option value="historia">Historia</option><option value="tiktok">TikTok</option><option value="short">Short</option>
               </select>
-            </label>
+            </label>)}
           </div>
           <div className="playerbox" style={{ position: 'relative' }}>
             <Player
@@ -1156,7 +1157,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               acknowledgeRemotionLicense
             />
             {previewErr && <PreviewStuck onRetry={retryPreview} />}
-            {safe && <div className="safe" aria-hidden="true" style={SAFE[safeNet]} title="Fuera de este recuadro los botones de la red tapan el contenido" />}
+            {safe && shapeOf(project.format) === 'vertical' && <div className="safe" aria-hidden="true" style={SAFE[safeNet]} title="Fuera de este recuadro los botones de la red tapan el contenido" />}
           </div>
           <div className="row">
             <button className="btn sq" aria-label="Escena anterior" disabled={idx <= 0} onClick={() => select(project.scenes[idx - 1].id)}><Icon name="prev" /></button>

@@ -33,7 +33,7 @@ export async function prepareMedia(dir: string, log: Log = console.log) {
   const info = await probe(abs(project.source.file));
   if (!existsSync(abs(P.master))) {
     log('Creando master de edición (fps constante)…');
-    await makeMaster(abs(project.source.file), abs(P.master), project.format.fps, info, project.source.quality ?? 'normal');
+    await makeMaster(abs(project.source.file), abs(P.master), project.format.fps, info, project.source.quality ?? 'normal', project.source.master4k ? 2160 : 1080);
     project.source.quality ??= 'normal';
   }
   if (!existsSync(abs(P.proxy))) {

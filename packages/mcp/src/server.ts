@@ -64,9 +64,11 @@ export function createServer() {
       cliente: z.string().optional().describe('Cliente (carpeta). Por defecto "personal".'),
       nombre: z.string().optional(),
       preset: z.string().default('rapido').describe('Preset inicial: rapido, con-ritmo, sobrio o uno del cliente'),
+      forma: z.enum(['vertical', 'horizontal', 'cuadrado']).optional().describe('Forma del video: vertical (reels, por defecto), horizontal (YouTube) o cuadrado'),
+      en_4k: z.boolean().optional().describe('Conservar el 4K del material (más lento y pesado)'),
     },
-    async ({ video, cliente, nombre, preset }) => {
-      const { dir } = await E.createProject({ input: video, name: nombre, client: cliente, presetId: preset });
+    async ({ video, cliente, nombre, preset, forma, en_4k }) => {
+      const { dir } = await E.createProject({ input: video, name: nombre, client: cliente, presetId: preset, shape: forma, uhd: en_4k });
       log(`Proyecto creado en ${dir}`);
       await E.prepareMedia(dir, log);
       await E.transcribeProject(dir, log);
@@ -822,9 +824,11 @@ export function createServer() {
       nombre: z.string().optional(),
       preset: z.string().default('rapido').describe('rapido = cortes de ~0,8 s; con-ritmo = ~1,2 s; sobrio = ~2 s'),
       duracion: z.number().min(3).max(180).optional().describe('Duración del montaje en segundos (por defecto 15)'),
+      forma: z.enum(['vertical', 'horizontal', 'cuadrado']).optional().describe('Forma del video: vertical (reels, por defecto), horizontal (YouTube) o cuadrado'),
+      en_4k: z.boolean().optional().describe('Conservar el 4K del material (más lento y pesado)'),
     },
-    async ({ videos, cliente, nombre, preset, duracion }) => {
-      const { dir } = await E.createMontage({ inputs: videos, name: nombre, client: cliente, presetId: preset });
+    async ({ videos, cliente, nombre, preset, duracion, forma, en_4k }) => {
+      const { dir } = await E.createMontage({ inputs: videos, name: nombre, client: cliente, presetId: preset, shape: forma, uhd: en_4k ? true : undefined });
       await E.prepareMedia(dir, log);
       const shots = await E.detectShots(dir);
       const m = await E.buildMontage(dir, { duration: duracion });
@@ -959,7 +963,7 @@ export function createServer() {
   });
 
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
-    proyecto, formato: z.enum(['9:16', '4:5', '3:4', '1:1', '16:9', '21:9']).default('9:16'),
+    proyecto, formato: z.enum(['9:16', '4:5', '3:4', '1:1', '16:9', '21:9']).optional().describe('Sin valor: la forma propia del proyecto'),
     calidad: z.enum(['maxima', 'alta', 'ligera']).optional().describe('Por defecto, la del proyecto (alta)'),
   }, async ({ proyecto, formato, calidad }) => {
     const dir = await resolveProject(proyecto);

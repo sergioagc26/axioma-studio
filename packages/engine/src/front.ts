@@ -98,8 +98,10 @@ export async function buildFront(dir: string, onProgress: (p: number, msg: strin
   const sharp = (await import('sharp')).default;
   try {
     // Al tamaño de la exportación: la capa tapa al video justo en el plato, no puede verse más blanda.
-    const W = project.export.uhd ? 2160 : 1080;
-    const H = Math.round((W * project.source.height) / project.source.width / 2) * 2;
+    const side = project.export.uhd ? 2160 : 1080;
+    const wide = project.source.width > project.source.height;
+    const W = wide ? Math.round((side * project.source.width) / project.source.height / 2) * 2 : side;
+    const H = wide ? side : Math.round((side * project.source.height) / project.source.width / 2) * 2;
     const master = path.join(dir, gradedMaster(dir, project));
     const est = await getEstimator();
     const blankC = path.join(tmp, 'blank-c.jpg');

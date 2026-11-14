@@ -35,7 +35,7 @@ export const SPOKEN_CTA = 'La que digo en el video';
 // Todas las preguntas se responden tocando una opción; escribir es solo para una respuesta distinta.
 const QUESTIONS: Q[] = [
   // Lo que dice cada opción es lo que hace la edición con el brief (brief.ts, applyBrief).
-  { key: 'formato', label: 'Formato', title: '¿Dónde lo vas a publicar?', help: 'Todos salen en vertical 9:16; según dónde, cambia el ritmo, la duración o el cierre.', placeholder: 'Ej.: pantalla de un evento', options: [
+  { key: 'formato', label: 'Formato', title: '¿Dónde lo vas a publicar?', help: 'El video sale con la forma que elegiste al crearlo (vertical, horizontal o cuadrado); según dónde, cambia el ritmo, la duración o el cierre.', placeholder: 'Ej.: pantalla de un evento', options: [
     { value: 'Reel 9:16', title: 'Reel de Instagram', desc: 'Vertical 9:16, para el feed de Reels.' },
     { value: 'Historia 9:16', title: 'Historia', desc: 'Sube los subtítulos para dejar libre la zona de respuesta.' },
     { value: 'TikTok 9:16', title: 'TikTok', desc: 'Si no eliges ritmo, corta rápido.' },

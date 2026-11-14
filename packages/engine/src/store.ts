@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { isNoise } from './transcribe.ts';
-import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Transcript, getPreset } from '@axioma/schema';
+import { CaptionStyle, PROJECT_SHAPES, Pacing, Project, SCHEMA_VERSION, Transcript, getPreset, type ProjectShape } from '@axioma/schema';
 import { P, projectDir, slugify } from './paths.ts';
 import { kitCaptions, readKit } from './kit.ts';
 import { probe } from './media.ts';
@@ -54,7 +54,7 @@ export async function writeTranscript(dir: string, t: Transcript) {
 }
 
 /** Crea la carpeta del proyecto, copia el video y escribe project.json. */
-export async function createProject(opts: { input: string; name?: string; client?: string; presetId?: string; fps?: number }) {
+export async function createProject(opts: { input: string; name?: string; client?: string; presetId?: string; fps?: number; /** Forma del video: vertical (por defecto), horizontal o cuadrado. */ shape?: ProjectShape; /** Trabajar y exportar en 4K si el video lo es. */ uhd?: boolean }) {
   const input = path.resolve(opts.input);
   if (!existsSync(input)) throw new Error(`No existe el archivo: ${input}`);
   const name = opts.name ?? path.basename(input, path.extname(input));
@@ -77,8 +77,9 @@ export async function createProject(opts: { input: string; name?: string; client
     client: opts.client,
     createdAt: now,
     updatedAt: now,
-    format: { width: 1080, height: 1920, fps },
-    source: { file: original, duration: info.duration, width: info.width, height: info.height, fps: info.fps, rotation: info.rotation },
+    format: { width: PROJECT_SHAPES[opts.shape ?? 'vertical'].width, height: PROJECT_SHAPES[opts.shape ?? 'vertical'].height, fps },
+    source: { file: original, duration: info.duration, width: info.width, height: info.height, fps: info.fps, rotation: info.rotation, master4k: (opts.uhd && Math.min(info.width, info.height) >= 2000) || undefined },
+    ...(opts.uhd && Math.min(info.width, info.height) >= 2000 ? { export: { quality: 'alta', uhd: true } } : {}),
     presetId: preset.id,
     pacing: Pacing.parse(preset.pacing),
     captions: CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(opts.client)) }),

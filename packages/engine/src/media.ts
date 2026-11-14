@@ -42,15 +42,15 @@ export async function probe(file: string): Promise<ProbeInfo> {
  * original, se parece más que el escalado normal (SSIM 0,959 frente a 0,951). «nitido» suma
  * nitidez adaptativa (se ve más definido, aunque se aleja un poco del original).
  */
-export function masterScale(info: Pick<ProbeInfo, 'width' | 'height'>, quality: 'normal' | 'nitido' = 'normal') {
+export function masterScale(info: Pick<ProbeInfo, 'width' | 'height'>, quality: 'normal' | 'nitido' = 'normal', side = 1080) {
   const short = Math.min(info.width, info.height);
-  const scale = `${info.width <= info.height ? 'scale=1080:-2' : 'scale=-2:1080'}:flags=lanczos`;
+  const scale = `${info.width <= info.height ? `scale=${side}:-2` : `scale=-2:${side}`}:flags=lanczos`;
   if (short >= 1000) return scale;
   return ['deblock=filter=weak:block=8', scale, quality === 'nitido' ? 'cas=0.3' : ''].filter(Boolean).join(',');
 }
 
-export async function makeMaster(input: string, out: string, fps: number, info: ProbeInfo, quality: 'normal' | 'nitido' = 'normal') {
-  const scale = masterScale(info, quality);
+export async function makeMaster(input: string, out: string, fps: number, info: ProbeInfo, quality: 'normal' | 'nitido' = 'normal', side = 1080) {
+  const scale = masterScale(info, quality, side);
   await ffmpeg([
     '-i', input,
     // HDR → color estándar (BT.709). Sin esto los colores salen lavados.
