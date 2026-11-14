@@ -751,7 +751,8 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
             const active = s.mode === 'word' && abs >= start && abs < end;
             const strong = isKeyword(w.text, key);
             const hit = active ? spring({ frame: abs - start, fps, config: { damping: 10, stiffness: 260 }, durationInFrames: 6 }) : 0;
-            const style: React.CSSProperties = { display: 'inline-block', margin: '0 0.12em' };
+            // Entre palabras va un espacio de verdad (ver abajo); el margen solo da aire a los efectos.
+            const style: React.CSSProperties = { display: 'inline-block', margin: '0 0.03em' };
             const soft = active ? spring({ frame: abs - start, fps, config: { damping: 5, stiffness: 200, mass: 0.7 } }) : 0;
 
             if (d === 'cinta') {
@@ -781,7 +782,8 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
               if (active) applyFx(style, fx, hit, soft, abs);
               else if (fx.dim && s.mode === 'word') style.opacity = 0.4;
             }
-            return <span key={i} style={style}>{w.text}</span>;
+            // Un espacio real entre palabras: aunque la que suena crezca o lleve fondo, nunca se pegan.
+            return <React.Fragment key={i}>{i > 0 ? ' ' : null}<span style={style}>{w.text}</span></React.Fragment>;
           })}
         </span>
       </div>
@@ -929,7 +931,7 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
           {words.map((w, i) => {
             const e = spring({ frame: frame - i * 3, fps, config: { damping: 12, stiffness: 220 }, durationInFrames: 10 });
             const bg = isKey(w) ? color : tapes[(i + 1) % tapes.length];
-            return <span key={i} style={{ display: 'inline-block', backgroundColor: bg, color: onColor(bg), padding: '0.02em 0.3em', margin: '0.08em 0.06em', borderRadius: '0.1em', boxShadow: '0 8px 0 rgba(0,0,0,0.4)', fontSize: isKey(w) ? '1.2em' : undefined, transform: `rotate(${i % 2 ? 3 : -3}deg) scale(${e})` }}>{w}</span>;
+            return <span key={i} style={{ display: 'inline-block', backgroundColor: bg, color: onColor(bg), padding: '0.02em 0.3em', margin: '0.08em 0.12em', borderRadius: '0.1em', boxShadow: '0 8px 0 rgba(0,0,0,0.4)', fontSize: isKey(w) ? '1.2em' : undefined, transform: `rotate(${i % 2 ? 3 : -3}deg) scale(${e})` }}>{w}</span>;
           })}
         </div>
       </AbsoluteFill>
@@ -991,7 +993,9 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
   return (
     <AbsoluteFill>
       <div style={{ ...wrap, fontSize: 68 * k, ...base }}>
-        {words.map((w, i) => {
+        {words.map((w, i) => (
+          // La palabra clave se dibuja aparte (más grande, con trazo o fondo): su espacio va fuera para que no se pegue a la siguiente.
+          <React.Fragment key={i}>{((): React.ReactNode => {
           if (!isKey(w)) return <span key={i}>{w}{gap(i)}</span>;
           const inline: React.CSSProperties = { display: 'inline-block', margin: '0 0.1em' };
           if (overlay.style === 'marcador') {
@@ -1033,7 +1037,8 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
           if (overlay.style === 'sombra') return <span key={i} style={{ ...inline, color, textShadow: `${5 * k}px ${5 * k}px 0 #000`, fontSize: '1.18em' }}>{w}</span>;
           // resaltado: la palabra clave en color y más grande.
           return <span key={i} style={{ ...inline, color, fontSize: '1.22em', transform: `scale(${interpolate(kw, [0, 1], [0.8, 1])})` }}>{w}</span>;
-        })}
+          })()}{isKey(w) ? gap(i) : null}</React.Fragment>
+        ))}
       </div>
     </AbsoluteFill>
   );
