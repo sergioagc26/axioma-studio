@@ -1,3 +1,4 @@
+import { listReferences } from './reference.ts';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -125,6 +126,11 @@ export async function writeScript(dir: string, req: ScriptRequest = {}): Promise
   const shots = await availableShots(dir);
   const said = project.kind === 'hablado' ? ((await readTranscript(dir).catch(() => null))?.words ?? []).map((w) => w.text).join(' ').slice(0, 1500) : '';
   const base = { estructura: st.id, tono, duracion, voz: req.voz, idea: req.idea ?? '' };
+  // La referencia elegida en el brief: si el cliente pidió su estructura, el guion la sigue (la forma, nunca el contenido).
+  const ref = b.referencia && b.referencia !== 'ninguna' ? (await listReferences(project.client).catch(() => [])).find((r) => r.id === b.referencia) : undefined;
+  const refNote = ref?.understanding && (ref.copy?.estructura ?? true)
+    ? `Referencia que le gustó al cliente (sigue su forma, NO copies sus frases ni su contenido): ${ref.understanding.formato}; gancho: ${ref.understanding.gancho}; partes: ${ref.understanding.estructura.map((x) => `${x.parte} (${x.que})`).join(' → ')}.${ref.wish ? ` Lo que el cliente quiere de ella: «${ref.wish}».` : ''}`
+    : '';
 
   // Con Claude conectado, el guion lo escribe Claude (mira las tomas y el brief con sus herramientas
   // y lo guarda con guardar_guion): escribe mejor que la IA local. Si no responde, sigue la local.
@@ -135,6 +141,7 @@ export async function writeScript(dir: string, req: ScriptRequest = {}): Promise
         `Escribe el guion profesional de este video y guárdalo con la herramienta guardar_guion (no edites nada más del proyecto).`,
         `Estructura: ${st.name} (${st.beats.join(' → ')}). Duración: ${duracion} s (unas ${Math.round(duracion * 2.5)} palabras de voz). Tono: ${tono}.`,
         req.idea ? `Idea del cliente: ${req.idea}` : 'Propón la idea a partir del brief.',
+        refNote,
         project.kind === 'montaje' ? 'Es un montaje de tomas: mira con leer_tomas qué hay grabado y en «toma» pon la etiqueta de la toma que debe verse en cada fila (lo que la voz nombra se ve en ese momento).' : 'Es una persona hablando a cámara: es su guion para grabar; deja «toma» vacío.',
         'Reglas: español latino hablado, frases cortas; gancho en menos de 3 s; «imagen» con detalle de director; texto en pantalla de 1 a 4 palabras; una sola llamada a la acción al final (la del brief). No inventes precios, promociones, teléfonos, horarios ni cifras: solo lo que está en el brief y la marca.',
       ].join('\n'));
@@ -152,6 +159,7 @@ export async function writeScript(dir: string, req: ScriptRequest = {}): Promise
       `Tono: ${tono}. Duración total: ${duracion} s (unas ${words} palabras de voz en total, no más).`,
       `Estructura: ${st.name}. Partes en orden: ${st.beats.join(' → ')}. (${st.when})`,
       req.idea ? `Idea del cliente para este video: ${req.idea}` : 'Propón tú la idea, a partir de los datos.',
+      refNote,
       project.kind === 'montaje'
         ? (shots.length ? `Material grabado (etiquetas disponibles para «toma» · cuántas tomas): ${shots.map((s) => `${s.tag} (${s.count})`).join(', ')}. Reparte las filas entre lo que hay; lo que tiene más tomas puede durar más.` : 'No se sabe qué hay grabado: describe la imagen ideal y deja «toma» vacío.')
         : `Es un video de una persona hablando a cámara: la voz es lo que dirá esa persona (guion para grabar o regrabar). En «imagen» indica si va la persona a cámara o un recurso encima (b-roll, captura, gráfico). Deja «toma» vacío.${said ? ` Esto es lo que ya dijo en la grabación actual, por si sirve de base: «${said}»` : ''}`,

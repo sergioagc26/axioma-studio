@@ -107,3 +107,23 @@ describe('etiquetas propias', () => {
     expect(segs.map((s) => s.tag)).toEqual(['pizza', 'nachos']);
   });
 });
+
+describe('pedido sobre una referencia', () => {
+  it('copia solo lo que se pide y respeta los «no»', async () => {
+    const { copyFromWish } = await import('../src/refsource.ts');
+    const a = copyFromWish('Me gusta cómo engancha al inicio y el ritmo de cortes; el color no me interesa.');
+    expect(a).toMatchObject({ estructura: true, ritmo: true, color: false, subtitulos: false });
+    const b = copyFromWish('Quiero todo el estilo, pero sin la música');
+    expect(b).toMatchObject({ ritmo: true, subtitulos: true, color: true, musica: false });
+    expect(copyFromWish('')).toMatchObject({ ritmo: true, color: true, estructura: true });
+  });
+
+  it('reconoce links de videos y de perfiles', async () => {
+    const { linkKind } = await import('../src/refsource.ts');
+    expect(linkKind('https://www.instagram.com/reel/ABC123/')).toMatchObject({ platform: 'instagram', profile: false });
+    expect(linkKind('https://www.instagram.com/ilcartelsogamoso/')).toMatchObject({ platform: 'instagram', profile: true });
+    expect(linkKind('https://www.tiktok.com/@marca')).toMatchObject({ platform: 'tiktok', profile: true });
+    expect(linkKind('https://www.tiktok.com/@marca/video/123')).toMatchObject({ profile: false });
+    expect(linkKind('hola')).toBeNull();
+  });
+});

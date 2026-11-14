@@ -1,3 +1,4 @@
+import { dictate, downloadReference, linkKind, profileVideos } from './refsource.ts';
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, watch } from 'node:fs';
 import { appendFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -16,7 +17,7 @@ import { claudeBin, openClaudeLogin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, ensureUsedSfx, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
-import { analyzeReference, deleteReference, listReferences, presetFromReference, referencesDir, renameReference } from './reference.ts';
+import { analyzeReference, deleteReference, listReferences, presetFromReference, referencesDir, renameReference, updateReferenceWish, type ReferenceReport } from './reference.ts';
 import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
 import { readVision } from './vision.ts';
@@ -124,6 +125,9 @@ const relOut = (dir: string, out: string) => { const r = path.relative(dir, out)
 
 /** La comprobación de versión nueva va por internet: se recuerda 15 minutos. */
 let updateCache: { at: number; data: unknown } | null = null;
+
+/** Lo que dice el brief del cliente, en una línea (para adaptar ideas de una referencia a su marca). */
+const briefContext = (p: Project) => [p.brief.notas, p.brief.publico && `Público: ${p.brief.publico}`, p.brief.objetivo && `Objetivo: ${p.brief.objetivo}`, p.brief.tono && `Tono: ${p.brief.tono}`].filter(Boolean).join(' · ').slice(0, 800) || undefined;
 
 /** Forma del proyecto pedida al crearlo (si no es válida, vertical). */
 const shapeParam = (v: unknown): ProjectShape | undefined => (typeof v === 'string' && v in PROJECT_SHAPES ? (v as ProjectShape) : undefined);
@@ -643,7 +647,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const report = (await listReferences(project.client)).find((r) => r.id === b.refId);
       if (!report) return json(res, { error: 'No existe esa referencia.' }, 404);
       const base = presetFromReference(report, b.name);
-      const preset = await savePreset(project.client, { ...base, captions: { ...base.captions, ...(b.captions ?? {}) }, style: { ...base.style, ...(b.style ?? {}) } });
+      // Lo que el cliente no pidió copiar se queda como lo tiene este video.
+      const cp = report.copy;
+      const captions = cp && !cp.subtitulos ? { ...project.captions } : base.captions;
+      const pacing = cp && !cp.ritmo ? { ...project.pacing } : base.pacing;
+      const preset = await savePreset(project.client, { ...base, pacing, captions: { ...captions, ...(b.captions ?? {}) }, style: { ...base.style, ...(b.style ?? {}) } });
       // Queda elegida en el brief: es la única referencia que manda al editar.
       project.brief.referencia = report.id;
       const saved = await writeProject(dir, project);
@@ -1135,6 +1143,56 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, await listReferences(project.client));
   }
 
+  // Lo que el cliente quiere de una referencia (y qué se copia), sin volver a analizarla.
+  if (p === '/api/references/pedido' && method === 'PUT') {
+    const project = await readProject(await findDir(id));
+    const body = await readBody(req);
+    return json(res, await updateReferenceWish(project.client, url.searchParams.get('ref') ?? '', { wish: typeof body.wish === 'string' ? body.wish : undefined, copy: body.copy }));
+  }
+  // Dictado: audio grabado en el navegador → texto (Whisper, local).
+  if (p === '/api/dictado' && method === 'POST') {
+    const tmpDir = path.join(os.tmpdir(), `axioma-dictado-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const tmp = path.join(tmpDir, 'dictado.webm');
+    try {
+      await pipe(req, createWriteStream(tmp));
+      return json(res, { text: await dictate(tmp) });
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  }
+  // Referencia desde un link (reel, TikTok, Short) o desde un perfil (sus últimos videos).
+  if (p === '/api/references/link' && method === 'POST') {
+    const project = await readProject(await findDir(id));
+    const body = await readBody(req);
+    const kind = linkKind(String(body.url ?? ''));
+    if (!kind) return json(res, { error: 'Pega un link completo, que empiece por https://' }, 400);
+    const wish = typeof body.wish === 'string' ? body.wish : undefined;
+    const job = startJob('referencia', async (j) => {
+      const links = kind.profile ? (j.message = 'Buscando los últimos videos del perfil…', await profileVideos(kind.url, Math.min(8, Number(body.cuantos) || 5))) : [kind.url];
+      const reports: ReferenceReport[] = [];
+      const failed: string[] = [];
+      for (const [i, link] of links.entries()) {
+        const tmp = path.join(os.tmpdir(), `axioma-ref-${Date.now()}-${i}`);
+        const part = (m: string, pr = 0) => { j.message = links.length > 1 ? `Video ${i + 1} de ${links.length}: ${m}` : m; j.progress = (i + pr) / links.length; };
+        try {
+          part('Bajando el video del link…', 0.02);
+          const { file, source } = await downloadReference(link, tmp);
+          const base = String(body.nombre ?? '').trim().slice(0, 60) || (source.author ? `${source.author}${links.length > 1 ? ` ${i + 1}` : ''}` : `Referencia ${kind.platform}`);
+          const { report } = await analyzeReference(file, { client: project.client, name: base, source, wish, context: briefContext(project), onStep: (m, pr) => part(m, 0.05 + pr * 0.95) });
+          reports.push(report);
+        } catch (e) {
+          if (links.length === 1) throw e;
+          failed.push(`video ${i + 1}: ${(e as Error).message}`);
+        } finally {
+          await rm(tmp, { recursive: true, force: true });
+        }
+      }
+      if (!reports.length) throw new Error(`No pude analizar ningún video del perfil. ${failed[0] ?? ''}`);
+      return { report: reports[0], reports, failed };
+    }, project.id);
+    return json(res, job);
+  }
   if (p === '/api/references' && method === 'POST') {
     const project = await readProject(await findDir(id));
     const filename = path.basename(url.searchParams.get('filename') ?? 'referencia.mp4');
@@ -1145,7 +1203,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const job = startJob('referencia', async (j) => {
       j.message = 'Analizando ritmo, música y colores…';
       try {
-        const { report } = await analyzeReference(tmp, { client: project.client, name: url.searchParams.get('nombre')?.trim().slice(0, 60) || undefined, onStep: (m, pr) => { j.message = m; j.progress = pr; } });
+        const { report } = await analyzeReference(tmp, { client: project.client, name: url.searchParams.get('nombre')?.trim().slice(0, 60) || undefined, wish: url.searchParams.get('pedido') ?? undefined, context: briefContext(project), onStep: (m, pr) => { j.message = m; j.progress = pr; } });
         return { report };
       } finally {
         await rm(tmpDir, { recursive: true, force: true });

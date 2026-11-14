@@ -3,6 +3,7 @@ import { FONT_FAMILIES } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 import { Icon } from '../Icon.tsx';
+import { Dictar } from '../Dictar.tsx';
 
 /** Barra de avance: real si el servidor da el avance; si no, se mueve sin prometer un porcentaje. */
 export const ProgressBar: React.FC<{ progress?: number }> = ({ progress }) => {
@@ -22,7 +23,17 @@ interface Report {
   palette: string[]; frames: string[];
   typography?: { fontFamily: string; uppercase: boolean; style: string } | null;
   suggested: { maxPause: number; punchZoomEvery: number; highlightColor: string; ritmo: string };
+  source?: { url: string; platform: string; author?: string; caption?: string; views?: number; likes?: number; comments?: number; date?: string };
+  wish?: string;
+  copy?: Copy;
+  transcript?: string;
+  visual?: string;
+  understanding?: { tema: string; formato: string; gancho: string; estructura: { segundo: number; parte: string; que: string }[]; porQueFunciona: string[]; sugerencias: string[]; paraTuVideo: string[] };
 }
+type Copy = { ritmo: boolean; subtitulos: boolean; color: boolean; musica: boolean; transiciones: boolean; estructura: boolean };
+const COPY_LABEL: [keyof Copy, string][] = [['ritmo', 'Ritmo de cortes'], ['subtitulos', 'Subtítulos y letra'], ['color', 'Color'], ['musica', 'Tipo de música'], ['transiciones', 'Transiciones y efectos'], ['estructura', 'Estructura (para el guion)']];
+const fmt = (n?: number) => (n == null ? '' : n >= 1e6 ? `${(n / 1e6).toFixed(1)} M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)} mil` : String(n));
+const isProfile = (u: string) => /instagram\.com\/(?!reel|reels|p\/|tv\/|stories)[^/?#]+\/?(\?|$)|tiktok\.com\/@[^/?#]+\/?(\?|$)|youtube\.com\/@[^/?#]+(\/(shorts|videos))?\/?(\?|$)/i.test(u.trim());
 
 const RITMO: Record<string, string> = { rapido: 'Rápido', 'con-ritmo': 'Con ritmo', sobrio: 'Sobrio' };
 
@@ -36,6 +47,10 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [job, setJob] = useState<Job | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const [touched, setTouched] = useState({ font: false, uppercase: false });
+  // Nueva referencia: link (o archivo) y lo que el cliente quiere de ella, escrito o dictado.
+  const [link, setLink] = useState('');
+  const [wish, setWish] = useState('');
+  const [cuantos, setCuantos] = useState(5);
   const [form, setForm] = useState({
     name: '', ritmo: true, color: true, fuente: true, font: 'Montserrat', mode: 'word', uppercase: true, words: 3, useKit: false,
   });
@@ -62,12 +77,37 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     const nombre = (window.prompt('¿Cómo llamamos a esta referencia?', base) ?? '').trim() || base;
     try {
       setJob({ id: '', status: 'running', message: 'Subiendo la referencia…', progress: 0 });
-      const started = await api<Job>(`/api/references?id=${pid}&filename=${encodeURIComponent(file.name)}&nombre=${encodeURIComponent(nombre)}`, { method: 'POST', body: file });
+      const started = await api<Job>(`/api/references?id=${pid}&filename=${encodeURIComponent(file.name)}&nombre=${encodeURIComponent(nombre)}&pedido=${encodeURIComponent(wish.trim())}`, { method: 'POST', body: file });
       const done = await waitJob(started, setJob);
       const report = done.result!.report as Report;
       setList((l) => [report, ...l]);
       setCur(report);
+      setWish('');
     } catch (e: any) { ctx.toast(`No se pudo analizar: ${e.message}`); } finally { setJob(null); }
+  };
+  /** Referencia desde un link (o los últimos videos de un perfil): la app los baja y los analiza. */
+  const fromLink = async () => {
+    const url = link.trim();
+    if (!/^https?:\/\//i.test(url)) return ctx.toast('Pega un link completo, que empiece por https://');
+    try {
+      setJob({ id: '', status: 'running', message: 'Empezando…', progress: 0 });
+      const started = await api<Job>(`/api/references/link?id=${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, wish: wish.trim(), cuantos }) });
+      const done = await waitJob(started, setJob);
+      const reports = (done.result!.reports ?? [done.result!.report]) as Report[];
+      setList((l) => [...reports, ...l.filter((x) => !reports.some((r) => r.id === x.id))]);
+      setCur(reports[0]);
+      setLink(''); setWish('');
+      const failed = (done.result!.failed ?? []) as string[];
+      ctx.toast(reports.length > 1 ? `Analicé ${reports.length} videos del perfil.${failed.length ? ` ${failed.length} no se pudieron bajar.` : ''}` : 'Referencia analizada.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setJob(null); }
+  };
+  /** Cambia lo que se quiere de la referencia ya analizada (y qué se copia). */
+  const saveWish = async (patch: { wish?: string; copy?: Partial<Copy> }) => {
+    if (!cur) return;
+    try {
+      const r = await api<Report>(`/api/references/pedido?id=${pid}&ref=${encodeURIComponent(cur.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+      setCur(r); setList((l) => l.map((x) => (x.id === r.id ? r : x)));
+    } catch (e: any) { ctx.toast(e.message); }
   };
 
   const rename = async (r: Report, name: string) => {
@@ -157,7 +197,23 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         {job ? (
           <div className="col" role="status"><strong>{job.message}</strong><ProgressBar progress={job.progress} /></div>
         ) : (
-          <button className="btn rect" style={{ borderStyle: 'dashed', height: 44 }} onClick={() => input.current?.click()}><Icon name="upload" />{cur ? 'Analizar otra referencia' : 'Subir video de referencia'}</button>
+          <div className="col" style={{ gap: 8 }}>
+            <label className="field">¿Qué quieres de esta referencia? (opcional)
+              <textarea rows={3} value={wish} onChange={(e) => setWish(e.target.value)} placeholder="Ej.: me gusta cómo engancha al inicio y los subtítulos; el color no." />
+            </label>
+            <Dictar toast={ctx.toast} onText={(t) => setWish((w) => (w.trim() ? `${w.trim()} ${t}` : t))} />
+            <label className="field">Link de un reel, TikTok o Short
+              <input value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void fromLink(); }} placeholder="https://www.instagram.com/reel/…" inputMode="url" />
+            </label>
+            {isProfile(link) && (
+              <label className="field">Es un perfil: ¿cuántos de sus últimos videos analizo?
+                <select value={cuantos} onChange={(e) => setCuantos(Number(e.target.value))}>{[3, 5, 8].map((n) => <option key={n} value={n}>{n} videos</option>)}</select>
+                <span className="small muted">Instagram suele pedir iniciar sesión para ver perfiles; si no deja, pega el link de cada reel.</span>
+              </label>
+            )}
+            <button className="btn primary" disabled={!link.trim()} onClick={fromLink}><Icon name="link" /> {isProfile(link) ? 'Analizar el perfil' : 'Analizar el link'}</button>
+            <button className="btn rect" style={{ borderStyle: 'dashed', height: 40 }} onClick={() => input.current?.click()}><Icon name="upload" />{cur ? 'O sube otro video' : 'O sube el video'}</button>
+          </div>
         )}
         <input ref={input} type="file" accept="video/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} />
         {list.length > 0 && (
@@ -178,7 +234,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             ))}
           </div>
         )}
-        <span className="muted small">La app toma el estilo, nunca el contenido. También sirve con tus propios reels que mejor funcionaron.</span>
+        <span className="muted small">La app toma el estilo y entiende de qué trata; nunca copia el contenido. El video se baja solo para analizarlo y no se guarda. También sirve con tus propios reels que mejor funcionaron.</span>
       </section>
 
       <section className="col" style={{ flex: '999 1 520px', minWidth: 0, gap: 14 }}>
@@ -198,6 +254,47 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            {cur.source && (
+              <article className="card col" style={{ gridColumn: '1 / -1', gap: 6 }}>
+                <div className="row" style={{ justifyContent: 'space-between' }}>
+                  <h3 style={{ fontSize: 15 }}>La publicación</h3>
+                  <a className="small" href={cur.source.url} target="_blank" rel="noreferrer noopener">Abrir en {cur.source.platform}</a>
+                </div>
+                <span className="small muted">{[cur.source.author, cur.source.date, cur.source.views != null && `${fmt(cur.source.views)} vistas`, cur.source.likes != null && `${fmt(cur.source.likes)} me gusta`, cur.source.comments != null && `${fmt(cur.source.comments)} comentarios`].filter(Boolean).join(' · ')}</span>
+                {cur.source.caption && <p className="small" style={{ margin: 0, whiteSpace: 'pre-wrap', maxHeight: 96, overflow: 'auto' }}>{cur.source.caption}</p>}
+              </article>
+            )}
+            {cur.understanding ? (
+              <>
+                <article className="card col" style={{ gridColumn: '1 / -1', gap: 8 }}>
+                  <h3 style={{ fontSize: 15 }}>De qué trata</h3>
+                  <p style={{ margin: 0 }}><strong>{cur.understanding.tema}</strong> <span className="muted">· {cur.understanding.formato}</span></p>
+                  <p className="small" style={{ margin: 0 }}><strong>Gancho:</strong> {cur.understanding.gancho}</p>
+                  {cur.understanding.estructura.length > 0 && (
+                    <ol className="small" style={{ margin: 0, paddingLeft: 18 }}>
+                      {cur.understanding.estructura.map((x, i) => <li key={i}><strong>{x.parte}</strong> <span className="muted">({Math.round(x.segundo)} s)</span>: {x.que}</li>)}
+                    </ol>
+                  )}
+                </article>
+                <article className="card col" style={{ gap: 6 }}>
+                  <h3 style={{ fontSize: 15 }}>Por qué funciona</h3>
+                  <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{cur.understanding.porQueFunciona.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                </article>
+                <article className="card col" style={{ gap: 6 }}>
+                  <h3 style={{ fontSize: 15 }}>Sugerencias de optimización</h3>
+                  <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{cur.understanding.sugerencias.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                </article>
+                <article className="card col" style={{ gridColumn: '1 / -1', gap: 6, borderColor: 'var(--cyan)' }}>
+                  <h3 style={{ fontSize: 15 }}>Ideas para tu video</h3>
+                  <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>{cur.understanding.paraTuVideo.map((x, i) => <li key={i}>{x}</li>)}</ul>
+                  <span className="small muted">Con esta referencia elegida, la pantalla Guion sigue su forma (no su contenido).</span>
+                </article>
+              </>
+            ) : (
+              <article className="card col" style={{ gridColumn: '1 / -1' }}>
+                <span className="small muted">{cur.transcript || cur.visual ? '' : 'Esta referencia se analizó antes de que la app entendiera el contenido: vuelve a subirla (o pega su link) para ver de qué trata y las sugerencias. '}{!cur.understanding && (cur.transcript || cur.visual) ? 'La IA local no estaba disponible para entender el video; enciende Ollama y vuelve a analizarla.' : ''}</span>
+              </article>
+            )}
             <article className="card col">
               <div className="row" style={{ justifyContent: 'space-between' }}><h3 style={{ fontSize: 15 }}>Ritmo de cortes</h3><span className="small muted">corte cada ~{cur.avgShot.toFixed(1)} s</span></div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 64 }} role="img" aria-label={`${cur.cuts.length} cortes; duración de cada plano`}>
@@ -252,6 +349,16 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
 
       {cur && (
         <aside className="card col" style={{ flex: '1 1 270px', maxWidth: 320, gap: 12, borderRadius: 16 }}>
+          <h2 style={{ fontSize: 18 }}>Lo que quieres de ella</h2>
+          <textarea className="input" rows={3} key={cur.id} defaultValue={cur.wish ?? ''} placeholder="Escribe o dicta qué te gusta de esta referencia" aria-label="Lo que quieres de esta referencia"
+            onBlur={(e) => { if (e.target.value.trim() !== (cur.wish ?? '')) void saveWish({ wish: e.target.value }); }} />
+          <Dictar toast={ctx.toast} onText={(t) => void saveWish({ wish: `${cur.wish ? `${cur.wish} ` : ''}${t}` })} />
+          <span className="small muted">Se copia:</span>
+          <div className="col" style={{ gap: 4 }}>
+            {COPY_LABEL.map(([k, label]) => (
+              <label key={k} className="row small"><input type="checkbox" checked={cur.copy?.[k] ?? true} onChange={(e) => void saveWish({ copy: { [k]: e.target.checked } })} /> {label}</label>
+            ))}
+          </div>
           <h2 style={{ fontSize: 18 }}>Guardar este estilo</h2>
           <label className="field">Nombre
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

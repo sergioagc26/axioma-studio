@@ -1,3 +1,4 @@
+import { copyFromWish, understandReference } from './refsource.ts';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -44,6 +45,18 @@ export interface ReferenceReport {
   typography?: { fontFamily: string; uppercase: boolean; style: string } | null;
   /** Valores sugeridos para un preset. */
   suggested: { maxPause: number; punchZoomEvery: number; highlightColor: string; ritmo: 'rapido' | 'con-ritmo' | 'sobrio' };
+  /** De dónde salió (si vino de un link): red, autor, texto de la publicación y sus números. */
+  source?: { url: string; platform: string; author?: string; caption?: string; views?: number; likes?: number; comments?: number; date?: string };
+  /** Lo que el cliente quiere de esta referencia, escrito o dictado. */
+  wish?: string;
+  /** Qué se copia al usarla (sale del pedido; se puede cambiar). */
+  copy?: { ritmo: boolean; subtitulos: boolean; color: boolean; musica: boolean; transiciones: boolean; estructura: boolean };
+  /** Lo que se dice en el video (si se habla). */
+  transcript?: string;
+  /** Lo que se ve, descrito por la IA de visión. */
+  visual?: string;
+  /** De qué trata, cómo engancha, cómo está armada, por qué funciona y qué se podría mejorar. */
+  understanding?: { tema: string; formato: string; gancho: string; estructura: { segundo: number; parte: string; que: string }[]; porQueFunciona: string[]; sugerencias: string[]; paraTuVideo: string[] };
 }
 
 export const referencesDir = (client?: string) => path.join(WORKSPACE, 'clientes', slugify(client ?? 'personal'), 'referencias');
@@ -278,15 +291,17 @@ export async function detectTypography(frames: string[]): Promise<ReferenceRepor
 }
 
 export function presetFromReference(r: ReferenceReport, name?: string) {
-  const c = r.captions;
+  // Solo lo que el cliente pidió copiar (sin pedido, todo el estilo).
+  const cp = r.copy ?? { ritmo: true, subtitulos: true, color: true, musica: true, transiciones: true, estructura: true };
+  const c = cp.subtitulos ? r.captions : null;
   const fast = r.suggested.ritmo === 'rapido';
   const highlight = c?.highlight ?? r.suggested.highlightColor;
   return {
     name: name?.trim() || `Estilo ${r.name}`,
     description: `Desde la referencia «${r.name}»: plano medio ${r.avgShot.toFixed(1)} s${c ? `, subtítulos al ${Math.round(c.y * 100)} % de alto` : ''}.`,
     base: r.suggested.ritmo,
-    pacing: { maxPause: r.suggested.maxPause, punchZoomEvery: r.suggested.punchZoomEvery },
-    captions: {
+    pacing: cp.ritmo ? { maxPause: r.suggested.maxPause, punchZoomEvery: r.suggested.punchZoomEvery } : {},
+    captions: !cp.subtitulos ? {} : {
       highlightColor: highlight,
       ...(c ? {
         y: Math.min(0.78, Math.max(0.2, c.y)),
@@ -302,13 +317,11 @@ export function presetFromReference(r: ReferenceReport, name?: string) {
       fontFamily: r.typography?.fontFamily ?? (fast ? 'Montserrat' : 'Inter'),
     },
     style: {
-      textStyle: (c?.box ? 'caja' : fast ? 'resaltado' : 'subrayado') as 'caja' | 'resaltado' | 'subrayado',
-      look: r.look,
-      transitions: true,
-      flashes: r.flashes,
-      sfxAuto: fast,
+      ...(cp.subtitulos ? { textStyle: (c?.box ? 'caja' : fast ? 'resaltado' : 'subrayado') as 'caja' | 'resaltado' | 'subrayado' } : {}),
+      ...(cp.color ? { look: r.look } : {}),
+      ...(cp.transiciones ? { transitions: true, flashes: r.flashes, sfxAuto: fast } : {}),
     },
-    palette: r.palette,
+    palette: cp.color ? r.palette : [],
     reference: r.id,
   };
 }
@@ -324,7 +337,7 @@ const saturation = (h: string) => {
  * y extrae fotogramas para que Claude mire subtítulos y tipografía. No se copia
  * nada del contenido: el video se borra al terminar salvo que `keepVideo` sea true.
  */
-export async function analyzeReference(input: string, opts: { client?: string; name?: string; keepVideo?: boolean; onStep?: (message: string, progress: number) => void } = {}): Promise<{ dir: string; report: ReferenceReport }> {
+export async function analyzeReference(input: string, opts: { client?: string; name?: string; keepVideo?: boolean; onStep?: (message: string, progress: number) => void; /** Link de donde vino y lo que dice la publicación. */ source?: ReferenceReport['source']; /** Lo que el cliente quiere de ella. */ wish?: string; /** Además del estilo, entender de qué trata y sugerir mejoras (IA local). */ understand?: boolean; /** Lo que se sabe del cliente (para adaptar las ideas). */ context?: string } = {}): Promise<{ dir: string; report: ReferenceReport }> {
   const step = opts.onStep ?? (() => {});
   const file = path.resolve(input);
   if (!existsSync(file)) throw new Error(`No existe el archivo: ${file}`);
@@ -371,7 +384,15 @@ export async function analyzeReference(input: string, opts: { client?: string; n
       highlightColor: accent && saturation(accent) > 0.35 ? accent : '#FE2C55',
     },
   };
+  if (opts.source) report.source = opts.source;
+  if (opts.wish?.trim()) report.wish = opts.wish.trim().slice(0, 1000);
+  report.copy = copyFromWish(report.wish);
   await writeFile(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
+  if (opts.understand !== false) {
+    const u = await understandReference(file, report, dir, { brand: opts.client, wish: report.wish, context: opts.context, onStep: (m) => step(m, 0.95) }).catch(() => ({}));
+    Object.assign(report, u);
+    await writeFile(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
+  }
   return { dir, report };
 }
 
@@ -443,4 +464,15 @@ export async function deleteReference(client: string | undefined, id: string): P
     await writeProject(pdir, project);
   }
   return listReferences(client);
+}
+
+/** Cambia lo que el cliente quiere de una referencia (y qué se copia), sin volver a analizarla. */
+export async function updateReferenceWish(client: string | undefined, id: string, patch: { wish?: string; copy?: Partial<NonNullable<ReferenceReport['copy']>> }): Promise<ReferenceReport> {
+  const dir = referenceDir(client, id);
+  const f = path.join(dir, 'report.json');
+  const r = JSON.parse(await readFile(f, 'utf8')) as ReferenceReport;
+  if (typeof patch.wish === 'string') { r.wish = patch.wish.trim().slice(0, 1000) || undefined; if (!patch.copy) r.copy = copyFromWish(r.wish); }
+  if (patch.copy) r.copy = { ...(r.copy ?? copyFromWish(r.wish)), ...patch.copy };
+  await writeFile(f, JSON.stringify(r, null, 2));
+  return r;
 }
