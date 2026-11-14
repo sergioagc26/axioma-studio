@@ -56,7 +56,8 @@ import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
 import { envValue, keyStatus, removeEnvValue, setEnvValue } from './env.ts';
-import { applyScript, readScript, saveScript, writeScript } from './script.ts';
+import { applyScript, readScript, resyncToVoice, saveScript, writeScript } from './script.ts';
+import { TAG_NAMES, setShotTag, tagShots } from './voicesync.ts';
 import { Guion, PROJECT_SHAPES, guionMarkdown, type ProjectShape } from '@axioma/schema';
 import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots, asMontage } from './montage.ts';
@@ -668,6 +669,26 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       });
       return json(res, job);
     }
+    if (b.op === 'tomas-ia') {
+      // Mira de nuevo las tomas con el modelo de visión (las corregidas a mano no se tocan).
+      const job = startJob('ia', async (j) => {
+        j.message = 'Mirando qué se ve en cada toma…';
+        const shots = await tagShots(dir, { force: true });
+        return { tomas: shots.length, etiquetadas: shots.filter((s) => s.tag).length };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'sincronizar') {
+      // Vuelve a poner en pantalla lo que la voz nombra, con las etiquetas actuales de las tomas.
+      const job = startJob('crear', async (j) => {
+        j.message = 'Sincronizando la imagen con la voz…';
+        await ops.saveVersion(dir, 'antes-de-sincronizar').catch(() => {});
+        await tagShots(dir);
+        const r = await resyncToVoice(dir);
+        return { secciones: r.length, detalle: r.map((x) => `«${x.word.replace(/[^\p{L}\p{N}]/gu, '')}» → ${x.tag}`) };
+      });
+      return json(res, job);
+    }
     if (b.op === 'guion-escribir') {
       // El guionista: guion literario y técnico a partir del brief, la marca y lo que hay grabado.
       const job = startJob('ia', async (j) => {
@@ -955,7 +976,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/tomas' && method === 'GET') {
     // Tomas del montaje con su etiqueta (qué se ve), para elegirlas en el guion técnico.
     const d = await findDir(id);
-    return json(res, (await readProject(d)).kind === 'montaje' ? await detectShots(d).catch(() => []) : []);
+    return json(res, (await readProject(d)).kind === 'montaje' ? (await detectShots(d).catch(() => [])).map((s) => ({ ...s, nombre: s.tag ? TAG_NAMES[s.tag] ?? s.tag : undefined })) : []);
+  }
+  if (p === '/api/tomas/etiquetas' && method === 'GET') {
+    return json(res, Object.entries(TAG_NAMES).map(([value, label]) => ({ value, label })));
+  }
+  if (p === '/api/tomas' && method === 'PUT') {
+    // Corrección a mano de lo que se ve en una toma.
+    const body = await readBody(req);
+    return json(res, await setShotTag(await findDir(id), String(body.toma ?? ''), body.etiqueta ?? null));
   }
   if (p === '/api/guion' && method === 'GET') return json(res, await readScript(await findDir(id)));
   if (p === '/api/guion' && method === 'PUT') {

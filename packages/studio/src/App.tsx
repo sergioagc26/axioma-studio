@@ -11,12 +11,13 @@ import { Variantes } from './screens/Variantes.tsx';
 import { Imagenes } from './screens/Imagenes.tsx';
 import { Texto } from './screens/Texto.tsx';
 import { Guion } from './screens/Guion.tsx';
+import { Tomas } from './screens/Tomas.tsx';
 import { Calendario } from './screens/Calendario.tsx';
 import { Icon } from './Icon.tsx';
 import type { IconName } from './icons.ts';
 import { Listo } from './screens/Listo.tsx';
 
-export type Screen = 'proyectos' | 'calendario' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'guion' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
+export type Screen = 'proyectos' | 'calendario' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'guion' | 'tomas' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
 
 export interface Ctx {
   store: ProjectStore;
@@ -61,14 +62,14 @@ const REDO = MAC ? '⇧⌘Z' : 'Ctrl+Shift+Z';
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   const q = new URLSearchParams(query);
-  const screen = (['proyectos', 'calendario', 'listo', 'brief', 'storyboard', 'editor', 'texto', 'guion', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
+  const screen = (['proyectos', 'calendario', 'listo', 'brief', 'storyboard', 'editor', 'texto', 'guion', 'tomas', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
   return { screen, p: q.get('p'), s: q.get('s') };
 }
 
 // En el orden del trabajo real: casi siempre se llega al Editor (modo automático).
 // Lo de todos los días a la vista; lo avanzado, guardado en «Más».
 const TABS: [Screen, IconName, string][] = [['brief', 'brief', 'Brief'], ['listo', 'result', 'Resultado'], ['editor', 'editor', 'Editor']];
-const MORE: [Screen, IconName, string][] = [['guion', 'book', 'Guion'], ['texto', 'scissors', 'Cortar por texto'], ['storyboard', 'storyboard', 'Storyboard'], ['variantes', 'variants', 'Variantes'], ['audio', 'audio', 'Audio'], ['imagenes', 'image', 'Imágenes'], ['referencias', 'reference', 'Referencias']];
+const MORE: [Screen, IconName, string][] = [['guion', 'book', 'Guion'], ['tomas', 'film', 'Tomas'], ['texto', 'scissors', 'Cortar por texto'], ['storyboard', 'storyboard', 'Storyboard'], ['variantes', 'variants', 'Variantes'], ['audio', 'audio', 'Audio'], ['imagenes', 'image', 'Imágenes'], ['referencias', 'reference', 'Referencias']];
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
@@ -351,7 +352,7 @@ export const App: React.FC = () => {
             <details className="more" ref={moreRef}>
               <summary className={MORE.some(([s]) => s === route.screen) ? 'on' : ''}>{(() => { const m = MORE.find(([s]) => s === route.screen); return m ? <><Icon name={m[1]} /> {m[2]}</> : <><Icon name="more" /> Más</>; })()}</summary>
               <div className="more-menu">
-                {MORE.map(([s, icon, label]) => (
+                {MORE.filter(([s]) => s !== 'tomas' || project?.kind === 'montaje').map(([s, icon, label]) => (
                   <a key={s} href={`#/${s}?p=${encodeURIComponent(route.p!)}${route.s ? `&s=${route.s}` : ''}`} className={route.screen === s ? 'on' : ''} onClick={() => moreRef.current?.removeAttribute('open')}><Icon name={icon} />{label}</a>
                 ))}
               </div>
@@ -404,6 +405,7 @@ export const App: React.FC = () => {
         : route.screen === 'listo' ? <div className="scroll"><Listo ctx={ctx} /></div>
         : route.screen === 'storyboard' ? <Storyboard ctx={ctx} />
         : route.screen === 'editor' ? <Editor ctx={ctx} />
+        : route.screen === 'tomas' ? <div className="scroll"><Tomas ctx={ctx} /></div>
         : route.screen === 'guion' ? <div className="scroll"><Guion ctx={ctx} /></div>
         : route.screen === 'texto' ? <div className="scroll"><Texto ctx={ctx} /></div>
         : route.screen === 'variantes' ? <div className="scroll"><Variantes ctx={ctx} /></div>

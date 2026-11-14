@@ -206,6 +206,23 @@ export function rowStarts(words: { text: string; start: number }[], filas: { voz
   return out;
 }
 
+/**
+ * Vuelve a poner la imagen sobre la voz: con las filas del guion si el video salió de un guion (y
+ * la voz es la de ese guion); si no, con lo que la voz nombra.
+ */
+export async function resyncToVoice(dir: string): Promise<{ tag: string; word: string; at: number }[]> {
+  const project = await readProject(dir);
+  const vo = project.audio.voiceover;
+  const g = await readScript(dir);
+  if (vo?.wordsFile && g?.filas.some((f) => f.toma) && vo.text && norm(vo.text).startsWith(norm(guionVoice(g)).slice(0, 40))) {
+    const words = (JSON.parse(await readFile(path.join(dir, vo.wordsFile), 'utf8')).words ?? []) as { text: string; start: number }[];
+    const at = rowStarts(words, g.filas);
+    const segments = g.filas.map((f, i) => ({ tag: f.toma ?? '', start: at[i], word: f.seccion || f.voz.split(' ').slice(0, 2).join(' ') })).filter((x) => x.tag);
+    return syncShotsToVoice(dir, { segments });
+  }
+  return syncShotsToVoice(dir);
+}
+
 const CAM: Record<string, 'ninguno' | 'acercar' | 'alejar' | 'izquierda' | 'temblor' | 'pulso'> = { fijo: 'ninguno', acercar: 'acercar', alejar: 'alejar', paneo: 'izquierda', 'cámara en mano': 'temblor', pulso: 'pulso' };
 /** El movimiento del guion (lista fija o texto libre de un director) llevado a los que simula la app. */
 function cameraOf(m: string): (typeof CAM)[string] {

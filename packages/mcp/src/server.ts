@@ -927,10 +927,15 @@ export function createServer() {
     async ({ proyecto, proveedor, voz }) => (await E.applyScript(await resolveProject(proyecto), { provider: proveedor, voice: voz })).summary.join('\n'),
   );
 
+  tool('etiquetar_toma', 'Corrige a mano qué se ve en una toma del montaje (manda sobre la IA). Etiquetas de la lista: ' + Object.keys(E.TAG_NAMES).join(', ') + '; o una propia (p. ej. "pizza"), que se reconoce en la voz por esa palabra. Vacío = sin etiqueta. Después usa sincronizar_imagen_voz.', { proyecto, toma: z.string().describe('Id de la toma, p. ej. t03'), etiqueta: z.string() }, async ({ proyecto, toma, etiqueta }) => {
+    const shots = await E.setShotTag(await resolveProject(proyecto), toma, etiqueta || null);
+    return `Toma ${toma}: ${etiqueta || 'sin etiqueta'}. Tomas por etiqueta: ${[...new Set(shots.map((s) => s.tag ?? 'sin etiqueta'))].map((t) => `${t} (${shots.filter((s) => (s.tag ?? 'sin etiqueta') === t).length})`).join(', ')}.`;
+  });
+
   tool('sincronizar_imagen_voz', 'Montaje con voz en off: reordena las tomas para que en pantalla salga lo que la voz nombra en cada momento (mira cada toma con el modelo de visión local y la etiqueta). Conserva cortes, textos y transiciones.', { proyecto }, async ({ proyecto }) => {
     const dir = await resolveProject(proyecto);
     await E.tagShots(dir);
-    const r = await E.syncShotsToVoice(dir);
+    const r = await E.resyncToVoice(dir);
     return r.length ? `Sincronizado: ${r.map((x) => `«${x.word}» → ${x.tag} (${x.at.toFixed(1)} s)`).join(', ')}.` : 'No encontré en la voz palabras que nombren lo que hay en las tomas (o el proyecto no es un montaje con voz en off).';
   });
 

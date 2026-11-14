@@ -98,3 +98,12 @@ describe('guion técnico', () => {
     expect(tagOfWord('jugos')).toBe('bebida');
   });
 });
+
+describe('etiquetas propias', () => {
+  it('una etiqueta escrita a mano se reconoce en la voz por su palabra', async () => {
+    const { withCustomTags, voiceSegments } = await import('../src/voicesync.ts');
+    const tags = withCustomTags([{ tag: 'pizza' }, { tag: 'nachos' }]);
+    const segs = voiceSegments([{ text: 'Las', start: 0 }, { text: 'pizzas', start: 0.5 }, { text: 'y', start: 1 }, { text: 'nachos.', start: 1.3 }], new Set(['pizza', 'nachos']), tags);
+    expect(segs.map((s) => s.tag)).toEqual(['pizza', 'nachos']);
+  });
+});

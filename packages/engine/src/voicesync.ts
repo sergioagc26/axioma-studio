@@ -59,14 +59,16 @@ export function tagOfWord(word: string, tags: ShotTag[] = SHOT_TAGS): string | n
  */
 export async function tagShots(dir: string, opts: { force?: boolean; tags?: ShotTag[] } = {}): Promise<Shot[]> {
   const shots = await detectShots(dir);
-  if (!opts.force && shots.every((s) => s.tag)) return shots;
+  // Ya miradas todas (con o sin etiqueta): no se repite. Las puestas a mano nunca se tocan.
+  if (!opts.force && shots.every((s) => s.tag || s.tagAuto)) return shots;
   const tags = opts.tags ?? SHOT_TAGS;
   const tmp = path.join(dir, 'proxies', 'etiquetas');
   await mkdir(tmp, { recursive: true });
   const prompts = tags.map((t) => t.prompt);
   const source = path.join(dir, P.proxy);
   for (const s of shots) {
-    if (s.tag && !opts.force && !s.tagAuto) continue;
+    if (s.tag && !s.tagAuto) continue;
+    if (!opts.force && s.tagAuto) continue;
     const score = new Map<string, number>();
     // Dos fotogramas por toma (a un tercio y a dos tercios), para no fiarse de uno movido.
     for (const k of [1, 2]) {
@@ -117,6 +119,36 @@ export function smoothTags(shots: Shot[], tags: ShotTag[] = SHOT_TAGS) {
 export const sceneSwitchPoint = (start: number, len: number) => start + Math.min(len / 2, 0.4);
 export const VOICE_LEAD = 0.25;
 
+/**
+ * Las etiquetas de la lista más las que escribió una persona («pizza», «Johan», «fachada»): una
+ * etiqueta propia se reconoce en la voz por su misma palabra.
+ */
+export function withCustomTags(shots: { tag?: string }[], tags: ShotTag[] = SHOT_TAGS): ShotTag[] {
+  const known = new Set(tags.map((t) => t.id));
+  const extra = [...new Set(shots.map((s) => s.tag).filter((t): t is string => Boolean(t) && !known.has(t!)))];
+  return [...tags, ...extra.map((id) => ({ id, prompt: '', words: id.split(/\s+/).map(stem).filter((w) => w.length >= 3), food: false }))];
+}
+
+/** Nombre para mostrar de cada etiqueta de la lista. */
+export const TAG_NAMES: Record<string, string> = {
+  burro: 'Burro / burrito', torta: 'Torta / sándwich', nachos: 'Nachos', tacos: 'Tacos', hamburguesa: 'Hamburguesa', postre: 'Postre', bebida: 'Bebida',
+  ejercicio: 'Ejercicio', producto: 'Producto', hablando: 'Persona hablando', manos: 'Manos trabajando', exterior: 'Exterior / calle',
+  cocina: 'Cocina / preparación', personas: 'Gente comiendo / reunida', local: 'El local por dentro',
+};
+
+/** Pone (o quita) a mano la etiqueta de una toma: manda sobre la del modelo y no se vuelve a calcular. */
+export async function setShotTag(dir: string, id: string, tag: string | null): Promise<Shot[]> {
+  const shots = await detectShots(dir);
+  const s = shots.find((x) => x.id === id);
+  if (!s) throw new Error(`No existe la toma ${id}.`);
+  const clean = (tag ?? '').trim().toLowerCase().normalize('NFC').replace(/\s+/g, ' ').slice(0, 40);
+  s.tag = clean || undefined;
+  // Sin etiqueta a mano = «no la uses para nada en especial» (no se vuelve a adivinar).
+  s.tagAuto = false;
+  await writeFile(path.join(dir, P.shots), JSON.stringify(shots, null, 2));
+  return shots;
+}
+
 /** Desde qué segundo de la voz manda cada etiqueta (cuando se nombra un plato, hasta el siguiente). */
 export function voiceSegments(words: { text: string; start: number }[], available: Set<string>, tags: ShotTag[] = SHOT_TAGS) {
   const out: { tag: string; start: number; word: string }[] = [];
@@ -150,7 +182,7 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number; /** S
   for (const s of shots) if (s.tag) pools.set(s.tag, [...(pools.get(s.tag) ?? []), s]);
   // Una fila de guion puede pedir una toma exacta por su número.
   if (opts.segments?.length) for (const s of shots) pools.set(s.id, [s]);
-  const segs = opts.segments?.length ? opts.segments.filter((x) => pools.has(x.tag)).sort((a, b) => a.start - b.start) : voiceSegments(words, new Set(pools.keys()));
+  const segs = opts.segments?.length ? opts.segments.filter((x) => pools.has(x.tag)).sort((a, b) => a.start - b.start) : voiceSegments(words, new Set(pools.keys()), withCustomTags(shots));
   if (!segs.length) return [];
   const food = new Set(SHOT_TAGS.filter((t) => t.food).map((t) => t.id));
   // Apertura: lo más vistoso primero. En una secuencia de preparación la última toma suele ser el
