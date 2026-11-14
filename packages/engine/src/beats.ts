@@ -200,7 +200,7 @@ export async function montageToBeat(dir: string, opts: { density?: BeatDensity; 
   let inner = all.filter((c) => c < end - 0.3 && c >= 0.6);
   // En reels largos, un corte en cada golpe marea y pesa: se deja uno de cada dos o tres golpes
   // para que cada plano dure lo suficiente (siguen cayendo en el golpe).
-  const minClip = end <= 20 ? 0.55 : end <= 40 ? 0.9 : 1.3;
+  const minClip = end <= 20 ? 0.55 : end <= 40 ? 0.8 : 1.0;
   const every = Math.max(1, Math.ceil(minClip / (end / (inner.length + 1))));
   if (every > 1) inner = inner.filter((_, i) => (i + 1) % every === 0);
   const points = [0, ...inner, end].map(frame);
