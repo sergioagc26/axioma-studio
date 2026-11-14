@@ -31,6 +31,16 @@ describe('estilo según la marca', () => {
     expect(gym.why.length).toBeGreaterThan(10);
   });
 
+  it('las letras que eligió la marca mandan sobre las del sector', () => {
+    const r = brandStyle(kit({ sector: 'restaurante', fonts: { heading: 'Bebas Neue', body: 'Poppins' } }))!;
+    expect(r.captions.fontFamily).toBe('Poppins');
+    expect(r.captions.design).toBe('clasico');
+    expect(r.style.textFont).toBe('Bebas Neue');
+    // Con las de fábrica, manda el sector.
+    const d = brandStyle(kit({ sector: 'restaurante' }))!;
+    expect(d.captions.design).toBe('elegante');
+    expect(d.style.textFont).toBe('Playfair Display');
+  });
   it('la personalidad matiza el sector', () => {
     const base = brandStyle(kit({ sector: 'gimnasio' }))!;
     const fino = brandStyle(kit({ sector: 'gimnasio', personality: 'elegante' }))!;

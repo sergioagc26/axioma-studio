@@ -3,7 +3,7 @@ import { listReferences } from './reference.ts';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Guion, SCRIPT_STRUCTURES, SCRIPT_TRANSITIONS, SHOT_MOVES, SHOT_SIZES, guionMarkdown, guionSeconds, guionVoice, sceneLength, scriptStructure, tidyGuion, type GuionRow } from '@axioma/schema';
+import { Guion, SCRIPT_STRUCTURES, brandStyle, SCRIPT_TRANSITIONS, SHOT_MOVES, SHOT_SIZES, guionMarkdown, guionSeconds, guionVoice, sceneLength, scriptStructure, tidyGuion, type GuionRow } from '@axioma/schema';
 import { VOICEOVER_CAPTIONS } from './auto.ts';
 import { montageToBeat } from './beats.ts';
 import { askClaude, claudeReady } from './assistant.ts';
@@ -14,7 +14,7 @@ import { autoMusic } from './musiclib.ts';
 import { setAutoSfx, setVoiceover } from './ops.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import type { TtsProvider } from './tts.ts';
-import { SHOT_TAGS, VOICE_LEAD, sceneSwitchPoint, syncShotsToVoice, tagShots } from './voicesync.ts';
+import { SHOT_TAGS, VOICE_LEAD, cutAtTimes, sceneSwitchPoint, syncShotsToVoice, tagShots } from './voicesync.ts';
 
 const FILE = 'guion.json';
 const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9ñ]/g, '');
@@ -226,6 +226,7 @@ export async function resyncToVoice(dir: string): Promise<{ tag: string; word: s
   if (vo?.wordsFile && g?.filas.some((f) => f.toma) && vo.text && norm(vo.text).startsWith(norm(guionVoice(g)).slice(0, 40))) {
     const words = (JSON.parse(await readFile(path.join(dir, vo.wordsFile), 'utf8')).words ?? []) as { text: string; start: number }[];
     const at = rowStarts(words, g.filas);
+    if (cutAtTimes(project, at.slice(1))) await writeProject(dir, project);
     const segments = g.filas.map((f, i) => ({ tag: f.toma ?? '', start: at[i], word: f.seccion || f.voz.split(' ').slice(0, 2).join(' ') })).filter((x) => x.tag);
     return syncShotsToVoice(dir, { segments });
   }
@@ -286,6 +287,8 @@ export async function applyScript(dir: string, opts: { provider?: TtsProvider; v
   project = await readProject(dir);
   const words = (JSON.parse(await readFile(path.join(dir, project.audio.voiceover!.wordsFile!), 'utf8')).words ?? []) as { text: string; start: number; end: number }[];
   const at = rowStarts(words, g.filas);
+  // Un corte donde empieza cada fila: la imagen entra con su frase, no en el golpe siguiente.
+  if (cutAtTimes(project, at.slice(1))) await writeProject(dir, project);
   const segments = g.filas.map((f, i) => ({ tag: f.toma ?? '', start: at[i], word: f.seccion || f.voz.split(' ').slice(0, 2).join(' ') })).filter((s) => s.tag);
   const synced = await syncShotsToVoice(dir, { segments });
   if (synced.length) summary.push(`Imagen y voz sincronizadas fila por fila: ${synced.length} momentos del guion muestran lo que la voz está diciendo.`);
@@ -330,6 +333,14 @@ export async function applyScript(dir: string, opts: { provider?: TtsProvider; v
   });
   // Subtítulos discretos y abajo: los textos del guion son los que mandan en pantalla.
   Object.assign(project.captions, VOICEOVER_CAPTIONS, { y: 0.8, fontSize: 58, behind: false });
+  // Con kit de marca, subtítulos y textos salen ya con sus colores y sus letras.
+  const kit = await readKit(project.client).catch(() => null);
+  if (kit) {
+    Object.assign(project.captions, { color: kit.colors.text, highlightColor: kit.colors.primary }, kit.fonts.body !== 'Inter' ? { fontFamily: kit.fonts.body } : {});
+    const font = brandStyle(kit)?.style.textFont ?? (kit.fonts.heading !== 'Montserrat' ? kit.fonts.heading : undefined);
+    for (const sc of project.scenes) if (sc.onScreenText) { sc.textColor = undefined; if (font) sc.textFont = font; }
+    summary.push(`Subtítulos y textos con los colores y letras de la marca ${kit.name}.`);
+  }
   await writeProject(dir, project);
   if (titles) summary.push(`${titles} textos en pantalla, cada uno cuando la voz dice su frase.`);
   if (!project.audio.sfxOff) { await setAutoSfx(dir, true); summary.push('Efectos de sonido en las transiciones y al entrar cada texto.'); }

@@ -69,6 +69,15 @@ export function brandStyle(kit: BrandKit | null): (Look & { captions: Partial<Ca
     case 'cercana': Object.assign(style, { look: 'calido', camera: 'acercar' }); why += '; por ser cercana, tonos cálidos y la cámara acercándose'; break;
     case 'energica': Object.assign(style, { sfxAuto: true, textAnim: 'pop' }); break;
   }
+  // Las letras que eligió la marca mandan sobre las del sector (las de fábrica, Montserrat e Inter, no
+  // cuentan como elegidas). El diseño «elegante» trae su propia serif, así que con una letra elegida
+  // pasa al clásico, que sí la respeta.
+  if (kit.fonts.body && kit.fonts.body !== 'Inter') {
+    captions.fontFamily = kit.fonts.body;
+    if (captions.design === 'elegante') { Object.assign(captions, { design: 'clasico', effect: 'color', fontWeight: 700 }); why = why.replace(/letra fina en cursiva, |cursiva elegante, /, ''); }
+    why += `; con las letras de la marca (${kit.fonts.body}${kit.fonts.heading !== 'Montserrat' ? ` y ${kit.fonts.heading}` : ''})`;
+  }
+  if (kit.fonts.heading && kit.fonts.heading !== 'Montserrat') style.textFont = kit.fonts.heading;
   // Lo aprendido. Primero lo que mejor funcionó en las redes (resultados reales); si no hay,
   // el diseño de subtítulos con el que más se ha exportado (3 veces o más).
   const learned = Object.entries(kit.learned ?? {});

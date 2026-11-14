@@ -175,6 +175,9 @@ export function useFont(name: string): string {
 }
 
 /** Reel final. En 16:9 el reel vertical va centrado sobre un fondo con los colores de la marca. */
+/** Familias condensadas: a igual tamaño se ven más pequeñas que una letra normal. */
+const CONDENSED = /bebas|anton|oswald|teko|condensed|league gothic/i;
+
 export const Reel: React.FC<Timeline> = (t) => {
   if (!t.canvas) return <ReelBody {...t} />;
   const scale = t.canvas.height / t.height;
@@ -804,7 +807,8 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
   const kw = spring({ frame: frame - 5, fps, config: { damping: 11, stiffness: 220 }, durationInFrames: 12 });
   const color = overlay.color ?? t.captions.highlightColor;
   const upper = t.captions.uppercase;
-  const k = overlay.size;
+  // Las letras condensadas (Bebas, Anton, Oswald…) se ven chicas al mismo tamaño: van más grandes.
+  const k = overlay.size * (CONDENSED.test(overlay.font ?? '') ? 1.45 : 1);
   // Texto visible en este momento: entero, palabra por palabra o letra por letra.
   const shown = overlay.anim === 'palabra' ? overlay.text.split(/\s+/).filter(Boolean).slice(0, 1 + Math.floor(frame / 4)).join(' ')
     : overlay.anim === 'maquina' ? overlay.text.slice(0, 1 + Math.floor(frame * 1.4))

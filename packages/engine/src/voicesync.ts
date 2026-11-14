@@ -2,7 +2,7 @@ import { checkCancelled } from './cancel.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { sceneLength } from '@axioma/schema';
+import { sceneLength, type Scene } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
 import { detectShots, type Shot } from './montage.ts';
 import { P } from './paths.ts';
@@ -122,6 +122,50 @@ export const sceneSwitchPoint = (start: number, len: number) => start + Math.min
 export const VOICE_LEAD = 0.25;
 
 /**
+ * Pone un corte justo donde empieza cada frase (un poquito antes, VOICE_LEAD): así la imagen de
+ * cada fila del guion entra cuando la voz la dice, y no en el siguiente golpe de la música. Si ya
+ * hay un corte muy cerca, se corre hasta ahí; si no, la escena se parte en dos. La duración total
+ * no cambia. Devuelve cuántos cortes movió o agregó.
+ */
+export function cutAtTimes(project: { scenes: Scene[] }, times: number[], lead = VOICE_LEAD): number {
+  let changed = 0;
+  for (const at of times) {
+    const target = at - lead;
+    if (target < 0.3) continue;
+    let t = 0, i = 0;
+    for (; i < project.scenes.length; i++) { const len = sceneLength(project.scenes[i]); if (t + len > target) break; t += len; }
+    const sc = project.scenes[i];
+    if (!sc || sc.ranges.length !== 1 || sc.trimStart || sc.trimEnd) continue;
+    const len = sceneLength(sc), off = target - t;
+    const r = sc.ranges[0], ratio = (r.end - r.start) / len;
+    const next = project.scenes[i + 1];
+    if (off < 0.12) continue; // ya hay un corte ahí
+    if (len - off < 0.4 && next && next.ranges.length === 1 && !next.trimStart && !next.trimEnd) {
+      // El corte siguiente está a un pelo: se adelanta (esta escena se acorta y la siguiente crece).
+      const d = (len - off) * ratio;
+      r.end = +(r.end - d).toFixed(4);
+      next.ranges[0].start = +(next.ranges[0].start - d).toFixed(4);
+      changed++;
+    } else if (off >= 0.4 && len - off >= 0.4) {
+      const cut = +(r.start + off * ratio).toFixed(4);
+      const tail: Scene = { ...sc, id: `${sc.id}f${changed}`, ranges: [{ start: cut, end: r.end }], transition: undefined, onScreenText: undefined, autoText: undefined };
+      r.end = cut;
+      project.scenes.splice(i + 1, 0, tail);
+      changed++;
+    } else if (off < 0.4 && i > 0) {
+      // Recién empezada la escena: se alarga la anterior hasta la frase.
+      const prev = project.scenes[i - 1];
+      if (prev.ranges.length !== 1 || prev.trimStart || prev.trimEnd) continue;
+      const d = off * ratio;
+      prev.ranges[0].end = +(prev.ranges[0].end + d).toFixed(4);
+      r.start = +(r.start + d).toFixed(4);
+      changed++;
+    }
+  }
+  return changed;
+}
+
+/**
  * Las etiquetas de la lista más las que escribió una persona («pizza», «Johan», «fachada»): una
  * etiqueta propia se reconoce en la voz por su misma palabra.
  */
@@ -183,7 +227,8 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number; /** S
   const pools = new Map<string, Shot[]>();
   for (const s of shots) if (s.tag) pools.set(s.tag, [...(pools.get(s.tag) ?? []), s]);
   // Una fila de guion puede pedir una toma exacta por su número.
-  if (opts.segments?.length) for (const s of shots) pools.set(s.id, [s]);
+  // Si esa toma se acaba antes que la frase, sigue con otra del mismo plato (nunca con otro plato).
+  if (opts.segments?.length) for (const s of shots) pools.set(s.id, [s, ...shots.filter((o) => o !== s && s.tag && o.tag === s.tag)]);
   const segs = opts.segments?.length ? opts.segments.filter((x) => pools.has(x.tag)).sort((a, b) => a.start - b.start) : voiceSegments(words, new Set(pools.keys()), withCustomTags(shots));
   if (!segs.length) return [];
   const food = new Set(SHOT_TAGS.filter((t) => t.food).map((t) => t.id));
