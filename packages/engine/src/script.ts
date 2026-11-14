@@ -118,6 +118,9 @@ export interface ScriptRequest { idea?: string; estructura?: string; duracion?: 
  * Escribe el guion (literario y técnico) del video: con la IA local a partir del brief, la marca y
  * lo que hay grabado; sin IA, deja la plantilla de la estructura para llenarla. Lo guarda en el proyecto.
  */
+/** Cómo elige las tomas un editor de comida: lo que da hambre manda; el lugar y la gente, poco. */
+const APPETITE = 'Si es comida, cada imagen tiene que dar hambre: usa sobre todo el plato servido y los primeros planos (queso que se derrite, salsas cayendo, carne dorándose, totopos crujientes). El local, la fachada o la gente van como mucho en 1 o 2 filas cortas (gancho o cierre), y el cierre muestra el plato más vistoso o el letrero de la marca. No uses tomas movidas, borrosas ni de cocina sucia o vacía.';
+
 export async function writeScript(dir: string, req: ScriptRequest = {}): Promise<Guion> {
   const { project, kit, text } = await factsOf(dir);
   const b = project.brief;
@@ -143,7 +146,8 @@ export async function writeScript(dir: string, req: ScriptRequest = {}): Promise
         `Estructura: ${st.name} (${st.beats.join(' → ')}). Duración: ${duracion} s (unas ${Math.round(duracion * 2.5)} palabras de voz). Tono: ${tono}.`,
         req.idea ? `Idea del cliente: ${req.idea}` : 'Propón la idea a partir del brief.',
         refNote,
-        project.kind === 'montaje' ? 'Es un montaje de tomas: mira con leer_tomas qué hay grabado y en «toma» pon la etiqueta de la toma que debe verse en cada fila (lo que la voz nombra se ve en ese momento).' : 'Es una persona hablando a cámara: es su guion para grabar; deja «toma» vacío.',
+        project.kind === 'montaje' ? 'Es un montaje de tomas: mira con leer_tomas qué hay grabado y abre la miniatura de cada toma ANTES de asignarla. En «toma» pon el id exacto (t03) de la toma que debe verse en cada fila (lo que la voz nombra se ve en ese momento) y en «imagen» describe lo que de verdad se ve en esa miniatura, no lo que te gustaría.' : 'Es una persona hablando a cámara: es su guion para grabar; deja «toma» vacío.',
+        project.kind === 'montaje' ? APPETITE : '',
         'Reglas: español latino hablado, frases cortas; gancho en menos de 3 s; «imagen» con detalle de director; texto en pantalla de 1 a 4 palabras; una sola llamada a la acción al final (la del brief). No inventes precios, promociones, teléfonos, horarios ni cifras: solo lo que está en el brief y la marca.',
       ].join('\n'));
       const made = await readScript(dir);
@@ -162,7 +166,7 @@ export async function writeScript(dir: string, req: ScriptRequest = {}): Promise
       req.idea ? `Idea del cliente para este video: ${req.idea}` : 'Propón tú la idea, a partir de los datos.',
       refNote,
       project.kind === 'montaje'
-        ? (shots.length ? `Material grabado (etiquetas disponibles para «toma» · cuántas tomas): ${shots.map((s) => `${s.tag} (${s.count})`).join(', ')}. Reparte las filas entre lo que hay; lo que tiene más tomas puede durar más.` : 'No se sabe qué hay grabado: describe la imagen ideal y deja «toma» vacío.')
+        ? (shots.length ? `Material grabado (etiquetas disponibles para «toma» · cuántas tomas): ${shots.map((s) => `${s.tag} (${s.count})`).join(', ')}. Reparte las filas entre lo que hay; lo que tiene más tomas puede durar más. ${APPETITE}` : 'No se sabe qué hay grabado: describe la imagen ideal y deja «toma» vacío.')
         : `Es un video de una persona hablando a cámara: la voz es lo que dirá esa persona (guion para grabar o regrabar). En «imagen» indica si va la persona a cámara o un recurso encima (b-roll, captura, gráfico). Deja «toma» vacío.${said ? ` Esto es lo que ya dijo en la grabación actual, por si sirve de base: «${said}»` : ''}`,
     ].filter(Boolean).join('\n');
     try {

@@ -8,6 +8,7 @@ import { detectShots, type Shot } from './montage.ts';
 import { P } from './paths.ts';
 import { readProject, writeProject } from './store.ts';
 import { classifyImage } from './vision.ts';
+import { cleanStart, shotQuality, type QualityMap } from './shotquality.ts';
 
 /**
  * Qué se ve en cada toma y qué palabras de la voz lo nombran. `prompt` va en inglés porque así
@@ -243,6 +244,9 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number; /** S
   const lead = opts.lead ?? VOICE_LEAD;
   // Trozos ya usados de cada toma (para no repetir imagen) y la última toma puesta.
   const cursor = new Map(shots.map((s) => [s.id, s.start + Math.min(0.3, (s.end - s.start) * 0.1)]));
+  // Qué partes de cada toma se ven limpias (sin barridos ni desenfoques): solo esas se usan.
+  const quality: QualityMap = await shotQuality(dir, every).catch(() => ({}));
+  const startAt = new Map<string, number>();
   const turn = new Map<string, number>();
   let last = '';
   let run = 0;
@@ -270,21 +274,26 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number; /** S
       // Nunca la misma toma seguida; si el plato tiene una sola, como mucho dos veces (partes distintas).
       // (Si un guion pide esa toma exacta, sigue en ella: es lo que mandó el guion.)
       if (s.id === last && (n > 1 || (run >= 2 && !opts.segments?.length))) continue;
-      if (s.end - cursor.get(s.id)! >= rlen) { pick = s; turn.set(key, ((turn.get(key) ?? 0) + k + 1) % n); }
+      const st = cleanStart(quality[s.id], cursor.get(s.id)!, rlen, s.end);
+      if (s.end - st >= rlen) { pick = s; startAt.set(s.id, st); turn.set(key, ((turn.get(key) ?? 0) + k + 1) % n); }
     }
     if (!pick && seg) {
       // El plato tiene una sola toma (o ya se gastó): en vez de repetir la misma imagen seguida,
       // entra otro plato vistoso y luego vuelve el que se nombra.
       // Si el plato acaba de salir, va otro; si no, se repite el plato desde el principio.
-      if (pool.some((s) => s.id === last)) for (const s of opening) if (s.id !== last && s.end - cursor.get(s.id)! >= rlen) { pick = s; break; }
+      if (pool.some((s) => s.id === last)) for (const s of opening) {
+        const st = cleanStart(quality[s.id], cursor.get(s.id)!, rlen, s.end);
+        if (s.id !== last && s.end - st >= rlen) { pick = s; startAt.set(s.id, st); break; }
+      }
     }
     if (!pick) {
       // Sin material libre: se vuelve a usar la toma más larga del plato desde el principio.
       pick = pool.filter((s) => s.end - s.start >= rlen).sort((a, b) => (b.end - b.start) - (a.end - a.start))[0] ?? null;
       if (!pick) continue; // ninguna toma del plato es tan larga: se deja la escena como estaba
-      cursor.set(pick.id, pick.start);
+      startAt.set(pick.id, cleanStart(quality[pick.id], pick.start, rlen, pick.end));
     }
-    const start = cursor.get(pick.id)!;
+    const start = startAt.get(pick.id) ?? cursor.get(pick.id)!;
+    startAt.delete(pick.id);
     scene.ranges = [{ start: +start.toFixed(4), end: +(start + rlen).toFixed(4) }];
     scene.title = `Toma ${pick.id.slice(1)}`;
     // Hueco entre trozos de la misma toma, para que la próxima vez se vea otra parte.
