@@ -87,7 +87,7 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
     <div class="facts">
       <span class="chip"><b>Windows 10/11</b> o <b>macOS 13+</b></span>
       <span class="chip">Primera vez: <b>20 a 40 min</b></span>
-      <span class="chip">Necesitas: <b>cuenta de GitHub</b> (gratis)</span>
+      <span class="chip">Solo necesitas: <b>el paquete .zip</b> (5 MB)</span>
     </div>
   </header>
 
@@ -108,18 +108,9 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
     </div>
   </section>
 
-  <section aria-labelledby="acceso">
-    <h2 id="acceso">2. Pide acceso (una sola vez)</h2>
-    <p class="muted">La app vive en un proyecto privado de GitHub. Para bajarla, el dueño te tiene que invitar.</p>
-    <ol class="steps">
-      <li><div><h3>Crea tu cuenta de GitHub</h3><p>Entra a <a href="https://github.com/signup" target="_blank" rel="noopener">github.com/signup</a> y crea una cuenta gratis. Si ya tienes una, usa esa.</p></div></li>
-      <li><div><h3>Envía tu nombre de usuario</h3><p>Mándale a quien te compartió este manual tu <b>nombre de usuario de GitHub</b> (no tu contraseña). Con eso te invita al proyecto.</p></div></li>
-      <li><div><h3>Acepta la invitación</h3><p>Te llega un correo de GitHub: <span class="ui">«View invitation»</span> → <span class="ui">«Accept invitation»</span>. Sin este paso el instalador no puede bajar la app.</p></div></li>
-    </ol>
-  </section>
 
   <section aria-labelledby="instalar">
-    <h2 id="instalar">3. Instala</h2>
+    <h2 id="instalar">2. Instala</h2>
     <div class="tabs" role="tablist" aria-label="Sistema">
       <button role="tab" id="tab-win" aria-controls="win" aria-selected="true" data-tab="win">Windows</button>
       <button role="tab" id="tab-mac" aria-controls="mac" aria-selected="false" data-tab="mac">Mac</button>
@@ -127,11 +118,10 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
 
     <div id="win" role="tabpanel" aria-labelledby="tab-win" data-panel="win" style="display:grid;gap:12px">
       <ol class="steps">
-        <li><div><h3>Baja el instalador</h3><p>Abre el link que te compartieron y descarga <code>Axioma Studio para Windows.zip</code> (pesa unos KB: el resto lo baja solo).</p></div></li>
-        <li><div><h3>Descomprímelo</h3><p>Clic derecho sobre el .zip → <span class="ui">Extraer todo</span> → <span class="ui">Extraer</span>.</p></div></li>
-        <li><div><h3>Abre el instalador</h3><p>Doble clic en <b>«Instalar Axioma Studio.bat»</b>. Si aparece <span class="ui">«Windows protegió su PC»</span>, pulsa <span class="ui">Más información</span> → <span class="ui">Ejecutar de todas formas</span>.</p></div></li>
-        <li><div><h3>Entra a GitHub</h3><p>Cuando salga la ventana de GitHub, pulsa <span class="ui">«Sign in with your browser»</span> y entra con <b>tu</b> cuenta (la que aceptó la invitación). Solo la primera vez.</p></div></li>
-        <li><div><h3>Responde dos preguntas</h3><p>Si pregunta por <b>traer proyectos desde iCloud</b>, responde <kbd>N</kbd> (eso es solo para el dueño). Si pregunta por la <b>IA local</b>, responde <kbd>S</kbd> si tu computador tiene 16 GB de RAM o más; si no, <kbd>N</kbd>.</p></div></li>
+        <li><div><h3>Baja el paquete</h3><p>Abre el link que te compartieron y descarga <code>Axioma Studio - instalador completo.zip</code> (unos 5 MB: lo pesado lo baja el instalador).</p></div></li>
+        <li><div><h3>Descomprímelo en una carpeta fija</h3><p>Clic derecho sobre el .zip → <span class="ui">Extraer todo</span>. Elige <b>Documentos</b> o tu carpeta de usuario: la app queda instalada ahí, así que no uses Descargas si sueles vaciarla.</p></div></li>
+        <li><div><h3>Abre el instalador</h3><p>Entra a la carpeta <b>Axioma Studio</b> y haz doble clic en <b>«Instalar Axioma Studio.bat»</b>. Si aparece <span class="ui">«Windows protegió su PC»</span>, pulsa <span class="ui">Más información</span> → <span class="ui">Ejecutar de todas formas</span>.</p></div></li>
+        <li><div><h3>Responde la pregunta de la IA local</h3><p>Responde <kbd>S</kbd> si tu computador tiene 16 GB de RAM o más (baja entre 5 y 11 GB); si no, <kbd>N</kbd>. La app funciona igual sin ella.</p></div></li>
         <li><div><h3>Espera</h3><p>Instala solo Node, FFmpeg, la transcripción y la IA. No cierres la ventana. Al terminar aparece <b>«Axioma Studio»</b> en el Escritorio.</p></div></li>
       </ol>
       <div class="note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.1"/></svg><p>Si dice <b>«Falta winget»</b>, instala <span class="ui">App Installer</span> desde Microsoft Store y abre el instalador otra vez.</p></div>
@@ -139,9 +129,9 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
 
     <div id="mac" role="tabpanel" aria-labelledby="tab-mac" data-panel="mac" style="display:none;gap:12px">
       <ol class="steps">
-        <li><div><h3>Instala GitHub Desktop</h3><p>Baja <a href="https://desktop.github.com" target="_blank" rel="noopener">GitHub Desktop</a> (gratis), ábrelo y entra con <b>tu</b> cuenta de GitHub (la que aceptó la invitación).</p></div></li>
-        <li><div><h3>Baja la app</h3><p>En GitHub Desktop: <span class="ui">File</span> → <span class="ui">Clone repository</span> → pestaña <span class="ui">URL</span>, pega <code>sergioagc26/axioma-studio</code>. En <span class="ui">Local path</span> elige tu carpeta de usuario y pulsa <span class="ui">Clone</span>.</p></div></li>
-        <li><div><h3>Abre el instalador</h3><p>En Finder, entra a la carpeta <b>axioma-studio</b>. La primera vez: clic derecho sobre <b>«Instalar Axioma Studio.command»</b> → <span class="ui">Abrir</span> → <span class="ui">Abrir</span> (así macOS lo deja correr).</p></div></li>
+        <li><div><h3>Baja el paquete</h3><p>Abre el link que te compartieron y descarga <code>Axioma Studio - instalador completo.zip</code>.</p></div></li>
+        <li><div><h3>Descomprímelo y guárdalo</h3><p>Doble clic en el .zip. Mueve la carpeta <b>Axioma Studio</b> a tu carpeta de usuario (la de la casita en Finder): la app queda instalada ahí.</p></div></li>
+        <li><div><h3>Abre el instalador</h3><p>Dentro de la carpeta, la primera vez: clic derecho sobre <b>«Instalar Axioma Studio.command»</b> → <span class="ui">Abrir</span> → <span class="ui">Abrir</span> (así macOS lo deja correr).</p></div></li>
         <li><div><h3>Escribe la contraseña del Mac</h3><p>Instala las herramientas de Apple y Homebrew, que piden la contraseña de tu Mac. Al escribirla no se ve nada: es normal, escríbela y pulsa Enter.</p></div></li>
         <li><div><h3>Responde y espera</h3><p>Si pregunta por la <b>IA local</b>, responde <kbd>s</kbd> si tu Mac tiene 16 GB o más. Al terminar aparece <b>«Axioma Studio»</b> en el Escritorio y la app se abre sola.</p></div></li>
       </ol>
@@ -149,7 +139,7 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
   </section>
 
   <section aria-labelledby="primer">
-    <h2 id="primer">4. Primer uso</h2>
+    <h2 id="primer">3. Primer uso</h2>
     <ol class="steps">
       <li><div><h3>Ábrela</h3><p>Doble clic en <b>«Axioma Studio»</b> del Escritorio. Se abre en tu navegador, en <code>localhost:4747</code>. Es tu computador, no una página de internet.</p></div></li>
       <li><div><h3>Optimízala para tu computador</h3><p><span class="ui">Proyectos</span> → <span class="ui">Ajustes</span> → <span class="ui">Configuración</span> → <span class="ui">Optimizar para este computador</span>. Elige la IA, la voz y la velocidad de exportación que le caben.</p></div></li>
@@ -164,7 +154,7 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
       <table>
         <tbody>
           <tr><td>Abrir</td><td>Ícono «Axioma Studio» del Escritorio. Si ya estaba abierta, solo abre el navegador.</td></tr>
-          <tr><td>Actualizar</td><td>Botón <span class="ui">Actualizar</span> en la pantalla de Proyectos. Baja lo nuevo y se reinicia.</td></tr>
+          <tr><td>Actualizar</td><td>Pide el paquete nuevo, extráelo encima de la misma carpeta (reemplaza los archivos) y abre el instalador otra vez. Tus proyectos no se tocan.</td></tr>
           <tr><td>Reparar</td><td>Abre el instalador otra vez: salta lo que ya está y arregla lo que falte.</td></tr>
           <tr><td>Tus videos</td><td>Quedan en la carpeta de la app, en <code>workspace</code>. Las exportaciones van a <code>renders</code> de cada proyecto.</td></tr>
         </tbody>
@@ -175,7 +165,7 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
   <section aria-labelledby="problemas">
     <h2 id="problemas">Si algo falla</h2>
     <div class="faq">
-      <details><summary>«No se pudo bajar la app»</summary><p>Casi siempre falta aceptar la invitación de GitHub (paso 2.3) o entraste con otra cuenta. Acepta la invitación, abre el instalador otra vez y entra con la cuenta invitada.</p></details>
+      <details><summary>Moví o borré la carpeta y el ícono ya no abre</summary><p>La app vive en la carpeta donde la extrajiste. Vuelve a ponerla donde estaba, o extrae el paquete en su lugar nuevo y abre el instalador otra vez: crea el ícono de nuevo.</p></details>
       <details><summary>Windows no deja abrir el .bat</summary><p>Pulsa <b>Más información</b> → <b>Ejecutar de todas formas</b>. Si tu antivirus lo bloquea, permite el archivo una vez.</p></details>
       <details><summary>macOS dice «desarrollador no identificado»</summary><p>Clic derecho sobre el archivo → <b>Abrir</b> → <b>Abrir</b>. Solo hace falta la primera vez.</p></details>
       <details><summary>Se queda mucho rato en «IA local»</summary><p>Está bajando entre 5 y 11 GB. Déjalo terminar. Si tu internet es lento, puedes responder que no y bajarla después desde Configuración.</p></details>
