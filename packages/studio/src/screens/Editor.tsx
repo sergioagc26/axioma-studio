@@ -41,6 +41,7 @@ const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['burbuja', 'Burbuja', 'Letras de color con borde blanco grueso, tipo caricatura.'],
   ['retro', 'Retro en capas', 'Tres sombras de colores apiladas, estilo años 70.'],
   ['resplandor', 'Resplandor', 'Letras blancas con un halo de luz de color alrededor.'],
+  ['lujo', 'Lujo', 'La palabra clave grande en dorado, lo demás pequeño y espaciado. Para comida, moda o marcas finas.'],
 ];
 const BASIC = new Set<string>(BASIC_TEXT_STYLES);
 
@@ -926,6 +927,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <Slider label="Grosor del borde" value={project.captions.strokeScale} min={0} max={2.5} step={0.05} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => store.update((p) => { p.captions.strokeScale = v; })} />
           <Slider label="Separación entre letras" value={project.captions.spacing} min={-0.05} max={0.3} step={0.01} show={(v) => v.toFixed(2)} onCommit={(v) => store.update((p) => { p.captions.spacing = v; })} />
           <label className="row"><input type="checkbox" checked={project.captions.plate} onChange={(e) => store.update((p) => { p.captions.plate = e.target.checked; })} /> Placa oscura detrás (se lee sobre cualquier fondo)</label>
+          <label className="row"><input type="checkbox" checked={project.captions.behind} onChange={(e) => store.update((p) => { p.captions.behind = e.target.checked; })} /> Texto detrás de la comida (el plato queda por delante; se prepara al exportar)</label>
           <label className="row"><input type="checkbox" checked={project.captions.stroke} onChange={(e) => store.update((p) => { p.captions.stroke = e.target.checked; })} /> Borde negro en las letras</label>
 
                       </Group>}

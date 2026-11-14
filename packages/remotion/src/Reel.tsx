@@ -81,6 +81,25 @@ export const Reel: React.FC<Timeline> = (t) => {
   );
 };
 
+
+/**
+ * Capa de «comida por delante»: el mismo video, solo donde está lo cercano (el plato), encima de
+ * los subtítulos y títulos, así el texto queda detrás de la comida. Calza con la escena porque usa
+ * su mismo encuadre; en las transiciones no se dibuja.
+ */
+const ClipFront: React.FC<{ clip: TimelineClip; t: Timeline }> = ({ clip, t }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  if (!t.frontSrc || clip.motion || clip.brollSrc || clip.backdrop || clip.speed || clip.videoScale < 1 || clip.visual !== 'original') return null;
+  if (clip.transition && frame < clip.transition.frames) return null;
+  const { cover, pos } = clipView(clip, t, frame, fps);
+  return (
+    <AbsoluteFill>
+      <OffthreadVideo src={t.frontSrc} transparent trimBefore={clip.fromFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }} />
+    </AbsoluteFill>
+  );
+};
+
 const ReelBody: React.FC<Timeline> = (t) => {
   const font = useFont(t.captions.fontFamily);
   const chunks = useMemo(
@@ -98,6 +117,9 @@ const ReelBody: React.FC<Timeline> = (t) => {
     const prev = i > 0 ? emojis[i - 1] : null;
     return prev && c.startFrame - chunks[i - 1].startFrame < t.fps * 1.1 ? { emoji: prev, fresh: false } : undefined;
   }), [chunks, emojis, t.fps]);
+  // Con la capa de comida por delante, el gancho y el cierre siguen encima de todo (deben leerse
+  // enteros); los subtítulos y los títulos del medio quedan detrás del plato.
+  const inFront = (o: TimelineOverlay) => !t.frontSrc || o.fromFrame === 0 || o.fromFrame + o.durationInFrames >= t.durationInFrames - 1;
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {t.clips.map((c, i) => (
@@ -105,7 +127,7 @@ const ReelBody: React.FC<Timeline> = (t) => {
           <Clip clip={c} t={t} font={font} />
         </Sequence>
       ))}
-      {t.overlays.map((o, i) => (
+      {t.overlays.map((o, i) => (inFront(o) ? null :
         <Sequence key={`o${i}`} from={o.fromFrame} durationInFrames={o.durationInFrames}>
           <Overlay overlay={o} font={font} t={t} />
         </Sequence>
@@ -113,6 +135,16 @@ const ReelBody: React.FC<Timeline> = (t) => {
       {chunks.map((ch, i) => (
         <Sequence key={`c${i}`} from={ch.startFrame} durationInFrames={Math.max(1, ch.endFrame - ch.startFrame)}>
           <Caption chunk={ch} font={font} t={t} emoji={emojiAt[i]} />
+        </Sequence>
+      ))}
+      {t.frontSrc ? t.clips.map((c, i) => (
+        <Sequence key={`f${i}`} from={c.fromFrame} durationInFrames={c.durationInFrames} premountFor={t.fps}>
+          <ClipFront clip={c} t={t} />
+        </Sequence>
+      )) : null}
+      {t.overlays.map((o, i) => (!inFront(o) ? null :
+        <Sequence key={`of${i}`} from={o.fromFrame} durationInFrames={o.durationInFrames}>
+          <Overlay overlay={o} font={font} t={t} />
         </Sequence>
       ))}
       {t.finish.halation ? <AbsoluteFill style={{ backdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', WebkitBackdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', mixBlendMode: 'screen', opacity: 0.28, pointerEvents: 'none' }} /> : null}
@@ -288,10 +320,11 @@ const Progress: React.FC<{ t: Timeline }> = ({ t }) => {
   );
 };
 
-const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ clip, t, font }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const mfont = useFont(clip.motion?.style?.font ?? '');
+/**
+ * Encuadre de una escena en este fotograma (zoom, movimiento de cámara, look). Lo usan la escena
+ * y la capa de «comida por delante», que tiene que calzar pixel a pixel con ella.
+ */
+function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
   const zoom = clip.punchZoom
     ? interpolate(spring({ frame, fps, config: { damping: 14, stiffness: 180 } }), [0, 1], [1.18, 1.08])
     : 1;
@@ -333,6 +366,14 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
     }
   }
   const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: `${pos.x * 100}% ${pos.y * 100}%`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
+  return { cover, pos, filter };
+}
+
+const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ clip, t, font }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const mfont = useFont(clip.motion?.style?.font ?? '');
+  const { cover, pos, filter } = clipView(clip, t, frame, fps);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
   // Si solo cambia el encuadre (reencuadre al hablante), el audio sigue sin fundido.
@@ -715,6 +756,33 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
           {before ? <div style={{ fontSize: 50 * k }}>{before}</div> : null}
           {key ? <div style={{ fontSize: Math.min(190, Math.max(96, 1150 / Math.max(4, key.length))) * k, color, lineHeight: 0.98, transform: `scale(${interpolate(kw, [0, 1], [0.6, 1])})` }}>{key}</div> : null}
           {after ? <div style={{ fontSize: 50 * k }}>{after}</div> : null}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (overlay.style === 'lujo') {
+    // Rótulo de restaurante fino: la palabra clave grande en dorado, lo demás pequeño y espaciado,
+    // con dos líneas doradas que se abren. Sin borde negro: sombra suave para leerse sobre el plato.
+    const ki = words.findIndex(isKey);
+    const k0 = ki < 0 ? words.length - 1 : ki;
+    const before = words.slice(0, k0).join(' ');
+    const key = words[k0] ?? '';
+    const after = words.slice(k0 + 1).join(' ');
+    const gold = 'linear-gradient(180deg, #FFF4D6 0%, #F3D58A 45%, #C9973F 100%)';
+    const open = interpolate(frame, [4, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    const small: React.CSSProperties = { fontSize: 34 * k, fontWeight: 600, letterSpacing: '0.32em', color: '#FFF6E6', textTransform: 'uppercase', textShadow: '0 2px 14px rgba(0,0,0,0.75)', marginRight: '-0.32em' };
+    const line: React.CSSProperties = { height: Math.max(2, 3 * k), width: `${18 * open}%`, background: 'linear-gradient(90deg, transparent, #E9C46A)', boxShadow: '0 1px 6px rgba(0,0,0,0.5)' };
+    return (
+      <AbsoluteFill>
+        <div style={{ ...wrap, lineHeight: 1.05 }}>
+          {before ? <div style={small}>{before}</div> : null}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22 * k, margin: `${8 * k}px 0` }}>
+            <div style={line} />
+            <div style={{ fontSize: Math.min(150, Math.max(80, 980 / Math.max(4, key.length))) * k, fontWeight: 800, backgroundImage: gold, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.7))', transform: `scale(${interpolate(kw, [0, 1], [0.86, 1])})`, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>{key}</div>
+            <div style={{ ...line, transform: 'scaleX(-1)' }} />
+          </div>
+          {after ? <div style={small}>{after}</div> : null}
         </div>
       </AbsoluteFill>
     );

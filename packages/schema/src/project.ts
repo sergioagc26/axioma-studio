@@ -59,6 +59,8 @@ export const CaptionStyle = z.object({
   lineAnim: z.enum(['pop', 'subir', 'deslizar', 'ninguna']).default('pop'),
   /** Separación entre letras (em). */
   spacing: z.number().min(-0.05).max(0.3).default(0),
+  /** Subtítulos y títulos detrás de lo cercano (la comida, el producto), como en los anuncios. */
+  behind: z.boolean().default(false),
   /** Emojis automáticos encima de los subtítulos cuando suena una palabra con emoji claro. */
   emojis: z.boolean().default(false),
   /** Subtítulos en otro idioma (la voz sigue igual). Sin valor: el idioma del video. */
@@ -67,7 +69,7 @@ export const CaptionStyle = z.object({
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
 /** Formas de mostrar el texto en pantalla de una escena. */
-export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor']);
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor', 'lujo']);
 /** Estilos de texto básicos; el resto son los llamativos. */
 export const BASIC_TEXT_STYLES = ['caja', 'resaltado', 'subrayado', 'banda', 'etiqueta', 'contorno'] as const;
 /** Cómo entra el texto en pantalla. */

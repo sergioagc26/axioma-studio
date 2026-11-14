@@ -1,3 +1,4 @@
+import { buildFront, readFront } from './front.ts';
 import { cutoutCoverage } from './matte.ts';
 import { llmUnload } from './llm.ts';
 import { existsSync, statSync } from 'node:fs';
@@ -54,6 +55,13 @@ export async function brandFor(project: Project, asset: (rel: string) => string,
   };
 }
 
+/** Capa de «texto detrás de la comida», si está pedida y hecha. */
+async function frontFor(dir: string, project: Project, asset: (rel: string) => string) {
+  if (!project.captions.behind) return undefined;
+  const f = await readFront(dir);
+  return f ? { src: asset(f.file.split(path.sep).join('/')), key: f.key } : undefined;
+}
+
 /** Voz en off (con sus palabras) y seguimiento de cara, para armar la línea de tiempo. */
 export async function timelineExtras(dir: string, project: Project, asset: (rel: string) => string) {
   const vo = project.audio.voiceover;
@@ -63,7 +71,7 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
     : undefined;
   const speakers = project.source.followSpeaker ? (await readSpeakers(dir))?.turns : undefined;
   const translated = await captionWords(dir, project.captions.language);
-  return { voiceover, faces: await readFaces(dir), speakers, captionWords: translated, transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
+  return { voiceover, faces: await readFaces(dir), speakers, captionWords: translated, transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), front: await frontFor(dir, project, asset), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
 }
 
 export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void; /** Versión modificada del proyecto (sin guardarla), p. ej. otra variante de gancho. */ project?: Project; /** Se agrega al nombre del archivo. */ suffix?: string } = {}) {
@@ -74,6 +82,8 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
   await llmUnload().catch(() => {});
   await ensureUsedSfx(dir, project);
   await ensureProjectDepth(dir, project);
+  // Texto detrás de la comida: si los cortes cambiaron desde que se armó la capa, se rehace.
+  if (project.captions.behind && !opts.project) await buildFront(dir).catch(() => {});
   const server = await serveFolder(dir);
   try {
     const has = (rel?: string) => Boolean(rel && existsSync(path.join(dir, rel)));

@@ -46,6 +46,11 @@ export async function analyzeVision(dir: string, duration: number, log: (m: stri
   return report;
 }
 
+/** Clasifica una imagen entre varias descripciones (en inglés funciona mejor). Local. */
+export async function classifyImage(file: string, labels: string[]): Promise<{ label: string; score: number }[]> {
+  return (await getClassifier())(file, labels);
+}
+
 export async function readVision(dir: string): Promise<VisionReport | null> {
   const f = path.join(dir, P.vision);
   return existsSync(f) ? JSON.parse(await readFile(f, 'utf8')) : null;

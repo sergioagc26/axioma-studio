@@ -114,6 +114,11 @@ export type Timeline = {
   videoSrc: string;
   /** El mismo video con la persona recortada y fondo transparente. */
   cutoutSrc?: string;
+  /**
+   * Lo cercano (la comida) con fondo transparente, en tiempo de la salida: va encima del texto
+   * para que el texto quede detrás. Solo si se armó para estos mismos cortes (ver frontKey).
+   */
+  frontSrc?: string;
   /** Si existe, se usa en lugar del audio del video. */
   voiceSrc?: string;
   musicSrc?: string;
@@ -150,6 +155,8 @@ export interface TimelineUrls {
   voiceover?: { src: string; words: Transcript['words'] };
   /** Video con la persona recortada, si ya se hizo. */
   cutout?: string;
+  /** Capa de «comida por delante» y la clave de los cortes con que se armó. */
+  front?: { src: string; key: string };
   /** Mapas de profundidad que existen en el proyecto (rutas relativas). */
   depth?: string[];
   /** Parte del cuadro que ocupa la persona, dos veces por segundo. */
@@ -426,6 +433,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     voiceoverSrc: urls.voiceover?.src,
     videoSrc: urls.video,
     cutoutSrc: urls.cutout,
+    frontSrc: urls.front && urls.front.key === frontKey(clips) ? urls.front.src : undefined,
     voiceSrc: urls.voice,
     musicSrc: urls.music,
     musicVolume: project.audio.musicVolume,
@@ -457,4 +465,14 @@ function activeColor(scene: Scene) {
 /** Duración total de salida del proyecto en segundos. */
 export function outputDuration(project: Project): number {
   return project.scenes.reduce((a, s) => a + sceneLength(s), 0);
+}
+
+/**
+ * Clave de los cortes de una línea de tiempo: si cambia (otro orden, otra toma, otra duración),
+ * la capa de «comida por delante» ya no calza y hay que volver a armarla.
+ */
+export function frontKey(clips: Pick<TimelineClip, 'fromFrame' | 'durationInFrames' | 'sourceStartFrame' | 'speed'>[]): string {
+  let h = 5381;
+  for (const c of clips) for (const ch of `${c.fromFrame}:${c.durationInFrames}:${c.sourceStartFrame}:${c.speed ?? 1};`) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+  return `${clips.length}-${h.toString(36)}`;
 }

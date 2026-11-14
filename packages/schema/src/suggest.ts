@@ -100,6 +100,7 @@ const TYPO: [NonNullable<SceneVariant['textStyle']>, string, NonNullable<SceneVa
   ['burbuja', 'Bangers', 'caer', 'Burbuja de cómic'],
   ['retro', 'Righteous', 'cortina', 'Retro en capas'],
   ['resplandor', 'Sora', 'estirar', 'Resplandor'],
+  ['lujo', 'Playfair Display', 'desenfoque', 'Lujo dorado'],
 ];
 const CAMS: [NonNullable<SceneVariant['camera']>, number, number, string][] = [
   ['acercar', 0.2, 0.35, 'La cámara se acerca despacio, con los bordes oscurecidos: foco en ti.'],

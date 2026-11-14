@@ -21,6 +21,8 @@ import path from 'node:path';
 import { asMontage, createMontage, detectShots } from './montage.ts';
 import { prepareMedia, transcribeProject } from './pipeline.ts';
 import { hasSpeech } from './transcribe.ts';
+import { VOICE_LEAD, sceneSwitchPoint, syncShotsToVoice, tagShots } from './voicesync.ts';
+import { buildFront } from './front.ts';
 import { renderProject } from './render.ts';
 import { createProject } from './store.ts';
 
@@ -391,6 +393,24 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
   project.brief.prompt = await buildPrompt(dir);
   await writeProject(dir, project);
 
+  // Montaje con voz en off: cada plato (o momento) que nombra la voz sale en pantalla justo ahí,
+  // y los subtítulos van discretos (la voz ya lo dice; el protagonista es lo que se ve).
+  if (project.kind === 'montaje' && project.audio.voiceover) {
+    say('Mirando qué se ve en cada toma…');
+    try {
+      await tagShots(dir);
+      const synced = await syncShotsToVoice(dir);
+      if (synced.length) summary.push(`Imagen y voz sincronizadas: cuando la voz dice ${synced.map((x) => `«${x.word.replace(/[^\p{L}\p{N}]/gu, '')}»`).join(', ')}, eso es lo que se ve.`);
+    } catch { /* sin modelo de visión el montaje queda en el orden de las tomas */ }
+    project = await readProject(dir);
+    const food = ['comida', 'producto'].includes((await readVision(dir).catch(() => null))?.topic ?? '');
+    Object.assign(project.captions, VOICEOVER_CAPTIONS, { behind: food });
+    await writeProject(dir, project);
+    summary.push(food
+      ? 'Subtítulos pequeños y discretos, detrás de la comida (el plato queda por delante del texto).'
+      : 'Subtítulos pequeños y discretos: la voz ya lo dice, lo importante es lo que se ve.');
+  }
+
   // Música: sola, del ánimo que pide el reel (en los montajes ya se eligió antes de cortar).
   if (project.kind !== 'montaje') {
     say('Eligiendo la música…');
@@ -417,8 +437,10 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
     const hook = await montageHook(dir, project).catch(() => null);
     if (hook) {
       opening.onScreenText = hook; opening.autoText = hook;
-      // El gancho siempre en grande: es lo primero que decide si alguien se queda.
-      opening.textStyle = 'gigante';
+      // El gancho siempre en grande: es lo primero que decide si alguien se queda. Con voz en off
+      // sobre comida, en el estilo fino (dorado) que acompaña a los títulos de los platos.
+      opening.textStyle = project.captions.behind ? 'lujo' : 'gigante';
+      if (project.captions.behind) { opening.textFont = 'Playfair Display'; opening.textAnim = 'desenfoque'; }
       opening.textPosition = 'arriba';
       // En un montaje los planos duran menos de un segundo: el gancho sigue en las escenas
       // siguientes hasta ~2,5 s (se dibuja como un solo rótulo, sin volver a entrar).
@@ -463,11 +485,25 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
     const titles = await voiceoverTitles(dir, project).catch(() => []);
     if (titles.length) summary.push(`Títulos en pantalla al ritmo de la voz: ${titles.map((t) => `«${t}»`).join(', ')}.`);
   }
+  // Texto detrás de la comida: la capa con lo cercano se arma con los cortes ya definitivos.
+  project = await readProject(dir);
+  if (project.captions.behind) {
+    say('Poniendo la comida por delante del texto…');
+    await buildFront(dir, (_p, m) => say(m)).catch(() => {
+      summary.push('No pude separar la comida del fondo: los subtítulos van encima de la imagen.');
+    });
+  }
   summary.unshift(...fixes);
   // Lo que se hizo queda guardado para mostrarlo en Resultado (también tras recargar).
   await writeFile(path.join(dir, 'resumen-edicion.json'), JSON.stringify({ at: new Date().toISOString(), summary }, null, 2)).catch(() => {});
   return { summary };
 }
+
+/** Subtítulos de un montaje con voz en off: pequeños, sin borde, crema con la palabra en dorado. */
+const VOICEOVER_CAPTIONS = {
+  design: 'minimal', fontSize: 66, color: '#FFF6E9', highlightColor: '#F2C14E', uppercase: false,
+  stroke: false, emphasis: false, effect: 'color', wordsPerLine: 4, y: 0.42, lineAnim: 'subir' as const, plate: false,
+};
 
 /** Pone la música automática y dice qué pasó (también cuando no se pudo o se quitó a mano). */
 async function musicFor(dir: string): Promise<string[]> {
@@ -490,10 +526,12 @@ export async function montageHook(dir: string, project: Awaited<ReturnType<typeo
   const extras = Object.entries(b).filter(([k, v]) => k.startsWith('extra:') && v && !/^no aplica$/i.test(v)).map(([, v]) => v);
   const seen = (await readVision(dir).catch(() => null))?.scores?.[0]?.label;
   const kit = await readKit(project.client).catch(() => null);
+  const voice = project.audio.voiceover?.text?.slice(0, 600);
   const context = [
     b.notas ? `Lo que dice el cliente: ${b.notas}` : '',
     extras.length ? `Datos del cliente: ${extras.join(' · ')}` : '',
     seen ? `En el video se ve: ${seen}` : '',
+    voice ? `La voz en off dice: «${voice}» (el texto de apertura NO repite su primera frase: la resume en una pregunta o promesa corta que dé curiosidad)` : '',
     kit?.name ? `Marca: ${kit.name}${kit.sector ? ` (${kit.sector})` : ''}` : '',
   ].filter(Boolean).join('\n');
   if (await llmReady()) {
@@ -525,7 +563,9 @@ export async function voiceoverTitles(dir: string, project: Awaited<ReturnType<t
   const brand = normW(project.client ?? '') + normW((await readKit(project.client).catch(() => null))?.name ?? '');
   const listed = [project.brief.notas ?? '', ...Object.entries(project.brief).filter(([k]) => k.startsWith('extra:')).map(([, v]) => v)]
     .join('. ').split(/[.,;:\n]|\sy\s|\se\s/).map((x) => x.trim()).filter((x) => x && x.split(/\s+/).length <= 2 && !/^(sin|no|con)\b/i.test(x));
-  const products = listed.filter((x) => !brand.includes(normW(x)) && words.some((w) => normW(w.text) === normW(x.split(/\s+/)[0])));
+  // Singular o plural da igual («burros» en la nota, «el burro» en la voz).
+  const sing = (t: string) => normW(t).replace(/(es|s)$/, '');
+  const products = listed.filter((x) => !brand.includes(normW(x)) && words.some((w) => sing(w.text) === sing(x.split(/\s+/)[0])));
   const ai = await llmReady();
   const r = { titulos: products.map((x) => ({ texto: x, primera_palabra: x.split(/\s+/)[0] })) };
   // 2. Ideas clave de la narración, con la IA local, si quedan huecos.
@@ -537,7 +577,7 @@ export async function voiceoverTitles(dir: string, project: Awaited<ReturnType<t
   ).catch(() => ({ titulos: [] }))).titulos.filter((t) => !products.some((x) => normW(x) === normW(t.primera_palabra))).slice(0, 5 - r.titulos.length));
   if (!r.titulos.length) return [];
   // En orden de aparición en la narración.
-  const at = (t: { primera_palabra: string }) => { const k = words.findIndex((w) => normW(w.text).startsWith(normW(t.primera_palabra))); return k < 0 ? 1e9 : k; };
+  const at = (t: { primera_palabra: string }) => { const k = words.findIndex((w) => normW(w.text).startsWith(normW(t.primera_palabra)) || sing(w.text) === sing(t.primera_palabra)); return k < 0 ? 1e9 : k; };
   r.titulos.sort((x, y) => at(x) - at(y));
   const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ]/g, '');
   // Inicio de cada escena en el reel.
@@ -554,18 +594,24 @@ export async function voiceoverTitles(dir: string, project: Awaited<ReturnType<t
     const text = raw.charAt(0).toUpperCase() + raw.slice(1);
     const key = norm(t.primera_palabra);
     // La palabra exacta, o la que la contiene (la transcripción a veces pega dos palabras).
-    let wi = words.findIndex((w, i) => i >= from && norm(w.text) === key);
+    let wi = words.findIndex((w, i) => i >= from && (norm(w.text) === key || sing(w.text) === sing(key)));
     if (wi < 0 && key.length >= 4) wi = words.findIndex((w, i) => i >= from && (norm(w.text).startsWith(key) || key.startsWith(norm(w.text)) && norm(w.text).length >= 4));
     if (wi < 0) continue;
     from = wi + 1;
     let i = sceneAt(words[wi].start);
+    // Si se nombra ya avanzada la escena, el plato sale en la siguiente (ver la sincronía): el
+    // título va con él.
+    if (i + 1 < starts.length && words[wi].start - VOICE_LEAD > sceneSwitchPoint(starts[i], sceneLength(project.scenes[i]))) i++;
     if (i === 0 || i >= project.scenes.length - 1) continue;
     // El título se queda ~1,8 s aunque cambien las tomas (se dibuja como un solo rótulo).
     let shown = 0;
     while (i < project.scenes.length - 1 && shown < 1.8) {
       const sc = project.scenes[i];
       if (sc.onScreenText && sc.onScreenText !== text) break;
-      sc.onScreenText = text; sc.autoText = text; sc.textStyle = 'gigante'; sc.textPosition = 'centro';
+      sc.onScreenText = text; sc.autoText = text;
+      // Con subtítulos detrás de la comida: rótulo fino arriba (no tapa el plato); si no, en grande al centro.
+      if (project.captions.behind) { sc.textStyle = 'lujo'; sc.textPosition = 'arriba'; sc.textFont = 'Playfair Display'; sc.textAnim = 'desenfoque'; sc.textKeyword = text.split(' ')[0]; }
+      else { sc.textStyle = 'gigante'; sc.textPosition = 'centro'; }
       shown += sceneLength(sc); i++;
     }
     if (shown) placed.push(text);

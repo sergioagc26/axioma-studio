@@ -21,6 +21,10 @@ export interface Shot {
   end: number;
   /** Archivo original del que salió (si el montaje junta varios videos). */
   file?: string;
+  /** Qué se ve (un plato, gente comiendo, el local…): sirve para mostrarlo cuando la voz lo nombra. */
+  tag?: string;
+  /** La etiqueta la puso el modelo de visión (se puede volver a calcular); sin esto, la puso una persona. */
+  tagAuto?: boolean;
 }
 
 /** Acepta archivos y carpetas; devuelve los videos en orden. */
