@@ -4,6 +4,7 @@ import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 import { Icon } from '../Icon.tsx';
 import { Dictar } from '../Dictar.tsx';
+import { IgSesion } from '../IgSesion.tsx';
 
 /** Barra de avance: real si el servidor da el avance; si no, se mueve sin prometer un porcentaje. */
 export const ProgressBar: React.FC<{ progress?: number }> = ({ progress }) => {
@@ -211,6 +212,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <span className="small muted">Instagram suele pedir iniciar sesión para ver perfiles; si no deja, pega el link de cada reel.</span>
               </label>
             )}
+            {/instagram\.com/i.test(link) && <IgSesion toast={ctx.toast} profileHint={isProfile(link) ? link.trim() : undefined} />}
             <button className="btn primary" disabled={!link.trim()} onClick={fromLink}><Icon name="link" /> {isProfile(link) ? 'Analizar el perfil' : 'Analizar el link'}</button>
             <button className="btn rect" style={{ borderStyle: 'dashed', height: 40 }} onClick={() => input.current?.click()}><Icon name="upload" />{cur ? 'O sube otro video' : 'O sube el video'}</button>
           </div>

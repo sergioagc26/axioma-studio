@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { run } from './exec.ts';
+import { WORKSPACE } from './paths.ts';
 import { readKit } from './kit.ts';
 import { llmJson, llmReady, visionJson, visionReady } from './llm.ts';
 import { extractWav16k } from './media.ts';
@@ -15,6 +16,58 @@ import type { ReferenceReport } from './reference.ts';
 export type RefSource = NonNullable<ReferenceReport['source']>;
 
 const YTDLP = process.env.SE_YTDLP ?? 'yt-dlp';
+
+/**
+ * Sesión de Instagram para leer perfiles y reels que piden iniciar sesión. Apagada por defecto.
+ * - navegador: la sesión abierta en un navegador de ESTE computador (Chrome, Safari, Firefox, Brave, Edge).
+ * - archivo: un archivo de cookies exportado del navegador (formato cookies.txt), para cuando la
+ *   sesión está en otro computador. Se guarda solo para el dueño y nunca se devuelve.
+ * Todo queda en este computador: la sesión solo se usa para bajar los videos que pidas.
+ */
+export const IG_BROWSERS = ['chrome', 'safari', 'firefox', 'brave', 'edge'] as const;
+export type IgSessionMode = 'apagado' | 'archivo' | (typeof IG_BROWSERS)[number];
+const IG_SETTINGS = path.join(WORKSPACE, 'ajustes-instagram.json');
+const IG_COOKIES = path.join(WORKSPACE, '.instagram-cookies.txt');
+
+export async function igSession(): Promise<{ mode: IgSessionMode; hasFile: boolean }> {
+  let mode: IgSessionMode = 'apagado';
+  try { mode = (JSON.parse(await readFile(IG_SETTINGS, 'utf8')) as { mode: IgSessionMode }).mode ?? 'apagado'; } catch { /* sin ajustes */ }
+  return { mode, hasFile: existsSync(IG_COOKIES) };
+}
+
+export async function setIgSession(mode: IgSessionMode): Promise<{ mode: IgSessionMode; hasFile: boolean }> {
+  if (mode !== 'apagado' && mode !== 'archivo' && !(IG_BROWSERS as readonly string[]).includes(mode)) throw new Error('Esa opción no existe.');
+  if (mode === 'archivo' && !existsSync(IG_COOKIES)) throw new Error('Primero sube el archivo de tu sesión.');
+  await mkdir(WORKSPACE, { recursive: true });
+  await writeFile(IG_SETTINGS, JSON.stringify({ mode }, null, 2));
+  return igSession();
+}
+
+/** Guarda el archivo de cookies (solo las de Instagram, solo legible por el dueño). */
+export async function saveIgCookies(text: string): Promise<{ mode: IgSessionMode; hasFile: boolean }> {
+  const lines = text.replace(/\r/g, '').split('\n');
+  const ig = lines.filter((l) => /^(#HttpOnly_)?\.?(www\.)?instagram\.com\t/.test(l));
+  if (!ig.length) throw new Error('Ese archivo no trae cookies de Instagram. Expórtalo con la página de Instagram abierta y la sesión iniciada (formato cookies.txt).');
+  if (!ig.some((l) => /\tsessionid\t/.test(l))) throw new Error('El archivo no trae la sesión de Instagram (falta «sessionid»): inicia sesión en instagram.com y vuelve a exportarlo.');
+  await mkdir(WORKSPACE, { recursive: true });
+  await writeFile(IG_COOKIES, `# Netscape HTTP Cookie File\n${ig.join('\n')}\n`, { mode: 0o600 });
+  await chmod(IG_COOKIES, 0o600).catch(() => {});
+  return setIgSession('archivo');
+}
+
+export async function removeIgCookies(): Promise<{ mode: IgSessionMode; hasFile: boolean }> {
+  await rm(IG_COOKIES, { force: true });
+  const s = await igSession();
+  return s.mode === 'archivo' ? setIgSession('apagado') : s;
+}
+
+/** Lo que se le pasa a yt-dlp para usar la sesión (solo con links de Instagram). */
+async function igAuthArgs(platform: string): Promise<string[]> {
+  if (platform !== 'instagram') return [];
+  const { mode, hasFile } = await igSession();
+  if (mode === 'archivo') return hasFile ? ['--cookies', IG_COOKIES] : [];
+  return mode === 'apagado' ? [] : ['--cookies-from-browser', mode];
+}
 
 /** Qué tipo de link es: un video suelto, un perfil o algo que no sirve. */
 export function linkKind(raw: string): { url: string; platform: string; profile: boolean } | null {
@@ -32,12 +85,17 @@ export function linkKind(raw: string): { url: string; platform: string; profile:
 }
 
 /** Mensaje claro cuando yt-dlp no puede bajar el video. */
-function downloadError(e: unknown, platform: string, profile: boolean): Error {
+function downloadError(e: unknown, platform: string, profile: boolean, withSession = false): Error {
   const msg = e instanceof Error ? e.message : String(e);
+  if (/Operation not permitted.*Cookies|Cookies\.binarycookies/i.test(msg)) return new Error('macOS no deja leer la sesión de Safari. En Ajustes del Sistema › Privacidad y seguridad › Acceso total al disco, activa la app con la que abres Axioma (Terminal), o usa Chrome o el archivo de sesión.');
+  if (/could not find .*cookies database|failed to load cookies|no such file.*Cookies/i.test(msg)) return new Error('En este computador ese navegador no tiene una sesión abierta. Inicia sesión en Instagram en ese navegador, o sube el archivo de tu sesión.');
+  if (/keyring|keychain|Safe Storage|decrypt/i.test(msg)) return new Error('El Mac pidió permiso para leer la sesión de Chrome: en el aviso del llavero pulsa «Permitir siempre» y vuelve a intentarlo.');
   if (/ENOENT|No se pudo ejecutar/.test(msg)) return new Error('Falta el programa que baja videos desde un link (yt-dlp). En Mac: brew install yt-dlp. Mientras tanto, sube el archivo del video.');
   if (/login|log in|cookies|private|rate-limit|requested content is not available/i.test(msg) || (profile && /Unable to extract/i.test(msg))) {
+    // Con la sesión activada: Instagram no la aceptó (venció, se cerró o pidió verificar la cuenta).
+    if (withSession && platform === 'instagram') return new Error('Instagram no aceptó tu sesión: puede que se haya cerrado o vencido, o que Instagram pida verificar la cuenta. Abre instagram.com, confirma que entras bien y vuelve a exportar el archivo (o vuelve a iniciar sesión en ese navegador).');
     return new Error(platform === 'instagram' && profile
-      ? 'Instagram no deja ver los perfiles sin iniciar sesión. Pega el link de cada reel (Compartir › Copiar enlace) o sube el video.'
+      ? 'Instagram no deja ver los perfiles sin iniciar sesión. Activa «Usar mi sesión de Instagram» (arriba) o pega el link de cada reel (Compartir › Copiar enlace).'
       : 'Esa red pidió iniciar sesión o el video es privado. Prueba con el link de un video público, o descárgalo y súbelo.');
   }
   if (/Unsupported URL|is not a valid URL/i.test(msg)) return new Error('Ese link no es de un video que la app sepa bajar. Pega el link de un reel, TikTok o Short.');
@@ -57,9 +115,9 @@ export async function downloadReference(url: string, tmp: string): Promise<{ fil
     await run(YTDLP, [
       '--no-playlist', '--no-warnings', '--no-progress', '--max-filesize', '300M',
       '-f', 'bv*[height<=1920][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b', '--merge-output-format', 'mp4',
-      '--write-info-json', '-o', path.join(tmp, 'ref.%(ext)s'), kind.url,
+      '--write-info-json', '-o', path.join(tmp, 'ref.%(ext)s'), ...(await igAuthArgs(kind.platform)), kind.url,
     ], { quiet: true });
-  } catch (e) { throw downloadError(e, kind.platform, false); }
+  } catch (e) { throw downloadError(e, kind.platform, false, (await igAuthArgs(kind.platform)).length > 0); }
   const files = await readdir(tmp);
   const video = files.find((f) => /^ref\.(mp4|mov|webm|mkv)$/i.test(f));
   if (!video) throw new Error('El link no tenía un video (¿es una foto o un carrusel?). Pega el link de un reel o video.');
@@ -81,11 +139,11 @@ export async function profileVideos(url: string, max = 5): Promise<string[]> {
   const kind = linkKind(url);
   if (!kind?.profile) throw new Error('Ese link no es de un perfil.');
   try {
-    const { stdout } = await run(YTDLP, ['--flat-playlist', '--playlist-end', String(max), '--no-warnings', '--print', '%(webpage_url)s', kind.url], { quiet: true });
+    const { stdout } = await run(YTDLP, ['--flat-playlist', '--playlist-end', String(max), '--no-warnings', '--print', '%(webpage_url)s', ...(await igAuthArgs(kind.platform)), kind.url], { quiet: true });
     const links = stdout.split('\n').map((l) => l.trim()).filter((l) => /^https?:/.test(l)).slice(0, max);
     if (!links.length) throw new Error('login');
     return links;
-  } catch (e) { throw downloadError(e, kind.platform, true); }
+  } catch (e) { throw downloadError(e, kind.platform, true, (await igAuthArgs(kind.platform)).length > 0); }
 }
 
 /** Qué copiar de la referencia, según lo que pidió el usuario (si no dijo nada, todo el estilo). */

@@ -1,5 +1,5 @@
 import { cancelScope, isCancelled, newCancelScope, runCancellable, type CancelScope } from './cancel.ts';
-import { dictate, downloadReference, linkKind, profileVideos } from './refsource.ts';
+import { dictate, downloadReference, igSession, linkKind, profileVideos, removeIgCookies, saveIgCookies, setIgSession, type IgSessionMode } from './refsource.ts';
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, watch } from 'node:fs';
 import { appendFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -1176,6 +1176,24 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, await listReferences(project.client));
   }
 
+  // Sesión de Instagram para leer perfiles (apagada por defecto). Nunca se devuelven las cookies.
+  if (p === '/api/instagram-sesion' && method === 'GET') return json(res, await igSession());
+  if (p === '/api/instagram-sesion' && method === 'PUT') return json(res, await setIgSession(String((await readBody(req)).modo ?? 'apagado') as IgSessionMode));
+  if (p === '/api/instagram-sesion/archivo' && method === 'POST') {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const c of req) { size += c.length; if (size > 2_000_000) return json(res, { error: 'Ese archivo es demasiado grande para ser un archivo de cookies.' }, 413); chunks.push(c as Buffer); }
+    return json(res, await saveIgCookies(Buffer.concat(chunks).toString('utf8')));
+  }
+  if (p === '/api/instagram-sesion/archivo' && method === 'DELETE') return json(res, await removeIgCookies());
+  if (p === '/api/instagram-sesion/probar' && method === 'POST') {
+    // Prueba la sesión leyendo el último video de un perfil.
+    const u = String((await readBody(req)).url ?? '').trim();
+    try {
+      const links = await profileVideos(u, 1);
+      return json(res, { ok: true, text: `Funciona: pude ver los videos del perfil (el último es ${links[0]}).` });
+    } catch (e) { return json(res, { ok: false, text: (e as Error).message }); }
+  }
   // Lo que el cliente quiere de una referencia (y qué se copia), sin volver a analizarla.
   if (p === '/api/references/pedido' && method === 'PUT') {
     const project = await readProject(await findDir(id));
