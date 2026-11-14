@@ -263,6 +263,8 @@ export async function applyWishes(dir: string): Promise<string[]> {
     const p4 = await readProject(dir);
     const rules = noteRules(p4, notas);
     if (rules.length) { await writeProject(dir, p4); done.push(`Tu nota: ${rules.join(', ')}.`); }
+    // Una nota que solo da contexto («somos una hamburguesería en…») no es un pedido sin cumplir.
+    else if (!/\b(pon|ponle|poner|quita|quitar|agrega|añade|cambia|haz|hazlo|usa|usar|sube|baja|que (salga|se vea|sea|no|tenga|diga)|más grande|más rápido|más lento)\b/i.test(notas)) done.push('Tu nota se usó como contexto para el gancho y los textos.');
     else done.push(`No pude aplicar tu nota «${cutWords(notas, 80)}»${ai ? '' : ': falta la IA local (Ollama)'}. Cámbialo a mano en el editor.`);
   }
   return done;

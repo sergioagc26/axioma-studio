@@ -12,10 +12,11 @@ import { listReferences, presetFromReference } from './reference.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { readVision } from './vision.ts';
 import { envValue } from './env.ts';
-import { llmHook, llmReady } from './llm.ts';
+import { llmHook, llmJson, llmReady } from './llm.ts';
 import { downloadBroll, searchBroll, stockSource } from './pexels.ts';
 import { keywords, speechOf } from '@axioma/schema';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { asMontage, createMontage, detectShots } from './montage.ts';
 import { prepareMedia, transcribeProject } from './pipeline.ts';
@@ -321,7 +322,12 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
   let project = await readProject(dir);
   const fixes: string[] = [];
   // Montaje con la mezcla de un video hablado (música bajita, sonido del celular a tope): se corrige.
-  if (project.kind === 'montaje') { asMontage(project); await writeProject(dir, project); }
+  if (project.kind === 'montaje') {
+    asMontage(project);
+    // Con voz en off, la música va más baja mientras habla (sube sola en las pausas).
+    if (project.audio.voiceover && project.audio.musicVolume > 0.25) project.audio.musicVolume = 0.22;
+    await writeProject(dir, project);
+  }
   // Un video marcado como «hablado» sin voz real (Whisper inventa «*música*» sobre la música) se
   // edita como montaje: si no, se recortaba a lo poco que «se dijo» y se subtitulaba el ruido.
   if (project.kind === 'hablado' && !hasSpeech(await readTranscript(dir).catch(() => null))) {
@@ -411,7 +417,8 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
     const hook = await montageHook(dir, project).catch(() => null);
     if (hook) {
       opening.onScreenText = hook; opening.autoText = hook;
-      opening.textStyle = opening.textStyle === 'caja' ? 'gigante' : opening.textStyle;
+      // El gancho siempre en grande: es lo primero que decide si alguien se queda.
+      opening.textStyle = 'gigante';
       opening.textPosition = 'arriba';
       // En un montaje los planos duran menos de un segundo: el gancho sigue en las escenas
       // siguientes hasta ~2,5 s (se dibuja como un solo rótulo, sin volver a entrar).
@@ -426,6 +433,35 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
       await writeProject(dir, project);
       summary.push(`Gancho en pantalla: «${hook}» desde el primer segundo.`);
     }
+  }
+  // Cierre legible: el llamado a la acción se queda ~2,5 s (aunque los últimos planos sean cortos)
+  // y no entra con un destello, que lo deja sobre una imagen lavada.
+  project = await readProject(dir);
+  const closing = project.scenes[project.scenes.length - 1];
+  if (closing?.onScreenText && project.scenes.length > 2) {
+    const text = closing.onScreenText;
+    let shown = sceneLength(closing);
+    if (closing.transition?.id === 'destello') closing.transition = undefined;
+    for (let i = project.scenes.length - 2; i > 0 && shown < 2.5; i--) {
+      const s = project.scenes[i];
+      if (s.onScreenText && s.onScreenText !== text) break;
+      s.onScreenText = text; s.autoText = text;
+      s.textStyle = closing.textStyle; s.textPosition = closing.textPosition; s.textAnim = closing.textAnim;
+      s.textKeyword = closing.textKeyword; s.textColor = closing.textColor; s.textFont = closing.textFont;
+      if (s.transition?.id === 'destello') s.transition = undefined;
+      shown += sceneLength(s);
+    }
+    // El texto entra una sola vez: la primera escena del cierre puede tener transición, las demás no.
+    const first = project.scenes.findIndex((s) => s.onScreenText === text);
+    project.scenes.slice(first + 1).forEach((s) => { if (s.onScreenText === text) s.transition = undefined; });
+    await writeProject(dir, project);
+  }
+
+  // Montaje con voz en off: títulos cortos cuando la voz nombra lo importante (productos, ideas).
+  project = await readProject(dir);
+  if (project.kind === 'montaje' && project.audio.voiceover) {
+    const titles = await voiceoverTitles(dir, project).catch(() => []);
+    if (titles.length) summary.push(`Títulos en pantalla al ritmo de la voz: ${titles.map((t) => `«${t}»`).join(', ')}.`);
   }
   summary.unshift(...fixes);
   // Lo que se hizo queda guardado para mostrarlo en Resultado (también tras recargar).
@@ -469,4 +505,71 @@ export async function montageHook(dir: string, project: Awaited<ReturnType<typeo
   if (!plain) return null;
   const words = plain.split(/\s+/).slice(0, 6).join(' ');
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * Títulos para un montaje con voz en off: la IA elige de 3 a 5 frases cortas de lo que dice la voz
+ * (los productos o las ideas clave, con sus mismas palabras) y cada una aparece en la escena en que
+ * se dicen, un par de segundos. Sin IA local no pone nada (no se inventan títulos).
+ */
+export async function voiceoverTitles(dir: string, project: Awaited<ReturnType<typeof readProject>>): Promise<string[]> {
+  const vo = project.audio.voiceover;
+  if (!vo) return [];
+  const file = path.join(dir, vo.wordsFile ?? 'voiceover.json');
+  if (!existsSync(file)) return [];
+  const words = (JSON.parse(await readFile(file, 'utf8')).words ?? []) as { text: string; start: number; end: number }[];
+  if (words.length < 6) return [];
+  // 1. Productos que el cliente nombró en el brief («Burros, tortas, nachos y bebidas»): cada uno
+  // lleva su título cuando la voz lo dice. No depende de la IA.
+  const normW = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ]/g, '');
+  const brand = normW(project.client ?? '') + normW((await readKit(project.client).catch(() => null))?.name ?? '');
+  const listed = [project.brief.notas ?? '', ...Object.entries(project.brief).filter(([k]) => k.startsWith('extra:')).map(([, v]) => v)]
+    .join('. ').split(/[.,;:\n]|\sy\s|\se\s/).map((x) => x.trim()).filter((x) => x && x.split(/\s+/).length <= 2 && !/^(sin|no|con)\b/i.test(x));
+  const products = listed.filter((x) => !brand.includes(normW(x)) && words.some((w) => normW(w.text) === normW(x.split(/\s+/)[0])));
+  const ai = await llmReady();
+  const r = { titulos: products.map((x) => ({ texto: x, primera_palabra: x.split(/\s+/)[0] })) };
+  // 2. Ideas clave de la narración, con la IA local, si quedan huecos.
+  if (ai && r.titulos.length < 5) r.titulos.push(...(await llmJson<{ titulos: { texto: string; primera_palabra: string }[] }>(
+    'Eres editor de reels. De la narración de un video, elige de 3 a 5 títulos cortos para poner en pantalla cuando la voz los dice. Si se nombran productos o platos, CADA uno lleva su título y van primero; después, alguna idea clave. Cada título tiene de 1 a 4 palabras, sale de lo que se dice (no inventes nada, ni precios ni promociones), con buena ortografía en español (separa palabras que la transcripción haya pegado), sin emojis ni punto final. "primera_palabra" es la palabra de la narración donde empieza ese momento, escrita exactamente como aparece en la narración. No repitas el saludo inicial ni el llamado a la acción del final. Responde solo JSON.',
+    `Narración: «${words.map((w) => w.text).join(' ')}»`,
+    { type: 'object', properties: { titulos: { type: 'array', maxItems: 5, items: { type: 'object', properties: { texto: { type: 'string' }, primera_palabra: { type: 'string' } }, required: ['texto', 'primera_palabra'] } } }, required: ['titulos'] },
+    { temperature: 0.3, timeoutMs: 90_000 },
+  ).catch(() => ({ titulos: [] }))).titulos.filter((t) => !products.some((x) => normW(x) === normW(t.primera_palabra))).slice(0, 5 - r.titulos.length));
+  if (!r.titulos.length) return [];
+  // En orden de aparición en la narración.
+  const at = (t: { primera_palabra: string }) => { const k = words.findIndex((w) => normW(w.text).startsWith(normW(t.primera_palabra))); return k < 0 ? 1e9 : k; };
+  r.titulos.sort((x, y) => at(x) - at(y));
+  const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ]/g, '');
+  // Inicio de cada escena en el reel.
+  const starts: number[] = [];
+  let acc = 0;
+  for (const sc of project.scenes) { starts.push(acc); acc += sceneLength(sc); }
+  const sceneAt = (t: number) => { let i = 0; while (i + 1 < starts.length && starts[i + 1] <= t) i++; return i; };
+  const placed: string[] = [];
+  let from = 0;
+  for (const t of r.titulos.slice(0, 5)) {
+    const raw = t.texto.replace(/[.!¡¿?"«»]/g, '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw.split(' ').length > 5) continue;
+    // Título con mayúscula inicial, como un rótulo de marca.
+    const text = raw.charAt(0).toUpperCase() + raw.slice(1);
+    const key = norm(t.primera_palabra);
+    // La palabra exacta, o la que la contiene (la transcripción a veces pega dos palabras).
+    let wi = words.findIndex((w, i) => i >= from && norm(w.text) === key);
+    if (wi < 0 && key.length >= 4) wi = words.findIndex((w, i) => i >= from && (norm(w.text).startsWith(key) || key.startsWith(norm(w.text)) && norm(w.text).length >= 4));
+    if (wi < 0) continue;
+    from = wi + 1;
+    let i = sceneAt(words[wi].start);
+    if (i === 0 || i >= project.scenes.length - 1) continue;
+    // El título se queda ~1,8 s aunque cambien las tomas (se dibuja como un solo rótulo).
+    let shown = 0;
+    while (i < project.scenes.length - 1 && shown < 1.8) {
+      const sc = project.scenes[i];
+      if (sc.onScreenText && sc.onScreenText !== text) break;
+      sc.onScreenText = text; sc.autoText = text; sc.textStyle = 'gigante'; sc.textPosition = 'centro';
+      shown += sceneLength(sc); i++;
+    }
+    if (shown) placed.push(text);
+  }
+  if (placed.length) await writeProject(dir, project);
+  return placed;
 }

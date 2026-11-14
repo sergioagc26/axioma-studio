@@ -106,7 +106,8 @@ export async function removeTrack(file: string) {
 
 /** Qué energía pide el reel: según su ritmo (pausas), si es montaje y su tono. */
 export function wantedMood(p: Project): Mood {
-  if (p.kind === 'montaje') return 'energica';
+  // Montaje: con fuerza salvo que el tono pida algo más cálido (comida, cercano, elegante).
+  if (p.kind === 'montaje') return /cercan|elegante|tranquil|inspira|educativ/i.test(String(p.brief?.tono ?? '')) && !/r[aá]pido|en[eé]rgico/i.test(String(p.brief?.ritmo ?? '')) ? 'media' : 'energica';
   const tone = String(p.brief?.tono ?? '').toLowerCase();
   if (/inspira|elegante|cercan|tranquil/.test(tone)) return p.pacing.maxPause <= 0.2 ? 'media' : 'tranquila';
   return p.pacing.maxPause <= 0.2 ? 'energica' : p.pacing.maxPause <= 0.4 ? 'media' : 'tranquila';

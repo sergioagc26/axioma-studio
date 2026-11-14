@@ -816,7 +816,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       j.message = 'Limpiando y subtitulando tu voz…';
       try {
         const before = await readProject(dir);
-        const p2 = await ops.setVoiceoverFile(dir, tmp);
+        // ?texto= : el guion que dice la voz, para que los subtítulos salgan bien escritos.
+        const p2 = await ops.setVoiceoverFile(dir, tmp, { text: url.searchParams.get('texto') ?? undefined, provider: url.searchParams.get('origen') ?? undefined });
         if (p2.kind === 'montaje') await rebeatMontage(dir, before);
         return {};
       } finally {

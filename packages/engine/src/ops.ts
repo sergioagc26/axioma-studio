@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Word } from '@axioma/schema';
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -485,6 +486,8 @@ async function recordVoiceover(dir: string, volume: number | undefined, generate
     await rm(wav);
     const duration = await mediaDuration(out);
     if (!transcript.words.length && used.text) transcript.words = spreadWords(used.text, 0, duration);
+    // Con el guion conocido, los subtítulos llevan sus palabras (bien escritas) con los tiempos de la voz.
+    else if (used.text) transcript.words = alignToScript(transcript.words, used.text);
     await writeFile(path.join(dir, wordsFile), JSON.stringify(transcript));
     const project = await readProject(dir);
     // El volumen original de antes se recuerda para devolverlo al quitar la voz en off.
@@ -630,10 +633,46 @@ export async function saveCurrentStyle(dir: string, name: string) {
  * Usa una grabación de voz (hecha en el studio o un archivo) como voz en off:
  * la limpia, la nivela a -16 LUFS, la transcribe y la subtitula.
  */
-export async function setVoiceoverFile(dir: string, file: string, opts: { originalVolume?: number } = {}) {
+export async function setVoiceoverFile(dir: string, file: string, opts: { originalVolume?: number; text?: string; provider?: string } = {}) {
   const project = await readProject(dir);
   return recordVoiceover(dir, opts.originalVolume, async (out) => {
     await processVoice(file, out, { denoise: true, denoiseLevel: 'media', enhance: true, targetLufs: project.audio.targetLufs });
-    return { provider: 'grabada' };
+    return { provider: opts.provider ?? 'grabada', ...(opts.text?.trim() ? { text: opts.text.trim() } : {}) };
   });
+}
+
+/**
+ * Pone las palabras del guion sobre los tiempos que dio la transcripción: se emparejan por
+ * parecido y, donde no coinciden («Zogamoso» por «Sogamoso», «pandoradito» por «pan doradito»),
+ * el tramo del guion se reparte en el tiempo del tramo transcrito.
+ */
+export function alignToScript(words: Word[], script: string): Word[] {
+  const target = script.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  if (!words.length || !target.length) return words;
+  const norm = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ@]/g, '');
+  const a = words.map((w) => norm(w.text));
+  const b = target.map(norm);
+  // Alineación por programación dinámica (tipo Levenshtein por palabras).
+  const n = a.length, m = b.length;
+  const d: number[][] = Array.from({ length: n + 1 }, (_, i) => Array.from({ length: m + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  // Se recorre hacia atrás juntando tramos: pares iguales/cambiados y huecos.
+  const pairs: { wi: number[]; ti: number[] }[] = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && d[i][j] === d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) { pairs.unshift({ wi: [i - 1], ti: [j - 1] }); i--; j--; }
+    else if (j > 0 && (i === 0 || d[i][j] === d[i][j - 1] + 1)) { if (pairs[0] && pairs[0].wi.length) pairs[0].ti.unshift(j - 1); else pairs.unshift({ wi: [], ti: [j - 1] }); j--; }
+    else { if (pairs[0] && pairs[0].ti.length) pairs[0].wi.unshift(i - 1); else pairs.unshift({ wi: [i - 1], ti: [] }); i--; }
+  }
+  const out: Word[] = [];
+  let last = words[0].start;
+  for (const p of pairs) {
+    if (!p.ti.length) { const w = words[p.wi[p.wi.length - 1]]; last = w.end; continue; }
+    const start = p.wi.length ? words[p.wi[0]].start : last;
+    const end = p.wi.length ? words[p.wi[p.wi.length - 1]].end : start + 0.25 * p.ti.length;
+    const step = (end - start) / p.ti.length;
+    p.ti.forEach((t, k) => out.push({ text: target[t], start: +(start + k * step).toFixed(3), end: +(start + (k + 1) * step).toFixed(3) }));
+    last = end;
+  }
+  return out;
 }
