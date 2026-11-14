@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AI_VOICES, SCRIPT_STRUCTURES, SCRIPT_TRANSITIONS, SHOT_MOVES, SHOT_SIZES, guionMarkdown, guionSeconds, guionVoice, spokenSeconds, type Guion as GuionT, type GuionRow } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { Icon } from '../Icon.tsx';
+import { Teleprompter } from '../Teleprompter.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 
 const EMPTY_ROW: GuionRow = { seccion: '', voz: '', imagen: '', plano: 'primer plano', movimiento: 'acercar', texto: '', transicion: 'corte', sonido: '', segundos: 0 };
@@ -25,6 +26,7 @@ export const Guion: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [tono, setTono] = useState(project.brief.tono ?? '');
   const [voice, setVoice] = useState('');
   const [tags, setTags] = useState<{ value: string; label: string }[]>([]);
+  const [prompter, setPrompter] = useState(false);
   const montage = project.kind === 'montaje';
   const aiVoice = store.catalog.voices.includes('qwen');
 
@@ -198,9 +200,11 @@ export const Guion: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <div className="row" style={{ position: 'sticky', bottom: 0, background: 'var(--bg)', padding: '10px 0', borderTop: '1px solid var(--line)' }}>
             <button className="btn rect" disabled={!dirty || Boolean(busy)} onClick={() => save().then(() => ctx.toast('Guion guardado.')).catch((e) => ctx.toast(e.message))}><Icon name="save" /> {dirty ? 'Guardar cambios' : 'Guardado'}</button>
             {montage && <button className="btn primary" disabled={Boolean(busy)} onClick={toVideo} title="Genera la voz, corta al ritmo y pone cada imagen sobre su frase"><Icon name="film" /> Crear el video con este guion</button>}
+            <button className="btn rect" disabled={!guionVoice(g)} onClick={() => setPrompter(true)} title="El guion en grande, subiendo solo, para grabarte leyéndolo"><Icon name="mic" /> Teleprompter</button>
             <button className="btn rect" onClick={() => navigator.clipboard?.writeText(guionMarkdown(g)).then(() => ctx.toast('Guion copiado.')).catch(() => ctx.toast('No se pudo copiar.'))}><Icon name="copy" /> Copiar</button>
             <a className="btn rect" href={`/api/guion.md?id=${pid}`} onClick={(e) => { if (dirty) { e.preventDefault(); ctx.toast('Guarda los cambios antes de descargar.'); } }}><Icon name="export" /> Descargar</a>
           </div>
+          {prompter && <Teleprompter parts={g.filas.map((f) => f.voz.trim()).filter(Boolean)} onClose={() => setPrompter(false)} />}
         </>
       )}
     </div>

@@ -369,6 +369,18 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ctx.toast(calidad === 'nitido' ? 'Video más nítido.' : 'Video fiel al original.');
     } catch (e: any) { ctx.toast(e.message); } finally { setImproving(''); }
   };
+  // Estabilizar tomas movidas (cámara en mano), o volver al original.
+  const [stabBusy, setStabBusy] = useState('');
+  const [stabForce, setStabForce] = useState<'suave' | 'media' | 'fuerte'>('media');
+  const runStabilize = async (on: boolean) => {
+    setStabBusy(on ? 'Estabilizando…' : 'Volviendo al original…');
+    try {
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: on ? 'estabilizar' : 'quitar-estabilizado', fuerza: stabForce }) });
+      await waitJob(job, (j) => setStabBusy(j.message || 'Estabilizando…'));
+      await reloadProject();
+      ctx.toast(on ? 'Listo. Las tomas quedaron estables.' : 'Listo. Volviste al video original.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setStabBusy(''); }
+  };
   // Reencuadre al hablante (videos horizontales con varias personas).
   const [speakerBusy, setSpeakerBusy] = useState('');
   const followSpeaker = async (on: boolean) => {
@@ -993,6 +1005,18 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                   </div>
                 </div>
               )}
+              <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                <strong className="small">Estabilizar</strong>
+                <span className="small muted help">Para tomas movidas (cámara en mano): suaviza los saltos y recorta un poco los bordes. Se aplica a todo el video y puedes volver al original. Tarda unos minutos.</span>
+                <div className="seg" style={{ gridTemplateColumns: '1fr 1fr 1fr' }} role="group" aria-label="Fuerza de la estabilización">
+                  {(['suave', 'media', 'fuerte'] as const).map((f) => <button key={f} className={stabForce === f ? 'on' : ''} aria-pressed={stabForce === f} disabled={Boolean(stabBusy)} onClick={() => setStabForce(f)}>{f[0].toUpperCase() + f.slice(1)}</button>)}
+                </div>
+                <div className="row">
+                  <button className="btn rect small" disabled={Boolean(stabBusy)} onClick={() => runStabilize(true)}><Icon name="wand" />{project.source.stabilized ? 'Estabilizar de nuevo' : 'Estabilizar el video'}</button>
+                  {project.source.stabilized && <button className="btn ghost small" disabled={Boolean(stabBusy)} onClick={() => runStabilize(false)}><Icon name="undo" />Volver al original</button>}
+                </div>
+                {stabBusy && <span className="pill" role="status">{stabBusy}</span>}
+              </div>
               {Math.min(project.source.width, project.source.height) < 1000 && (
                 <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
                   <strong className="small">Calidad del video</strong>

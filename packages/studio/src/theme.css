@@ -354,7 +354,8 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .btn, .opt, .nav a, .card, input, select, textarea { transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .15s ease; }
 .btn:active:not(:disabled) { transform: translateY(1px) scale(.99); }
 .screen-fade { animation: screenFade .25s ease both; }
-@keyframes screenFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* Solo opacidad: un transform aquí haría que las ventanas fijas (teleprompter, diálogos) queden encerradas en la pantalla. */
+@keyframes screenFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes axiShake { 0%, 100% { transform: none; } 20% { transform: translateX(-4px) scale(.96); } 40% { transform: translateX(4px) scale(.94); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
 .toast { display: flex; align-items: center; gap: 10px; }
 .toast.error-toast { animation: axiShake .4s ease; }

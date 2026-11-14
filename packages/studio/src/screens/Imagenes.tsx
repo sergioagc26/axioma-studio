@@ -49,11 +49,14 @@ export const Imagenes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const load = () => api<{ sets: ImageSet[] }>(`/api/imagenes?id=${encodeURIComponent(project.id)}`).then((d) => setSets(d.sets)).catch(() => {});
   useEffect(() => { load(); }, [project.id]);
 
+  // Portada a medida: el segundo del video y el título (vacío = la app elige).
+  const [coverAt, setCoverAt] = useState('');
+  const [coverTitle, setCoverTitle] = useState('');
   const create = async (tipo: Tipo) => {
     setBusy('Preparando las imágenes…');
     setMaking(tipo);
     try {
-      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'crear-imagenes', tipo }) });
+      const job = await api<Job>(`/api/op?id=${encodeURIComponent(project.id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'crear-imagenes', tipo, ...(tipo === 'portada' ? { titulo: coverTitle.trim() || undefined, segundo: coverAt.trim() === '' ? undefined : Number(coverAt) } : {}) }) });
       const done = await waitJob(job, (j) => setBusy(j.message || 'Creando…'));
       await load();
       ctx.toast(`${done.result?.files?.length ?? 0} imagen${done.result?.files?.length === 1 ? '' : 'es'} lista${done.result?.files?.length === 1 ? '' : 's'}${done.result?.ai ? ', con textos escritos por la IA local' : ''}.`);
@@ -64,6 +67,18 @@ export const Imagenes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     <main className="page" style={{ maxWidth: 1100, width: '100%', margin: '0 auto' }}>
       <h1 style={{ fontSize: 26 }}>Imágenes para redes</h1>
       <p className="muted" style={{ marginTop: 0 }}>Hechas con tu video: los fondos son fotogramas del video, los textos salen de lo que dices y los colores son los de tu marca.</p>
+      <details className="grp" style={{ marginBottom: 12 }}>
+        <summary>Portada a tu medida (opcional)</summary>
+        <div className="row" style={{ paddingTop: 8, alignItems: 'flex-end' }}>
+          <label className="field" style={{ width: 160 }}>Segundo del video
+            <input type="number" min={0} step={0.1} value={coverAt} onChange={(e) => setCoverAt(e.target.value)} placeholder="El mejor" />
+          </label>
+          <label className="field" style={{ flex: 1, minWidth: 220 }}>Título de la portada
+            <input value={coverTitle} onChange={(e) => setCoverTitle(e.target.value)} placeholder="Vacío: el gancho, escrito por la IA" />
+          </label>
+        </div>
+        <span className="small muted">Pausa el video en el momento que te guste (Editor o Resultado) y escribe aquí ese segundo. La portada sale con la forma de tu video: en horizontal sirve de miniatura para YouTube.</span>
+      </details>
       <div className="opts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         {TIPOS.map(([id, name, desc]) => (
           <button key={id} className="opt" disabled={Boolean(busy)} onClick={() => create(id)}>

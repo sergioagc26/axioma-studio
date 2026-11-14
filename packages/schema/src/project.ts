@@ -285,6 +285,8 @@ export const SourceMedia = z.object({
   quality: z.enum(['normal', 'nitido']).optional(),
   /** El video de edición se hizo en 4K (lado corto 2160): se puede exportar en 4K sin perder nitidez. */
   master4k: z.boolean().optional(),
+  /** El video de edición está estabilizado (el original queda guardado para deshacer). */
+  stabilized: z.boolean().optional(),
   /** Con dos o más personas, el encuadre va hacia quien habla (necesita hablantes.json). */
   followSpeaker: z.boolean().default(false),
 });

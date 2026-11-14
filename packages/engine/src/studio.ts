@@ -1,3 +1,4 @@
+import { stabilize, unstabilize } from './stabilize.ts';
 import { saveSettings, settings } from './settings.ts';
 import { synthesize } from './tts.ts';
 import { doctor } from './doctor.ts';
@@ -627,7 +628,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       const tipo = ['carrusel', 'post', 'historia', 'portada'].includes(b.tipo) ? b.tipo : 'carrusel';
       const job = startJob('ia', async (j) => {
         j.message = 'Preparando las imágenes…';
-        const r = await createImages(dir, tipo, (m) => { j.message = m; });
+        const r = await createImages(dir, tipo, (m) => { j.message = m; }, { titulo: typeof b.titulo === 'string' ? b.titulo.slice(0, 120) : undefined, segundo: Number.isFinite(Number(b.segundo)) && b.segundo !== '' && b.segundo != null ? Math.max(0, Number(b.segundo)) : undefined });
         return { files: r.files, ai: r.ai };
       });
       return json(res, job);
@@ -846,6 +847,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, job);
     }
     if (b.op === 'quitar-voz') return json(res, { project: await ops.removeVoiceover(dir) });
+    if (b.op === 'estabilizar' || b.op === 'quitar-estabilizado') {
+      // Estabilizar tomas movidas (o volver al original). Tarda: va como trabajo con su avance.
+      const job = startJob('crear', async (j) => {
+        if (b.op === 'quitar-estabilizado') await unstabilize(dir, (m) => { j.message = m; });
+        else await stabilize(dir, { fuerza: ['suave', 'media', 'fuerte'].includes(b.fuerza) ? b.fuerza : 'media', onProgress: (m) => { j.message = m; } });
+        return { stabilized: b.op === 'estabilizar' };
+      });
+      return json(res, job);
+    }
     if (b.op === 'montaje-a-la-voz') {
       // El montaje se vuelve a cortar para durar lo que la voz (desde su inicio hasta que termina).
       const job = startJob('crear', async (j) => {

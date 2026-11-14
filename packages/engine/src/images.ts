@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { renderStill, selectComposition } from '@remotion/renderer';
-import { shortPhrases, speechOf, type Project } from '@axioma/schema';
+import { shortPhrases, speechOf, type Project, shapeOf } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
 import { bestFrameTime, sceneRanges } from './frames.ts';
 import { readKit } from './kit.ts';
@@ -27,7 +27,7 @@ const clean = (s: string) => s.replace(/["«»“”]/g, '').replace(/[.,;:]+$/,
  * - historia (9:16): portada con el gancho y un botón de llamado a la acción, sin tapar la barra de respuesta.
  * El fondo son fotogramas del propio video y los colores son los de la marca.
  */
-export async function createImages(dir: string, kind: ImageKind, onProgress: (msg: string) => void = () => {}): Promise<{ files: string[]; ai: boolean }> {
+export async function createImages(dir: string, kind: ImageKind, onProgress: (msg: string) => void = () => {}, opts: { /** Portada: título propio (si no, el gancho). */ titulo?: string; /** Portada: segundo del video a usar de fondo (si no, el mejor fotograma). */ segundo?: number } = {}): Promise<{ files: string[]; ai: boolean }> {
   const project = await readProject(dir);
   const transcript = await readTranscript(dir).catch(() => null);
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas todavía.');
@@ -77,9 +77,9 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
       ];
     } else {
       // Post, historia o portada del reel: una imagen con el gancho, escrito por la IA local si está.
-      let title = hook;
+      let title = opts.titulo?.trim() || hook;
       const from = speech[0] || source;
-      if (from && (await llmReady())) { try { title = (await llmHook(from)) ?? hook; ai = title !== hook; } catch { /* queda el gancho del video */ } }
+      if (!opts.titulo?.trim() && from && (await llmReady())) { try { title = (await llmHook(from)) ?? hook; ai = title !== hook; } catch { /* queda el gancho del video */ } }
       slides = [{ kind: 'portada', title, sceneIndex: 0 }];
     }
   }
@@ -91,14 +91,17 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
     if (frames.has(sl.sceneIndex)) continue;
     // El mejor fotograma (nítido, con la cara y buena luz), no simplemente el del medio. La portada
     // del reel elige entre las primeras escenas con el video propio.
-    const at = await bestFrameTime(dir, project, sceneRanges(project, kind === 'portada' && sl.kind === 'portada' ? null : sl.sceneIndex));
+    // Portada con el segundo elegido: ese momento del video (pasado a tiempo del material original).
+    const at = kind === 'portada' && opts.segundo != null ? outputToSource(project, opts.segundo) : await bestFrameTime(dir, project, sceneRanges(project, kind === 'portada' && sl.kind === 'portada' ? null : sl.sceneIndex));
     const rel = path.join('proxies', 'fotos', `foto-${sl.sceneIndex}-${Math.round(at * 10)}.jpg`);
     await ffmpeg(['-ss', at.toFixed(2), '-i', path.join(dir, P.master), '-frames:v', '1', '-q:v', '2', path.join(dir, rel)]);
     frames.set(sl.sceneIndex, rel);
   }
 
   // 3. Render de cada imagen.
-  const size = kind === 'historia' || kind === 'portada' ? { width: 1080, height: 1920 } : { width: 1080, height: 1350 };
+  // La portada sigue la forma del proyecto: en horizontal es la miniatura de YouTube (1920×1080).
+  const shape = shapeOf(project.format);
+  const size = kind === 'portada' && shape === 'horizontal' ? { width: 1920, height: 1080 } : kind === 'portada' && shape === 'cuadrado' ? { width: 1080, height: 1080 } : kind === 'historia' || kind === 'portada' ? { width: 1080, height: 1920 } : { width: 1080, height: 1350 };
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const outDir = path.join(dir, P.renders, 'imagenes', `${stamp}-${kind}`);
   await mkdir(outDir, { recursive: true });
@@ -125,4 +128,18 @@ export async function createImages(dir: string, kind: ImageKind, onProgress: (ms
   } finally {
     await server.close();
   }
+}
+
+/** Segundo del video final → segundo del material original (para sacar ese fotograma). */
+export function outputToSource(project: { scenes: { ranges: { start: number; end: number }[]; trimStart?: number; trimEnd?: number }[] }, t: number): number {
+  let acc = 0;
+  for (const sc of project.scenes) {
+    for (const r of sc.ranges) {
+      const len = r.end - r.start;
+      if (t < acc + len) return r.start + Math.max(0, t - acc);
+      acc += len;
+    }
+  }
+  const last = project.scenes.at(-1)?.ranges.at(-1);
+  return last ? Math.max(last.start, last.end - 0.1) : 0;
 }

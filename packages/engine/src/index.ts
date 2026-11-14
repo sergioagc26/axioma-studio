@@ -61,3 +61,6 @@ export * from './voicesync.ts';
 export * from './front.ts';
 export * from './refsource.ts';
 export * from './cancel.ts';
+export * from './stabilize.ts';
+export * from './machine.ts';
+export * from './settings.ts';
