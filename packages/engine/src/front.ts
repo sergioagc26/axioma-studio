@@ -10,6 +10,8 @@ import { readProject, readTranscript } from './store.ts';
 const MODELS = path.resolve(process.env.SE_MODELS_DIR ?? path.join(REPO_ROOT, '.modelos'));
 export const FRONT_FILE = path.join('proxies', 'frente.webm');
 const FRONT_INFO = path.join('proxies', 'frente.json');
+/** Altura de los títulos de arriba (como en la línea de tiempo: «arriba» = 0,2). */
+const TITLE_Y = 0.2;
 
 let estimator: Promise<(file: string) => Promise<{ depth: { data: Uint8Array; width: number; height: number } }>> | null = null;
 function getEstimator() {
@@ -121,14 +123,26 @@ export async function buildFront(dir: string, onProgress: (p: number, msg: strin
         // Suaviza en el tiempo dentro de la escena (sin parpadeo); en cada corte empieza de nuevo.
         if (prev && prev.length === m.length) for (let i = 0; i < m.length; i++) m[i] = 0.55 * m[i] + 0.45 * prev[i];
         prev = m;
-        // ¿Cuánto taparía de la línea de subtítulos? Si es mucho, se suelta (primero se lee).
-        const y0 = Math.max(0, Math.round((capY - 0.05) * dh)), y1 = Math.min(dh, Math.round((capY + 0.05) * dh));
-        let cov = 0;
-        for (let y = y0; y < y1; y++) for (let x = Math.round(dw * 0.12); x < Math.round(dw * 0.88); x++) cov += m[y * dw + x];
-        cov /= Math.max(1, (y1 - y0) * Math.round(dw * 0.76));
-        const keep = cov <= 0.3 ? 1 : cov >= 0.5 ? 0 : (0.5 - cov) / 0.2;
+        // ¿Cuánto taparía de cada texto? Si es mucho, en esa franja no tapa (primero se lee): los
+        // subtítulos aguantan algo más que los títulos, que son pocas palabras y deben leerse enteros.
+        const coverage = (cy: number, half: number) => {
+          const y0 = Math.max(0, Math.round((cy - half) * dh)), y1 = Math.min(dh, Math.round((cy + half) * dh));
+          const x0 = Math.round(dw * 0.12), x1 = Math.round(dw * 0.88);
+          let cov = 0;
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) cov += m[y * dw + x];
+          return cov / Math.max(1, (y1 - y0) * (x1 - x0));
+        };
+        const ramp = (cov: number, lo: number, hi: number) => (cov <= lo ? 1 : cov >= hi ? 0 : (hi - cov) / (hi - lo));
+        const keepCap = ramp(coverage(capY, 0.05), 0.3, 0.5);
+        const keepTitle = ramp(coverage(TITLE_Y, 0.07), 0.12, 0.25);
+        // Arriba manda la franja del título, abajo la de subtítulos, con un paso suave entre ambas.
+        const split = (TITLE_Y + capY) / 2;
         const alpha = Buffer.alloc(m.length);
-        for (let i = 0; i < m.length; i++) alpha[i] = Math.round(m[i] * keep * 255);
+        for (let y = 0; y < dh; y++) {
+          const u = Math.min(1, Math.max(0, (y / dh - (split - 0.04)) / 0.08));
+          const keep = keepTitle * (1 - u) + keepCap * u;
+          for (let x = 0; x < dw; x++) alpha[y * dw + x] = Math.round(m[y * dw + x] * keep * 255);
+        }
         await sharp(alpha, { raw: { width: dw, height: dh, channels: 1 } }).resize(W, H).toColourspace('b-w').png().toFile(name('a', out));
         await copyFile(f, name('c', out));
         filled.add(out);

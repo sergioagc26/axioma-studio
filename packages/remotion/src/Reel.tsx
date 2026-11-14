@@ -779,7 +779,7 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
           {before ? <div style={small}>{before}</div> : null}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 22 * k, margin: `${8 * k}px 0` }}>
             <div style={line} />
-            <div style={{ fontSize: Math.min(150, Math.max(80, 980 / Math.max(4, key.length))) * k, fontWeight: 800, backgroundImage: gold, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.7))', transform: `scale(${interpolate(kw, [0, 1], [0.86, 1])})`, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>{key}</div>
+            <div style={{ fontSize: Math.min(170, Math.max(96, 1300 / Math.max(4, key.length))) * k, fontWeight: 800, backgroundImage: gold, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.7))', transform: `scale(${interpolate(kw, [0, 1], [0.86, 1])})`, letterSpacing: '0.01em', whiteSpace: 'nowrap' }}>{key}</div>
             <div style={{ ...line, transform: 'scaleX(-1)' }} />
           </div>
           {after ? <div style={small}>{after}</div> : null}
