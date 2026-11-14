@@ -105,9 +105,11 @@ export async function buildFront(dir: string, onProgress: (p: number, msg: strin
       await mkdir(seg, { recursive: true });
       // Cada cuadro a dos tamaños: el grande para la imagen y uno chico para calcular la profundidad
       // (el modelo trabaja a ~500 px igual; a tamaño completo solo se vuelve lento).
-      await ffmpeg(['-ss', (c.sourceStartFrame / fps).toFixed(4), '-i', master, '-frames:v', String(c.durationInFrames),
+      // (Cada salida lleva su propio límite de cuadros: si no, la segunda decodifica el video entero.)
+      const n = String(c.durationInFrames);
+      await ffmpeg(['-ss', (c.sourceStartFrame / fps).toFixed(4), '-t', ((c.durationInFrames + 2) / fps).toFixed(4), '-i', master,
         '-filter_complex', `fps=${fps},split[a][b];[a]scale=${W}:${H}[big];[b]scale=320:-2[small]`,
-        '-map', '[big]', '-q:v', '3', path.join(seg, 'f%04d.jpg'), '-map', '[small]', '-q:v', '4', path.join(seg, 's%04d.jpg')]);
+        '-map', '[big]', '-frames:v', n, '-q:v', '3', path.join(seg, 'f%04d.jpg'), '-map', '[small]', '-frames:v', n, '-q:v', '4', path.join(seg, 's%04d.jpg')]);
       let prev: Float32Array | null = null;
       for (let k = 0; k < c.durationInFrames; k++) {
         const f = path.join(seg, `f${String(k + 1).padStart(4, '0')}.jpg`);
