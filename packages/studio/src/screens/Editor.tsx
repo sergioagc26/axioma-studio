@@ -41,6 +41,7 @@ const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['burbuja', 'Burbuja', 'Letras de color con borde blanco grueso, tipo caricatura.'],
   ['retro', 'Retro en capas', 'Tres sombras de colores apiladas, estilo años 70.'],
   ['resplandor', 'Resplandor', 'Letras blancas con un halo de luz de color alrededor.'],
+  ['palabra', 'Palabra sola', 'Una palabra blanca, centrada y sobria. Para resaltar lo importante sin tapar la imagen.'],
   ['lujo', 'Lujo', 'La palabra clave grande en dorado, lo demás pequeño y espaciado. Para comida, moda o marcas finas.'],
 ];
 const BASIC = new Set<string>(BASIC_TEXT_STYLES);

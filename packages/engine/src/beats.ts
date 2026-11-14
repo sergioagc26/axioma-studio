@@ -174,7 +174,7 @@ export function biggestRise(map: BeatMap, cuts: number[]): number | null {
  * Rehace el montaje con cortes en los golpes de la música: cada plano dura exactamente
  * de un golpe al siguiente y se reparten las tomas sin repetir imagen.
  */
-export async function montageToBeat(dir: string, opts: { density?: BeatDensity; duration?: number } = {}) {
+export async function montageToBeat(dir: string, opts: { density?: BeatDensity; duration?: number; /** Duración mínima de cada plano (s); por defecto crece con el largo del video. */ minClip?: number } = {}) {
   const project = await readProject(dir);
   if (!project.audio.music || !existsSync(path.join(dir, project.audio.music))) throw new Error('Pon primero una música: el montaje se corta en sus golpes.');
   const map = await musicBeats(dir, project.audio.music);
@@ -200,7 +200,7 @@ export async function montageToBeat(dir: string, opts: { density?: BeatDensity; 
   let inner = all.filter((c) => c < end - 0.3 && c >= 0.6);
   // En reels largos, un corte en cada golpe marea y pesa: se deja uno de cada dos o tres golpes
   // para que cada plano dure lo suficiente (siguen cayendo en el golpe).
-  const minClip = end <= 20 ? 0.55 : end <= 40 ? 0.8 : 1.0;
+  const minClip = opts.minClip ?? (end <= 20 ? 0.55 : end <= 40 ? 0.8 : 1.0);
   const every = Math.max(1, Math.ceil(minClip / (end / (inner.length + 1))));
   if (every > 1) inner = inner.filter((_, i) => (i + 1) % every === 0);
   const points = [0, ...inner, end].map(frame);

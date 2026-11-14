@@ -42,17 +42,17 @@ export async function expandInputs(inputs: string[]): Promise<string[]> {
 }
 
 /** Deja un clip en 1080×1920, fps constante, color estándar y con pista de audio. */
-async function normalizeClip(input: string, out: string, fps: number) {
+async function normalizeClip(input: string, out: string, fps: number, k = 1) {
   const info = await probe(input);
   const vf = [
-    'scale=1080:1920:force_original_aspect_ratio=increase', 'crop=1080:1920', `fps=${fps}`,
+    `scale=${1080 * k}:${1920 * k}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${1080 * k}:${1920 * k}`, `fps=${fps}`,
     info.hdr ? 'colorspace=all=bt709:iall=bt2020:itrc=bt2020-10:format=yuv420p' : 'format=yuv420p',
   ].join(',');
   const audioIn = info.hasAudio ? [] : ['-f', 'lavfi', '-t', info.duration.toFixed(3), '-i', 'anullsrc=r=48000:cl=stereo'];
   await ffmpeg([
     '-i', input, ...audioIn,
     '-map', '0:v:0', '-map', info.hasAudio ? '0:a:0' : '1:a:0',
-    '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-g', String(Math.round(fps)),
+    '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', k > 1 ? '15' : '18', '-g', String(Math.round(fps)),
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-shortest',
     out,
   ]);
@@ -63,7 +63,7 @@ async function normalizeClip(input: string, out: string, fps: number) {
  * Crea un proyecto de montaje (sin depender de la voz) con uno o varios videos.
  * Varios videos se unen en un solo master vertical; se recuerda dónde empieza cada uno.
  */
-export async function createMontage(opts: { inputs: string[]; name?: string; client?: string; presetId?: string; fps?: number }) {
+export async function createMontage(opts: { inputs: string[]; name?: string; client?: string; presetId?: string; fps?: number; /** 2 = master en 4K (2160×3840) y exportación en 4K. */ uhd?: boolean }) {
   const files = await expandInputs(opts.inputs);
   const name = opts.name ?? (files.length === 1 ? path.basename(files[0], path.extname(files[0])) : `Montaje ${files.length} clips`);
   const stamp = new Date().toISOString().slice(0, 10);
@@ -89,7 +89,7 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
     let t = 0;
     for (const [i, f] of files.entries()) {
       const part = path.join(dir, 'media', 'originales', `${String(i + 1).padStart(2, '0')}.mp4`);
-      const d = await normalizeClip(f, part, fps);
+      const d = await normalizeClip(f, part, fps, opts.uhd ? 2 : 1);
       boundaries.push({ file: path.basename(f), start: t, end: t + d });
       t += d;
       parts.push(part);
@@ -99,7 +99,7 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
     await ffmpeg(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', path.join(dir, P.master)]);
     await rm(list, { force: true });
     for (const p of parts) await rm(p, { force: true });
-    source = { file: P.master, duration: t, width: 1080, height: 1920, fps, rotation: 0 };
+    source = { file: P.master, duration: t, width: 1080 * (opts.uhd ? 2 : 1), height: 1920 * (opts.uhd ? 2 : 1), fps, rotation: 0 };
   }
 
   const now = new Date().toISOString();
@@ -112,6 +112,7 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
     captions: CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(opts.client)) }),
     // En un montaje el sonido original es ambiente: sin limpieza de voz y más bajo.
     audio: { denoise: false, targetLufs: -14, musicVolume: 0.4, originalVolume: 0.6 },
+    ...(opts.uhd ? { export: { quality: 'maxima', uhd: true } } : {}),
   });
   await writeProject(dir, project);
   await writeFile(path.join(dir, 'boundaries.json'), JSON.stringify(boundaries, null, 2));

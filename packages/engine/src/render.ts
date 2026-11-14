@@ -118,9 +118,10 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       crf: q.crf,
       audioBitrate: q.audio as never,
       pixelFormat: 'yuv420p',
+      scale: project.export.uhd ? 2 : 1,
       outputLocation: raw,
       // Cada pestaña de render ocupa cerca de 1 GB con video vertical: se limita por la memoria del equipo.
-      concurrency: Math.max(1, Math.min(8, Math.floor(os.cpus().length / 2), Math.max(2, Math.floor(os.totalmem() / 2 ** 30 / 4)))),
+      concurrency: Math.max(1, Math.min(project.export.uhd ? 4 : 8, Math.floor(os.cpus().length / 2), Math.max(2, Math.floor(os.totalmem() / 2 ** 30 / (project.export.uhd ? 8 : 4))))),
       onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
     }));
     // Siempre se nivela el resultado final al volumen elegido (−14 LUFS para redes).

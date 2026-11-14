@@ -761,6 +761,17 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     );
   }
 
+  if (overlay.style === 'palabra') {
+    // Una sola palabra blanca, centrada y sobria, con sombra suave: acompaña la imagen sin taparla.
+    return (
+      <AbsoluteFill>
+        <div style={{ ...wrap, fontSize: 82 * k, fontWeight: 700, letterSpacing: '0.09em', color: '#fff', textShadow: '0 3px 18px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.5)', marginRight: '-0.09em' }}>
+          {overlay.text}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   if (overlay.style === 'lujo') {
     // Rótulo de restaurante fino: la palabra clave grande en dorado, lo demás pequeño y espaciado,
     // con dos líneas doradas que se abren. Sin borde negro: sombra suave para leerse sobre el plato.

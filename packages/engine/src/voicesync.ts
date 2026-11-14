@@ -28,8 +28,8 @@ export const SHOT_TAGS: ShotTag[] = [
   { id: 'hamburguesa', food: true, prompt: 'a photo of a burger', words: ['hamburguesa', 'burger'] },
   { id: 'postre', food: true, prompt: 'a photo of a dessert', words: ['postre', 'helado', 'brownie'] },
   { id: 'bebida', food: true, sticky: true, prompt: 'a photo of drinks in tall glasses', words: ['bebida', 'agua', 'jamaica', 'tamarindo', 'horchata', 'limonada', 'soda', 'michelada', 'jugo', 'cerveza', 'coctel', 'cafe', 'malteada'] },
-  { id: 'cocina', prompt: 'a photo of meat cooking on a hot flat griddle', words: ['cocina', 'carne', 'parrilla', 'preparamos', 'cocinamos'] },
-  { id: 'personas', prompt: 'a photo of people sitting at a restaurant table eating', words: ['familia', 'amigos', 'pareja', 'gente', 'parche'] },
+  { id: 'cocina', prompt: 'a photo of meat cooking on a hot flat griddle', words: ['cocina', 'parrilla', 'hambre', 'preparamos', 'cocinamos'] },
+  { id: 'personas', prompt: 'a photo of people sitting at a restaurant table eating', words: ['familia', 'amigos', 'amigo', 'pareja', 'gente', 'parche', 'mesa', 'silencio'] },
   { id: 'local', prompt: 'a photo of an empty restaurant dining room or terrace with tables and chairs', words: ['bienvenido', 'bienvenidos', 'visitanos', 'local'] },
 ];
 
@@ -155,6 +155,7 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number } = {}
   const cursor = new Map(shots.map((s) => [s.id, s.start + Math.min(0.3, (s.end - s.start) * 0.1)]));
   const turn = new Map<string, number>();
   let last = '';
+  let run = 0;
   let t = 0;
   for (const scene of project.scenes) {
     const len = sceneLength(scene);
@@ -171,8 +172,15 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number } = {}
     let pick: Shot | null = null;
     for (let k = 0; k < n && !pick; k++) {
       const s = pool[((turn.get(key) ?? 0) + k) % n];
-      if (s.id === last && n > 1) continue;
+      // Nunca la misma toma seguida; si el plato tiene una sola, como mucho dos veces (partes distintas).
+      if (s.id === last && (n > 1 || run >= 2)) continue;
       if (s.end - cursor.get(s.id)! >= rlen) { pick = s; turn.set(key, ((turn.get(key) ?? 0) + k + 1) % n); }
+    }
+    if (!pick && seg) {
+      // El plato tiene una sola toma (o ya se gastó): en vez de repetir la misma imagen seguida,
+      // entra otro plato vistoso y luego vuelve el que se nombra.
+      // Si el plato acaba de salir, va otro; si no, se repite el plato desde el principio.
+      if (pool.some((s) => s.id === last)) for (const s of opening) if (s.id !== last && s.end - cursor.get(s.id)! >= rlen) { pick = s; break; }
     }
     if (!pick) {
       // Sin material libre: se vuelve a usar la toma más larga del plato desde el principio.
@@ -185,6 +193,7 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number } = {}
     scene.title = `Toma ${pick.id.slice(1)}`;
     // Hueco entre trozos de la misma toma, para que la próxima vez se vea otra parte.
     cursor.set(pick.id, Math.min(pick.end, start + rlen + Math.min(1.5, (pick.end - pick.start) / 4)));
+    run = pick.id === last ? run + 1 : 1;
     last = pick.id;
   }
   await writeProject(dir, project);

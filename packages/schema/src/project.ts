@@ -69,7 +69,7 @@ export const CaptionStyle = z.object({
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
 /** Formas de mostrar el texto en pantalla de una escena. */
-export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor', 'lujo']);
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor', 'lujo', 'palabra']);
 /** Estilos de texto básicos; el resto son los llamativos. */
 export const BASIC_TEXT_STYLES = ['caja', 'resaltado', 'subrayado', 'banda', 'etiqueta', 'contorno'] as const;
 /** Cómo entra el texto en pantalla. */
@@ -406,7 +406,9 @@ export const Project = z.object({
     quality: z.enum(['maxima', 'alta', 'ligera']).default('alta'),
     /** Carpeta donde guardar los videos. Sin valor, la carpeta `renders` del proyecto. */
     folder: z.string().optional(),
-  }).default({ quality: 'alta' }),
+    /** Exportar en 4K (2160×3840 en vertical): el doble de píxeles por lado. Solo gana nitidez si el material original la tiene. */
+    uhd: z.boolean().default(false),
+  }).default({ quality: 'alta', uhd: false }),
   assets: z.array(Asset).default([]),
   approval: z.enum(['borrador', 'en_revision', 'aprobado']).default('borrador'),
   requests: z.array(Request).default([]),
