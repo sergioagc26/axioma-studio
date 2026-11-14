@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { isNoise } from './transcribe.ts';
 import { CaptionStyle, Pacing, Project, SCHEMA_VERSION, Transcript, getPreset } from '@axioma/schema';
 import { P, projectDir, slugify } from './paths.ts';
 import { kitCaptions, readKit } from './kit.ts';
@@ -43,7 +44,9 @@ export async function writeJsonAtomic(file: string, data: unknown) {
 export async function readTranscript(dir: string): Promise<Transcript | null> {
   const f = path.join(dir, P.transcript);
   if (!existsSync(f)) return null;
-  return Transcript.parse(JSON.parse(await readFile(f, 'utf8')));
+  const t = Transcript.parse(JSON.parse(await readFile(f, 'utf8')));
+  // Lo que Whisper inventa sobre la música («*música*», «[aplausos]») nunca llega a subtítulos ni cortes.
+  return { ...t, words: t.words.filter((w) => !isNoise(w.text)) };
 }
 
 export async function writeTranscript(dir: string, t: Transcript) {

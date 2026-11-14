@@ -251,7 +251,10 @@ export function assignShots(shots: Shot[], lengths: number[]): { shot: Shot; sta
     const s = shots[k];
     const plan = Math.max(1, count[k] - (k === si ? inShot : 0));
     // Hueco entre planos de la misma toma, para que se vean partes distintas.
-    const gap = Math.max(0, (s.end - cursor[k] - length * plan) / (plan + 1));
+    let gap = Math.max(0, (s.end - cursor[k] - length * plan) / (plan + 1));
+    // Un hueco de menos de medio segundo no se ve como otra parte: se ve como un salto (la imagen
+    // «tartamudea»). Con poco material los planos van seguidos y el corte cae en el golpe sin saltar.
+    if (gap < 0.5) gap = 0;
     const start = Math.min(cursor[k] + gap, s.end - length);
     out.push({ shot: s, start, length });
     cursor[k] = start + length;

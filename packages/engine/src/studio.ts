@@ -10,6 +10,7 @@ import { ffmpeg } from './exec.ts';
 import * as ops from './ops.ts';
 import { P, REPO_ROOT, WORKSPACE } from './paths.ts';
 import { cutProject, prepareMedia, transcribeProject } from './pipeline.ts';
+import { hasSpeech } from './transcribe.ts';
 import { allPresets, deletePreset, renamePreset, savePreset } from './presets.ts';
 import { claudeBin, openClaudeLogin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
@@ -56,7 +57,7 @@ import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
 import { envValue, keyStatus, removeEnvValue, setEnvValue } from './env.ts';
 import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
-import { buildMontage, createMontage, detectShots } from './montage.ts';
+import { buildMontage, createMontage, detectShots, asMontage } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
 import { createProject, readProject, readTranscript, writeProject } from './store.ts';
 import { emptyTrash, listTrash, restoreTrash } from './trash.ts';
@@ -384,7 +385,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         });
         made = dir; j.projectId = project.id; dirCache.set(project.id, dir);
         if (!info.hasAudio) {
-          project.kind = 'montaje';
+          asMontage(project);
           await writeProject(dir, project);
         }
         j.progress = 0.1;
@@ -392,13 +393,12 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.progress = 0.4;
         const transcript = info.hasAudio ? await transcribeProject(dir, log) : null;
         j.progress = 0.9;
-        if (transcript?.words.length) {
+        if (hasSpeech(transcript)) {
           await cutProject(dir);
         } else {
           j.message = 'Sin palabras reconocidas. Preparando el montaje visual…';
           const montage = await buildMontage(dir);
-          montage.project.kind = 'montaje';
-          await writeProject(dir, montage.project);
+          await writeProject(dir, asMontage(montage.project));
         }
         ready = true;
         // Edición automática al subir: el video llega al editor ya editado.

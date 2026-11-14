@@ -349,6 +349,16 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     }
   }
 
+  // El mismo texto en escenas seguidas es UN rótulo que dura todo ese tiempo (no vuelve a entrar en
+  // cada corte): así un gancho de montaje se queda lo suficiente para leerlo aunque cambien las tomas.
+  for (let i = overlays.length - 1; i > 0; i--) {
+    const a = overlays[i - 1], b = overlays[i];
+    if (a.text === b.text && a.style === b.style && a.fromFrame + a.durationInFrames === b.fromFrame) {
+      a.durationInFrames += b.durationInFrames;
+      overlays.splice(i, 1);
+    }
+  }
+
   // Duración total de cada escena en frames, para que el movimiento de cámara sea continuo entre sus tramos.
   for (const c of clips) c.sceneFrames = clips.filter((x) => x.sceneId === c.sceneId).reduce((a, x) => a + x.durationInFrames, 0);
 

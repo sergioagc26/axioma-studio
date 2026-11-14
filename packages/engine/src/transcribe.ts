@@ -39,7 +39,7 @@ export async function transcribeWav(
   const { captions } = toCaptions({ whisperCppOutput: out });
   const items = captions
     .map((c) => ({ ...c, text: c.text.trim() }))
-    .filter((c) => c.text && !/^\[.*\]$/.test(c.text)); // [música], [BLANK_AUDIO]…
+    .filter((c) => c.text && !isNoise(c.text)); // [música], *música*, (aplausos), ♪…
   // Con DTW, `timestampMs` marca cuándo suena cada palabra con mucha más precisión
   // que `startMs`. El final de una palabra es el inicio de la siguiente (luego se
   // recorta contra los silencios detectados por FFmpeg).
@@ -55,6 +55,28 @@ export async function transcribeWav(
     };
   });
   return { language, model, words };
+}
+
+/**
+ * Lo que Whisper escribe cuando NO hay voz: etiquetas entre corchetes, asteriscos o paréntesis
+ * («[música]», «*música*», «(aplausos)»), notas musicales o subtítulos fantasma típicos.
+ */
+export function isNoise(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  if (/^[\[\(\*♪♫¶#]+.*[\]\)\*♪♫¶#]+$/.test(t) || /^[♪♫¶#\s.,!-]+$/.test(t)) return true;
+  const plain = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, '').trim();
+  return /^(musica|music|aplausos|applause|risas|laughter|silencio|silence|ruido|noise|instrumental|blank audio|sin audio|subtitulos realizados por.*|subtitles by.*|gracias por ver|thanks for watching)$/.test(plain);
+}
+
+/**
+ * ¿Hay voz de verdad? Unas pocas «palabras» sueltas en un video de música son alucinaciones de
+ * Whisper: hacen falta al menos 3 palabras y 1,5 s de habla para tratarlo como video hablado.
+ */
+export function hasSpeech(t: Transcript | null | undefined): boolean {
+  const words = (t?.words ?? []).filter((w) => !isNoise(w.text));
+  const spoken = words.reduce((a, w) => a + Math.max(0, w.end - w.start), 0);
+  return words.length >= 3 && spoken >= 1.5;
 }
 
 /** Texto compacto para Claude: una línea por frase con su tiempo de inicio. */

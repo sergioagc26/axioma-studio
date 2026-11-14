@@ -1,4 +1,4 @@
-import { Preset, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@axioma/schema';
+import { Preset, sceneLength, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@axioma/schema';
 import { MONTAGE_ALL, applyBrief, ctaForGoal, fitDuration, maxSeconds, wantsAll } from './brief.ts';
 import { autoMusic } from './musiclib.ts';
 import { applyWishes, buildPrompt } from './briefai.ts';
@@ -17,8 +17,9 @@ import { downloadBroll, searchBroll, stockSource } from './pexels.ts';
 import { keywords, speechOf } from '@axioma/schema';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createMontage, detectShots } from './montage.ts';
+import { asMontage, createMontage, detectShots } from './montage.ts';
 import { prepareMedia, transcribeProject } from './pipeline.ts';
+import { hasSpeech } from './transcribe.ts';
 import { renderProject } from './render.ts';
 import { createProject } from './store.ts';
 
@@ -199,7 +200,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     await writeProject(dir, project);
     const max = formatMax ?? (wantsAll(project.brief.duracion) ? MONTAGE_ALL : short ? Math.min(60, trend?.seconds ?? 60) : trend?.seconds);
     const m = await buildMontage(dir, { duration: max });
-    summary.push(`Montaje de ${m.duration.toFixed(0)} s con cortes de ~${m.clip.toFixed(1)} s.`);
+    summary.push(`Montaje de ${m.duration.toFixed(0)} s: ${m.project.scenes.length} cortes, uno cada ~${(m.duration / Math.max(1, m.project.scenes.length)).toFixed(1)} s.`);
   } else {
     await cutProject(dir, base.id);
     project = await readProject(dir);
@@ -260,7 +261,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   }
 
   // 3. Cierre con el llamado a la acción del brief (o el de su objetivo), si lo hay.
-  const cta = /digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim() || ctaForGoal(project.brief.objetivo, /anuncio/i.test(project.brief.formato ?? ''));
+  const cta = project.kind === 'hablado' && /digo en el video/i.test(project.brief.cta ?? '') ? '' : (/digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim()) || ctaForGoal(project.brief.objetivo, /anuncio/i.test(project.brief.formato ?? ''));
   const last = project.scenes[project.scenes.length - 1];
   if (cta && last && project.scenes.length > 1) {
     last.onScreenText = cta;
@@ -289,7 +290,7 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
   log(`Proyecto: ${dir}`);
   await prepareMedia(dir, log);
   const t = await transcribeProject(dir, log);
-  if (!t.words.length) {
+  if (!hasSpeech(t)) {
     // Sin voz: se rehace como montaje de tomas.
     log('  sin voz: se arma como montaje');
     await rm(dir, { recursive: true, force: true });
@@ -318,6 +319,20 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
 export async function editEverything(dir: string, opts: { referenceId?: string; onProgress?: (m: string) => void } = {}): Promise<{ summary: string[] }> {
   const say = opts.onProgress ?? (() => {});
   let project = await readProject(dir);
+  const fixes: string[] = [];
+  // Montaje con la mezcla de un video hablado (música bajita, sonido del celular a tope): se corrige.
+  if (project.kind === 'montaje') { asMontage(project); await writeProject(dir, project); }
+  // Un video marcado como «hablado» sin voz real (Whisper inventa «*música*» sobre la música) se
+  // edita como montaje: si no, se recortaba a lo poco que «se dijo» y se subtitulaba el ruido.
+  if (project.kind === 'hablado' && !hasSpeech(await readTranscript(dir).catch(() => null))) {
+    say('No hay voz: lo armo como montaje…');
+    asMontage(project);
+    project.scenes = [];
+    await writeProject(dir, project);
+    await detectShots(dir).catch(() => []);
+    project = await readProject(dir);
+    fixes.push('No encontré voz en el video: lo edité como montaje al ritmo de la música (sin subtítulos).');
+  }
   // La referencia elegida en el brief es la única que manda: su estilo (ritmo, subtítulos, textos)
   // va sobre el tono; el brief sigue decidiendo la duración y el cierre. Sin elegir, ninguna.
   const route = await editRoute(project, opts.referenceId);
@@ -388,6 +403,31 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
     await setAutoSfx(dir, true);
     summary.push('Efectos de sonido en las transiciones y al entrar cada texto.');
   }
+  // Montaje: un video sin voz necesita un gancho en pantalla desde el primer segundo (antes solo
+  // llevaba el texto del cierre). Sale del brief y de lo que se ve; nunca inventa cifras.
+  project = await readProject(dir);
+  const opening = project.kind === 'montaje' ? project.scenes[0] : undefined;
+  if (opening && !opening.onScreenText) {
+    const hook = await montageHook(dir, project).catch(() => null);
+    if (hook) {
+      opening.onScreenText = hook; opening.autoText = hook;
+      opening.textStyle = opening.textStyle === 'caja' ? 'gigante' : opening.textStyle;
+      opening.textPosition = 'arriba';
+      // En un montaje los planos duran menos de un segundo: el gancho sigue en las escenas
+      // siguientes hasta ~2,5 s (se dibuja como un solo rótulo, sin volver a entrar).
+      let shown = sceneLength(opening);
+      for (const s of project.scenes.slice(1, -1)) {
+        if (shown >= 2.5 || s.onScreenText || s.visual === 'motion') break;
+        s.onScreenText = hook; s.autoText = hook;
+        s.textStyle = opening.textStyle; s.textPosition = opening.textPosition; s.textAnim = opening.textAnim;
+        s.textKeyword = opening.textKeyword; s.textColor = opening.textColor; s.textFont = opening.textFont;
+        shown += sceneLength(s);
+      }
+      await writeProject(dir, project);
+      summary.push(`Gancho en pantalla: «${hook}» desde el primer segundo.`);
+    }
+  }
+  summary.unshift(...fixes);
   // Lo que se hizo queda guardado para mostrarlo en Resultado (también tras recargar).
   await writeFile(path.join(dir, 'resumen-edicion.json'), JSON.stringify({ at: new Date().toISOString(), summary }, null, 2)).catch(() => {});
   return { summary };
@@ -403,4 +443,30 @@ async function musicFor(dir: string): Promise<string[]> {
   if (music) return [music];
   if (!(await envValue('FREESOUND_API_KEY'))) return ['Sin música: falta la clave gratuita de Freesound (Proyectos › Ajustes › Claves). También puedes agregar canciones en Audio.'];
   return ['Sin música: no encontré una canción (revisa el internet) o agrega canciones en Audio.'];
+}
+
+/**
+ * Gancho para un montaje sin voz: con la IA local, a partir de lo que pide el brief (nota, datos,
+ * objetivo) y de lo que se ve; sin IA, la nota o el dato del cliente acortados. Nunca inventa cifras.
+ */
+export async function montageHook(dir: string, project: Awaited<ReturnType<typeof readProject>>): Promise<string | null> {
+  const b = project.brief;
+  const extras = Object.entries(b).filter(([k, v]) => k.startsWith('extra:') && v && !/^no aplica$/i.test(v)).map(([, v]) => v);
+  const seen = (await readVision(dir).catch(() => null))?.scores?.[0]?.label;
+  const kit = await readKit(project.client).catch(() => null);
+  const context = [
+    b.notas ? `Lo que dice el cliente: ${b.notas}` : '',
+    extras.length ? `Datos del cliente: ${extras.join(' · ')}` : '',
+    seen ? `En el video se ve: ${seen}` : '',
+    kit?.name ? `Marca: ${kit.name}${kit.sector ? ` (${kit.sector})` : ''}` : '',
+  ].filter(Boolean).join('\n');
+  if (await llmReady()) {
+    const hook = await llmHook(`(Video sin voz: escribe el texto de apertura que le hable a quien lo ve, sobre lo que se ve en el video, a partir de esto y sin inventar datos ni mencionar seguidores, likes o redes)\n${context}`, b.publico).catch(() => null);
+    if (hook) return hook;
+  }
+  // Sin IA: la nota o el dato del cliente, cortado a 6 palabras.
+  const plain = (b.notas || extras[0] || '').replace(/[.!?¡¿"«»]/g, '').trim();
+  if (!plain) return null;
+  const words = plain.split(/\s+/).slice(0, 6).join(' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }

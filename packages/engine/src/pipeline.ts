@@ -17,7 +17,7 @@ import { listPresets } from './presets.ts';
 import { setMusic, setVoiceover } from './ops.ts';
 import { renderProject } from './render.ts';
 import { createProject, readProject, readTranscript, writeProject, writeTranscript } from './store.ts';
-import { transcribeWav } from './transcribe.ts';
+import { hasSpeech, transcribeWav } from './transcribe.ts';
 
 type Log = (msg: string) => void;
 
@@ -138,7 +138,7 @@ export async function editVideo(
   await prepareMedia(dir, log);
   const t = await transcribeProject(dir, log);
   log(`  ${t.words.length} palabras`);
-  if (!t.words.length) {
+  if (!hasSpeech(t)) {
     throw new Error('No se detectó voz en el video. Para videos sin voz (gimnasio, comida, cortes rápidos) usa el modo montaje: npm run se -- montaje "<video o carpeta>"');
   }
   const report = await cutProject(dir);

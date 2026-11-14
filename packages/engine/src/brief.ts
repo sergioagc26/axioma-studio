@@ -141,8 +141,12 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
     await applyPreset(dir, presetId);
     // «Lo que dure» en un montaje: todo el material (sin pasar de 90 s), no los 15–30 s de siempre.
     const duration = max ?? (wantsAll(b.duracion) ? MONTAGE_ALL : undefined);
-    const m = await buildMontage(dir, { duration, density: asked ? densityFor(presetId) : undefined });
-    summary.push(`Montaje de ${m.duration.toFixed(0)} s con cortes de ~${m.clip.toFixed(1)} s (ritmo ${b.ritmo && asked ? b.ritmo : presetId}).`);
+    // «Que decida la app»: la cadencia sale del estilo elegido, un paso más calmada que si se pidió
+    // (si no, con músicas suaves salía un corte cada compás, demasiado lento para un montaje).
+    const chosen = densityFor(presetId);
+    const density = asked ? chosen : chosen === 'pulso' ? 'medio' : chosen;
+    const m = await buildMontage(dir, { duration, density: density === 'auto' ? undefined : density });
+    summary.push(`Montaje de ${m.duration.toFixed(0)} s: ${m.project.scenes.length} cortes, uno cada ~${(m.duration / Math.max(1, m.project.scenes.length)).toFixed(1)} s (ritmo ${b.ritmo && asked ? b.ritmo : presetId}).`);
   } else {
     // Se vuelve a cortar con el ritmo elegido: cambia cuánta pausa se deja entre frases.
     await cutProject(dir, presetId);
@@ -189,13 +193,15 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
     last.title ||= 'Cierre';
     // «La que digo en el video» no añade texto: el cierre es el que ya se dijo. Sin cierre elegido,
     // va el que corresponde al objetivo (y en un anuncio siempre hay cierre).
-    const spoken = /digo en el video/i.test(b.cta ?? '');
-    const cta = spoken ? '' : (b.cta ?? '').trim() || ctaForGoal(b.objetivo, ad);
+    // En un montaje no se dice nada: «la que digo» pasa a ser el cierre del objetivo.
+    const spoken = talk && /digo en el video/i.test(b.cta ?? '');
+    const asked = /digo en el video/i.test(b.cta ?? '') ? '' : (b.cta ?? '').trim();
+    const cta = spoken ? '' : asked || ctaForGoal(b.objetivo, ad);
     if (cta) {
       last.onScreenText = cta;
       last.textStyle = 'banda';
       last.textPosition = 'arriba';
-      summary.push(`Cierre con tu llamado a la acción: «${last.onScreenText}»${(b.cta ?? '').trim() ? '' : b.objetivo && CTA_FOR[b.objetivo] ? ` (según tu objetivo: ${b.objetivo})` : ' (anuncio: cierre fuerte)'}.`);
+      summary.push(`Cierre con tu llamado a la acción: «${last.onScreenText}»${asked ? '' : b.objetivo && CTA_FOR[b.objetivo] ? ` (según tu objetivo: ${b.objetivo})` : ' (anuncio: cierre fuerte)'}.`);
     } else if (talk) {
       last.onScreenText ??= shortPhrases(speechOf(last, transcript))[0];
     }

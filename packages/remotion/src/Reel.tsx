@@ -704,13 +704,17 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
   }
 
   if (overlay.style === 'gigante') {
-    const rest = words.filter((w) => !isKey(w)).join(' ');
-    const key = words.find(isKey) ?? '';
+    // Se lee en orden: lo que va antes de la palabra clave, la palabra en grande y lo que va después.
+    const ki = words.findIndex(isKey);
+    const before = (ki < 0 ? words : words.slice(0, ki)).join(' ');
+    const key = ki < 0 ? '' : words[ki];
+    const after = ki < 0 ? '' : words.slice(ki + 1).join(' ');
     return (
       <AbsoluteFill>
         <div style={{ ...wrap, ...outline }}>
-          {rest ? <div style={{ fontSize: 50 * k }}>{rest}</div> : null}
+          {before ? <div style={{ fontSize: 50 * k }}>{before}</div> : null}
           {key ? <div style={{ fontSize: Math.min(190, Math.max(96, 1150 / Math.max(4, key.length))) * k, color, lineHeight: 0.98, transform: `scale(${interpolate(kw, [0, 1], [0.6, 1])})` }}>{key}</div> : null}
+          {after ? <div style={{ fontSize: 50 * k }}>{after}</div> : null}
         </div>
       </AbsoluteFill>
     );

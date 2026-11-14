@@ -216,9 +216,14 @@ export async function buildMontage(dir: string, opts: { duration?: number; clipL
     shots.forEach((s, i) => {
       const len = s.end - s.start;
       const dur = Math.min(clip, len);
+      // Si entre plano y plano de la misma toma quedaría menos de medio segundo, se ve como un salto:
+      // entonces van seguidos (un bloque centrado en la toma), y el corte no «tartamudea».
+      const together = len / Math.max(1, count[i]) - dur < 0.5;
       for (let k = 0; k < count[i]; k++) {
         const center = s.start + ((k + 0.5) / count[i]) * len;
-        const start = Math.min(Math.max(s.start, center - dur / 2), s.end - dur);
+        const start = together
+          ? Math.min(s.start + Math.max(0, (len - dur * count[i]) / 2) + k * dur, s.end - dur)
+          : Math.min(Math.max(s.start, center - dur / 2), s.end - dur);
         ranges.push({ start, end: start + dur, shot: s });
       }
     });
@@ -235,4 +240,16 @@ export async function buildMontage(dir: string, opts: { duration?: number; clipL
   applyPunchZooms(project.scenes, project.pacing.punchZoomEvery);
   const saved = await writeProject(dir, project);
   return { project: saved, clip, beat, shots: shots.length, duration: ranges.reduce((a, r) => a + r.end - r.start, 0) };
+}
+
+/**
+ * Pasa un proyecto a montaje con la mezcla de un montaje: la música manda y el sonido original
+ * queda de fondo. Solo cambia los volúmenes si siguen en los de un video hablado (no pisa lo que
+ * el usuario haya ajustado a mano).
+ */
+export function asMontage<T extends { kind: string; audio: { musicVolume: number; originalVolume: number } }>(project: T): T {
+  project.kind = 'montaje';
+  if (project.audio.musicVolume <= 0.2) project.audio.musicVolume = 0.4;
+  if (project.audio.originalVolume >= 0.99) project.audio.originalVolume = 0.6;
+  return project;
 }
