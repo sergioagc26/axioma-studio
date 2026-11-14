@@ -1,3 +1,4 @@
+import { checkCancelled } from './cancel.ts';
 import { listReferences } from './reference.ts';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -251,7 +252,7 @@ const TRANS: Record<string, string | undefined> = { corte: undefined, barrido: '
  * movimiento de cámara, su entrada, su texto y sus sonidos.
  */
 export async function applyScript(dir: string, opts: { provider?: TtsProvider; voice?: string; onProgress?: (m: string) => void } = {}): Promise<{ summary: string[] }> {
-  const say = opts.onProgress ?? (() => {});
+  const say = (m: string) => { checkCancelled(); opts.onProgress?.(m); };
   const g = await readScript(dir);
   if (!g?.filas.length) throw new Error('Este proyecto todavía no tiene guion. Escríbelo primero.');
   let project = await readProject(dir);

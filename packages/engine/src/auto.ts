@@ -1,3 +1,4 @@
+import { checkCancelled } from './cancel.ts';
 import { Preset, sceneLength, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@axioma/schema';
 import { MONTAGE_ALL, applyBrief, ctaForGoal, fitDuration, maxSeconds, wantsAll } from './brief.ts';
 import { autoMusic } from './musiclib.ts';
@@ -320,7 +321,8 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
  * del ánimo que pide, efectos de sonido y deja todo listo para exportar.
  */
 export async function editEverything(dir: string, opts: { referenceId?: string; onProgress?: (m: string) => void } = {}): Promise<{ summary: string[] }> {
-  const say = opts.onProgress ?? (() => {});
+  // Cada paso es un punto de control: si se cancela, se para aquí.
+  const say = (m: string) => { checkCancelled(); opts.onProgress?.(m); };
   let project = await readProject(dir);
   const fixes: string[] = [];
   // Montaje con la mezcla de un video hablado (música bajita, sonido del celular a tope): se corrige.

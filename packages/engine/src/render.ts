@@ -1,3 +1,4 @@
+import { Cancelled, checkCancelled, currentSignal, onCancel } from './cancel.ts';
 import { buildFront, readFront } from './front.ts';
 import { cutoutCoverage } from './matte.ts';
 import { llmUnload } from './llm.ts';
@@ -6,7 +7,7 @@ import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promis
 import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
-import { renderMedia, selectComposition } from '@remotion/renderer';
+import { makeCancelSignal, renderMedia, selectComposition } from '@remotion/renderer';
 import { FORMATS, buildTimeline, frontKey, type Brand, type FormatId, type Project, type Transcript } from '@axioma/schema';
 import { readSpeakers } from './speakers.ts';
 import { captionWords } from './subtitles.ts';
@@ -113,7 +114,14 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     // Audio AAC a lo más 256k: es lo máximo que conserva Instagram (más no se nota y lo recodifica).
     const q = { maxima: { crf: 12, audio: '256k' }, alta: { crf: 17, audio: '256k' }, ligera: { crf: 23, audio: '160k' } }[opts.quality ?? project.export.quality];
     const raw = out.replace(/\.mp4$/i, '') + '.sin-nivelar.mp4';
+    // Lo previo (empaquetar, preparar el material) puede tardar: si ya se canceló, no se empieza.
+    checkCancelled();
+    // Si se cancela la exportación, Remotion para y se borra el archivo a medias.
+    const { cancelSignal, cancel } = makeCancelSignal();
+    const off = onCancel(cancel);
+    try {
     await retryBrowser(() => renderMedia({
+      cancelSignal,
       serveUrl,
       timeoutInMilliseconds: 120_000,
       composition,
@@ -128,6 +136,10 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       concurrency: Math.max(1, Math.min(project.export.uhd ? 4 : 8, Math.floor(os.cpus().length / 2), Math.max(2, Math.floor(os.totalmem() / 2 ** 30 / (project.export.uhd ? 8 : 4))))),
       onProgress: ({ progress }) => opts.onProgress?.(frontShare + progress * (0.95 - frontShare)),
     }));
+    } catch (e) {
+      if (currentSignal()?.aborted) { await rm(raw, { force: true }).catch(() => {}); throw new Cancelled(); }
+      throw e;
+    } finally { off(); }
     // Siempre se nivela el resultado final al volumen elegido (−14 LUFS para redes).
     try {
       await normalizeMix(raw, out, project.audio.targetLufs, q.audio);
@@ -158,6 +170,7 @@ export async function retryBrowser<T>(fn: () => Promise<T>): Promise<T> {
       return await fn();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      if (currentSignal()?.aborted) throw new Cancelled();
       if (i >= 2 || !/connect to the browser|Timed out.*browser|browser.*closed/i.test(msg)) throw e;
       await new Promise((r) => setTimeout(r, 5000));
     }

@@ -1,3 +1,4 @@
+import { checkCancelled } from './cancel.ts';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -130,6 +131,7 @@ export async function buildFront(dir: string, onProgress: (p: number, msg: strin
       for (let k = 0; k < c.durationInFrames; k++) {
         const f = path.join(seg, `f${String(k + 1).padStart(4, '0')}.jpg`);
         if (!existsSync(f)) break;
+        checkCancelled();
         const out = c.fromFrame + k;
         const r = await est(path.join(seg, `s${String(k + 1).padStart(4, '0')}.jpg`));
         const { data, width: dw, height: dh } = r.depth;

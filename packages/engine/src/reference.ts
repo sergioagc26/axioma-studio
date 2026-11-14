@@ -1,3 +1,4 @@
+import { checkCancelled } from './cancel.ts';
 import { copyFromWish, understandReference } from './refsource.ts';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
@@ -338,7 +339,7 @@ const saturation = (h: string) => {
  * nada del contenido: el video se borra al terminar salvo que `keepVideo` sea true.
  */
 export async function analyzeReference(input: string, opts: { client?: string; name?: string; keepVideo?: boolean; onStep?: (message: string, progress: number) => void; /** Link de donde vino y lo que dice la publicación. */ source?: ReferenceReport['source']; /** Lo que el cliente quiere de ella. */ wish?: string; /** Además del estilo, entender de qué trata y sugerir mejoras (IA local). */ understand?: boolean; /** Lo que se sabe del cliente (para adaptar las ideas). */ context?: string } = {}): Promise<{ dir: string; report: ReferenceReport }> {
-  const step = opts.onStep ?? (() => {});
+  const step = (m: string, p: number) => { checkCancelled(); opts.onStep?.(m, p); };
   const file = path.resolve(input);
   if (!existsSync(file)) throw new Error(`No existe el archivo: ${file}`);
   const name = opts.name ?? path.basename(file, path.extname(file));
@@ -347,53 +348,59 @@ export async function analyzeReference(input: string, opts: { client?: string; n
   for (let i = 2; existsSync(path.join(root, id)); i++) id = `${slugify(name)}-${i}`;
   const dir = path.join(root, id);
   await mkdir(path.join(dir, 'frames'), { recursive: true });
+  // Si algo falla (o se cancela) a mitad, no queda una referencia rota en la lista.
+  try {
 
-  step('Midiendo el video…', 0.05);
-  const info = await probe(file);
-  step('Contando los cortes…', 0.15);
-  const cuts = await detectCuts(file);
-  step('Escuchando el ritmo de la música…', 0.35);
-  const bpm = await detectBpm(file, dir);
-  step('Sacando los colores…', 0.5);
-  const palette = await detectPalette(file, info.duration, dir);
-  step('Mirando los subtítulos y los textos…', 0.6);
-  const visual = await detectVisualStyle(file, info.duration, cuts, dir);
-  step('Guardando fotogramas…', 0.8);
+    step('Midiendo el video…', 0.05);
+    const info = await probe(file);
+    step('Contando los cortes…', 0.15);
+    const cuts = await detectCuts(file);
+    step('Escuchando el ritmo de la música…', 0.35);
+    const bpm = await detectBpm(file, dir);
+    step('Sacando los colores…', 0.5);
+    const palette = await detectPalette(file, info.duration, dir);
+    step('Mirando los subtítulos y los textos…', 0.6);
+    const visual = await detectVisualStyle(file, info.duration, cuts, dir);
+    step('Guardando fotogramas…', 0.8);
 
-  const frames: string[] = [];
-  const count = 8;
-  for (let i = 0; i < count; i++) {
-    const rel = `frames/${String(i + 1).padStart(2, '0')}.jpg`;
-    await ffmpeg(['-ss', (((i + 0.5) / count) * info.duration).toFixed(2), '-i', file, '-frames:v', '1', '-vf', 'scale=360:-2', '-q:v', '4', path.join(dir, rel)]);
-    frames.push(rel);
-  }
-  step('Revisando la tipografía…', 0.9);
-  const typography = await detectTypography(frames.map((f) => path.join(dir, f))).catch(() => null);
-  if (opts.keepVideo) await copyFile(file, path.join(dir, `referencia${path.extname(file).toLowerCase()}`));
+    const frames: string[] = [];
+    const count = 8;
+    for (let i = 0; i < count; i++) {
+      const rel = `frames/${String(i + 1).padStart(2, '0')}.jpg`;
+      await ffmpeg(['-ss', (((i + 0.5) / count) * info.duration).toFixed(2), '-i', file, '-frames:v', '1', '-vf', 'scale=360:-2', '-q:v', '4', path.join(dir, rel)]);
+      frames.push(rel);
+    }
+    step('Revisando la tipografía…', 0.9);
+    const typography = await detectTypography(frames.map((f) => path.join(dir, f))).catch(() => null);
+    if (opts.keepVideo) await copyFile(file, path.join(dir, `referencia${path.extname(file).toLowerCase()}`));
 
-  const avgShot = info.duration / (cuts.length + 1);
-  const ritmo = avgShot < 1.8 ? 'rapido' : avgShot < 3.5 ? 'con-ritmo' : 'sobrio';
-  const accent = [...palette].sort((a, b) => saturation(b) - saturation(a))[0];
-  const report: ReferenceReport = {
-    id, name, client: opts.client ?? 'personal', createdAt: new Date().toISOString(),
-    duration: info.duration, cuts, avgShot, bpm, palette, frames, ...visual, typography,
-    suggested: {
-      ritmo,
-      maxPause: ritmo === 'rapido' ? 0.2 : ritmo === 'con-ritmo' ? 0.35 : 0.6,
-      punchZoomEvery: ritmo === 'sobrio' ? 0 : Math.max(2, Math.round(avgShot * 2)),
-      highlightColor: accent && saturation(accent) > 0.35 ? accent : '#FE2C55',
-    },
-  };
-  if (opts.source) report.source = opts.source;
-  if (opts.wish?.trim()) report.wish = opts.wish.trim().slice(0, 1000);
-  report.copy = copyFromWish(report.wish);
-  await writeFile(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
-  if (opts.understand !== false) {
-    const u = await understandReference(file, report, dir, { brand: opts.client, wish: report.wish, context: opts.context, onStep: (m) => step(m, 0.95) }).catch(() => ({}));
-    Object.assign(report, u);
+    const avgShot = info.duration / (cuts.length + 1);
+    const ritmo = avgShot < 1.8 ? 'rapido' : avgShot < 3.5 ? 'con-ritmo' : 'sobrio';
+    const accent = [...palette].sort((a, b) => saturation(b) - saturation(a))[0];
+    const report: ReferenceReport = {
+      id, name, client: opts.client ?? 'personal', createdAt: new Date().toISOString(),
+      duration: info.duration, cuts, avgShot, bpm, palette, frames, ...visual, typography,
+      suggested: {
+        ritmo,
+        maxPause: ritmo === 'rapido' ? 0.2 : ritmo === 'con-ritmo' ? 0.35 : 0.6,
+        punchZoomEvery: ritmo === 'sobrio' ? 0 : Math.max(2, Math.round(avgShot * 2)),
+        highlightColor: accent && saturation(accent) > 0.35 ? accent : '#FE2C55',
+      },
+    };
+    if (opts.source) report.source = opts.source;
+    if (opts.wish?.trim()) report.wish = opts.wish.trim().slice(0, 1000);
+    report.copy = copyFromWish(report.wish);
     await writeFile(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
+    if (opts.understand !== false) {
+      const u = await understandReference(file, report, dir, { brand: opts.client, wish: report.wish, context: opts.context, onStep: (m) => step(m, 0.95) }).catch(() => ({}));
+      Object.assign(report, u);
+      await writeFile(path.join(dir, 'report.json'), JSON.stringify(report, null, 2));
+    }
+    return { dir, report };
+  } catch (e) {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+    throw e;
   }
-  return { dir, report };
 }
 
 export async function listReferences(client?: string): Promise<ReferenceReport[]> {

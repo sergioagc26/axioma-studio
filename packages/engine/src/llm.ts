@@ -3,6 +3,7 @@
  * Es la única IA que usa la app: editar por chat, redactar ganchos y el texto para publicar.
  * El modelo, la memoria y los núcleos se ajustan a este PC (hardwareProfile) para no llevarlo al límite.
  */
+import { currentSignal } from './cancel.ts';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -161,6 +162,9 @@ export function contextFor(chars: number, max = 32768): number {
  * Temperatura baja: se busca precisión, no creatividad desbordada. Si falla una vez, reintenta.
  * `think: true` deja que el modelo razone antes de responder (más lento, mejor en pedidos difíciles).
  */
+/** La espera de la IA también se corta si se cancela el trabajo que la pidió. */
+const withJob = (s: AbortSignal) => { const j = currentSignal(); return j ? AbortSignal.any([s, j]) : s; };
+
 export async function llmJson<T>(system: string, user: string, schema: object, opts: { temperature?: number; timeoutMs?: number; think?: boolean } = {}): Promise<T> {
   if (!(await llmReady())) throw new Error('La IA local no está disponible. Revisa que Ollama esté instalado y con un modelo descargado (ollama pull ${LOCAL_MODEL}).');
   const model = await activeModel();
@@ -170,7 +174,7 @@ export async function llmJson<T>(system: string, user: string, schema: object, o
       r = await fetch(`${HOST}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(opts.timeoutMs ?? 180_000),
+        signal: withJob(AbortSignal.timeout(opts.timeoutMs ?? 180_000)),
         body: JSON.stringify({
           model, stream: false, think: Boolean(opts.think), format: schema, keep_alive: profile().keepAlive,
           options: { temperature: opts.temperature ?? 0.3, num_ctx: contextFor(system.length + user.length, profile().maxCtx), num_thread: profile().threads },
@@ -255,7 +259,7 @@ export async function visionJson<T>(system: string, user: string, images: string
   const b64 = await Promise.all(images.map(async (f) => (await readFile(f)).toString('base64')));
   return inLine(async () => {
     const r = await fetch(`${HOST}/api/chat`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(opts.timeoutMs ?? 240_000),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: withJob(AbortSignal.timeout(opts.timeoutMs ?? 240_000)),
       body: JSON.stringify({
         model, stream: false, think: false, format: schema, keep_alive: '2m',
         options: { temperature: opts.temperature ?? 0.2, num_ctx: Math.min(16384, profile().maxCtx), num_thread: profile().threads },

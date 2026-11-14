@@ -1,3 +1,4 @@
+import { cancelScope, isCancelled, newCancelScope, runCancellable, type CancelScope } from './cancel.ts';
 import { dictate, downloadReference, linkKind, profileVideos } from './refsource.ts';
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, watch } from 'node:fs';
@@ -79,20 +80,39 @@ interface Job {
   result?: Record<string, unknown>;
   /** Proyecto al que pertenece (para retomar el avance tras recargar). */
   projectId?: string;
+  /** Se canceló a pedido del usuario (status queda en 'error' con el mensaje «Cancelado.»). */
+  cancelled?: boolean;
+  /** Se puede cancelar (las publicaciones y actualizaciones no: a medias podrían dejar algo roto). */
+  cancellable?: boolean;
 }
 const jobs = new Map<string, Job>();
+/** Cómo parar cada trabajo en marcha. */
+const scopes = new Map<string, CancelScope>();
+/** Trabajos que no se cancelan a mitad: publicar en redes, actualizar la app y copias de seguridad. */
+const NOT_CANCELLABLE: Job['kind'][] = ['publicar', 'actualizar', 'copia', 'metricas'];
 /** Archivos subidos que esperan a convertirse en proyecto (ficha → carpeta temporal). */
 const uploads = new Map<string, string>();
 
 const startOpJob = (kind: Job['kind'], fn: (job: Job) => Promise<Record<string, unknown>>, projectId?: string) => startJob(kind, fn, projectId);
 function startJob(kind: Job['kind'], fn: (job: Job) => Promise<Record<string, unknown>>, projectId?: string): Job {
-  const job: Job = { id: `j${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, kind, status: 'running', message: 'Empezando…', progress: 0, ...(projectId ? { projectId } : {}) };
+  const job: Job = { id: `j${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, kind, status: 'running', message: 'Empezando…', progress: 0, cancellable: !NOT_CANCELLABLE.includes(kind), ...(projectId ? { projectId } : {}) };
   jobs.set(job.id, job);
+  const scope = newCancelScope();
+  scopes.set(job.id, scope);
   // Las tareas terminadas se olvidan a la hora, para no acumularlas.
-  const forget = () => { setTimeout(() => jobs.delete(job.id), 3_600_000).unref(); };
-  fn(job).then(
+  const forget = () => { scopes.delete(job.id); setTimeout(() => jobs.delete(job.id), 3_600_000).unref(); };
+  // Foto del proyecto al empezar: si se cancela, queda como estaba (nada a medias).
+  const snapshot = projectId && kind !== 'nuevo' ? findDir(projectId).then(async (d) => ({ dir: d, json: await readFile(path.join(d, P.project), 'utf8') })).catch(() => null) : Promise.resolve(null);
+  runCancellable(scope, async () => { await snapshot; return fn(job); }).then(
     (result) => { Object.assign(job, { status: 'done', progress: 1, result, message: 'Listo' }); forget(); },
-    (e) => { Object.assign(job, { status: 'error', message: e instanceof Error ? e.message : String(e) }); forget(); },
+    async (e) => {
+      if (scope.controller.signal.aborted || isCancelled(e)) {
+        const snap = await snapshot;
+        if (snap) await writeFile(path.join(snap.dir, P.project), snap.json).catch(() => {});
+        Object.assign(job, { status: 'error', cancelled: true, message: 'Cancelado.' });
+      } else Object.assign(job, { status: 'error', message: e instanceof Error ? e.message : String(e) });
+      forget();
+    },
   );
   return job;
 }
@@ -444,6 +464,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, await renamePreset(project.client, preset, String((await readBody(req)).name ?? '')));
   }
 
+  // Cancelar un trabajo en marcha: se cierran sus procesos y el proyecto vuelve a como estaba.
+  if (p.startsWith('/api/jobs/') && p.endsWith('/cancelar') && method === 'POST') {
+    const jid = p.slice('/api/jobs/'.length, -'/cancelar'.length);
+    const job = jobs.get(jid);
+    if (!job) return json(res, { error: 'No existe la tarea.' }, 404);
+    if (job.status !== 'running') return json(res, job);
+    if (!job.cancellable) return json(res, { error: 'Esta tarea no se puede cancelar a mitad (podría dejar algo roto). Espera a que termine.' }, 409);
+    job.message = 'Cancelando…';
+    const scope = scopes.get(jid);
+    if (scope) cancelScope(scope);
+    return json(res, job);
+  }
   if (p.startsWith('/api/jobs/')) {
     const job = jobs.get(p.slice('/api/jobs/'.length));
     return job ? json(res, job) : json(res, { error: 'No existe la tarea.' }, 404);
@@ -806,7 +838,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
           const rec = await recordExport(dir, { out: r.first, projectUpdatedAt: version });
           return { ...r, at: rec.at };
         } catch (e) {
-          await recordExport(dir, { error: e instanceof Error ? e.message : String(e) }).catch(() => {});
+          // Cancelar no es un fallo: no se anota como error de la exportación.
+          if (!isCancelled(e)) await recordExport(dir, { error: e instanceof Error ? e.message : String(e) }).catch(() => {});
           throw e;
         }
       };

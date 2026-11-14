@@ -50,6 +50,7 @@ export function uploadFile<T = any>(url: string, file: File, onProgress: (f: num
  * o un reinicio del servidor: reintenta unos segundos antes de rendirse, con un mensaje claro.
  */
 export async function waitJob(job: Job, onTick: (j: Job) => void): Promise<Job> {
+  // Un trabajo cancelado termina con «Cancelado.» (quien espera lo muestra como cualquier aviso).
   let j = job;
   let fails = 0, misses = 0;
   for (;;) {

@@ -1,3 +1,4 @@
+import { trackChild } from './cancel.ts';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -81,6 +82,7 @@ export function askClaude(projectId: string, request: string, onStep: (msg: stri
 
   return new Promise((resolve, reject) => {
     const child = spawn(isScript ? process.execPath : bin, isScript ? [bin, ...args] : args, { cwd: REPO_ROOT, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    trackChild(child);
     const tools: string[] = [];
     let buf = '';
     let final: { is_error?: boolean; result?: string } | null = null;

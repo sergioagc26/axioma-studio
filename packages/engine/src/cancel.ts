@@ -61,6 +61,8 @@ export function trackChild(child: ChildProcess) {
 export function onCancel(fn: () => void): () => void {
   const s = store.getStore();
   if (!s) return () => {};
+  // Si ya se canceló (la orden llegó antes de que esto empezara), se para enseguida.
+  if (s.controller.signal.aborted) { queueMicrotask(fn); return () => {}; }
   s.hooks.add(fn);
   return () => s.hooks.delete(fn);
 }

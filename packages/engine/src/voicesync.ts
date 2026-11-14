@@ -1,3 +1,4 @@
+import { checkCancelled } from './cancel.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -69,6 +70,7 @@ export async function tagShots(dir: string, opts: { force?: boolean; tags?: Shot
   for (const s of shots) {
     if (s.tag && !s.tagAuto) continue;
     if (!opts.force && s.tagAuto) continue;
+    checkCancelled();
     const score = new Map<string, number>();
     // Dos fotogramas por toma (a un tercio y a dos tercios), para no fiarse de uno movido.
     for (const k of [1, 2]) {

@@ -12,6 +12,7 @@ import { Imagenes } from './screens/Imagenes.tsx';
 import { Texto } from './screens/Texto.tsx';
 import { Guion } from './screens/Guion.tsx';
 import { Tomas } from './screens/Tomas.tsx';
+import { JobsBar } from './JobsBar.tsx';
 import { Calendario } from './screens/Calendario.tsx';
 import { Icon } from './Icon.tsx';
 import type { IconName } from './icons.ts';
@@ -473,6 +474,7 @@ export const App: React.FC = () => {
           <button className="btn sq" aria-label="Cerrar aviso" onClick={() => setNotice(null)}><Icon name="close" /></button>
         </div>
       )}
+      <JobsBar projectId={route.p ?? null} toast={toast} />
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
   );

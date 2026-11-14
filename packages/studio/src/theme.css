@@ -332,3 +332,8 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .app.wide .listo-player { flex-basis: 620px; width: min(620px, 100%); }
 .app.wide .playerbox { height: auto; width: min(100%, 760px); max-height: none; }
 .app.wide .pthumb { width: 96px; }
+
+/* Trabajos en marcha, con su botón de cancelar (abajo a la derecha, sobre todo lo demás). */
+.jobsbar { position: fixed; right: 16px; bottom: 16px; z-index: 9; display: flex; flex-direction: column; gap: 8px; width: min(360px, calc(100vw - 32px)); }
+.jobsbar-item { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+@media (max-width: 640px) { .jobsbar { bottom: 72px; } }
