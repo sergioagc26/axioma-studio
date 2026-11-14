@@ -1306,6 +1306,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 <Slider label="Vertical" value={scene.textY ?? (scene.textPosition === 'centro' ? 0.45 : 0.2)} min={0.1} max={0.85} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.textY = v; })} />
               </div>
             </div>
+            <label className="row small" style={{ gap: 8 }}><input type="checkbox" checked={Boolean(scene.textLogo)} onChange={(e) => edit((s) => { s.textLogo = e.target.checked || undefined; })} /> Logo de la marca encima del texto</label>
             </Group>
             <Group id="imagen" title="Imagen y cámara" hint={[LOOK_NAMES.find(([id]) => id === scene.look)?.[1], scene.camera !== 'ninguno' ? CAMERA_NAMES.find(([id]) => id === scene.camera)?.[1] : '', (scene.speed ?? 1) < 1 ? 'lenta' : ''].filter(Boolean).join(' · ')}>
             {scene.visual === 'broll' && scene.brollFile && (
@@ -1340,6 +1341,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </label>
             {slowing ? <span className="pill" role="status">{slowing}</span> : (scene.speed ?? 1) < 1 ? <span className="small muted help">Suave: se crean los fotogramas intermedios. La voz de esta escena no suena (va bien con música).</span> : null}
             <Slider label="Tamaño del video" value={scene.videoScale} min={0.4} max={2.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.videoScale = v; })} />
+            <label className="row small" style={{ gap: 8 }}><input type="checkbox" checked={scene.videoFit === 'completo'} onChange={(e) => edit((s) => { s.videoFit = e.target.checked ? 'completo' : undefined; })} /> Ver el video completo (pantallas horizontales en un reel)</label>
             <span className="small muted help">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
             <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />
             <Slider label="Brillo" value={scene.brightness} min={0.5} max={1.6} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.brightness = v; })} />

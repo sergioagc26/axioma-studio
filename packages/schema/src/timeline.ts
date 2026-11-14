@@ -72,6 +72,8 @@ export type TimelineClip = {
   camera: Camera;
   cameraAmount: number;
   videoScale: number;
+  /** Se ve el video entero (con fondo desenfocado) en vez de recortarlo al cuadro. */
+  fit?: 'completo';
   /** Fondo detrás de la persona recortada. */
   backdrop?: string;
   backdropSrc?: string;
@@ -99,6 +101,8 @@ export type TimelineOverlay = {
   style: TextStyle; keyword: string;
   /** Centro del texto (0–1), tamaño relativo, tipografía y animación de entrada. */
   x: number; y: number; size: number; font?: string; anim: TextAnim; rotate: number; spacing: number;
+  /** Logo de la marca encima del texto. */
+  logo?: boolean;
 };
 
 export type Brand = { primary: string; secondary: string; text: string; name?: string; logoSrc?: string };
@@ -328,6 +332,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             camera: scene.camera,
             cameraAmount: scene.cameraAmount,
             videoScale: scene.videoScale,
+            fit: scene.videoFit === 'completo' ? 'completo' : undefined,
             backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, pc.start, pc.end) ? scene.backdrop : undefined,
             backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,
             brollDepthSrc: brollSrc && urls.depth?.includes(depthOf(brollFile!)) ? urls.asset!(depthOf(brollFile!)) : undefined,
@@ -378,6 +383,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         anim: scene.textAnim,
         rotate: scene.textRotate,
         spacing: scene.textSpacing,
+        logo: scene.textLogo || undefined,
         fromFrame: toFrame(sceneStart),
         durationInFrames: toFrame(acc) - toFrame(sceneStart),
       });

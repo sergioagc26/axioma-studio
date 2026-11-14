@@ -200,7 +200,7 @@ export const Reel: React.FC<Timeline> = (t) => {
 const ClipFront: React.FC<{ clip: TimelineClip; t: Timeline }> = ({ clip, t }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  if (!t.frontSrc || clip.motion || clip.brollSrc || clip.backdrop || clip.speed || clip.videoScale < 1 || clip.visual !== 'original') return null;
+  if (!t.frontSrc || clip.motion || clip.brollSrc || clip.backdrop || clip.speed || clip.videoScale < 1 || clip.fit || clip.visual !== 'original') return null;
   if (clip.transition && frame < clip.transition.frames) return null;
   const { cover, pos } = clipView(clip, t, frame, fps);
   return (
@@ -240,6 +240,7 @@ const ReelBody: React.FC<Timeline> = (t) => {
       {t.overlays.map((o, i) => (inFront(o) ? null :
         <Sequence key={`o${i}`} from={o.fromFrame} durationInFrames={o.durationInFrames}>
           <Overlay overlay={o} font={font} t={t} />
+          {o.logo && t.brand.logoSrc ? <LogoBadge overlay={o} t={t} /> : null}
         </Sequence>
       ))}
       {chunks.map((ch, i) => (
@@ -255,6 +256,7 @@ const ReelBody: React.FC<Timeline> = (t) => {
       {t.overlays.map((o, i) => (!inFront(o) ? null :
         <Sequence key={`of${i}`} from={o.fromFrame} durationInFrames={o.durationInFrames}>
           <Overlay overlay={o} font={font} t={t} />
+          {o.logo && t.brand.logoSrc ? <LogoBadge overlay={o} t={t} /> : null}
         </Sequence>
       ))}
       {t.finish.halation ? <AbsoluteFill style={{ backdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', WebkitBackdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', mixBlendMode: 'screen', opacity: 0.28, pointerEvents: 'none' }} /> : null}
@@ -475,7 +477,10 @@ function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
       kz = interpolate(p, [0, 1], [from, to]);
     }
   }
-  const cover: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: `${pos.x * 100}% ${pos.y * 100}%`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
+  // «Completo»: el video entero centrado (una pantalla horizontal en un reel), sin recortarlo.
+  const cover: React.CSSProperties = clip.fit === 'completo'
+    ? { width: '100%', height: '100%', objectFit: 'contain', transform: `scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: '50% 50%', filter: [filter, 'drop-shadow(0 24px 48px rgba(0,0,0,0.55))'].filter(Boolean).join(' ') }
+    : { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: `${pos.x * 100}% ${pos.y * 100}%`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
   return { cover, pos, filter };
 }
 
@@ -504,12 +509,13 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         </AbsoluteFill>
       ) : null}
       <AbsoluteFill style={inStyle}>
-      {clip.videoScale < 1 && !clip.motion && !clip.brollSrc ? (
+      {(clip.videoScale < 1 || clip.fit === 'completo') && !clip.motion && !clip.brollSrc ? (
         // Video más pequeño que el cuadro: detrás va el mismo video desenfocado, como fondo.
-        <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.6)', transform: 'scale(1.2)' }} />
+        // En su propia capa: si comparte caja con el video, cada uno queda con media altura.
+        <AbsoluteFill><OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(30px) brightness(0.6)', transform: 'scale(1.2)' }} /></AbsoluteFill>
       ) : null}
       {clip.motion?.style?.background === 'video' ? (
-        <OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(26px) saturate(1.2)', transform: 'scale(1.18)' }} />
+        <AbsoluteFill><OffthreadVideo src={t.videoSrc} trimBefore={clip.sourceStartFrame} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(26px) saturate(1.2)', transform: 'scale(1.18)' }} /></AbsoluteFill>
       ) : null}
       {clip.motion ? (
         <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
@@ -541,7 +547,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
           playbackRate={clip.speed && !clip.slowSrc ? clip.speed : 1}
           muted={Boolean(t.voiceSrc) || t.originalVolume <= 0 || Boolean(clip.speed)}
           volume={fadeVol}
-          style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }}
+          style={{ ...cover, objectPosition: clip.fit === 'completo' ? '50% 50%' : `${pos.x * 100}% ${pos.y * 100}%` }}
         />
       )}
         {clip.vignette > 0 ? <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${0.85 * clip.vignette}) 100%)`, pointerEvents: 'none' }} /> : null}
@@ -798,6 +804,19 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
  * Texto en pantalla de una escena. Once estilos, con la palabra clave remarcada,
  * tamaño, tipografía, posición libre y animación de entrada.
  */
+/** El ícono de la marca encima del texto (como los íconos de app de los videos de producto): entra con un salto. */
+const LogoBadge: React.FC<{ overlay: TimelineOverlay; t: Timeline }> = ({ overlay, t }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const e = spring({ frame, fps, config: { damping: 12, stiffness: 180 }, durationInFrames: 14 });
+  const size = t.width * 0.15 * overlay.size;
+  return (
+    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      <Img src={t.brand.logoSrc!} style={{ position: 'absolute', left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: size, height: size, objectFit: 'contain', transform: `translate(-50%, calc(-100% - ${t.height * 0.035}px)) scale(${e})`, filter: 'drop-shadow(0 8px 18px rgba(0,0,0,0.45))' }} />
+    </AbsoluteFill>
+  );
+};
+
 const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }> = ({ overlay, font: baseFont, t }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();

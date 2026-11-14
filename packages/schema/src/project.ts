@@ -140,6 +140,8 @@ export const Scene = z.object({
   textKeyword: z.string().optional(),
   /** Dónde va el texto en pantalla. */
   textPosition: z.enum(['arriba', 'centro']).default('arriba'),
+  /** El logo de la marca encima del texto (formato «App + App = 🔥» de los videos de producto). */
+  textLogo: z.boolean().optional(),
   /** Posición libre del centro del texto (0–1). Si falta, manda textPosition. */
   textX: z.number().min(0).max(1).optional(),
   textY: z.number().min(0).max(1).optional(),
@@ -179,6 +181,8 @@ export const Scene = z.object({
   }).default({ background: 'oscuro', scale: 1 }),
   /** Tamaño del video dentro del cuadro (1 = llena la pantalla; menos deja ver un fondo desenfocado). */
   videoScale: z.number().min(0.4).max(2.5).default(1),
+  /** «completo»: se ve el video entero aunque su forma no sea la del cuadro (una grabación de pantalla horizontal en un reel), con el mismo video desenfocado detrás. */
+  videoFit: z.enum(['cubrir', 'completo']).optional(),
   /** Fondo detrás de la persona recortada (necesita el recorte del proyecto). 'ninguno' = el video tal cual. */
   backdrop: z.enum(['ninguno', 'cine', 'oscuro', 'claro', 'marca', 'degradado', 'desenfoque', 'imagen']).default('ninguno'),
   /** Imagen o video del proyecto que va de fondo cuando backdrop es 'imagen'. */
