@@ -315,7 +315,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </article>
             <article className="card col">
               <h3 style={{ fontSize: 15 }}>Música</h3>
-              <span style={{ font: "700 26px 'Space Grotesk', sans-serif" }}>{!cur.bpm ? 'Sin pulso claro' : cur.bpm >= 120 ? 'Música rápida' : cur.bpm >= 95 ? 'Música media' : 'Música lenta'}</span>
+              <span style={{ font: "700 26px 'Sora', sans-serif" }}>{!cur.bpm ? 'Sin pulso claro' : cur.bpm >= 120 ? 'Música rápida' : cur.bpm >= 95 ? 'Música media' : 'Música lenta'}</span>
               <span className="small muted">{cur.bpm ? <span className="help">Unos {cur.bpm} golpes por minuto. </span> : 'Con voz hablada sin música no se detecta.'}</span>
             </article>
             <article className="card col">
@@ -336,7 +336,7 @@ export const Referencias: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             </article>
             <article className="card col">
               <h3 style={{ fontSize: 15 }}>Imagen y cortes</h3>
-              <span style={{ font: "700 20px 'Space Grotesk', sans-serif" }}>{({ normal: 'Color normal', bn: 'Blanco y negro', calido: 'Tonos cálidos', frio: 'Tonos fríos', contraste: 'Alto contraste' } as Record<string, string>)[cur.look] ?? cur.look}</span>
+              <span style={{ font: "700 20px 'Sora', sans-serif" }}>{({ normal: 'Color normal', bn: 'Blanco y negro', calido: 'Tonos cálidos', frio: 'Tonos fríos', contraste: 'Alto contraste' } as Record<string, string>)[cur.look] ?? cur.look}</span>
               <span className="small muted help">{cur.flashes ? 'Usa destellos en los cortes: las transiciones serán destellos.' : 'Sin destellos: se pondrán las transiciones que van con el ritmo.'}</span>
             </article>
             <article className="card col" style={{ gridColumn: '1 / -1' }}>

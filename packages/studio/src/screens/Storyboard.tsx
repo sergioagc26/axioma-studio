@@ -1,3 +1,4 @@
+import { AxiLive } from '../AxiLive.tsx';
 import React from 'react';
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
@@ -83,7 +84,7 @@ export const Storyboard: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         </div>
         {project.scenes.length === 0 && (
           <div className="col" style={{ gap: 10, alignItems: 'flex-start' }}>
-            <p className="muted" style={{ margin: 0 }}>Todavía no hay edición. Responde el brief y la app la arma sola.</p>
+            <div className="axi-empty" style={{ alignItems: 'flex-start', padding: 0 }}><AxiLive state="dormido" size={56} /><p className="muted" style={{ margin: 0 }}>Todavía no hay edición. Cuéntale a Axi en el brief y él arma las escenas.</p></div>
             <button className="btn primary" onClick={() => ctx.go('brief')}>Ir al brief</button>
           </div>
         )}

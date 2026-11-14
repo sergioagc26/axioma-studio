@@ -219,7 +219,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <>
             {insights.reels >= 4 && <span className="small">{insights.reels} reels con cifras · vistas típicas <strong>{insights.medianViews.toLocaleString('es')}</strong> · interacción <strong>{String(insights.engagement).replace('.', ',')} %</strong></span>}
             {insights.findings.map((f) => <span key={f.label} className="row" style={{ gap: 6, alignItems: 'baseline', flexWrap: 'nowrap' }}><Icon name="bulb" size={14} style={{ flex: 'none' }} />{f.text}</span>)}
-            {insights.applied.some((a) => !a.startsWith('Publicar')) && <span className="small" style={{ color: 'var(--accent, #25F4EE)' }}>Se aplica solo en sus próximos videos: {insights.applied.filter((a) => !a.startsWith('Publicar')).join(' · ')}.</span>}
+            {insights.applied.some((a) => !a.startsWith('Publicar')) && <span className="small" style={{ color: 'var(--cyanText)' }}>Se aplica solo en sus próximos videos: {insights.applied.filter((a) => !a.startsWith('Publicar')).join(' · ')}.</span>}
             {insights.applied.some((a) => a.startsWith('Publicar')) && <span className="small muted">Sugerencia para programar: {insights.applied.filter((a) => a.startsWith('Publicar')).join(' · ').toLowerCase()}.</span>}
             {insights.note && <span className="small muted">{insights.note}</span>}
           </>

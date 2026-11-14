@@ -1,3 +1,4 @@
+import { AxiLive } from '../AxiLive.tsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import { applyVariant, motionGallery, suggestVariants, type Scene, type SceneVariant, VISION_TOPICS } from '@axioma/schema';
 import type { Ctx, Screen } from '../App.tsx';
@@ -32,6 +33,7 @@ export const Variantes: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   if (!scene) {
     return (
       <main className="page">
+        <AxiLive state="dormido" size={64} />
         <h1 style={{ fontSize: 26 }}>Todavía no hay escenas</h1>
         <p className="muted">Responde el brief y la app arma la edición sola. Después vuelve aquí para probar variantes de cada escena.</p>
         <div className="row"><button className="btn primary" onClick={() => ctx.go('brief')}>Ir al brief</button></div>
@@ -187,7 +189,7 @@ const VariantesDeEscena: React.FC<{ ctx: Ctx; scene: Scene }> = ({ ctx, scene })
       <header className="top" style={{ borderTop: 0 }}>
         <button className="btn rect" onClick={() => ctx.go(origen, { s: origen === 'editor' || origen === 'storyboard' ? scene.id : undefined })}><Icon name="back" /> Volver a {volverA}</button>
         <div className="col" style={{ gap: 0 }}>
-          <strong style={{ font: "700 18px 'Space Grotesk', sans-serif" }}>Variantes · Escena {idx + 1} · {scene.title || ROLE_LABEL[scene.role]}</strong>
+          <strong style={{ font: "700 18px 'Sora', sans-serif" }}>Variantes · Escena {idx + 1} · {scene.title || ROLE_LABEL[scene.role]}</strong>
           <span className="muted small">{saved ? 'Variantes guardadas de esta escena.' : 'Una de cada tipo: gráfico animado, video de apoyo, color, tipografía y cámara. La miniatura es el fotograma real.'} Elige una y la escena se reemplaza.</span>
         </div>
         <div className="row spacer">

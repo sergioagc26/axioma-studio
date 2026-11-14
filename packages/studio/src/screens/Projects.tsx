@@ -1,3 +1,4 @@
+import { AxiLive } from '../AxiLive.tsx';
 import { PROJECT_SHAPES, type ProjectShape } from '@axioma/schema';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../Icon.tsx';
@@ -410,7 +411,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           ? <p className="muted" role="alert">No pude cargar tus proyectos ({loadError}). <button className="btn rect" style={{ height: 32 }} onClick={() => void reload()}><Icon name="refresh" />Reintentar</button></p>
           : <div className="pgrid">{[0, 1, 2, 3].map((i) => <div key={i} className="pcard skeleton" aria-hidden="true" />)}</div>
       ) : items.length === 0 ? (
-        <p className="muted">Todavía no hay proyectos. Sube tu primer video arriba: en unos minutos lo tienes editado.</p>
+        <div className="axi-empty"><AxiLive state="dormido" size={72} /><p className="muted" style={{ margin: 0 }}>Todavía no hay proyectos. Sube tu primer video arriba y dale play a tu idea: en unos minutos lo tienes editado.</p></div>
       ) : shown.length === 0 ? (
         <p className="muted">{q.trim() ? `Nada coincide con «${q}».` : 'No hay videos de este cliente.'} <button className="btn ghost" style={{ height: 30 }} onClick={() => { setQ(''); setFilter(''); }}>Ver todos</button></p>
       ) : (

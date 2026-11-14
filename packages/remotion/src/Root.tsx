@@ -4,6 +4,7 @@ import type { Timeline } from '@axioma/schema';
 import { CaptionStyle } from '@axioma/schema';
 import { Reel } from './Reel.tsx';
 import { Slide, type SlideProps } from './Slide.tsx';
+import { AxiClip, AxiEstados, AxiIntro, type AxiClipProps } from './AxiScenes.tsx';
 
 const empty: Timeline = {
   width: 1080,
@@ -58,5 +59,9 @@ export const Root: React.FC = () => (
       durationInFrames: props.durationInFrames,
     })}
   />
+  {/* Axi, el personaje de la marca: un estado suelto, la entrada de la app y la hoja de estados. */}
+  <Composition id="Axi" component={AxiClip} defaultProps={{ state: 'despierto', background: 'transparente' } as AxiClipProps} width={512} height={512} fps={30} durationInFrames={120} />
+  <Composition id="AxiIntro" component={AxiIntro} width={1920} height={1080} fps={30} durationInFrames={75} />
+  <Composition id="AxiEstados" component={AxiEstados} width={1920} height={1080} fps={30} durationInFrames={240} />
 </>
 );

@@ -13,6 +13,7 @@ import { Texto } from './screens/Texto.tsx';
 import { Guion } from './screens/Guion.tsx';
 import { Tomas } from './screens/Tomas.tsx';
 import { JobsBar } from './JobsBar.tsx';
+import { AxiLive, axiForToast } from './AxiLive.tsx';
 import { Calendario } from './screens/Calendario.tsx';
 import { Icon } from './Icon.tsx';
 import type { IconName } from './icons.ts';
@@ -78,6 +79,9 @@ export const App: React.FC = () => {
     try { return localStorage.getItem('tema') ?? 'oscuro'; } catch { return 'oscuro'; }
   });
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  // Al abrir la app Axi despierta: de pausa a play.
+  const [awake, setAwake] = useState(false);
+  useEffect(() => { const t = window.setTimeout(() => setAwake(true), 600); return () => clearTimeout(t); }, []);
   const [render, setRender] = useState<Job | null>(null);
   const [formato, setFormato] = useState('9:16');
   // Ventana de exportar: formato, calidad y carpeta se eligen al exportar, no durante la edición.
@@ -230,7 +234,7 @@ export const App: React.FC = () => {
     const done = await followRender(job, p.id, sig);
     if (!done) return;
     const files = done.result?.files as { id: string; label: string }[] | undefined;
-    toast(files ? (formato === 'todos' ? `Los 3 formatos exportados en ${done.result?.path}.` : `${files.length} versiones exportadas en ${done.result?.path}: ${files.map((f) => `${f.id} · ${f.label}`).join(' · ')}`) : `Exportado en: ${done.result?.path}`);
+    toast(files ? (formato === 'todos' ? `Listo. Los 3 formatos te esperan en ${done.result?.path}.` : `Listo. ${files.length} versiones en ${done.result?.path}: ${files.map((f) => `${f.id} · ${f.label}`).join(' · ')}`) : `Listo. Tu reel te espera en ${done.result?.path}`);
   };
 
   /** Exporta ya, sin preguntar nada: 9:16 con la calidad y la carpeta del proyecto. Lo usa la edición automática. */
@@ -246,7 +250,7 @@ export const App: React.FC = () => {
       });
     } catch (e: any) { return releaseRender(p.id, e); }
     const done = await followRender(job, p.id, sig);
-    if (done) toast(`Video exportado en: ${done.result?.path}`);
+    if (done) toast(`Listo. Tu reel te espera en ${done.result?.path}`);
   };
   const exportNowRef = useRef(exportNow);
   exportNowRef.current = exportNow;
@@ -342,7 +346,9 @@ export const App: React.FC = () => {
     <div className={`app${project && shapeOf(project.format) !== 'vertical' ? ' wide' : ''}`} style={project ? ({ '--ar': `${project.format.width} / ${project.format.height}` } as React.CSSProperties) : undefined}>
       <header className="top">
         <a className="brand" href="#/proyectos" title="Todos los proyectos" style={{ color: 'inherit', textDecoration: 'none' }}>
-          <span className="logo" aria-hidden="true" />{route.p ? <span className="sr-only">{APP_NAME}</span> : APP_NAME}
+          {/* Logo: Axi. Al abrir la app pasa de pausa a play (600 ms). */}
+          <span className="logo" aria-hidden="true"><AxiLive state={awake ? 'despierto' : 'dormido'} size={30} /></span>
+          {route.p ? <span className="sr-only">{APP_NAME}</span> : <span className="wordmark" aria-label={APP_NAME}><b>axioma</b><small>STUDIO</small></span>}
         </a>
         {route.p && route.screen !== 'calendario' && (
           <nav className="nav" aria-label="Vistas">
@@ -393,13 +399,14 @@ export const App: React.FC = () => {
         </div>
       </header>
 
+      <div key={`${route.screen}-${route.p ?? ''}`} className="screen-fade" style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {route.screen === 'calendario' ? <div className="scroll"><Calendario ctx={ctx} /></div>
         : !needsProject || !route.p ? <Projects ctx={ctx} />
         : !project ? (
           <div className="page" style={{ display: 'grid', placeItems: 'center' }}>
             {store.error
               ? <div className="col" style={{ alignItems: 'center', textAlign: 'center' }}><strong>No se pudo abrir el proyecto</strong><span className="muted">{store.error}</span><a className="btn rect" href="#/proyectos">Volver a proyectos</a></div>
-              : <span className="muted" role="status">Cargando proyecto…</span>}
+              : <div className="axi-empty" role="status"><AxiLive state="pensando" size={64} /><span>Armando tu proyecto…</span></div>}
           </div>
         )
         : route.screen === 'brief' ? <Brief ctx={ctx} />
@@ -413,6 +420,7 @@ export const App: React.FC = () => {
         : route.screen === 'audio' ? <Audio ctx={ctx} />
         : route.screen === 'imagenes' ? <div className="scroll"><Imagenes ctx={ctx} /></div>
         : <Referencias ctx={ctx} />}
+      </div>
 
       {exportOpen && project && (
         <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setExportOpen(false); }}>
@@ -475,7 +483,11 @@ export const App: React.FC = () => {
         </div>
       )}
       <JobsBar projectId={route.p ?? null} toast={toast} />
-      {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
+      {toastMsg && (() => {
+        // Avisos con la voz de Axi: contento cuando algo quedó listo, sin drama cuando algo falló.
+        const mood = axiForToast(toastMsg);
+        return <div className={`toast${mood === 'error' ? ' error-toast' : ''}`} role="status">{mood && <AxiLive state={mood} size={26} color={mood === 'error' ? 'hueso' : 'lima'} />}<span>{toastMsg}</span></div>;
+      })()}
     </div>
   );
 };

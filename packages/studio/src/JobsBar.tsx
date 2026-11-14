@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
+import { AxiLive, axiForJob } from './AxiLive.tsx';
 import { api, type Job } from './useProject.ts';
 
 type Running = Job & { cancellable?: boolean };
@@ -42,6 +43,8 @@ export const JobsBar: React.FC<{ projectId: string | null; toast: (m: string) =>
     <div className="jobsbar" role="region" aria-label="Trabajos en marcha">
       {list.map((j) => (
         <div key={j.id} className="jobsbar-item">
+          {/* Axi hace lo que la app está haciendo (corta, exporta, escucha, piensa). */}
+          <AxiLive state={axiForJob(j.kind, j.message)} size={44} progress={j.progress > 0 ? j.progress : undefined} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="small" style={{ fontWeight: 700 }}>{KIND[j.kind ?? ''] ?? 'Trabajando'}{j.progress > 0 && j.progress < 1 ? ` · ${Math.round(j.progress * 100)} %` : ''}</div>
             <div className="small muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{j.message}</div>
