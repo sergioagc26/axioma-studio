@@ -127,3 +127,15 @@ describe('pedido sobre una referencia', () => {
     expect(linkKind('hola')).toBeNull();
   });
 });
+
+describe('cortes de una referencia', () => {
+  it('encuentra cortes con transición (picos) sin contar el movimiento normal', async () => {
+    const { pickCuts } = await import('../src/reference.ts');
+    // 30 cuadros por segundo: movimiento normal (1-2) y dos cambios de plano, uno seco y uno con transición.
+    const frames: [number, number][] = Array.from({ length: 150 }, (_, i) => [i / 30, 1 + (i % 3) * 0.5]);
+    frames[45][1] = 40;                          // corte seco en 1,5 s
+    [88, 89, 90, 91].forEach((i, k) => { frames[i][1] = [4, 9, 6, 3][k]; }); // transición en ~3 s
+    const cuts = pickCuts(frames);
+    expect(cuts.map((c) => +c.toFixed(1))).toEqual([1.5, 3]);
+  });
+});

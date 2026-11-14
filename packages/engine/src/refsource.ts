@@ -153,7 +153,7 @@ export function copyFromWish(wish?: string): NonNullable<ReferenceReport['copy']
   if (!w.trim()) return all;
   const KEYS: Record<keyof typeof all, RegExp> = {
     ritmo: /ritmo|corte|velocidad|rapid|dinamic|edicion|montaje/,
-    subtitulos: /subtitul|letra|tipograf|fuente|texto|caption/,
+    subtitulos: /subtitul|titulo|letra|tipograf|fuente|texto|caption|rotulo/,
     color: /color|tono|filtro|luz|look|estetica|paleta/,
     musica: /music|cancion|audio|sonido|beat/,
     transiciones: /transici|efecto|destello|zoom|movimiento/,
@@ -212,11 +212,11 @@ export async function understandReference(file: string, report: ReferenceReport,
     const s = report.source;
     const kit = opts.brand ? await readKit(opts.brand).catch(() => null) : null;
     const facts = [
-      `Duración ${report.duration.toFixed(0)} s, ${report.cuts.length} cortes (uno cada ${report.avgShot.toFixed(1)} s), música ${report.bpm ? `${report.bpm} bpm` : 'sin pulso claro'}, ${report.captions ? `subtítulos al ${Math.round(report.captions.y * 100)} % de alto, ${report.captions.wordsPerLine} palabras a la vez` : 'sin subtítulos detectados'}, ${report.flashes ? 'con destellos' : 'sin destellos'}.`,
+      `Duración ${report.duration.toFixed(0)} s, ${report.cuts.length} cortes (uno cada ${report.avgShot.toFixed(1)} s), música ${report.bpm ? `${report.bpm} bpm` : 'sin pulso claro'}, ${report.captions ? `subtítulos en la ${report.captions.y < 0.35 ? 'parte de arriba' : report.captions.y < 0.62 ? 'mitad' : 'parte de abajo'} de la pantalla (posición, no tamaño), ${report.captions.wordsPerLine} palabras a la vez` : 'sin subtítulos detectados (pueden ser muy pequeños)'}, ${report.flashes ? 'con destellos' : 'sin destellos'}.`,
       s?.platform ? `Publicado en ${s.platform}${s.author ? ` por ${s.author}` : ''}${s.date ? ` el ${s.date}` : ''}.` : '',
       s?.views != null || s?.likes != null ? `Números: ${s.views != null ? `${s.views} vistas` : ''}${s.likes != null ? `, ${s.likes} me gusta` : ''}${s.comments != null ? `, ${s.comments} comentarios` : ''}.` : '',
       s?.caption ? `Texto de la publicación: «${s.caption.slice(0, 900)}»` : '',
-      transcript ? `Lo que se dice en el video: «${transcript.slice(0, 1800)}»` : 'En el video no se habla (o solo hay música).',
+      transcript ? `Lo que se dice en el video (transcripción automática: puede traer palabras mal oídas, sobre todo gritos, nombres y jerga; no las cites tal cual): «${transcript.slice(0, 1800)}»` : 'En el video no se habla (o solo hay música).',
       visual ? `Lo que se ve: ${visual}` : '',
     ].filter(Boolean).join('\n');
     const who = [kit?.name ? `La marca del cliente es «${kit.name}»${kit.sector ? ` (${kit.sector})` : ''}.` : opts.brand ? `El cliente es «${opts.brand}».` : 'No se sabe la marca del cliente.', opts.context ? `Lo que se sabe del cliente: ${opts.context}` : ''].filter(Boolean).join(' ');
@@ -229,7 +229,7 @@ export async function understandReference(file: string, report: ReferenceReport,
 - «porQueFunciona»: 3 a 5 razones concretas (ritmo, emoción, curiosidad, prueba, humor…), basadas en lo que se ve, se dice y en sus números si los hay.
 - «sugerencias»: 3 a 6 mejoras que harían el video aún mejor (optimización): gancho, duración, subtítulos, llamada a la acción, ritmo, texto de la publicación, hashtags. Concretas y accionables.
 - «paraTuVideo»: 3 a 5 ideas para hacer un video propio inspirado en este, para la marca del cliente, respetando lo que el cliente pidió. Nunca copiar el contenido, las frases ni la marca de otros: solo la forma. En «paraTuVideo» nunca nombres la marca, tienda o persona del video de referencia: habla de los productos y la marca del cliente.
-No inventes datos: si algo no se puede saber, dilo. Responde solo JSON.`,
+No inventes datos: si algo no se puede saber, dilo. Antes de sugerir algo, revisa que el video no lo tenga ya (subtítulos, llamada a la acción, ubicación, textos en pantalla): sugiere mejorarlo, no agregarlo. Usa los segundos reales de la duración. Responde solo JSON.`,
       `${who}\n${opts.wish ? `Lo que el cliente quiere de esta referencia: «${opts.wish}»\n` : ''}\nDatos del video:\n${facts}`,
       { type: 'object', properties: {
         tema: { type: 'string' }, formato: { type: 'string' }, gancho: { type: 'string' },

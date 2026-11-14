@@ -64,9 +64,33 @@ export const referencesDir = (client?: string) => path.join(WORKSPACE, 'clientes
 
 /** Cambios de plano detectados por FFmpeg. */
 export async function detectCuts(file: string): Promise<number[]> {
-  // Se analiza en pequeño: un video 4K tardaba minutos y los cortes se ven igual a 320 px.
-  const { stdout, stderr } = await ffmpeg(['-i', file, '-an', '-vf', "scale=320:-2,select='gt(scene,0.3)',metadata=print:file=-", '-f', 'null', '-']);
-  return [...(stdout + stderr).matchAll(/pts_time:([\d.]+)/g)].map((m) => Number(m[1]));
+  // Puntaje de cambio de cada cuadro (en pequeño: los cortes se ven igual a 240 px y un 4K tardaba minutos).
+  const { stdout, stderr } = await ffmpeg(['-i', file, '-an', '-vf', 'scale=240:-2,scdet=threshold=0,metadata=print:key=lavfi.scd.score:file=-', '-f', 'null', '-']);
+  const out = stdout + stderr;
+  const times = [...out.matchAll(/pts_time:([\d.]+)/g)].map((m) => Number(m[1]));
+  const scores = [...out.matchAll(/lavfi\.scd\.score=([\d.]+)/g)].map((m) => Number(m[1]));
+  return pickCuts(times.map((t, i) => [t, scores[i] ?? 0] as [number, number]));
+}
+
+/**
+ * Cortes a partir del puntaje de cambio de cada cuadro: un corte es un pico claro (más alto que sus
+ * vecinos y varias veces la mediana de alrededor). Así también se detectan los cortes con
+ * transiciones (barridos, zoom, deslizar), que reparten el cambio en varios cuadros y no pasan un
+ * umbral fijo. Medido con un reel de 63 cortes con transiciones: 54 encontrados y 6 falsos (antes, 15).
+ */
+export function pickCuts(frames: [number, number][], opts: { min?: number; win?: number; gap?: number } = {}): number[] {
+  const min = opts.min ?? 5, win = opts.win ?? 5, gap = opts.gap ?? 0.25;
+  const cuts: number[] = [];
+  for (let i = 1; i < frames.length; i++) {
+    const [t, s] = frames[i];
+    if (s < min) continue;
+    const nb = frames.slice(Math.max(0, i - win), i + win + 1).map((x) => x[1]);
+    const med = [...nb].sort((a, b) => a - b)[Math.floor(nb.length / 2)];
+    if (s < Math.max(...nb) || s <= 2.5 * med) continue;
+    if (cuts.length && t - cuts[cuts.length - 1] < gap) continue;
+    cuts.push(+t.toFixed(3));
+  }
+  return cuts;
 }
 
 /** Tempo por autocorrelación de los ataques de energía (60–180 BPM). */
@@ -126,8 +150,9 @@ async function detectPalette(file: string, duration: number, tmp: string): Promi
     .map((b) => `#${hex(b.r / b.n)}${hex(b.g / b.n)}${hex(b.b / b.n)}`.toUpperCase());
 }
 
-const W = 90;
-const H = 160;
+// Tamaño de análisis: a 90×160 los subtítulos pequeños (los discretos de hoy) casi desaparecían.
+const W = Number(process.env.SE_REF_W ?? 180);
+const H = Math.round(W * 16 / 9);
 const hex2 = (v: number) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0');
 
 /**
@@ -216,7 +241,11 @@ async function detectVisualStyle(file: string, duration: number, cuts: number[],
   for (let k = 0; k < win; k++) bandEdges += edges[bestY + k];
   // Poca nitidez o una franja que no destaca del resto: no hay subtítulos claros.
   // Umbrales medidos con videos reales: con subtítulos, pico/media 2,9–4,7 y bordes 1,1–1,4; sin ellos, 2,3 y 0,8.
-  if (best < avg * 2.6 || bandEdges / win < 1.0) return { captions: null, look, flashes };
+  // (Los bordes por fila crecen con el ancho de análisis: el umbral se mide como a 90 px.)
+  // Dos casos: subtítulos grandes (franja que destaca y muchos bordes) o pequeños y discretos (franja
+  // que destaca mucho, con pocos bordes). Medido: subtítulos pequeños 4,6 y 0,46; un clip sin texto 2,9 y 0,35.
+  const ratio = best / Math.max(1e-9, avg), edgeRate = (bandEdges / win) * (90 / W);
+  if (!((ratio >= 2.6 && edgeRate >= 1.0) || (ratio >= 4.0 && edgeRate >= 0.4))) return { captions: null, look, flashes };
 
   // Colores y ritmo de cambio dentro de la franja.
   const vividBins = new Map<number, { n: number; r: number; g: number; b: number }>();
