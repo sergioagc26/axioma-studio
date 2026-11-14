@@ -1,3 +1,4 @@
+import { settings } from './settings.ts';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -56,7 +57,11 @@ export async function synthesize(text: string, out: string, opts: { provider?: T
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean) throw new Error('El texto de la voz en off está vacío.');
   const available = await ttsProviders();
-  const provider = opts.provider ?? available[0];
+  // Sin elegir: la voz por defecto de Configuración (si está disponible aquí); si no, la mejor.
+  const def = settings().voz;
+  const useDef = !opts.provider && def?.proveedor && available.includes(def.proveedor);
+  const provider = opts.provider ?? (useDef ? def!.proveedor! : available[0]);
+  if (useDef && !opts.voice && def?.voz) opts = { ...opts, voice: def.voz };
   if (!provider || !available.includes(provider)) {
     throw new Error(`La voz "${opts.provider ?? 'en off'}" no está disponible aquí. Disponibles: ${available.join(', ') || 'ninguna'}.`);
   }

@@ -1,3 +1,4 @@
+import { settings } from './settings.ts';
 import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -77,9 +78,10 @@ export async function createProject(opts: { input: string; name?: string; client
     client: opts.client,
     createdAt: now,
     updatedAt: now,
-    format: { width: PROJECT_SHAPES[opts.shape ?? 'vertical'].width, height: PROJECT_SHAPES[opts.shape ?? 'vertical'].height, fps },
+    format: { width: PROJECT_SHAPES[opts.shape ?? settings().forma ?? 'vertical'].width, height: PROJECT_SHAPES[opts.shape ?? settings().forma ?? 'vertical'].height, fps },
     source: { file: original, duration: info.duration, width: info.width, height: info.height, fps: info.fps, rotation: info.rotation, master4k: (opts.uhd && Math.min(info.width, info.height) >= 2000) || undefined },
-    ...(opts.uhd && Math.min(info.width, info.height) >= 2000 ? { export: { quality: 'alta', uhd: true } } : {}),
+    audio: { targetLufs: settings().exportar?.lufs ?? -14 },
+    export: { quality: settings().exportar?.calidad ?? 'alta', folder: settings().exportar?.carpeta, uhd: Boolean(opts.uhd && Math.min(info.width, info.height) >= 2000) },
     presetId: preset.id,
     pacing: Pacing.parse(preset.pacing),
     captions: CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(opts.client)) }),

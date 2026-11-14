@@ -1,3 +1,4 @@
+import { settings } from './settings.ts';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -65,7 +66,7 @@ async function normalizeClip(input: string, out: string, fps: number, k = 1, sha
  * Varios videos se unen en un solo master vertical; se recuerda dónde empieza cada uno.
  */
 export async function createMontage(opts: { inputs: string[]; name?: string; client?: string; presetId?: string; fps?: number; /** Master y exportación en 4K. */ uhd?: boolean; /** Forma del video: vertical (por defecto), horizontal o cuadrado. */ shape?: ProjectShape }) {
-  const shape = PROJECT_SHAPES[opts.shape ?? 'vertical'];
+  const shape = PROJECT_SHAPES[opts.shape ?? settings().forma ?? 'vertical'];
   const files = await expandInputs(opts.inputs);
   const name = opts.name ?? (files.length === 1 ? path.basename(files[0], path.extname(files[0])) : `Montaje ${files.length} clips`);
   const stamp = new Date().toISOString().slice(0, 10);
@@ -118,8 +119,8 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
     pacing: Pacing.parse(preset.pacing),
     captions: CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(opts.client)) }),
     // En un montaje el sonido original es ambiente: sin limpieza de voz y más bajo.
-    audio: { denoise: false, targetLufs: -14, musicVolume: 0.4, originalVolume: 0.6 },
-    ...(opts.uhd ? { export: { quality: 'maxima', uhd: true } } : {}),
+    audio: { denoise: false, targetLufs: settings().exportar?.lufs ?? -14, musicVolume: 0.4, originalVolume: 0.6 },
+    export: { quality: opts.uhd ? 'maxima' : settings().exportar?.calidad ?? 'alta', folder: settings().exportar?.carpeta, uhd: Boolean(opts.uhd) },
   });
   await writeProject(dir, project);
   await writeFile(path.join(dir, 'boundaries.json'), JSON.stringify(boundaries, null, 2));

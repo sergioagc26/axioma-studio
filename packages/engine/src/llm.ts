@@ -3,6 +3,7 @@
  * Es la única IA que usa la app: editar por chat, redactar ganchos y el texto para publicar.
  * El modelo, la memoria y los núcleos se ajustan a este PC (hardwareProfile) para no llevarlo al límite.
  */
+import { settings } from './settings.ts';
 import { currentSignal } from './cancel.ts';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -67,6 +68,9 @@ const matches = (name: string, want: string) => name === want || name === `${wan
 /** El modelo a usar: el que pida AXIOMA_LLM o el mejor descargado que quepa en la memoria. */
 export function pickModel(installed: string[], ramGb = totalRamGb()): string | undefined {
   if (process.env.AXIOMA_LLM) return installed.find((n) => matches(n, process.env.AXIOMA_LLM!));
+  // El elegido en Configuración (si sigue instalado).
+  const chosen = settings().llm;
+  if (chosen) { const hit = installed.find((n) => matches(n, chosen)); if (hit) return hit; }
   // Solo los que caben dejando memoria para el render (16 GB → hasta 8B; 8 GB → hasta 4B).
   const { maxB } = hardwareProfile(ramGb);
   const choices = MODEL_CHOICES.filter((m) => modelSizeB(m) <= maxB);
@@ -112,12 +116,15 @@ export async function llmStatus(): Promise<LlmStatus> {
 /** El modelo que ve imágenes: AXIOMA_VISION o el mejor descargado. */
 export function pickVisionModel(installed: string[], ramGb = totalRamGb()): string | undefined {
   const { visionMaxB } = hardwareProfile(ramGb);
-  const want = process.env.AXIOMA_VISION ? [process.env.AXIOMA_VISION] : VISION_CHOICES.filter((m) => modelSizeB(m) <= visionMaxB);
+  const fixed = process.env.AXIOMA_VISION ?? settings().vision;
+  const want = fixed ? [fixed] : VISION_CHOICES.filter((m) => modelSizeB(m) <= visionMaxB);
   for (const c of want) { const hit = installed.find((n) => matches(n, c)); if (hit) return hit; }
   return undefined;
 }
 
 let cachedModel: { name: string; at: number } | null = null;
+/** Al cambiar el modelo en Configuración, se deja de usar el recordado. */
+export function forgetModel() { cachedModel = null; }
 async function activeModel(): Promise<string | undefined> {
   if (cachedModel && Date.now() - cachedModel.at < 60_000) return cachedModel.name;
   const tags = await getJson<{ models?: { name: string }[] }>('/api/tags');

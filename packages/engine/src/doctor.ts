@@ -1,3 +1,5 @@
+import { ttsProviders } from './tts.ts';
+import { claudeBin } from './assistant.ts';
 import { existsSync, readFileSync, statfsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -61,6 +63,15 @@ export async function doctor(): Promise<{ ok: boolean; checks: Check[] }> {
     name: 'IA local (opcional: Ollama)', ok: true,
     detail: !ia.running ? 'no está abierta: sin Claude, la edición por chat no funciona' : ia.model ? `ok (${ia.model}${ia.loaded ? ', cargada en memoria' : ''}${ia.vision ? ` · ve imágenes con ${ia.vision}` : ''}, Ollama ${ia.version})` : `abierta pero sin modelo: ollama pull ${LOCAL_MODEL}`,
   });
+
+  // Lo que usan las funciones nuevas (opcionales: sin ellas esa función avisa y la app sigue).
+  let ytdlp: string | null = null;
+  try { ytdlp = (await run(process.env.SE_YTDLP ?? 'yt-dlp', ['--version'])).stdout.trim(); } catch { /* no está */ }
+  checks.push({ name: 'Bajar referencias desde un link (opcional: yt-dlp)', ok: true, detail: ytdlp ? `ok (${ytdlp})` : 'no instalado: solo se pueden subir archivos', fix: process.platform === 'win32' ? 'winget install yt-dlp' : 'brew install yt-dlp' });
+  const voices = await ttsProviders();
+  checks.push({ name: 'Voz IA natural (opcional: Qwen local o ElevenLabs)', ok: true, detail: voices.includes('qwen') ? 'ok (voz IA local)' : voices.includes('elevenlabs') ? 'ok (ElevenLabs)' : 'solo la voz del computador (más robótica)' });
+  checks.push({ name: 'IA que mira las tomas (opcional)', ok: true, detail: ia.vision ? `ok (${ia.vision})` : 'sin modelo de visión: la sincronía usa el modelo CLIP (menos preciso)', fix: 'ollama pull qwen3-vl:8b' });
+  checks.push({ name: 'Claude (opcional: escribe los mejores guiones)', ok: true, detail: claudeBin() ? 'instalado (conéctalo con tu cuenta para usarlo)' : 'no instalado: los guiones los escribe la IA local' });
 
   return { ok: checks.every((c) => c.ok), checks };
 }

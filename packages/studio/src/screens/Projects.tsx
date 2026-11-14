@@ -331,6 +331,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <details className="more ajustes" ref={ajustes}>
             <summary className="btn rect" aria-label={aviso ? 'Ajustes (hay avisos)' : 'Ajustes'}><Icon name="settings" />Ajustes{aviso && <span className="dot" aria-hidden="true" />}</summary>
             <div className="more-menu">
+              <a href="#/ajustes" onClick={closeAjustes} title="IA, voz, exportación, Instagram, apariencia y estado del sistema"><Icon name="settings" />Configuración</a>
               <button className={upd?.behind || upd?.error ? 'warn' : ''} disabled={Boolean(updating)} onClick={() => { closeAjustes(); void update(); }}
                 title={upd?.error ?? (upd?.behind ? `Novedades:\n${upd.changes.join('\n')}` : 'Revisa si hay una versión nueva de la app')}>
                 <Icon name={upd?.error ? 'warning' : 'update'} />{updating || (upd?.error ? 'Actualizar (no se pudo revisar)' : upd?.behind ? `Actualizar (${upd.behind} novedad${upd.behind === 1 ? '' : 'es'})` : 'Actualizar la app')}

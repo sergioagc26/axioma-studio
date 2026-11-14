@@ -1,3 +1,8 @@
+import { saveSettings, settings } from './settings.ts';
+import { synthesize } from './tts.ts';
+import { doctor } from './doctor.ts';
+import { forgetModel, hardwareProfile, llmJson, modelSizeB } from './llm.ts';
+import { AI_VOICES } from '@axioma/schema';
 import { cancelScope, isCancelled, newCancelScope, runCancellable, type CancelScope } from './cancel.ts';
 import { dictate, downloadReference, igSession, linkKind, profileVideos, removeIgCookies, saveIgCookies, setIgSession, type IgSessionMode } from './refsource.ts';
 import { spawn } from 'node:child_process';
@@ -148,6 +153,9 @@ let updateCache: { at: number; data: unknown } | null = null;
 
 /** Lo que dice el brief del cliente, en una línea (para adaptar ideas de una referencia a su marca). */
 const briefContext = (p: Project) => [p.brief.notas, p.brief.publico && `Público: ${p.brief.publico}`, p.brief.objetivo && `Objetivo: ${p.brief.objetivo}`, p.brief.tono && `Tono: ${p.brief.tono}`].filter(Boolean).join(' · ').slice(0, 800) || undefined;
+
+/** Última muestra de voz generada en Configuración. */
+let sampleFile: string | null = null;
 
 /** Forma del proyecto pedida al crearlo (si no es válida, vertical). */
 const shapeParam = (v: unknown): ProjectShape | undefined => (typeof v === 'string' && v in PROJECT_SHAPES ? (v as ProjectShape) : undefined);
@@ -336,6 +344,41 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/clips' && method === 'GET') return json(res, { clips: await projectClips(await findDir(id)) });
   if (p === '/api/fonts' && method === 'GET') return json(res, { fonts: await systemFonts(url.searchParams.get('actualizar') === '1') });
   // Ya no se comprueba Claude: esa comprobación gastaba créditos. Todo va con la IA local.
+  // Configuración de la app: IA, voz por defecto, exportación y forma por defecto, y estado del sistema.
+  if (p === '/api/ajustes' && method === 'GET') {
+    // Qué modelos caben en la memoria de este computador (uno que no cabe lo deja colgado).
+    const { maxB } = hardwareProfile();
+    const ia = await llmStatus();
+    const caben = Object.fromEntries(ia.installed.map((m) => [m, modelSizeB(m) <= maxB + 6]));
+    return json(res, { ajustes: settings(), ia, caben, voces: await ttsProviders(), vocesIA: AI_VOICES.map((v) => ({ id: v.id, name: v.name })) });
+  }
+  if (p === '/api/ajustes' && method === 'PUT') {
+    const saved = await saveSettings(await readBody(req), (m) => modelSizeB(m) <= hardwareProfile().maxB + 6);
+    forgetModel();
+    return json(res, { ajustes: saved, ia: await llmStatus() });
+  }
+  if (p === '/api/sistema' && method === 'GET') return json(res, await doctor());
+  if (p === '/api/ajustes/probar-ia' && method === 'POST') {
+    const t0 = Date.now();
+    try {
+      const r = await llmJson<{ frase: string }>('Responde en español, solo JSON.', 'Escribe una frase corta y alegre para un editor de videos llamado Axi.', { type: 'object', properties: { frase: { type: 'string' } }, required: ['frase'] }, { timeoutMs: 120_000 });
+      return json(res, { ok: true, text: `Funciona (${((Date.now() - t0) / 1000).toFixed(0)} s): «${r.frase}»` });
+    } catch (e) { return json(res, { ok: false, text: (e as Error).message }); }
+  }
+  if (p === '/api/ajustes/probar-voz' && method === 'POST') {
+    // Muestra corta de una voz: se genera en una carpeta temporal y se sirve una vez.
+    const body = await readBody(req);
+    const out = path.join(os.tmpdir(), `axioma-muestra-${Date.now()}.wav`);
+    try {
+      const used = await synthesize(String(body.texto || 'Hola, soy Axi. Dale play a tu idea.'), out, { provider: body.proveedor || undefined, voice: body.voz || undefined });
+      sampleFile = out;
+      return json(res, { ok: true, url: `/api/ajustes/muestra.wav?v=${Date.now()}`, text: `Voz: ${used.provider}${used.voice ? ` (${used.voice})` : ''}.${used.aviso ? ` ${used.aviso}` : ''}` });
+    } catch (e) { return json(res, { ok: false, text: (e as Error).message }); }
+  }
+  if (p === '/api/ajustes/muestra.wav' && method === 'GET') {
+    if (!sampleFile || !sendFile(req, res, sampleFile)) res.writeHead(404).end();
+    return;
+  }
   if (p === '/api/claude' && method === 'GET') return json(res, { conectado: false, local: await llmReady(), ia: await llmStatus() });
   if (p === '/api/claude' && method === 'POST') { await openClaudeLogin(); return json(res, { ok: true }); }
 
