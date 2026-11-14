@@ -1,7 +1,8 @@
 import { saveSettings, settings } from './settings.ts';
 import { synthesize } from './tts.ts';
 import { doctor } from './doctor.ts';
-import { forgetModel, hardwareProfile, llmJson, modelSizeB } from './llm.ts';
+import { forgetModel, hardwareProfile, llmJson, modelSizeB, pullModel } from './llm.ts';
+import { REQUISITOS, detectMachine, planFor } from './machine.ts';
 import { AI_VOICES } from '@axioma/schema';
 import { cancelScope, isCancelled, newCancelScope, runCancellable, type CancelScope } from './cancel.ts';
 import { dictate, downloadReference, igSession, linkKind, profileVideos, removeIgCookies, saveIgCookies, setIgSession, type IgSessionMode } from './refsource.ts';
@@ -358,6 +359,45 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, { ajustes: saved, ia: await llmStatus() });
   }
   if (p === '/api/sistema' && method === 'GET') return json(res, await doctor());
+  // El computador: qué es, qué le cabe y los requisitos de la app.
+  if (p === '/api/equipo' && method === 'GET') {
+    const m = await detectMachine(url.searchParams.get('actualizar') === '1');
+    const ia = await llmStatus();
+    return json(res, { equipo: m, plan: planFor(m, ia.installed), requisitos: REQUISITOS, instalados: ia.installed, ajustes: settings() });
+  }
+  // Optimizar la app para este computador: modelos, transcripción, voz y exportación.
+  if (p === '/api/equipo/optimizar' && method === 'POST') {
+    const m = await detectMachine(true);
+    const ia = await llmStatus();
+    const plan = planFor(m, ia.installed);
+    const has = (x: string | null) => Boolean(x && ia.installed.some((n) => n === x || n === `${x}:latest`));
+    const voces = await ttsProviders();
+    const saved = await saveSettings({
+      // El modelo solo se fija si ya está descargado; si no, queda «que elija la app» hasta bajarlo.
+      llm: has(plan.llm) ? plan.llm : '', vision: has(plan.vision) ? plan.vision! : '',
+      whisper: plan.whisper, renderProcesos: plan.renderProcesos,
+      voz: { proveedor: plan.voz === 'qwen' && voces.includes('qwen') ? 'qwen' : undefined, voz: settings().voz?.voz },
+      optimizado: { at: new Date().toISOString(), equipo: `${m.cpu} · ${m.ramGb} GB` },
+    });
+    forgetModel();
+    const faltan = [plan.llm, plan.vision].filter((x): x is string => Boolean(x) && !has(x));
+    return json(res, { ajustes: saved, plan, faltan });
+  }
+  if (p === '/api/equipo/descargar' && method === 'POST') {
+    const modelo = String((await readBody(req)).modelo ?? '');
+    if (!/^[a-z0-9._-]+:[a-z0-9._-]+$/i.test(modelo)) return json(res, { error: 'Nombre de modelo no válido.' }, 400);
+    const job = startJob('ia', async (j) => {
+      j.message = `Preparando la descarga de ${modelo}…`;
+      await pullModel(modelo, (pr, msg) => { j.progress = pr; j.message = msg; });
+      // Recién descargado y es el que le toca a este equipo: queda elegido.
+      const plan = planFor(await detectMachine(), (await llmStatus()).installed);
+      if (modelo === plan.llm) await saveSettings({ llm: modelo });
+      if (modelo === plan.vision) await saveSettings({ vision: modelo });
+      forgetModel();
+      return { modelo };
+    });
+    return json(res, job);
+  }
   if (p === '/api/ajustes/probar-ia' && method === 'POST') {
     const t0 = Date.now();
     try {
@@ -806,6 +846,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       return json(res, job);
     }
     if (b.op === 'quitar-voz') return json(res, { project: await ops.removeVoiceover(dir) });
+    if (b.op === 'montaje-a-la-voz') {
+      // El montaje se vuelve a cortar para durar lo que la voz (desde su inicio hasta que termina).
+      const job = startJob('crear', async (j) => {
+        j.message = 'Ajustando el montaje a la voz…';
+        const pr = await readProject(dir);
+        const vo = pr.audio.voiceover;
+        if (pr.kind !== 'montaje' || !vo) throw new Error('Solo los montajes con voz en off se ajustan a la voz.');
+        const r = await rebeatMontage(dir, pr, { duration: (vo.offset ?? 0) + vo.duration + 0.5 });
+        return { rebuilt: r.rebuilt };
+      });
+      return json(res, job);
+    }
     if (b.op === 'efecto') return json(res, { project: await ops.addSfx(dir, b.sceneId, b.id, { offset: b.offset, volume: b.volume }) });
     // Elegido a mano: queda recordado (audio.sfxOff) y la edición automática lo respeta.
     if (b.op === 'efectos-auto') return json(res, { project: await ops.setAutoSfx(dir, Boolean(b.on), { manual: true }) });
@@ -1414,7 +1466,7 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
     // Tras actualizarse, el proceso nuevo espera a que el anterior suelte el puerto.
     const wait = process.env.AXIOMA_RESTART_WAIT ? 2500 : 0;
     delete process.env.AXIOMA_RESTART_WAIT;
-    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); llmWarmUp().catch(() => {}); if (!process.env.VITEST) { void stockMusic(); startMetricsTimer(); } resolve(base); }), wait);
+    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); void detectMachine().catch(() => {}); llmWarmUp().catch(() => {}); if (!process.env.VITEST) { void stockMusic(); startMetricsTimer(); } resolve(base); }), wait);
   });
   return running;
 }

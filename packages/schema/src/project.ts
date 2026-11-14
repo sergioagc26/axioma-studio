@@ -370,6 +370,10 @@ export const Project = z.object({
       language: z.string().optional(),
       /** Volumen del sonido original antes de poner la voz en off (se recupera al quitarla). */
       prevOriginalVolume: z.number().min(0).max(1).optional(),
+      /** Volumen de la voz en off (1 = como se grabó; hasta 2 = el doble). */
+      volume: z.number().min(0).max(2).optional(),
+      /** Segundo del video en que empieza la voz (0 = desde el inicio). */
+      offset: z.number().min(0).max(600).optional(),
     }).optional(),
   }).default({ denoise: true, denoiseLevel: 'media', enhance: false, sfxAuto: false, targetLufs: -14, musicVolume: 0.18, originalVolume: 1 }),
   /** Acabados profesionales de todo el reel. */

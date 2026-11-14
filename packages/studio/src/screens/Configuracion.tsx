@@ -3,7 +3,7 @@ import type { Ctx } from '../App.tsx';
 import { Icon } from '../Icon.tsx';
 import { AxiLive } from '../AxiLive.tsx';
 import { IgSesion } from '../IgSesion.tsx';
-import { api } from '../useProject.ts';
+import { api, waitJob, type Job } from '../useProject.ts';
 
 type Ajustes = {
   llm?: string; vision?: string;
@@ -13,6 +13,12 @@ type Ajustes = {
 };
 type Ia = { running: boolean; version?: string; model?: string; vision?: string; installed: string[]; loaded: boolean; error?: string };
 type Check = { name: string; ok: boolean; detail: string; fix?: string };
+type Gpu = { name: string; vendor: string; vramGb?: number; cores?: number };
+type Equipo = { os: string; osVersion: string; arch: string; model?: string; cpu: string; cores: number; performanceCores?: number; efficiencyCores?: number; ramGb: number; unifiedMemory: boolean; gpus: Gpu[]; accel: 'metal' | 'cuda' | 'cpu'; diskFreeGb: number };
+type Plan = { nivel: string; ok: boolean; aiMemGb: number; llm: string; vision: string | null; whisper: string; voz: string; renderProcesos: number; uhd: boolean; limites: string[]; razones: string[] };
+type Req = { ramGb: number; cores: number; discoGb: number; texto: string };
+const NIVEL: Record<string, string> = { insuficiente: 'No llega al mínimo', basico: 'Básico', medio: 'Medio', alto: 'Alto', 'muy alto': 'Muy alto' };
+const ACCEL: Record<string, string> = { metal: 'Apple Silicon (Metal)', cuda: 'NVIDIA (CUDA)', cpu: 'Solo el procesador' };
 
 const PROVEEDOR: Record<string, string> = { qwen: 'Voz IA local (natural, gratis)', elevenlabs: 'ElevenLabs (natural, de pago)', piper: 'Piper (local)', sistema: 'Voz del computador (más robótica)' };
 
@@ -31,11 +37,36 @@ export const Configuracion: React.FC<{ ctx: Ctx; theme: string; setTheme: (t: st
   const [busy, setBusy] = useState('');
   const [iaTest, setIaTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [vozTest, setVozTest] = useState<{ ok: boolean; text: string; url?: string } | null>(null);
+  const [eq, setEq] = useState<{ equipo: Equipo; plan: Plan; requisitos: Record<'minimo' | 'recomendado' | 'ideal', Req>; instalados: string[]; ajustes: Ajustes & { optimizado?: { at: string; equipo: string } } } | null>(null);
+  const [faltan, setFaltan] = useState<string[]>([]);
+  const [pulling, setPulling] = useState<Record<string, string>>({});
+  const loadEq = (fresh = false) => api<NonNullable<typeof eq>>(`/api/equipo${fresh ? '?actualizar=1' : ''}`).then((d) => {
+    setEq(d);
+    setFaltan([d.plan.llm, d.plan.vision].filter((x): x is string => Boolean(x) && !d.instalados.some((n) => n === x || n === `${x}:latest`)));
+  }).catch((e) => ctx.toast(e.message));
+  const optimize = async () => {
+    setBusy('opt');
+    try {
+      const d = await api<{ ajustes: Ajustes; faltan: string[] }>('/api/equipo/optimizar', { method: 'POST' });
+      setA(d.ajustes); setFaltan(d.faltan);
+      await load(); await loadEq();
+      ctx.toast(d.faltan.length ? `Listo. Configuración optimizada; falta descargar ${d.faltan.join(' y ')}.` : 'Listo. La app quedó optimizada para este computador.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+  };
+  const pull = async (modelo: string) => {
+    setPulling((p) => ({ ...p, [modelo]: 'Empezando…' }));
+    try {
+      const job = await api<Job>('/api/equipo/descargar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelo }) });
+      await waitJob(job, (j) => setPulling((p) => ({ ...p, [modelo]: j.message })));
+      ctx.toast(`Listo. ${modelo} descargado y elegido.`);
+      await load(); await loadEq();
+    } catch (e: any) { ctx.toast(e.message); } finally { setPulling((p) => { const { [modelo]: _, ...rest } = p; return rest; }); }
+  };
 
   const load = () => api<{ ajustes: Ajustes; ia: Ia; caben: Record<string, boolean>; voces: string[]; vocesIA: { id: string; name: string }[] }>('/api/ajustes')
     .then((d) => { setA(d.ajustes); setIa(d.ia); setCaben(d.caben ?? {}); setVoces(d.voces); setVocesIA(d.vocesIA); }).catch((e) => ctx.toast(e.message));
   const review = () => { setChecking(true); api<{ checks: Check[] }>('/api/sistema').then((d) => setChecks(d.checks)).catch((e) => ctx.toast(e.message)).finally(() => setChecking(false)); };
-  useEffect(() => { void load(); review(); }, []);
+  useEffect(() => { void load(); review(); void loadEq(); }, []);
 
   const save = async (patch: Partial<Ajustes>) => {
     try {
@@ -64,6 +95,74 @@ export const Configuracion: React.FC<{ ctx: Ctx; theme: string; setTheme: (t: st
         </div>
         <a className="btn rect" href="#/proyectos"><Icon name="back" />Volver a proyectos</a>
       </div>
+
+      {/* El computador: qué es, qué le cabe y los requisitos */}
+      <section className="card" style={sec}>
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <h2 style={{ fontSize: 18 }}>Tu computador</h2>
+          {eq && <span className="pill" style={{ background: eq.plan.ok ? 'var(--pinkSoft)' : 'transparent', color: eq.plan.ok ? 'var(--pinkText)' : 'var(--danger)' }}>Nivel: {NIVEL[eq.plan.nivel] ?? eq.plan.nivel}</span>}
+        </div>
+        {!eq ? <span className="muted small">Midiendo el computador…</span> : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+              {([
+                ['Procesador', `${eq.equipo.cpu}${eq.equipo.performanceCores ? ` · ${eq.equipo.performanceCores} de rendimiento + ${eq.equipo.efficiencyCores ?? 0} de eficiencia` : ''} · ${eq.equipo.cores} núcleos en total`],
+                ['Memoria RAM', `${eq.equipo.ramGb} GB${eq.equipo.unifiedMemory ? ' (unificada: la comparten procesador y video)' : ''}`],
+                ['Tarjeta de video', eq.equipo.gpus.length ? eq.equipo.gpus.map((g) => `${g.name}${g.cores ? ` · ${g.cores} núcleos` : ''}${g.vramGb ? ` · ${g.vramGb} GB` : ''}`).join(' / ') : 'No detectada'],
+                ['Aceleración para la IA', ACCEL[eq.equipo.accel]],
+                ['Disco libre', `${eq.equipo.diskFreeGb} GB`],
+                ['Sistema', `${eq.equipo.os} ${eq.equipo.osVersion} · ${eq.equipo.arch}${eq.equipo.model ? ` · ${eq.equipo.model}` : ''}`],
+              ] as const).map(([k, v]) => (
+                <div key={k} style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--panel2)' }}>
+                  <div className="small muted">{k}</div><div className="small" style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div>
+              <strong className="small">Lo que la app usa en este equipo</strong>
+              <ul className="small" style={{ margin: '4px 0 0', paddingLeft: 18 }}>{eq.plan.razones.map((r) => <li key={r}>{r}</li>)}</ul>
+            </div>
+            {eq.plan.limites.length > 0 && (
+              <div>
+                <strong className="small">Lo que se limita</strong>
+                <ul className="small muted" style={{ margin: '4px 0 0', paddingLeft: 18 }}>{eq.plan.limites.map((r) => <li key={r}>{r}</li>)}</ul>
+              </div>
+            )}
+            <div className="row">
+              <button className="btn primary" disabled={busy === 'opt'} onClick={optimize}><Icon name="wand" />{busy === 'opt' ? 'Optimizando…' : 'Optimizar para este computador'}</button>
+              <button className="btn rect small" onClick={() => void loadEq(true)}><Icon name="refresh" />Volver a medir</button>
+              {eq.ajustes.optimizado && <span className="small muted">Optimizada el {new Date(eq.ajustes.optimizado.at).toLocaleDateString('es')}.</span>}
+            </div>
+            {faltan.length > 0 && (
+              <div className="col" style={{ gap: 6 }}>
+                <span className="small">Motores de IA recomendados para este computador que aún no están descargados:</span>
+                {faltan.map((m) => (
+                  <div key={m} className="row">
+                    <button className="btn rect small" disabled={Boolean(pulling[m])} onClick={() => void pull(m)}><Icon name="export" />Descargar {m}</button>
+                    {pulling[m] && <span className="small muted" role="status">{pulling[m]}</span>}
+                  </div>
+                ))}
+                <span className="small muted">Se descargan con Ollama (varios GB): la primera vez puede tardar según tu internet.</span>
+              </div>
+            )}
+            <details className="grp">
+              <summary>Requisitos para usar la app</summary>
+              <div className="col" style={{ gap: 6, paddingTop: 6 }}>
+                {(['minimo', 'recomendado', 'ideal'] as const).map((k) => {
+                  const r = eq.requisitos[k];
+                  const meets = eq.equipo.ramGb >= r.ramGb - 0.5 && eq.equipo.cores >= r.cores && eq.equipo.diskFreeGb >= r.discoGb;
+                  return (
+                    <div key={k} className="row" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
+                      <Icon name={meets ? 'check' : 'close'} style={{ color: meets ? 'var(--pinkText)' : 'var(--muted)', flex: 'none', marginTop: 2 }} />
+                      <span className="small"><strong>{k === 'minimo' ? 'Mínimo' : k === 'recomendado' ? 'Recomendado' : 'Ideal'}:</strong> {r.texto}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          </>
+        )}
+      </section>
 
       {/* Estado del sistema */}
       <section className="card" style={sec}>

@@ -127,6 +127,9 @@ export type Timeline = {
   originalVolume: number;
   /** Voz en off: suena desde el frame 0 de la salida. */
   voiceoverSrc?: string;
+  /** Cuadro en que empieza la voz en off y su volumen. */
+  voiceoverFrom?: number;
+  voiceoverVolume?: number;
   sourceWidth: number;
   sourceHeight: number;
   clips: TimelineClip[];
@@ -442,9 +445,11 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
   }
 
   if (urls.voiceover) {
+    // La voz puede empezar más tarde: sus palabras (los subtítulos) se corren lo mismo.
+    const off = project.audio.voiceover?.offset ?? 0;
     for (const w of urls.voiceover.words) {
-      if (w.start >= acc) break;
-      words.push({ text: w.text, startFrame: toFrame(w.start), endFrame: Math.max(toFrame(w.start) + 1, toFrame(Math.min(acc, w.end))) });
+      if (w.start + off >= acc) break;
+      words.push({ text: w.text, startFrame: toFrame(w.start + off), endFrame: Math.max(toFrame(w.start + off) + 1, toFrame(Math.min(acc, w.end + off))) });
     }
   }
 
@@ -456,6 +461,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     durationInFrames: Math.max(1, toFrame(acc)),
     originalVolume: project.audio.originalVolume,
     voiceoverSrc: urls.voiceover?.src,
+    voiceoverFrom: toFrame(project.audio.voiceover?.offset ?? 0),
+    voiceoverVolume: project.audio.voiceover?.volume ?? 1,
     videoSrc: urls.video,
     cutoutSrc: urls.cutout,
     frontSrc: urls.front && urls.front.key === frontKey(clips) ? urls.front.src : undefined,

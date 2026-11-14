@@ -1,3 +1,4 @@
+import { settings } from './settings.ts';
 import { Cancelled, checkCancelled, currentSignal, onCancel } from './cancel.ts';
 import { buildFront, readFront } from './front.ts';
 import { cutoutCoverage } from './matte.ts';
@@ -133,7 +134,8 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       scale: project.export.uhd ? 2 : 1,
       outputLocation: raw,
       // Cada pestaña de render ocupa cerca de 1 GB con video vertical: se limita por la memoria del equipo.
-      concurrency: Math.max(1, Math.min(project.export.uhd ? 4 : 8, Math.floor(os.cpus().length / 2), Math.max(2, Math.floor(os.totalmem() / 2 ** 30 / (project.export.uhd ? 8 : 4))))),
+      // Los procesos a la vez salen de Configuración (optimizada para el computador); si no, se calculan.
+      concurrency: settings().renderProcesos ? Math.max(1, Math.min(settings().renderProcesos!, project.export.uhd ? 4 : 16)) : Math.max(1, Math.min(project.export.uhd ? 4 : 8, Math.floor(os.cpus().length / 2), Math.max(2, Math.floor(os.totalmem() / 2 ** 30 / (project.export.uhd ? 8 : 4))))),
       onProgress: ({ progress }) => opts.onProgress?.(frontShare + progress * (0.95 - frontShare)),
     }));
     } catch (e) {

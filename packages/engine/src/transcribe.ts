@@ -1,3 +1,4 @@
+import { settings } from './settings.ts';
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import {
@@ -7,9 +8,11 @@ import type { Transcript, Word } from '@axioma/schema';
 import { WHISPER_DIR, WHISPER_MODELS, WHISPER_VERSION } from './paths.ts';
 
 export const DEFAULT_MODEL: WhisperModel = (process.env.SE_WHISPER_MODEL as WhisperModel) ?? 'small';
+/** El modelo de transcripción a usar: el de Configuración (según el computador) o el normal. */
+export const whisperModel = (): WhisperModel => (process.env.SE_WHISPER_MODEL as WhisperModel) ?? settings().whisper ?? 'small';
 
 /** Instala whisper.cpp y descarga el modelo si faltan. */
-export async function ensureWhisper(model: WhisperModel = DEFAULT_MODEL, log = console.log) {
+export async function ensureWhisper(model: WhisperModel = whisperModel(), log = console.log) {
   if (!existsSync(WHISPER_DIR)) log(`Instalando whisper.cpp ${WHISPER_VERSION} (solo la primera vez, tarda unos minutos)…`);
   await installWhisperCpp({ version: WHISPER_VERSION, to: WHISPER_DIR, printOutput: false });
   await mkdir(WHISPER_MODELS, { recursive: true });
@@ -19,7 +22,7 @@ export async function ensureWhisper(model: WhisperModel = DEFAULT_MODEL, log = c
 /** Transcribe un WAV 16 kHz mono con tiempos por palabra. */
 export async function transcribeWav(
   wav: string,
-  { model = DEFAULT_MODEL, language = 'es', onProgress }: { model?: WhisperModel; language?: string; onProgress?: (p: number) => void } = {},
+  { model = whisperModel(), language = 'es', onProgress }: { model?: WhisperModel; language?: string; onProgress?: (p: number) => void } = {},
 ): Promise<Transcript> {
   await ensureWhisper(model);
   const out = await whisperTranscribe({

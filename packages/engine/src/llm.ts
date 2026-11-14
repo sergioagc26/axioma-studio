@@ -3,6 +3,7 @@
  * Es la única IA que usa la app: editar por chat, redactar ganchos y el texto para publicar.
  * El modelo, la memoria y los núcleos se ajustan a este PC (hardwareProfile) para no llevarlo al límite.
  */
+import { machineSnapshot } from './machine.ts';
 import { settings } from './settings.ts';
 import { currentSignal } from './cancel.ts';
 import { spawn } from 'node:child_process';
@@ -37,7 +38,9 @@ export interface HwProfile {
  * interfaz y el render.
  */
 export function hardwareProfile(ramGb = totalRamGb(), cores = os.cpus().length || 4): HwProfile {
-  const maxB = ramGb > 20 ? 14 : ramGb > 10 ? 8 : 4;
+  // Con una tarjeta NVIDIA la IA cabe en su memoria (además de la RAM).
+  const vram = machineSnapshot()?.gpus.filter((g) => g.vendor === 'nvidia').reduce((a, g) => Math.max(a, g.vramGb ?? 0), 0) ?? 0;
+  const maxB = Math.max(ramGb > 20 ? 14 : ramGb > 10 ? 8 : 4, vram >= 12 ? 14 : vram >= 8 ? 8 : 0);
   const visionMaxB = ramGb > 12 ? 8 : 4;
   return {
     ramGb: Math.round(ramGb), cores, maxB, visionMaxB,
@@ -66,10 +69,13 @@ async function getJson<T>(p: string, ms = 2500): Promise<T | null> {
 const matches = (name: string, want: string) => name === want || name === `${want}:latest` || (!want.includes(':') && name.startsWith(`${want}:`));
 
 /** El modelo a usar: el que pida AXIOMA_LLM o el mejor descargado que quepa en la memoria. */
-export function pickModel(installed: string[], ramGb = totalRamGb()): string | undefined {
+export function pickModel(installed: string[], ramGb?: number): string | undefined {
+  // La preferencia de Configuración es de ESTE computador: no aplica al calcular para otra memoria.
+  const here = ramGb === undefined;
+  ramGb ??= totalRamGb();
   if (process.env.AXIOMA_LLM) return installed.find((n) => matches(n, process.env.AXIOMA_LLM!));
   // El elegido en Configuración (si sigue instalado).
-  const chosen = settings().llm;
+  const chosen = here ? settings().llm : undefined;
   if (chosen) { const hit = installed.find((n) => matches(n, chosen)); if (hit) return hit; }
   // Solo los que caben dejando memoria para el render (16 GB → hasta 8B; 8 GB → hasta 4B).
   const { maxB } = hardwareProfile(ramGb);
@@ -114,9 +120,10 @@ export async function llmStatus(): Promise<LlmStatus> {
 }
 
 /** El modelo que ve imágenes: AXIOMA_VISION o el mejor descargado. */
-export function pickVisionModel(installed: string[], ramGb = totalRamGb()): string | undefined {
-  const { visionMaxB } = hardwareProfile(ramGb);
-  const fixed = process.env.AXIOMA_VISION ?? settings().vision;
+export function pickVisionModel(installed: string[], ramGb?: number): string | undefined {
+  const here = ramGb === undefined;
+  const { visionMaxB } = hardwareProfile(ramGb ?? totalRamGb());
+  const fixed = process.env.AXIOMA_VISION ?? (here ? settings().vision : undefined);
   const want = fixed ? [fixed] : VISION_CHOICES.filter((m) => modelSizeB(m) <= visionMaxB);
   for (const c of want) { const hit = installed.find((n) => matches(n, c)); if (hit) return hit; }
   return undefined;
@@ -288,4 +295,32 @@ export async function llmUnload(): Promise<void> {
   await Promise.all((ps?.models ?? []).map((m) => fetch(`${HOST}/api/generate`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10_000), body: JSON.stringify({ model: m.name, keep_alive: 0 }),
   }).catch(() => {})));
+}
+
+/**
+ * Descarga un modelo de IA en Ollama, avisando el avance (0–1). Se usa al optimizar la app para
+ * el computador: un equipo potente baja modelos más grandes; uno modesto, más livianos.
+ */
+export async function pullModel(name: string, onProgress: (p: number, msg: string) => void = () => {}): Promise<void> {
+  if (!(await ensureOllama())) throw new Error('Ollama no está abierto ni instalado. Descárgalo gratis en ollama.com y vuelve a intentar.');
+  const r = await fetch(`${HOST}/api/pull`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name, stream: true }) });
+  if (!r.ok || !r.body) throw new Error(`Ollama no pudo descargar ${name} (${r.status}).`);
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line) continue;
+      const m = JSON.parse(line) as { status?: string; total?: number; completed?: number; error?: string };
+      if (m.error) throw new Error(`No se pudo descargar ${name}: ${m.error}`);
+      const p = m.total ? (m.completed ?? 0) / m.total : 0;
+      onProgress(p, m.total ? `Descargando ${name}: ${Math.round(p * 100)} % de ${(m.total / 1e9).toFixed(1)} GB` : `${name}: ${m.status ?? 'preparando'}…`);
+    }
+  }
+  cachedModel = null;
 }

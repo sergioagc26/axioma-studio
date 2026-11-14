@@ -1,6 +1,6 @@
 import { BankKey, useBankKey } from '../Bank.tsx';
 import React, { useEffect, useRef, useState } from 'react';
-import type { Project } from '@axioma/schema';
+import { outputDuration, type Project } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { ROLE_LABEL } from '../SceneFrame.tsx';
 import { api, sceneDuration, waitJob, type Job } from '../useProject.ts';
@@ -413,6 +413,23 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <>
               <audio controls src={`/media/${pid}/${a.voiceover.file.split(/[\\/]/).map(encodeURIComponent).join('/')}?v=${encodeURIComponent(project.updatedAt)}`} style={{ width: '100%' }} />
               <span className="small muted">{a.voiceover.provider} · {a.voiceover.duration.toFixed(1)} s · se subtitula sola</span>
+              <label className="field">Volumen de la voz: {Math.round((a.voiceover.volume ?? 1) * 100)} %
+                <input type="range" min={0} max={2} step={0.05} value={a.voiceover.volume ?? 1} onChange={(e) => set((p) => { p.audio.voiceover!.volume = Number(e.target.value); })} />
+              </label>
+              <label className="field">Empieza en el segundo
+                <input type="number" min={0} step={0.1} value={a.voiceover.offset ?? 0} onChange={(e) => set((p) => { p.audio.voiceover!.offset = Math.max(0, Number(e.target.value) || 0); })} />
+              </label>
+              {(() => {
+                // ¿Cabe la voz en el video? Si no, el final se corta (y sus subtítulos).
+                const end = (a.voiceover.offset ?? 0) + a.voiceover.duration;
+                const total = outputDuration(project);
+                return end > total + 0.2 ? (
+                  <span className="small" style={{ color: 'var(--danger)' }}>
+                    La voz termina en el segundo {end.toFixed(1)} y el video dura {total.toFixed(1)} s: el final se corta.{project.kind === 'montaje' ? ' Pulsa «Ajustar el montaje a la voz».' : ' Acórtala o empieza antes.'}
+                  </span>
+                ) : null;
+              })()}
+              {project.kind === 'montaje' && <button className="btn rect" disabled={Boolean(busy)} onClick={() => runJob({ op: 'montaje-a-la-voz' }, 'Ajustando el montaje a la voz…', 'Listo. El montaje dura lo que la voz.')}><Icon name="rhythm" /> Ajustar el montaje a la voz</button>}
               <button className="btn rect" disabled={Boolean(busy)} onClick={() => run({ op: 'quitar-voz' }, 'Voz en off quitada.', 'Quitando la voz en off…')}><Icon name="trash" /> Quitar la voz en off</button>
             </>
           )}

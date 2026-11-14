@@ -18,6 +18,12 @@ export interface AppSettings {
   exportar?: { calidad?: 'maxima' | 'alta' | 'ligera'; lufs?: -14 | -16; carpeta?: string };
   /** Forma por defecto de los videos nuevos. */
   forma?: 'vertical' | 'horizontal' | 'cuadrado';
+  /** Modelo de transcripción (Whisper): base es rápido, small el normal, medium el más preciso. */
+  whisper?: 'base' | 'small' | 'medium';
+  /** Procesos a la vez al exportar (más = más rápido, pero más memoria). */
+  renderProcesos?: number;
+  /** Cuándo se optimizó para este computador (y para cuál). */
+  optimizado?: { at: string; equipo: string };
 }
 
 const FILE = () => path.join(WORKSPACE, 'ajustes.json');
@@ -55,6 +61,9 @@ export async function saveSettings(patch: Partial<AppSettings>, guard?: (model: 
     };
   }
   if ('forma' in patch) cur.forma = SHAPES.includes(String(patch.forma)) ? patch.forma : undefined;
+  if ('whisper' in patch) cur.whisper = ['base', 'small', 'medium'].includes(String(patch.whisper)) ? patch.whisper : undefined;
+  if ('renderProcesos' in patch) { const n = Math.round(Number(patch.renderProcesos)); cur.renderProcesos = n >= 1 && n <= 16 ? n : undefined; }
+  if ('optimizado' in patch) cur.optimizado = patch.optimizado;
   await mkdir(WORKSPACE, { recursive: true });
   await writeFile(FILE(), JSON.stringify(cur, null, 2));
   cache = cur;
