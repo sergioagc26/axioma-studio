@@ -14,6 +14,7 @@ export function timelineFor(project: Project, store: ProjectStore) {
     brand: store.brand,
     voiceover: store.extras?.voiceover,
     cutout: store.extras?.cutout,
+    front: store.extras?.front,
     cutoutCoverage: store.extras?.cutoutCoverage,
     depth: store.extras?.depth,
     faces: store.extras?.faces, speakers: store.extras?.speakers, captionWords: store.extras?.captionWords,

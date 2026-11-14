@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { sceneLength, speechOf } from '@axioma/schema';
 import type { Brand, BrandKit, VisionReport, FacePoint, SpeakerTurn, Preset, Project, Scene, Transcript, TransitionSpec } from '@axioma/schema';
 
-export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; speakers?: SpeakerTurn[]; captionWords?: Transcript['words']; transitions: TransitionSpec[]; cutout?: string; cutoutCoverage?: number[]; depth?: string[] }
+export interface Extras { voiceover?: { src: string; words: Transcript['words'] }; faces: FacePoint[]; speakers?: SpeakerTurn[]; captionWords?: Transcript['words']; transitions: TransitionSpec[]; cutout?: string; cutoutCoverage?: number[]; depth?: string[]; front?: { src: string; key: string } }
 
 export interface Job { id: string; kind?: string; projectId?: string; status: 'running' | 'done' | 'error'; message: string; progress: number; result?: Record<string, any> }
 

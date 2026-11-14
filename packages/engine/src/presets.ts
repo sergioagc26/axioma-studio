@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { BUILTIN_PRESETS, CaptionStyle, Pacing, Preset } from '@axioma/schema';
+import { BUILTIN_PRESETS, CaptionStyle, fontWeightFor as weightOf, Pacing, Preset } from '@axioma/schema';
 import { WORKSPACE, slugify } from './paths.ts';
 
 const presetsDir = (client?: string) => path.join(WORKSPACE, 'clientes', slugify(client ?? 'personal'), 'presets');
@@ -52,7 +52,7 @@ export async function savePreset(
 /** Las fuentes de un solo peso (Anton, Bebas…) necesitan 400 para no verse falsas. */
 function fontWeightFor(font?: string): Partial<CaptionStyle> {
   if (!font) return {};
-  return ['Anton', 'Bebas Neue', 'Archivo Black'].includes(font) ? { fontWeight: 400 } : { fontWeight: font === 'Oswald' ? 700 : 800 };
+  return { fontWeight: weightOf(font) };
 }
 
 /** Estilo propio del cliente por su id (los de la app no cuentan). */

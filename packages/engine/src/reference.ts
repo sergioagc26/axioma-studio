@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { FONT_FAMILIES } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
 import { probe } from './media.ts';
 import { visionJson, visionReady } from './llm.ts';
@@ -260,7 +261,7 @@ async function detectVisualStyle(file: string, duration: number, cuts: number[],
  * estilo de los textos, aspecto de la imagen, transiciones y efectos.
  */
 /** Fuentes que el render sabe dibujar; la IA solo puede elegir entre estas. */
-export const RENDER_FONTS = ['Anton', 'Archivo Black', 'Bangers', 'Barlow Condensed', 'Bebas Neue', 'Caveat', 'DM Sans', 'Inter', 'Kanit', 'League Spartan', 'Lobster', 'Lora', 'Montserrat', 'Nunito', 'Oswald', 'Pacifico', 'Permanent Marker', 'Playfair Display', 'Poppins', 'Raleway', 'Righteous', 'Roboto Condensed', 'Rubik', 'Sora', 'Space Grotesk', 'Teko'];
+export const RENDER_FONTS: string[] = [...FONT_FAMILIES];
 
 /** La IA local de visión mira 4 fotogramas y elige la fuente más parecida a la de los subtítulos. */
 export async function detectTypography(frames: string[]): Promise<ReferenceReport['typography']> {

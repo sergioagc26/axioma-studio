@@ -28,6 +28,11 @@ export const SHOT_TAGS: ShotTag[] = [
   { id: 'hamburguesa', food: true, prompt: 'a photo of a burger', words: ['hamburguesa', 'burger'] },
   { id: 'postre', food: true, prompt: 'a photo of a dessert', words: ['postre', 'helado', 'brownie'] },
   { id: 'bebida', food: true, sticky: true, prompt: 'a photo of drinks in tall glasses', words: ['bebida', 'agua', 'jamaica', 'tamarindo', 'horchata', 'limonada', 'soda', 'michelada', 'jugo', 'cerveza', 'coctel', 'cafe', 'malteada'] },
+  { id: 'ejercicio', prompt: 'a photo of a person exercising in a gym', words: ['entrena', 'entrenar', 'entrenamiento', 'ejercicio', 'rutina', 'gimnasio', 'pesas'] },
+  { id: 'producto', prompt: 'a close-up photo of a product on a table', words: ['producto', 'empaque', 'caja'] },
+  { id: 'hablando', prompt: 'a photo of a person talking to the camera', words: [] },
+  { id: 'manos', prompt: 'a close-up photo of hands working or making something', words: ['manos', 'hecho', 'artesanal'] },
+  { id: 'exterior', prompt: 'a photo of a street or the outside of a building', words: ['calle', 'ciudad', 'fachada', 'afuera'] },
   { id: 'cocina', prompt: 'a photo of meat cooking on a hot flat griddle', words: ['cocina', 'parrilla', 'hambre', 'preparamos', 'cocinamos'] },
   { id: 'personas', prompt: 'a photo of people sitting at a restaurant table eating', words: ['familia', 'amigos', 'amigo', 'pareja', 'gente', 'parche', 'mesa', 'silencio'] },
   { id: 'local', prompt: 'a photo of an empty restaurant dining room or terrace with tables and chairs', words: ['bienvenido', 'bienvenidos', 'visitanos', 'local'] },
@@ -41,9 +46,9 @@ export function tagOfWord(word: string, tags: ShotTag[] = SHOT_TAGS): string | n
   const s = stem(word);
   if (s.length < 3) return null;
   for (const t of tags) {
-    // Exacta, o con una terminación corta («burritos», «totopos»), pero no otra palabra
-    // que empieza igual («aguacate» no es «agua», «tortilla» no es «torta»).
-    if (t.words.some((w) => s === w || (s.startsWith(w) && s.length - w.length <= 2))) return t.id;
+    // Exacta (sin plural) o en diminutivo, pero no otra palabra que empieza igual
+    // («aguacate» no es «agua», «tortilla» no es «torta», «jugosa» no es «jugo»).
+    if (t.words.some((w) => s === w || s === `${w}it` || s === `${w}ito` || s === `${w}ita`)) return t.id;
   }
   return null;
 }
@@ -70,7 +75,8 @@ export async function tagShots(dir: string, opts: { force?: boolean; tags?: Shot
       for (const r of await classifyImage(file, prompts)) score.set(r.label, (score.get(r.label) ?? 0) + r.score / 2);
     }
     const best = [...score.entries()].sort((a, b) => b[1] - a[1])[0];
-    s.tag = tags.find((t) => t.prompt === best[0])?.id;
+    // Si nada se parece de verdad (video de otro tema), la toma queda sin etiqueta: no se adivina.
+    s.tag = best[1] >= 0.3 ? tags.find((t) => t.prompt === best[0])?.id : undefined;
     s.tagAuto = true;
   }
   await rm(tmp, { recursive: true, force: true });
@@ -129,24 +135,29 @@ export function voiceSegments(words: { text: string; start: number }[], availabl
  * toma va en cada escena. Antes de la primera mención van los platos más vistosos, mezclados.
  * Devuelve las secciones que logró sincronizar.
  */
-export async function syncShotsToVoice(dir: string, opts: { lead?: number } = {}): Promise<{ tag: string; word: string; at: number }[]> {
+export async function syncShotsToVoice(dir: string, opts: { lead?: number; /** Secciones ya decididas (las filas de un guion técnico): mandan sobre las palabras sueltas. */ segments?: { tag: string; start: number; word: string }[] } = {}): Promise<{ tag: string; word: string; at: number }[]> {
   const project = await readProject(dir);
   const vo = project.audio.voiceover;
   if (project.kind !== 'montaje' || !vo) return [];
   const file = path.join(dir, vo.wordsFile ?? 'voiceover.json');
   if (!existsSync(file)) return [];
   const words = (JSON.parse(await readFile(file, 'utf8')).words ?? []) as { text: string; start: number; end: number }[];
-  const shots = (await detectShots(dir)).filter((s) => s.tag);
+  const every = await detectShots(dir);
+  // Con un guion que nombra tomas exactas (t03) sirven todas; si no, solo las que tienen etiqueta.
+  const shots = opts.segments?.length ? every : every.filter((s) => s.tag);
   if (!shots.length) return [];
   const pools = new Map<string, Shot[]>();
-  for (const s of shots) pools.set(s.tag!, [...(pools.get(s.tag!) ?? []), s]);
-  const segs = voiceSegments(words, new Set(pools.keys()));
+  for (const s of shots) if (s.tag) pools.set(s.tag, [...(pools.get(s.tag) ?? []), s]);
+  // Una fila de guion puede pedir una toma exacta por su número.
+  if (opts.segments?.length) for (const s of shots) pools.set(s.id, [s]);
+  const segs = opts.segments?.length ? opts.segments.filter((x) => pools.has(x.tag)).sort((a, b) => a.start - b.start) : voiceSegments(words, new Set(pools.keys()));
   if (!segs.length) return [];
   const food = new Set(SHOT_TAGS.filter((t) => t.food).map((t) => t.id));
   // Apertura: lo más vistoso primero. En una secuencia de preparación la última toma suele ser el
   // plato servido, así que se toman de atrás hacia adelante, alternando entre platos.
   const order = [...new Set(segs.map((x) => x.tag).filter((x) => food.has(x)))];
   const byTag = order.map((tg) => shots.filter((s) => s.tag === tg).reverse());
+  if (!byTag.length && opts.segments?.length) byTag.push([...shots]);
   const opening: Shot[] = [];
   for (let k = 0; byTag.some((l) => k < l.length); k++) for (const l of byTag) if (l[k]) opening.push(l[k]);
   // El plato aparece un poquito antes de que se diga (como lo cortaría un editor).
@@ -163,9 +174,14 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number } = {}
     const rlen = scene.ranges.reduce((a, r) => a + r.end - r.start, 0);
     const mid = sceneSwitchPoint(t, len);
     t += len;
-    const seg = [...segs].reverse().find((x) => x.start - lead <= mid);
-    const key = seg?.tag ?? '__apertura';
-    const pool = seg ? pools.get(seg.tag)! : (opening.length ? opening : shots);
+    let seg = [...segs].reverse().find((x) => x.start - lead <= mid);
+    // Un plato nombrado de pasada no se queda el resto del video: manda unos segundos (según
+    // cuánto material tiene) y después vuelven todas las tomas. Las filas de un guion sí mandan
+    // hasta la fila siguiente.
+    if (seg && !opts.segments?.length && mid - seg.start > Math.max(4, Math.min(9, 0.6 * pools.get(seg.tag)!.reduce((a, s) => a + s.end - s.start, 0)))) seg = undefined;
+    const before = !seg && segs.length > 0 && mid < segs[0].start;
+    const key = seg?.tag ?? (before ? '__apertura' : '__resto');
+    const pool = seg ? pools.get(seg.tag)! : before && opening.length ? opening : shots;
     // Por turnos entre las tomas de ese plato, saltando la que acaba de salir y las que no
     // tienen material libre.
     const n = pool.length;
@@ -173,7 +189,8 @@ export async function syncShotsToVoice(dir: string, opts: { lead?: number } = {}
     for (let k = 0; k < n && !pick; k++) {
       const s = pool[((turn.get(key) ?? 0) + k) % n];
       // Nunca la misma toma seguida; si el plato tiene una sola, como mucho dos veces (partes distintas).
-      if (s.id === last && (n > 1 || run >= 2)) continue;
+      // (Si un guion pide esa toma exacta, sigue en ella: es lo que mandó el guion.)
+      if (s.id === last && (n > 1 || (run >= 2 && !opts.segments?.length))) continue;
       if (s.end - cursor.get(s.id)! >= rlen) { pick = s; turn.set(key, ((turn.get(key) ?? 0) + k + 1) % n); }
     }
     if (!pick && seg) {

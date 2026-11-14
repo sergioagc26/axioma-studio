@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { FORMATS, buildTimeline, type Brand, type FormatId, type Project, type Transcript } from '@axioma/schema';
+import { FORMATS, buildTimeline, frontKey, type Brand, type FormatId, type Project, type Transcript } from '@axioma/schema';
 import { readSpeakers } from './speakers.ts';
 import { captionWords } from './subtitles.ts';
 import { readFaces } from './faces.ts';
@@ -58,7 +58,7 @@ export async function brandFor(project: Project, asset: (rel: string) => string,
 /** Capa de «texto detrás de la comida», si está pedida y hecha. */
 async function frontFor(dir: string, project: Project, asset: (rel: string) => string) {
   if (!project.captions.behind) return undefined;
-  const f = await readFront(dir);
+  const f = await readFront(dir, project);
   return f ? { src: asset(f.file.split(path.sep).join('/')), key: f.key } : undefined;
 }
 
@@ -83,7 +83,11 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
   await ensureUsedSfx(dir, project);
   await ensureProjectDepth(dir, project);
   // Texto detrás de la comida: si los cortes cambiaron desde que se armó la capa, se rehace.
-  if (project.captions.behind && !opts.project) await buildFront(dir).catch(() => {});
+  let frontShare = 0;
+  if (project.captions.behind && !opts.project && !(await readFront(dir, project).then((f) => f && f.key === frontKey(buildTimeline(project, transcript, { video: 'x' }).clips)).catch(() => false))) {
+    frontShare = 0.3;
+    await buildFront(dir, (p) => opts.onProgress?.(p * frontShare)).catch(() => {});
+  }
   const server = await serveFolder(dir);
   try {
     const has = (rel?: string) => Boolean(rel && existsSync(path.join(dir, rel)));
@@ -122,7 +126,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       outputLocation: raw,
       // Cada pestaña de render ocupa cerca de 1 GB con video vertical: se limita por la memoria del equipo.
       concurrency: Math.max(1, Math.min(project.export.uhd ? 4 : 8, Math.floor(os.cpus().length / 2), Math.max(2, Math.floor(os.totalmem() / 2 ** 30 / (project.export.uhd ? 8 : 4))))),
-      onProgress: ({ progress }) => opts.onProgress?.(progress * 0.95),
+      onProgress: ({ progress }) => opts.onProgress?.(frontShare + progress * (0.95 - frontShare)),
     }));
     // Siempre se nivela el resultado final al volumen elegido (−14 LUFS para redes).
     try {

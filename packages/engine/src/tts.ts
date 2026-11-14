@@ -1,10 +1,30 @@
 import { existsSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { AI_VOICES } from '@axioma/schema';
 import { envValue } from './env.ts';
 import { ffmpeg, run } from './exec.ts';
+import { REPO_ROOT } from './paths.ts';
+import { llmUnload } from './llm.ts';
 
-export type TtsProvider = 'elevenlabs' | 'piper' | 'sistema';
+export type TtsProvider = 'elevenlabs' | 'qwen' | 'piper' | 'sistema';
+
+/**
+ * Voces de la voz IA local (Qwen3-TTS): se describen con palabras y el modelo las crea. No imitan
+ * a ninguna persona real. La instrucción va en inglés porque así la entiende mejor.
+ */
+export const QWEN_VOICES: Record<string, { name: string; instruct: string }> = Object.fromEntries(AI_VOICES.map((v) => [v.id, { name: v.name, instruct: v.instruct }]));
+const QWEN_TAIL = ' Not an imitation of any real person. Dry studio recording, no music.';
+const QWEN_PY = path.join(REPO_ROOT, '.venv-qwen', 'bin', 'python');
+const QWEN_CACHE = path.join(REPO_ROOT, 'workspace', 'tts-qwen', 'cache');
+
+/** Carpeta del modelo de voz local, si está instalado (venv + modelo descargado). */
+async function qwenModel(): Promise<string | null> {
+  if (!existsSync(QWEN_PY)) return null;
+  const snaps = path.join(QWEN_CACHE, 'hub', 'models--Qwen--Qwen3-TTS-12Hz-1.7B-VoiceDesign', 'snapshots');
+  const one = existsSync(snaps) ? (await readdir(snaps)).filter((d) => !d.startsWith('.'))[0] : undefined;
+  return one ? path.join(snaps, one) : null;
+}
 
 async function has(bin: string) {
   try {
@@ -19,6 +39,7 @@ async function has(bin: string) {
 export async function ttsProviders(): Promise<TtsProvider[]> {
   const out: TtsProvider[] = [];
   if (await envValue('ELEVENLABS_API_KEY')) out.push('elevenlabs');
+  if (await qwenModel()) out.push('qwen');
   if ((await has('piper')) && (await envValue('SE_PIPER_MODEL'))) out.push('piper');
   if (process.platform === 'darwin' || process.platform === 'win32' || (await has('espeak-ng'))) out.push('sistema');
   return out;
@@ -27,6 +48,7 @@ export async function ttsProviders(): Promise<TtsProvider[]> {
 /**
  * Genera la voz en off en `out` (WAV 48 kHz). Proveedores:
  * - elevenlabs: la mejor calidad; de pago; necesita ELEVENLABS_API_KEY (y opcional ELEVENLABS_VOICE_ID) en .env.
+ * - qwen: voz IA local (Qwen3-TTS), natural y con acento a elegir (QWEN_VOICES o una descripción propia); gratis; tarda más o menos lo que dura el audio.
  * - piper: local y gratis; necesita `piper` instalado y SE_PIPER_MODEL con la ruta del modelo .onnx.
  * - sistema: la voz del sistema operativo (macOS `say`, Windows SAPI). Gratis y siempre disponible, suena más robótica.
  */
@@ -64,6 +86,32 @@ export async function synthesize(text: string, out: string, opts: { provider?: T
         return { ...r2, aviso: `${why} Usé la voz del computador.` };
       }
       throw new Error(why);
+    }
+  } else if (provider === 'qwen') {
+    raw = `${tmp}.wav`;
+    const txt = `${tmp}.txt`;
+    await writeFile(txt, clean, 'utf8');
+    voice ??= 'colombiana';
+    // Una voz de la lista o una descripción escrita por el usuario.
+    const instruct = (QWEN_VOICES[voice]?.instruct ?? voice) + QWEN_TAIL;
+    // La IA de texto suelta su memoria: los dos modelos juntos no caben en 16 GB.
+    await llmUnload().catch(() => {});
+    process.env.HF_HOME = QWEN_CACHE;
+    try {
+      await run(QWEN_PY, [path.join(REPO_ROOT, 'scripts', 'voz-qwen.py'), (await qwenModel())!, txt, raw, instruct], { quiet: true });
+    } catch (e) {
+      const next = available.find((p) => p !== 'qwen' && p !== 'elevenlabs');
+      if (!opts.provider && next) return { ...(await synthesize(clean, out, { ...opts, provider: next, voice: undefined })), aviso: 'La voz IA local falló: usé la voz del computador.' };
+      throw new Error('La voz IA local no pudo generar el audio (¿poca memoria libre?). Cierra otras apps e inténtalo de nuevo.');
+    } finally {
+      await rm(txt, { force: true });
+    }
+    // Las pausas largas que a veces deja el modelo se acortan (el ritmo queda de anuncio).
+    if (existsSync(raw)) {
+      const tight = `${tmp}.t.wav`;
+      await ffmpeg(['-i', raw, '-af', 'silenceremove=start_periods=1:start_threshold=-45dB,silenceremove=stop_periods=-1:stop_duration=0.45:stop_threshold=-34dB:stop_silence=0.35', tight]);
+      await rm(raw, { force: true });
+      raw = tight;
     }
   } else if (provider === 'piper') {
     raw = `${tmp}.wav`;

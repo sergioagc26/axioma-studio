@@ -29,6 +29,60 @@ import { loadFont as loadPacifico } from '@remotion/google-fonts/Pacifico';
 import { loadFont as loadLobster } from '@remotion/google-fonts/Lobster';
 import { loadFont as loadCaveat } from '@remotion/google-fonts/Caveat';
 import { loadFont as loadLora } from '@remotion/google-fonts/Lora';
+import { loadFont as loadCormorantGaramond } from '@remotion/google-fonts/CormorantGaramond';
+import { loadFont as loadDMSerifDisplay } from '@remotion/google-fonts/DMSerifDisplay';
+import { loadFont as loadFraunces } from '@remotion/google-fonts/Fraunces';
+import { loadFont as loadLibreBaskerville } from '@remotion/google-fonts/LibreBaskerville';
+import { loadFont as loadBodoniModa } from '@remotion/google-fonts/BodoniModa';
+import { loadFont as loadCinzel } from '@remotion/google-fonts/Cinzel';
+import { loadFont as loadAbrilFatface } from '@remotion/google-fonts/AbrilFatface';
+import { loadFont as loadMarcellus } from '@remotion/google-fonts/Marcellus';
+import { loadFont as loadYesevaOne } from '@remotion/google-fonts/YesevaOne';
+import { loadFont as loadPrata } from '@remotion/google-fonts/Prata';
+import { loadFont as loadItaliana } from '@remotion/google-fonts/Italiana';
+import { loadFont as loadOutfit } from '@remotion/google-fonts/Outfit';
+import { loadFont as loadManrope } from '@remotion/google-fonts/Manrope';
+import { loadFont as loadPlusJakartaSans } from '@remotion/google-fonts/PlusJakartaSans';
+import { loadFont as loadUrbanist } from '@remotion/google-fonts/Urbanist';
+import { loadFont as loadFigtree } from '@remotion/google-fonts/Figtree';
+import { loadFont as loadLexend } from '@remotion/google-fonts/Lexend';
+import { loadFont as loadWorkSans } from '@remotion/google-fonts/WorkSans';
+import { loadFont as loadSyne } from '@remotion/google-fonts/Syne';
+import { loadFont as loadUnbounded } from '@remotion/google-fonts/Unbounded';
+import { loadFont as loadRedHatDisplay } from '@remotion/google-fonts/RedHatDisplay';
+import { loadFont as loadJosefinSans } from '@remotion/google-fonts/JosefinSans';
+import { loadFont as loadQuicksand } from '@remotion/google-fonts/Quicksand';
+import { loadFont as loadBricolageGrotesque } from '@remotion/google-fonts/BricolageGrotesque';
+import { loadFont as loadFjallaOne } from '@remotion/google-fonts/FjallaOne';
+import { loadFont as loadAlfaSlabOne } from '@remotion/google-fonts/AlfaSlabOne';
+import { loadFont as loadTitanOne } from '@remotion/google-fonts/TitanOne';
+import { loadFont as loadStaatliches } from '@remotion/google-fonts/Staatliches';
+import { loadFont as loadSairaCondensed } from '@remotion/google-fonts/SairaCondensed';
+import { loadFont as loadAntonio } from '@remotion/google-fonts/Antonio';
+import { loadFont as loadPassionOne } from '@remotion/google-fonts/PassionOne';
+import { loadFont as loadRussoOne } from '@remotion/google-fonts/RussoOne';
+import { loadFont as loadLilitaOne } from '@remotion/google-fonts/LilitaOne';
+import { loadFont as loadLuckiestGuy } from '@remotion/google-fonts/LuckiestGuy';
+import { loadFont as loadDancingScript } from '@remotion/google-fonts/DancingScript';
+import { loadFont as loadGreatVibes } from '@remotion/google-fonts/GreatVibes';
+import { loadFont as loadSatisfy } from '@remotion/google-fonts/Satisfy';
+import { loadFont as loadKaushanScript } from '@remotion/google-fonts/KaushanScript';
+import { loadFont as loadSacramento } from '@remotion/google-fonts/Sacramento';
+import { loadFont as loadAmaticSC } from '@remotion/google-fonts/AmaticSC';
+import { loadFont as loadShadowsIntoLight } from '@remotion/google-fonts/ShadowsIntoLight';
+import { loadFont as loadYellowtail } from '@remotion/google-fonts/Yellowtail';
+import { loadFont as loadSpaceMono } from '@remotion/google-fonts/SpaceMono';
+import { loadFont as loadJetBrainsMono } from '@remotion/google-fonts/JetBrainsMono';
+import { loadFont as loadOrbitron } from '@remotion/google-fonts/Orbitron';
+import { loadFont as loadPressStart2P } from '@remotion/google-fonts/PressStart2P';
+import { loadFont as loadRobotoSlab } from '@remotion/google-fonts/RobotoSlab';
+import { loadFont as loadZillaSlab } from '@remotion/google-fonts/ZillaSlab';
+import { loadFont as loadBitter } from '@remotion/google-fonts/Bitter';
+import { loadFont as loadMonoton } from '@remotion/google-fonts/Monoton';
+import { loadFont as loadRye } from '@remotion/google-fonts/Rye';
+import { loadFont as loadFredoka } from '@remotion/google-fonts/Fredoka';
+import { loadFont as loadBaloo2 } from '@remotion/google-fonts/Baloo2';
+import { loadFont as loadChewy } from '@remotion/google-fonts/Chewy';
 import type { CapColor, CaptionEffectSpec, Timeline, TimelineClip, TimelineOverlay } from '@axioma/schema';
 import { captionDesign, captionEffect, pickEmojis } from '@axioma/schema';
 import { chunkWords, type CaptionChunk } from './captions.ts';
@@ -60,7 +114,60 @@ const FONTS: Record<string, () => { fontFamily: string }> = {
   'Lobster': () => loadLobster('normal', { subsets: ['latin'] }),
   'Caveat': () => loadCaveat('normal', { subsets: ['latin'] }),
   'Lora': () => loadLora('normal', { subsets: ['latin'] }),
-  'DM Sans': () => loadDMSans('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),
+  'DM Sans': () => loadDMSans('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),  'Cormorant Garamond': () => loadCormorantGaramond('normal', { subsets: ['latin'] }),
+  'DM Serif Display': () => loadDMSerifDisplay('normal', { subsets: ['latin'] }),
+  'Fraunces': () => loadFraunces('normal', { subsets: ['latin'] }),
+  'Libre Baskerville': () => loadLibreBaskerville('normal', { subsets: ['latin'] }),
+  'Bodoni Moda': () => loadBodoniModa('normal', { subsets: ['latin'] }),
+  'Cinzel': () => loadCinzel('normal', { subsets: ['latin'] }),
+  'Abril Fatface': () => loadAbrilFatface('normal', { subsets: ['latin'] }),
+  'Marcellus': () => loadMarcellus('normal', { subsets: ['latin'] }),
+  'Yeseva One': () => loadYesevaOne('normal', { subsets: ['latin'] }),
+  'Prata': () => loadPrata('normal', { subsets: ['latin'] }),
+  'Italiana': () => loadItaliana('normal', { subsets: ['latin'] }),
+  'Outfit': () => loadOutfit('normal', { subsets: ['latin'] }),
+  'Manrope': () => loadManrope('normal', { subsets: ['latin'] }),
+  'Plus Jakarta Sans': () => loadPlusJakartaSans('normal', { subsets: ['latin'] }),
+  'Urbanist': () => loadUrbanist('normal', { subsets: ['latin'] }),
+  'Figtree': () => loadFigtree('normal', { subsets: ['latin'] }),
+  'Lexend': () => loadLexend('normal', { subsets: ['latin'] }),
+  'Work Sans': () => loadWorkSans('normal', { subsets: ['latin'] }),
+  'Syne': () => loadSyne('normal', { subsets: ['latin'] }),
+  'Unbounded': () => loadUnbounded('normal', { subsets: ['latin'] }),
+  'Red Hat Display': () => loadRedHatDisplay('normal', { subsets: ['latin'] }),
+  'Josefin Sans': () => loadJosefinSans('normal', { subsets: ['latin'] }),
+  'Quicksand': () => loadQuicksand('normal', { subsets: ['latin'] }),
+  'Bricolage Grotesque': () => loadBricolageGrotesque('normal', { subsets: ['latin'] }),
+  'Fjalla One': () => loadFjallaOne('normal', { subsets: ['latin'] }),
+  'Alfa Slab One': () => loadAlfaSlabOne('normal', { subsets: ['latin'] }),
+  'Titan One': () => loadTitanOne('normal', { subsets: ['latin'] }),
+  'Staatliches': () => loadStaatliches('normal', { subsets: ['latin'] }),
+  'Saira Condensed': () => loadSairaCondensed('normal', { subsets: ['latin'] }),
+  'Antonio': () => loadAntonio('normal', { subsets: ['latin'] }),
+  'Passion One': () => loadPassionOne('normal', { subsets: ['latin'] }),
+  'Russo One': () => loadRussoOne('normal', { subsets: ['latin'] }),
+  'Lilita One': () => loadLilitaOne('normal', { subsets: ['latin'] }),
+  'Luckiest Guy': () => loadLuckiestGuy('normal', { subsets: ['latin'] }),
+  'Dancing Script': () => loadDancingScript('normal', { subsets: ['latin'] }),
+  'Great Vibes': () => loadGreatVibes('normal', { subsets: ['latin'] }),
+  'Satisfy': () => loadSatisfy('normal', { subsets: ['latin'] }),
+  'Kaushan Script': () => loadKaushanScript('normal', { subsets: ['latin'] }),
+  'Sacramento': () => loadSacramento('normal', { subsets: ['latin'] }),
+  'Amatic SC': () => loadAmaticSC('normal', { subsets: ['latin'] }),
+  'Shadows Into Light': () => loadShadowsIntoLight('normal', { subsets: ['latin'] }),
+  'Yellowtail': () => loadYellowtail('normal', { subsets: ['latin'] }),
+  'Space Mono': () => loadSpaceMono('normal', { subsets: ['latin'] }),
+  'JetBrains Mono': () => loadJetBrainsMono('normal', { subsets: ['latin'] }),
+  'Orbitron': () => loadOrbitron('normal', { subsets: ['latin'] }),
+  'Press Start 2P': () => loadPressStart2P('normal', { subsets: ['latin'] }),
+  'Roboto Slab': () => loadRobotoSlab('normal', { subsets: ['latin'] }),
+  'Zilla Slab': () => loadZillaSlab('normal', { subsets: ['latin'] }),
+  'Bitter': () => loadBitter('normal', { subsets: ['latin'] }),
+  'Monoton': () => loadMonoton('normal', { subsets: ['latin'] }),
+  'Rye': () => loadRye('normal', { subsets: ['latin'] }),
+  'Fredoka': () => loadFredoka('normal', { subsets: ['latin'] }),
+  'Baloo 2': () => loadBaloo2('normal', { subsets: ['latin'] }),
+  'Chewy': () => loadChewy('normal', { subsets: ['latin'] }),
 };
 
 export function useFont(name: string): string {

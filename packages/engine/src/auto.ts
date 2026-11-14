@@ -500,7 +500,7 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
 }
 
 /** Subtítulos de un montaje con voz en off: pequeños, sin borde, crema con la palabra en dorado. */
-const VOICEOVER_CAPTIONS = {
+export const VOICEOVER_CAPTIONS = {
   design: 'minimal', fontSize: 66, color: '#FFF6E9', highlightColor: '#F2C14E', uppercase: false,
   stroke: false, emphasis: false, effect: 'color', wordsPerLine: 4, y: 0.42, lineAnim: 'subir' as const, plate: false,
 };
@@ -562,7 +562,7 @@ export async function voiceoverTitles(dir: string, project: Awaited<ReturnType<t
   const normW = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9ñ]/g, '');
   const brand = normW(project.client ?? '') + normW((await readKit(project.client).catch(() => null))?.name ?? '');
   const listed = [project.brief.notas ?? '', ...Object.entries(project.brief).filter(([k]) => k.startsWith('extra:')).map(([, v]) => v)]
-    .join('. ').split(/[.,;:\n]|\sy\s|\se\s/).map((x) => x.trim()).filter((x) => x && x.split(/\s+/).length <= 2 && !/^(sin|no|con)\b/i.test(x));
+    .join('. ').split(/[.,;:\n]|\sy\s|\se\s/).map((x) => x.trim()).filter((x) => x && x.split(/\s+/).length <= 2 && x.split(/\s+/)[0].length >= 4 && !/^(sin|no|con|para|más|mas|muy|todo|toda|como|desde|hasta|sobre|entre|cada|solo|pero)\b/i.test(x));
   // Singular o plural da igual («burros» en la nota, «el burro» en la voz).
   const sing = (t: string) => normW(t).replace(/(es|s)$/, '');
   const products = listed.filter((x) => !brand.includes(normW(x)) && words.some((w) => sing(w.text) === sing(x.split(/\s+/)[0])));
@@ -607,13 +607,16 @@ export async function voiceoverTitles(dir: string, project: Awaited<ReturnType<t
     let shown = 0;
     while (i < project.scenes.length - 1 && shown < 1.8) {
       const sc = project.scenes[i];
-      if (sc.onScreenText && sc.onScreenText !== text) break;
+      // El gancho o el cierre no se pisan; el título de otro plato sí (ya se nombró el siguiente).
+      if (sc.onScreenText && sc.onScreenText !== text && !placed.includes(sc.onScreenText)) break;
       sc.onScreenText = text; sc.autoText = text;
       // Con subtítulos detrás de la comida: rótulo fino arriba (no tapa el plato); si no, en grande al centro.
       if (project.captions.behind) { sc.textStyle = 'lujo'; sc.textPosition = 'arriba'; sc.textFont = 'Playfair Display'; sc.textAnim = 'desenfoque'; sc.textKeyword = text.split(' ')[0]; }
       else { sc.textStyle = 'gigante'; sc.textPosition = 'centro'; }
       shown += sceneLength(sc); i++;
     }
+    // Lo que quedaba del título anterior después de este se quita (no se queda sobre otro plato).
+    for (let j = i; j < project.scenes.length - 1 && project.scenes[j].onScreenText && project.scenes[j].onScreenText !== text && placed.includes(project.scenes[j].onScreenText!); j++) { project.scenes[j].onScreenText = undefined; project.scenes[j].autoText = undefined; }
     if (shown) placed.push(text);
   }
   if (placed.length) await writeProject(dir, project);

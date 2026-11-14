@@ -147,15 +147,24 @@ export function recommendPreset(project: { kind: string }, transcript: { words: 
 }
 
 /** Fuentes disponibles en el render (Google Fonts). */
-export const FONT_FAMILIES = ['Montserrat', 'Inter', 'Space Grotesk', 'Poppins', 'Anton', 'Bebas Neue', 'Oswald', 'Archivo Black', 'DM Sans', 'Rubik', 'Raleway', 'Nunito', 'Barlow Condensed', 'Roboto Condensed', 'League Spartan', 'Teko', 'Kanit', 'Sora', 'Bangers', 'Righteous', 'Permanent Marker', 'Pacifico', 'Lobster', 'Caveat', 'Playfair Display', 'Lora'] as const;
+/** Fuentes disponibles en el render (Google Fonts). */
+export const FONT_FAMILIES = ['Montserrat', 'Poppins', 'Archivo Black', 'League Spartan', 'Rubik', 'Kanit', 'Sora', 'Outfit', 'Manrope', 'Plus Jakarta Sans', 'Urbanist', 'Figtree', 'Lexend', 'Work Sans', 'Syne', 'Unbounded', 'Red Hat Display', 'Josefin Sans', 'Quicksand', 'Bricolage Grotesque', 'Inter', 'DM Sans', 'Space Grotesk', 'Raleway', 'Nunito', 'Anton', 'Bebas Neue', 'Oswald', 'Barlow Condensed', 'Roboto Condensed', 'Teko', 'Fjalla One', 'Antonio', 'Saira Condensed', 'Staatliches', 'Alfa Slab One', 'Titan One', 'Passion One', 'Russo One', 'Lilita One', 'Luckiest Guy', 'Playfair Display', 'Lora', 'Cormorant Garamond', 'DM Serif Display', 'Fraunces', 'Libre Baskerville', 'Bodoni Moda', 'Cinzel', 'Abril Fatface', 'Marcellus', 'Yeseva One', 'Prata', 'Italiana', 'Caveat', 'Pacifico', 'Lobster', 'Permanent Marker', 'Dancing Script', 'Great Vibes', 'Satisfy', 'Kaushan Script', 'Sacramento', 'Amatic SC', 'Shadows Into Light', 'Yellowtail', 'Bangers', 'Righteous', 'Fredoka', 'Baloo 2', 'Chewy', 'Space Mono', 'JetBrains Mono', 'Orbitron', 'Press Start 2P', 'Roboto Slab', 'Zilla Slab', 'Bitter', 'Monoton', 'Rye'] as const;
 /** Grupos para mostrar las tipografías ordenadas. */
 export const FONT_GROUPS: [string, string[]][] = [
   ['Fuertes', ['Montserrat', 'Poppins', 'Archivo Black', 'League Spartan', 'Rubik', 'Kanit', 'Sora']],
-  ['Condensadas', ['Anton', 'Bebas Neue', 'Oswald', 'Barlow Condensed', 'Roboto Condensed', 'Teko']],
+  ['Modernas', ['Outfit', 'Manrope', 'Plus Jakarta Sans', 'Urbanist', 'Figtree', 'Lexend', 'Work Sans', 'Syne', 'Unbounded', 'Red Hat Display', 'Josefin Sans', 'Quicksand', 'Bricolage Grotesque']],
   ['Limpias', ['Inter', 'DM Sans', 'Space Grotesk', 'Raleway', 'Nunito']],
-  ['Con carácter', ['Bangers', 'Righteous', 'Permanent Marker', 'Pacifico', 'Lobster', 'Caveat']],
-  ['Elegantes', ['Playfair Display', 'Lora']],
+  ['Condensadas', ['Anton', 'Bebas Neue', 'Oswald', 'Barlow Condensed', 'Roboto Condensed', 'Teko', 'Fjalla One', 'Antonio', 'Saira Condensed', 'Staatliches']],
+  ['Impacto', ['Alfa Slab One', 'Titan One', 'Passion One', 'Russo One', 'Lilita One', 'Luckiest Guy']],
+  ['Elegantes', ['Playfair Display', 'Lora', 'Cormorant Garamond', 'DM Serif Display', 'Fraunces', 'Libre Baskerville', 'Bodoni Moda', 'Cinzel', 'Abril Fatface', 'Marcellus', 'Yeseva One', 'Prata', 'Italiana']],
+  ['Manuscritas', ['Caveat', 'Pacifico', 'Lobster', 'Permanent Marker', 'Dancing Script', 'Great Vibes', 'Satisfy', 'Kaushan Script', 'Sacramento', 'Amatic SC', 'Shadows Into Light', 'Yellowtail']],
+  ['Con carácter', ['Bangers', 'Righteous', 'Fredoka', 'Baloo 2', 'Chewy']],
+  ['Técnicas y retro', ['Space Mono', 'JetBrains Mono', 'Orbitron', 'Press Start 2P', 'Roboto Slab', 'Zilla Slab', 'Bitter', 'Monoton', 'Rye']],
 ];
+/** Fuentes que solo traen un grosor (el normal): no se les pide negrita, que saldría falsa y borrosa. */
+export const FONT_SINGLE_WEIGHT: string[] = ['Anton', 'Bebas Neue', 'Archivo Black', 'Bangers', 'Righteous', 'Permanent Marker', 'Pacifico', 'Lobster', 'DM Serif Display', 'Abril Fatface', 'Marcellus', 'Yeseva One', 'Prata', 'Italiana', 'Fjalla One', 'Alfa Slab One', 'Titan One', 'Staatliches', 'Passion One', 'Russo One', 'Lilita One', 'Luckiest Guy', 'Great Vibes', 'Satisfy', 'Kaushan Script', 'Sacramento', 'Shadows Into Light', 'Yellowtail', 'Press Start 2P', 'Monoton', 'Rye', 'Chewy'];
+/** Grosor con el que se ve mejor cada fuente en subtítulos y títulos. */
+export const fontWeightFor = (font: string) => (FONT_SINGLE_WEIGHT.includes(font) ? 400 : ['Oswald', 'Cormorant Garamond', 'Cinzel', 'Bodoni Moda', 'Libre Baskerville', 'Fraunces', 'Dancing Script', 'Amatic SC', 'Space Mono', 'JetBrains Mono'].includes(font) ? 700 : 800);
 
 export function getPreset(id: string, extra: Preset[] = []): Preset {
   const found = [...extra, ...BUILTIN_PRESETS].find((x) => x.id === id);

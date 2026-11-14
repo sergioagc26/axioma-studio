@@ -402,7 +402,7 @@ export const Audio: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <label className="field">Voz
             <select value={voProvider} onChange={(e) => setVoProvider(e.target.value)}>
               <option value="">La mejor disponible</option>
-              {store.catalog.voices.map((v) => <option key={v} value={v}>{v === 'sistema' ? 'Del computador (gratis, más robótica)' : v === 'elevenlabs' ? 'ElevenLabs (natural)' : 'Voz local'}</option>)}
+              {store.catalog.voices.map((v) => <option key={v} value={v}>{v === 'sistema' ? 'Del computador (gratis, más robótica)' : v === 'elevenlabs' ? 'ElevenLabs (natural)' : v === 'qwen' ? 'Voz IA local (natural, gratis; tarda ~1 min)' : 'Voz local'}</option>)}
             </select>
           </label>
           <button className="btn primary" disabled={voText.trim().length < 2 || Boolean(busy)}

@@ -1,3 +1,4 @@
+import { syncShotsToVoice } from './voicesync.ts';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
@@ -166,7 +167,10 @@ export async function rebeatMontage(dir: string, before?: Project, opts: { durat
   const duration = opts.duration ?? (now.audio.voiceover ? undefined : outputDuration(old));
   let built: Project;
   try { built = (await buildMontage(dir, { duration })).project; } catch { return { project: now, rebuilt: false }; }
-  return { project: await ops.writeProject(dir, keepEdits(old, built)), rebuilt: true };
+  await ops.writeProject(dir, keepEdits(old, built));
+  // Con voz en off, la imagen vuelve a ponerse sobre lo que la voz nombra (los cortes cambiaron).
+  if (now.audio.voiceover) await syncShotsToVoice(dir).catch(() => {});
+  return { project: await readProject(dir), rebuilt: true };
 }
 
 /**

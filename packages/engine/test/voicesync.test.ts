@@ -73,3 +73,28 @@ describe('texto detrás de la comida', () => {
     expect(frontKey(a)).not.toBe(frontKey(b));
   });
 });
+
+describe('guion técnico', () => {
+  it('encuentra en la voz dónde empieza cada fila', async () => {
+    const { rowStarts } = await import('../src/script.ts');
+    const say = 'Tienes hambre y no de cualquiera. Primero el burro con queso. Después los nachos para compartir. Toca y conoce la carta.';
+    const words = say.split(' ').map((text, i) => ({ text, start: i * 0.4 }));
+    const filas = [{ voz: 'Tienes hambre y no de cualquiera.' }, { voz: 'Primero el burro con queso.' }, { voz: 'Después los nachos para compartir.' }, { voz: 'Toca y conoce la carta.' }];
+    expect(rowStarts(words, filas).map((t) => +t.toFixed(1))).toEqual([0, 2.4, 4.4, 6.4]);
+  }, 30_000);
+
+  it('avisa de cifras y promociones que no salen del brief', async () => {
+    const { checkScript } = await import('../src/script.ts');
+    const { Guion } = await import('@axioma/schema');
+    const g = Guion.parse({ duracion: 20, filas: [{ seccion: 'gancho', voz: 'Hoy 2x1 en burros por solo 15000 pesos.' }, { seccion: 'llamada', voz: 'Ven a la Diagonal 16.' }] });
+    const avisos = checkScript(g, { text: 'Burros y nachos. Diagonal 16 # 21-08' });
+    expect(avisos.some((a) => a.includes('15000'))).toBe(true);
+    expect(avisos.some((a) => a.includes('16,') || a.includes('16)'))).toBe(false);
+    expect(avisos.some((a) => /promoci/.test(a))).toBe(true);
+  });
+
+  it('no confunde «jugosa» con una bebida', () => {
+    expect(tagOfWord('jugosa')).toBeNull();
+    expect(tagOfWord('jugos')).toBe('bebida');
+  });
+});

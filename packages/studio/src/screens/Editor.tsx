@@ -3,7 +3,7 @@ import { Player, type PlayerRef } from '@remotion/player';
 import { PresetPreview } from '../PresetPreview.tsx';
 import { Icon } from '../Icon.tsx';
 import type { IconName } from '../icons.ts';
-import { reelScore, adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, BUILTIN_PRESETS, type Project, type Scene, VISION_TOPICS } from '@axioma/schema';
+import { reelScore, adviseProject, BASIC_TEXT_STYLES, CAPTION_DESIGNS, CAPTION_EFFECTS, FONT_GROUPS, fontWeightFor, SECTORS, TRENDS, TRENDS_DATE, MIN_CLIP, recommendPreset, applyVariant, buildTimeline, effectiveRanges, keywordOf, sceneLength, suggestVariants, BUILTIN_PRESETS, type Project, type Scene, VISION_TOPICS } from '@axioma/schema';
 import { Reel } from '@axioma/remotion/src/Reel.tsx';
 import type { Ctx } from '../App.tsx';
 import { MOTION_NAMES, ROLE_LABEL } from '../SceneFrame.tsx';
@@ -407,6 +407,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     brand: store.brand,
     voiceover: store.extras?.voiceover,
     cutout: store.extras?.cutout,
+    front: store.extras?.front,
     cutoutCoverage: store.extras?.cutoutCoverage,
     depth: store.extras?.depth,
     faces: store.extras?.faces, speakers: store.extras?.speakers, captionWords: store.extras?.captionWords,
@@ -912,7 +913,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           <span className="small muted">Color de las letras</span>
           <ColorRow value={project.captions.color} label="Color de las letras de subtítulos" swatches={['#FFFFFF', '#FACC15', '#25F4EE', '#000000']} onPick={(c) => store.update((p) => { p.captions.color = c; })} />
           <label className="field">Tipografía
-            <select value={project.captions.fontFamily} onChange={(e) => store.update((p) => { p.captions.fontFamily = e.target.value; p.captions.fontWeight = ['Anton', 'Bebas Neue', 'Archivo Black'].includes(e.target.value) ? 400 : e.target.value === 'Oswald' ? 700 : 800; })}>
+            <select value={project.captions.fontFamily} onChange={(e) => store.update((p) => { p.captions.fontFamily = e.target.value; p.captions.fontWeight = fontWeightFor(e.target.value); })}>
               <FontOptions />
             </select>
           </label>

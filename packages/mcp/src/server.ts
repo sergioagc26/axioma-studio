@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { APP_NAME, FONT_FAMILIES, applyVariant, motionGallery, reelScore } from '@axioma/schema';
+import * as S from '@axioma/schema';
 import * as E from '@axioma/engine';
 
 const log = (msg: string) => console.error(`[${APP_NAME}] ${msg}`);
@@ -763,7 +764,7 @@ export function createServer() {
 
   tool('doblar', 'Crea una copia del reel doblada a otro idioma (en, pt, fr, it, de): traduce cada frase con la IA local, genera la voz, la ajusta al tiempo de cada frase y traduce subtítulos y textos en pantalla. El reel original no cambia. Hacerlo cuando el corte esté terminado.', {
     proyecto, idioma: z.enum(['en', 'pt', 'fr', 'it', 'de']),
-    voz: z.enum(['elevenlabs', 'piper', 'sistema']).optional(),
+    voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
   }, async (a) => {
     const r = await E.dubProject(await resolveProject(a.proyecto), a.idioma, { provider: a.voz });
     return `Copia doblada: ${r.id} (${r.lines} frases, voz ${r.provider}${r.voice ? ` ${r.voice}` : ''}${r.tight ? `; ${r.tight} frases quedaron justas de tiempo` : ''}).`;
@@ -869,7 +870,7 @@ export function createServer() {
     {
       proyecto,
       texto: z.string().min(2),
-      proveedor: z.enum(['elevenlabs', 'piper', 'sistema']).optional(),
+      proveedor: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional().describe('Nombre o id de la voz (p. ej. "Paulina" o "Mónica" en Mac)'),
       volumen_original: z.number().min(0).max(1).optional(),
     },
@@ -881,6 +882,53 @@ export function createServer() {
       return `Voz en off lista: ${v.provider}${v.voice ? ` (${v.voice})` : ''} · ${v.duration.toFixed(1)} s · sonido original a ${p.audio.originalVolume}.${extra}`;
     },
   );
+
+  tool(
+    'escribir_guion',
+    'Escribe el guion del video (literario: lo que dice la voz; y técnico: fila por fila voz, imagen, toma, plano, movimiento, texto en pantalla, entrada y sonido) con la IA local, a partir del brief, la marca y lo que hay grabado. Estructuras: ' + S.SCRIPT_STRUCTURES.map((x) => `${x.id} (${x.name})`).join(', ') + '. No inventa precios, teléfonos ni promociones. Devuelve el guion en texto.',
+    {
+      proyecto,
+      idea: z.string().optional().describe('De qué va el video, en una frase'),
+      estructura: z.enum(S.SCRIPT_STRUCTURES.map((x) => x.id) as [string, ...string[]]).optional(),
+      duracion: z.number().min(8).max(180).optional().describe('Segundos'),
+      tono: z.string().optional(),
+    },
+    async ({ proyecto, idea, estructura, duracion, tono }) => S.guionMarkdown(await E.writeScript(await resolveProject(proyecto), { idea, estructura, duracion, tono })),
+  );
+
+  tool('leer_guion', 'Devuelve el guion guardado del proyecto (literario y técnico), en texto.', { proyecto }, async ({ proyecto }) => {
+    const g = await E.readScript(await resolveProject(proyecto));
+    return g ? S.guionMarkdown(g) : 'Este proyecto todavía no tiene guion. Usa escribir_guion o guardar_guion.';
+  });
+
+  tool(
+    'guardar_guion',
+    'Guarda un guion técnico escrito o corregido por ti (Claude). Cada fila: seccion, voz (lo que se dice), imagen (qué se ve), toma (la toma exacta que debe verse, por su id como «t03», o una etiqueta de las tomas; míralas con leer_tomas; vacío si no aplica), plano, movimiento, texto (en pantalla, 1 a 4 palabras o vacío), transicion (corte, barrido, zoom, deslizar, destello, fundido, golpe) y sonido. La app revisa que no haya cifras fuera del brief y devuelve los avisos.',
+    {
+      proyecto,
+      titulo: z.string(), idea: z.string().optional(), estructura: z.string().optional(), tono: z.string().optional(), duracion: z.number().optional(),
+      voz: z.string().optional().describe('Voz sugerida: ' + S.AI_VOICES.map((v) => v.id).join(', ')),
+      filas: z.array(z.object({ seccion: z.string(), voz: z.string(), imagen: z.string(), toma: z.string().optional(), plano: z.string().optional(), movimiento: z.string().optional(), texto: z.string().optional(), transicion: z.string().optional(), sonido: z.string().optional() })).min(2),
+    },
+    async ({ proyecto, ...g }) => {
+      const saved = await E.saveScript(await resolveProject(proyecto), S.Guion.parse({ ...g, origen: 'manual' }));
+      return `Guion guardado: ${saved.filas.length} filas, ${S.guionSeconds(saved).toFixed(0)} s.${saved.avisos.length ? ` Por revisar: ${saved.avisos.join(' ')}` : ''}`;
+    },
+  );
+
+  tool(
+    'guion_a_video',
+    'Convierte el guion técnico guardado en el video (solo montajes de tomas): genera la voz del guion, corta al ritmo de la música y pone en cada fila la toma que el guion pide mientras la voz la dice, con su movimiento, su entrada, sus textos y sonidos. Después revisa con leer_proyecto y exporta con renderizar.',
+    { proyecto, proveedor: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(), voz: z.string().optional().describe('Con proveedor qwen: ' + S.AI_VOICES.map((v) => v.id).join(', ') + ' o una descripción de la voz en inglés') },
+    async ({ proyecto, proveedor, voz }) => (await E.applyScript(await resolveProject(proyecto), { provider: proveedor, voice: voz })).summary.join('\n'),
+  );
+
+  tool('sincronizar_imagen_voz', 'Montaje con voz en off: reordena las tomas para que en pantalla salga lo que la voz nombra en cada momento (mira cada toma con el modelo de visión local y la etiqueta). Conserva cortes, textos y transiciones.', { proyecto }, async ({ proyecto }) => {
+    const dir = await resolveProject(proyecto);
+    await E.tagShots(dir);
+    const r = await E.syncShotsToVoice(dir);
+    return r.length ? `Sincronizado: ${r.map((x) => `«${x.word}» → ${x.tag} (${x.at.toFixed(1)} s)`).join(', ')}.` : 'No encontré en la voz palabras que nombren lo que hay en las tomas (o el proyecto no es un montaje con voz en off).';
+  });
 
   tool('quitar_voz_en_off', 'Quita la voz en off y devuelve el sonido original.', { proyecto }, async ({ proyecto }) => {
     await E.removeVoiceover(await resolveProject(proyecto));
@@ -911,7 +959,7 @@ export function createServer() {
   });
 
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
-    proyecto, formato: z.enum(['9:16', '4:5', '1:1', '16:9']).default('9:16'),
+    proyecto, formato: z.enum(['9:16', '4:5', '3:4', '1:1', '16:9', '21:9']).default('9:16'),
     calidad: z.enum(['maxima', 'alta', 'ligera']).optional().describe('Por defecto, la del proyecto (alta)'),
   }, async ({ proyecto, formato, calidad }) => {
     const dir = await resolveProject(proyecto);

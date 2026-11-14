@@ -56,6 +56,8 @@ import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
 import { envValue, keyStatus, removeEnvValue, setEnvValue } from './env.ts';
+import { applyScript, readScript, saveScript, writeScript } from './script.ts';
+import { Guion, guionMarkdown } from '@axioma/schema';
 import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots, asMontage } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
@@ -661,6 +663,26 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       });
       return json(res, job);
     }
+    if (b.op === 'guion-escribir') {
+      // El guionista: guion literario y técnico a partir del brief, la marca y lo que hay grabado.
+      const job = startJob('ia', async (j) => {
+        j.message = 'Escribiendo el guion…';
+        return { guion: await writeScript(dir, { idea: b.idea || undefined, estructura: b.estructura || undefined, duracion: Number(b.duracion) || undefined, tono: b.tono || undefined, voz: b.voz || undefined }) };
+      });
+      return json(res, job);
+    }
+    if (b.op === 'guion-aplicar') {
+      // Del guion técnico al video: voz, cortes al ritmo e imagen sincronizada fila por fila.
+      const busy = runningJob(pid, 'crear', 'editar');
+      if (busy) return json(res, busy);
+      const job = startJob('crear', async (j) => {
+        j.message = 'Creando el video con tu guion…';
+        await ops.saveVersion(dir, 'antes-del-guion').catch(() => {});
+        return applyScript(dir, { provider: b.provider || undefined, voice: b.voice || undefined, onProgress: (m) => { j.message = m; } });
+      });
+      Object.assign(job, { tag: 'editar' });
+      return json(res, job);
+    }
     if (b.op === 'voz-en-off') {
       const job = startJob('audio', async (j) => {
         j.message = 'Generando la voz en off…';
@@ -733,13 +755,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (b.op === 'render') {
       // La calidad y la carpeta se eligen en la ventana de exportar y quedan recordadas.
       // Solo se guarda si algo cambió (si no, cada exportación dejaba un paso de deshacer vacío).
-      if (b.calidad || typeof b.carpeta === 'string' || b.lufs) {
+      if (b.calidad || typeof b.carpeta === 'string' || b.lufs || typeof b.uhd === 'boolean') {
         const pr = await readProject(dir);
-        const was = JSON.stringify([pr.audio.targetLufs, pr.export.quality, pr.export.folder]);
+        const was = JSON.stringify([pr.audio.targetLufs, pr.export.quality, pr.export.folder, pr.export.uhd]);
+        if (typeof b.uhd === 'boolean') pr.export.uhd = b.uhd;
         if ([-14, -16].includes(Number(b.lufs))) pr.audio.targetLufs = Number(b.lufs);
         if (['maxima', 'alta', 'ligera'].includes(b.calidad)) pr.export.quality = b.calidad;
         if (typeof b.carpeta === 'string') pr.export.folder = b.carpeta.trim() || undefined;
-        if (JSON.stringify([pr.audio.targetLufs, pr.export.quality, pr.export.folder]) !== was) await writeProject(dir, pr);
+        if (JSON.stringify([pr.audio.targetLufs, pr.export.quality, pr.export.folder, pr.export.uhd]) !== was) await writeProject(dir, pr);
       }
       // Qué versión del proyecto se exporta: si cambia después, el resultado queda «viejo».
       const version = (await readProject(dir)).updatedAt;
@@ -924,6 +947,23 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
   // Enlaces para abrir la app desde el portátil o el celular (misma Wi-Fi o Tailscale).
   // Lo que hizo la última edición automática (para la pantalla Resultado).
+  if (p === '/api/tomas' && method === 'GET') {
+    // Tomas del montaje con su etiqueta (qué se ve), para elegirlas en el guion técnico.
+    const d = await findDir(id);
+    return json(res, (await readProject(d)).kind === 'montaje' ? await detectShots(d).catch(() => []) : []);
+  }
+  if (p === '/api/guion' && method === 'GET') return json(res, await readScript(await findDir(id)));
+  if (p === '/api/guion' && method === 'PUT') {
+    // Guion editado a mano en la pantalla Guion.
+    const body = await readBody(req);
+    return json(res, await saveScript(await findDir(id), Guion.parse({ ...body, origen: body.origen ?? 'manual' })));
+  }
+  if (p === '/api/guion.md' && method === 'GET') {
+    const g = await readScript(await findDir(id));
+    if (!g) return json(res, { error: 'Este proyecto no tiene guion.' }, 404);
+    res.writeHead(200, { 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': `attachment; filename="guion-${id}.md"` });
+    return void res.end(guionMarkdown(g));
+  }
   if (p === '/api/resumen-edicion' && method === 'GET') {
     const f = path.join(await findDir(id), 'resumen-edicion.json');
     return json(res, existsSync(f) ? JSON.parse(await readFile(f, 'utf8')) : null);

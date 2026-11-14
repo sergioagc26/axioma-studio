@@ -183,7 +183,10 @@ export async function montageToBeat(dir: string, opts: { density?: BeatDensity; 
   if (!shots.length) throw new Error('No se detectaron tomas en el video.');
   const material = shots.reduce((a, s) => a + s.end - s.start, 0);
   const fps = project.format.fps;
-  const target = Math.min(material * 0.95, opts.duration ?? project.audio.voiceover?.duration ?? Math.min(30, map.duration));
+  // Con voz en off, el montaje nunca dura menos que la voz (si no, se cortaba a mitad de frase).
+  const vo = project.audio.voiceover?.duration;
+  const asked = vo && opts.duration != null && opts.duration < vo ? undefined : opts.duration;
+  const target = Math.min(material * 0.95, asked ?? vo ?? Math.min(30, map.duration));
 
   // Cortes en tiempo del reel, redondeados a fotogramas para que no se desfasen.
   const frame = (s: number) => Math.round(s * fps) / fps;
@@ -192,10 +195,12 @@ export async function montageToBeat(dir: string, opts: { density?: BeatDensity; 
   const all = beatCuts(map, target + 3, opts.density ?? 'auto');
   const grid: number[] = [];
   for (let l = 0; l * map.duration < target + 3; l++) for (const b of map.beats) grid.push(b + l * map.duration);
-  const voice = Boolean(project.audio.voiceover) && opts.duration == null;
-  const end = voice
+  const voice = Boolean(project.audio.voiceover) && asked == null;
+  let end = voice
     ? grid.find((b) => b >= target) ?? target
     : grid.reduce((best, b) => (Math.abs(b - target) < Math.abs(best - target) ? b : best), grid[0] ?? target);
+  // Con poco material, el final no puede pasar de lo que hay grabado: el último golpe que sí cabe.
+  if (end > material * 0.98) end = [...grid].reverse().find((b) => b <= material * 0.98 && b > 1) ?? Math.min(target, material * 0.98);
   // Un primer plano muy corto (antes del primer golpe) se une al siguiente.
   let inner = all.filter((c) => c < end - 0.3 && c >= 0.6);
   // En reels largos, un corte en cada golpe marea y pesa: se deja uno de cada dos o tres golpes

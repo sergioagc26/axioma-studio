@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { buildTimeline, frontKey } from '@axioma/schema';
+import { buildTimeline, frontKey, type Project } from '@axioma/schema';
+import { readSpeakers } from './speakers.ts';
 import { ffmpeg } from './exec.ts';
 import { gradedMaster } from './lut.ts';
 import { REPO_ROOT } from './paths.ts';
@@ -24,11 +25,19 @@ function getEstimator() {
 }
 
 /** La capa de «comida por delante» que calza con los cortes actuales, si ya está hecha. */
-export async function readFront(dir: string): Promise<{ file: string; key: string } | null> {
+export async function readFront(dir: string, project?: Project): Promise<{ file: string; key: string } | null> {
   const info = path.join(dir, FRONT_INFO);
   if (!existsSync(info) || !existsSync(path.join(dir, FRONT_FILE))) return null;
-  try { return { file: FRONT_FILE, key: (JSON.parse(await readFile(info, 'utf8')) as { key: string }).key }; } catch { return null; }
+  try {
+    const saved = JSON.parse(await readFile(info, 'utf8')) as { key: string; look?: string };
+    // Hecha con otro color, otra altura de subtítulos u otro tamaño: ya no calza, hay que rehacerla.
+    if (project && saved.look !== lookOf(project)) return null;
+    return { file: FRONT_FILE, key: saved.key };
+  } catch { return null; }
 }
+
+/** Lo que, además de los cortes, cambia cómo debe verse la capa: el color (LUT), la altura de los subtítulos y el tamaño. */
+const lookOf = (p: Project) => `${p.finish.lut ? `${p.finish.lut.name}:${p.finish.lut.strength}` : '-'}|${p.source.quality ?? '-'}|${p.captions.y}|${p.export.uhd ? 2160 : 1080}`;
 
 /** Desenfoque de caja (rápido) en una imagen de un canal; `r` en píxeles. */
 function boxBlur(src: Float32Array, w: number, h: number, r: number): Float32Array {
@@ -76,9 +85,11 @@ export function foregroundMask(depth: Uint8Array, w: number, h: number): Float32
  */
 export async function buildFront(dir: string, onProgress: (p: number, msg: string) => void = () => {}): Promise<string> {
   const project = await readProject(dir);
-  const t = buildTimeline(project, await readTranscript(dir).catch(() => null), { video: 'x' });
+  // Los mismos cortes que tendrá la exportación (con «seguir al hablante», los clips se parten por turno).
+  const speakers = project.source.followSpeaker ? (await readSpeakers(dir).catch(() => null))?.turns : undefined;
+  const t = buildTimeline(project, await readTranscript(dir).catch(() => null), { video: 'x', speakers });
   const key = frontKey(t.clips);
-  const done = await readFront(dir);
+  const done = await readFront(dir, project);
   if (done?.key === key) return done.file;
   const fps = project.format.fps;
   const tmp = path.join(dir, 'proxies', 'frente-tmp');
@@ -86,7 +97,8 @@ export async function buildFront(dir: string, onProgress: (p: number, msg: strin
   await mkdir(tmp, { recursive: true });
   const sharp = (await import('sharp')).default;
   try {
-    const W = 720;
+    // Al tamaño de la exportación: la capa tapa al video justo en el plato, no puede verse más blanda.
+    const W = project.export.uhd ? 2160 : 1080;
     const H = Math.round((W * project.source.height) / project.source.width / 2) * 2;
     const master = path.join(dir, gradedMaster(dir, project));
     const est = await getEstimator();
@@ -160,10 +172,10 @@ export async function buildFront(dir: string, onProgress: (p: number, msg: strin
     await ffmpeg([
       '-framerate', String(fps), '-i', path.join(tmp, 'c%06d.jpg'), '-framerate', String(fps), '-i', path.join(tmp, 'a%06d.png'),
       '-filter_complex', '[1:v]format=gray[m];[0:v][m]alphamerge,format=yuva420p[o]',
-      '-map', '[o]', '-an', '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '26', '-cpu-used', '5', '-row-mt', '1', '-auto-alt-ref', '0', out + '.tmp.webm',
+      '-map', '[o]', '-an', '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '24', '-cpu-used', project.export.uhd ? '7' : '5', '-row-mt', '1', '-auto-alt-ref', '0', out + '.tmp.webm',
     ]);
     await rename(out + '.tmp.webm', out);
-    await writeFile(path.join(dir, FRONT_INFO), JSON.stringify({ key, at: new Date().toISOString() }));
+    await writeFile(path.join(dir, FRONT_INFO), JSON.stringify({ key, look: lookOf(project), at: new Date().toISOString() }));
     onProgress(1, 'Listo');
     return FRONT_FILE;
   } finally {

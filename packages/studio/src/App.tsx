@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { APP_NAME, publishPack, publishText, type Project } from '@axioma/schema';
+import { APP_NAME, FORMAT_INFO, publishPack, publishText, type Project } from '@axioma/schema';
 import { api, useProject, waitJob, type Job, type ProjectStore } from './useProject.ts';
 import { Audio } from './screens/Audio.tsx';
 import { Brief } from './screens/Brief.tsx';
@@ -10,12 +10,13 @@ import { Storyboard } from './screens/Storyboard.tsx';
 import { Variantes } from './screens/Variantes.tsx';
 import { Imagenes } from './screens/Imagenes.tsx';
 import { Texto } from './screens/Texto.tsx';
+import { Guion } from './screens/Guion.tsx';
 import { Calendario } from './screens/Calendario.tsx';
 import { Icon } from './Icon.tsx';
 import type { IconName } from './icons.ts';
 import { Listo } from './screens/Listo.tsx';
 
-export type Screen = 'proyectos' | 'calendario' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
+export type Screen = 'proyectos' | 'calendario' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'guion' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
 
 export interface Ctx {
   store: ProjectStore;
@@ -60,14 +61,14 @@ const REDO = MAC ? '⇧⌘Z' : 'Ctrl+Shift+Z';
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   const q = new URLSearchParams(query);
-  const screen = (['proyectos', 'calendario', 'listo', 'brief', 'storyboard', 'editor', 'texto', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
+  const screen = (['proyectos', 'calendario', 'listo', 'brief', 'storyboard', 'editor', 'texto', 'guion', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
   return { screen, p: q.get('p'), s: q.get('s') };
 }
 
 // En el orden del trabajo real: casi siempre se llega al Editor (modo automático).
 // Lo de todos los días a la vista; lo avanzado, guardado en «Más».
 const TABS: [Screen, IconName, string][] = [['brief', 'brief', 'Brief'], ['listo', 'result', 'Resultado'], ['editor', 'editor', 'Editor']];
-const MORE: [Screen, IconName, string][] = [['texto', 'scissors', 'Cortar por texto'], ['storyboard', 'storyboard', 'Storyboard'], ['variantes', 'variants', 'Variantes'], ['audio', 'audio', 'Audio'], ['imagenes', 'image', 'Imágenes'], ['referencias', 'reference', 'Referencias']];
+const MORE: [Screen, IconName, string][] = [['guion', 'book', 'Guion'], ['texto', 'scissors', 'Cortar por texto'], ['storyboard', 'storyboard', 'Storyboard'], ['variantes', 'variants', 'Variantes'], ['audio', 'audio', 'Audio'], ['imagenes', 'image', 'Imágenes'], ['referencias', 'reference', 'Referencias']];
 
 export const App: React.FC = () => {
   const [route, setRoute] = useState(parseHash);
@@ -80,6 +81,7 @@ export const App: React.FC = () => {
   // Ventana de exportar: formato, calidad y carpeta se eligen al exportar, no durante la edición.
   const [exportOpen, setExportOpen] = useState(false);
   const [calidad, setCalidad] = useState<'maxima' | 'alta' | 'ligera'>('alta');
+  const [uhd, setUhd] = useState(false);
   const [carpeta, setCarpeta] = useState('');
   const [lufs, setLufs] = useState(-14);
   const [ganchos, setGanchos] = useState(false);
@@ -142,6 +144,7 @@ export const App: React.FC = () => {
   const openExport = () => {
     if (!project) return;
     setCalidad(project.export.quality);
+    setUhd(Boolean(project.export.uhd));
     setCarpeta(project.export.folder ?? '');
     setLufs(project.audio.targetLufs <= -15 ? -16 : -14);
     setPubAi(null);
@@ -217,7 +220,7 @@ export const App: React.FC = () => {
     let job: Job;
     try {
       job = await api<Job>(`/api/op?id=${encodeURIComponent(p.id)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, carpeta, lufs, ganchos: ganchos && formato !== 'todos' }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'render', formato, calidad, uhd, carpeta, lufs, ganchos: ganchos && formato !== 'todos' }),
       });
     } catch (e: any) { return releaseRender(p.id, e); }
     const done = await followRender(job, p.id, sig);
@@ -399,6 +402,7 @@ export const App: React.FC = () => {
         : route.screen === 'listo' ? <div className="scroll"><Listo ctx={ctx} /></div>
         : route.screen === 'storyboard' ? <Storyboard ctx={ctx} />
         : route.screen === 'editor' ? <Editor ctx={ctx} />
+        : route.screen === 'guion' ? <div className="scroll"><Guion ctx={ctx} /></div>
         : route.screen === 'texto' ? <div className="scroll"><Texto ctx={ctx} /></div>
         : route.screen === 'variantes' ? <div className="scroll"><Variantes ctx={ctx} /></div>
         : route.screen === 'audio' ? <Audio ctx={ctx} />
@@ -411,7 +415,7 @@ export const App: React.FC = () => {
             <h2 style={{ fontSize: 22 }}>Exportar video</h2>
             <span className="small muted">Formato</span>
             <div className="opts" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-              {([['9:16', 'Vertical', 'Reels, TikTok, historias'], ['4:5', 'Post vertical', 'Feed de Instagram'], ['1:1', 'Cuadrado', 'Feed y anuncios'], ['16:9', 'Horizontal', 'YouTube: el video centrado'], ['todos', 'Los 3 verticales', '9:16, 4:5 y 1:1 de una vez']] as const).map(([id, name, desc]) => (
+              {([...FORMAT_INFO.map((f) => [f.id, f.name, (f.id === '16:9' || f.id === '21:9') && project.source.width <= project.source.height * 1.2 ? `${f.use} · tu video vertical va centrado` : f.use] as const), ['todos', 'Los 3 de redes', '9:16, 4:5 y 1:1 de una vez'] as const]).map(([id, name, desc]) => (
                 <button key={id} className={`opt ${formato === id ? 'on' : ''}`} aria-pressed={formato === id} onClick={() => setFormato(id)}>
                   <strong>{name}{id === 'todos' ? '' : ` · ${id}`}</strong><span className="muted small">{desc}</span>
                 </button>
@@ -425,6 +429,9 @@ export const App: React.FC = () => {
                 </button>
               ))}
             </div>
+            {project.kind === 'montaje' && Math.min(project.source.width, project.source.height) >= 2000 && (
+              <label className="row small" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}><input type="checkbox" style={{ marginTop: 3 }} checked={uhd} onChange={(e) => setUhd(e.target.checked)} /> Exportar en 4K (tu material está en 4K; tarda más y el archivo pesa mucho más)</label>
+            )}
             <span className="small muted">Volumen</span>
             <div className="opts" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
               {([[-14, 'Redes sociales', 'Reels, TikTok y YouTube (−14 LUFS).'], [-16, 'Más suave', 'Para web o presentaciones (−16 LUFS).']] as const).map(([v, name, desc]) => (

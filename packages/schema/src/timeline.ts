@@ -203,7 +203,19 @@ export function focusFor(faces: FacePoint[] | undefined, start: number, end: num
   return { x: hit.reduce((a, f) => a + f.x, 0) / hit.length, y: hit.reduce((a, f) => a + f.y, 0) / hit.length };
 }
 
-export const FORMATS = { '9:16': { width: 1080, height: 1920 }, '4:5': { width: 1080, height: 1350 }, '1:1': { width: 1080, height: 1080 }, '16:9': { width: 1920, height: 1080 } } as const;
+export const FORMATS = {
+  '9:16': { width: 1080, height: 1920 }, '4:5': { width: 1080, height: 1350 }, '3:4': { width: 1080, height: 1440 }, '1:1': { width: 1080, height: 1080 },
+  '16:9': { width: 1920, height: 1080 }, '21:9': { width: 2520, height: 1080 },
+} as const;
+/** Formatos de salida con su nombre y para qué sirve cada uno (en el orden en que se ofrecen). */
+export const FORMAT_INFO: { id: keyof typeof FORMATS; name: string; use: string }[] = [
+  { id: '9:16', name: 'Vertical', use: 'Reels, TikTok, Shorts, historias' },
+  { id: '4:5', name: 'Post vertical', use: 'Feed de Instagram y Facebook' },
+  { id: '3:4', name: 'Vertical clásico', use: 'Feed nuevo de Instagram, Pinterest' },
+  { id: '1:1', name: 'Cuadrado', use: 'Feed y anuncios' },
+  { id: '16:9', name: 'Horizontal', use: 'YouTube, web, televisores' },
+  { id: '21:9', name: 'Cine', use: 'Panorámico de cine (material grabado en horizontal)' },
+];
 export type FormatId = keyof typeof FORMATS;
 
 /**
@@ -249,7 +261,9 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
   // Horizontal (16:9) desde un reel vertical: el reel va entero y centrado en un lienzo más ancho
   // (no se recorta). La línea de tiempo se arma en el tamaño del reel.
   const out = urls.format ?? project.format;
-  const landscape = out.width > out.height * 1.2 && project.format.height > project.format.width;
+  // Si el material se grabó en horizontal, el formato horizontal o de cine llena todo el cuadro.
+  const wideSource = project.source.width > project.source.height * 1.2;
+  const landscape = out.width > out.height * 1.2 && project.format.height > project.format.width && !wideSource;
   const { width, height } = landscape ? project.format : out;
   const canvas = landscape ? { width: out.width, height: out.height } : undefined;
   const toFrame = (s: number) => Math.round(s * fps);

@@ -56,3 +56,6 @@ export * from './update.ts';
 export * from './brandbook.ts';
 export * from './backup.ts';
 export * from './trash.ts';
+export * from './script.ts';
+export * from './voicesync.ts';
+export * from './front.ts';

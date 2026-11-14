@@ -73,6 +73,11 @@ export async function createMontage(opts: { inputs: string[]; name?: string; cli
   for (const sub of ['media', path.join('media', 'originales'), 'proxies', P.renders, P.versions]) await mkdir(path.join(dir, sub), { recursive: true });
 
   const first = await probe(files[0]);
+  // Material mayormente en 4K: el master y la exportación se hacen en 4K (si no, se perdería esa nitidez).
+  if (opts.uhd === undefined && files.length > 1) {
+    const infos = await Promise.all(files.map((f) => probe(f).catch(() => null)));
+    opts = { ...opts, uhd: infos.filter((i) => i && Math.min(i.width, i.height) >= 2000).length > files.length / 2 };
+  }
   const fps = opts.fps ?? (first.fps > 45 ? 60 : 30);
   const preset = getPreset(opts.presetId ?? 'rapido', await listPresets(opts.client));
   const boundaries: { file: string; start: number; end: number }[] = [];
@@ -172,7 +177,7 @@ export async function buildMontage(dir: string, opts: { duration?: number; clipL
       const r = await montageToBeat(dir, { duration: opts.duration, density: opts.density });
       return { project: r.project, clip: 60 / r.bpm, beat: 60 / r.bpm, shots: r.cuts, duration: r.duration };
     } catch (e) {
-      if (!/pulso claro/.test(String((e as Error).message))) throw e; // sin pulso: corte parejo
+      if (!/pulso claro|material suficiente/.test(String((e as Error).message))) throw e; // sin pulso o con muy poco material: corte parejo
     }
   }
   const shots = await detectShots(dir);
@@ -189,7 +194,8 @@ export async function buildMontage(dir: string, opts: { duration?: number; clipL
     }
   }
   const total = shots.reduce((a, s) => a + s.end - s.start, 0);
-  const target = Math.min(total, opts.duration ?? project.audio.voiceover?.duration ?? 15);
+  const voDur = project.audio.voiceover?.duration;
+  const target = Math.min(total, (voDur && opts.duration != null && opts.duration < voDur ? undefined : opts.duration) ?? voDur ?? 15);
 
   let ranges: { start: number; end: number; shot: Shot }[] = [];
   if (opts.picks?.length) {
