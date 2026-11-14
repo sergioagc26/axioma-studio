@@ -314,7 +314,11 @@ label.row > input[type='checkbox'] { flex: none; margin-top: 2px; }
 .refrow-name:hover, .refrow-name:focus { border-color: var(--line); background: var(--panel); outline: none; }
 
 /* Iconos de la línea propia: alineados con el texto que acompañan. */
-.ico { flex: none; vertical-align: -0.2em; }
+.ico { flex: none; vertical-align: -0.2em; --icoA: var(--pinkText); }
+/* Acento de los iconos (manual de marca): lima en oscuro, petróleo en claro; sobre color, el del texto. */
+.ico .a { stroke: var(--icoA); }
+.ico .f { fill: var(--icoA); stroke: var(--icoA); }
+.btn.primary .ico, .chip.texto .ico, .dot.cur .ico, .joint.open .ico, .joint:hover .ico, .posgrid button.on .ico, .ico.mono { --icoA: currentColor; }
 .btn .ico, .bchip .ico, .nav a .ico, .pill .ico { margin-right: 6px; }
 .btn.sq .ico { margin-right: 0; }
 
