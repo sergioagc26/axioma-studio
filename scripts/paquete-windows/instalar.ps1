@@ -35,9 +35,9 @@ if (Test-Path (Join-Path $Destino '.git')) {
   git -C "$Destino" pull --ff-only
   if ($LASTEXITCODE -ne 0) { Falla 'No se pudo poner al dia. Revisa tu internet y abre el instalador otra vez.' }
 } else {
-  Info 'Se abrira una ventana para iniciar sesion en GitHub (cuenta sergioagc26): pulsa «Sign in with your browser» y acepta.'
+  Info 'Se abrira una ventana para iniciar sesion en GitHub: pulsa «Sign in with your browser» y entra con TU cuenta de GitHub (la que recibio la invitacion al proyecto).'
   git clone $RepoUrl "$Destino"
-  if ($LASTEXITCODE -ne 0) { Falla 'No se pudo bajar la app. Inicia sesion en GitHub con la cuenta sergioagc26 cuando te lo pida y abre el instalador otra vez.' }
+  if ($LASTEXITCODE -ne 0) { Falla 'No se pudo bajar la app. Revisa que aceptaste la invitacion al proyecto en GitHub (llega por correo), inicia sesion con esa cuenta cuando te lo pida y abre el instalador otra vez.' }
 }
 Ok 'Codigo de la app listo.'
 

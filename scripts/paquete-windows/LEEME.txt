@@ -5,7 +5,8 @@ AXIOMA STUDIO PARA WINDOWS
 2. Doble clic en «Instalar Axioma Studio.bat».
    - Si Windows avisa «Windows protegio su PC», pulsa «Mas informacion» > «Ejecutar de todas formas».
 3. Cuando aparezca la ventana de GitHub, pulsa «Sign in with your browser» e inicia
-   sesion con la cuenta sergioagc26. Es solo la primera vez.
+   sesion con tu cuenta de GitHub (la que recibio la invitacion al proyecto; antes
+   acepta la invitacion que llega por correo). Es solo la primera vez.
 4. Si tienes «iCloud para Windows» con iCloud Drive activado, te pregunta si traer tus
    clientes y proyectos desde la copia de seguridad. Responde S.
 5. Te pregunta si instalar la IA local: responde S (son unos 11 GB, tarda).
