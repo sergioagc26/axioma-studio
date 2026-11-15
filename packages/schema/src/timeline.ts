@@ -73,7 +73,7 @@ export type TimelineClip = {
   cameraAmount: number;
   videoScale: number;
   /** Se ve el video entero (con fondo desenfocado) en vez de recortarlo al cuadro. */
-  fit?: 'completo';
+  fit?: 'completo' | 'monitor';
   /** Fondo detrás de la persona recortada. */
   backdrop?: string;
   backdropSrc?: string;
@@ -103,6 +103,8 @@ export type TimelineOverlay = {
   x: number; y: number; size: number; font?: string; anim: TextAnim; rotate: number; spacing: number;
   /** Logo de la marca encima del texto. */
   logo?: boolean;
+  /** Otros íconos junto al logo (URLs). */
+  icons?: string[];
 };
 
 export type Brand = { primary: string; secondary: string; text: string; name?: string; logoSrc?: string };
@@ -332,7 +334,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             camera: scene.camera,
             cameraAmount: scene.cameraAmount,
             videoScale: scene.videoScale,
-            fit: scene.videoFit === 'completo' ? 'completo' : undefined,
+            fit: scene.videoFit === 'completo' || scene.videoFit === 'monitor' ? scene.videoFit : undefined,
             backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, pc.start, pc.end) ? scene.backdrop : undefined,
             backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,
             brollDepthSrc: brollSrc && urls.depth?.includes(depthOf(brollFile!)) ? urls.asset!(depthOf(brollFile!)) : undefined,
@@ -384,6 +386,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         rotate: scene.textRotate,
         spacing: scene.textSpacing,
         logo: scene.textLogo || undefined,
+        icons: scene.textIcons?.length && urls.asset ? scene.textIcons.map((f) => urls.asset!(f)) : undefined,
         fromFrame: toFrame(sceneStart),
         durationInFrames: toFrame(acc) - toFrame(sceneStart),
       });
@@ -479,7 +482,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     sourceHeight: project.source.height,
     clips,
     words,
-    overlays,
+    overlays: mergeOverlays(overlays),
     captions: project.captions,
     sfx,
     finish: project.finish,
@@ -513,4 +516,21 @@ export function frontKey(clips: Pick<TimelineClip, 'fromFrame' | 'durationInFram
   let h = 5381;
   for (const c of clips) for (const ch of `${c.fromFrame}:${c.durationInFrames}:${c.sourceStartFrame}:${c.speed ?? 1};`) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
   return `${clips.length}-${h.toString(36)}`;
+}
+
+/**
+ * El mismo texto en escenas seguidas es un solo rótulo: se queda quieto en pantalla mientras
+ * cambia la imagen (no vuelve a entrar animado en cada corte).
+ */
+export function mergeOverlays(list: TimelineOverlay[]): TimelineOverlay[] {
+  const out: TimelineOverlay[] = [];
+  for (const o of list) {
+    const prev = out[out.length - 1];
+    const same = prev && prev.text === o.text && prev.style === o.style && prev.color === o.color && prev.x === o.x && prev.y === o.y
+      && prev.logo === o.logo && (prev.icons ?? []).join() === (o.icons ?? []).join()
+      && Math.abs(prev.fromFrame + prev.durationInFrames - o.fromFrame) <= 1;
+    if (same) prev.durationInFrames = o.fromFrame + o.durationInFrames - prev.fromFrame;
+    else out.push({ ...o });
+  }
+  return out;
 }

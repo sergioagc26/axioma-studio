@@ -69,7 +69,7 @@ export const CaptionStyle = z.object({
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
 /** Formas de mostrar el texto en pantalla de una escena. */
-export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor', 'lujo', 'palabra']);
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor', 'lujo', 'palabra', 'rotulo']);
 /** Estilos de texto básicos; el resto son los llamativos. */
 export const BASIC_TEXT_STYLES = ['caja', 'resaltado', 'subrayado', 'banda', 'etiqueta', 'contorno'] as const;
 /** Cómo entra el texto en pantalla. */
@@ -142,6 +142,8 @@ export const Scene = z.object({
   textPosition: z.enum(['arriba', 'centro']).default('arriba'),
   /** El logo de la marca encima del texto (formato «App + App = 🔥» de los videos de producto). */
   textLogo: z.boolean().optional(),
+  /** Otros íconos junto al logo (archivos del proyecto, p. ej. media/iconos/claude.png), en orden. */
+  textIcons: z.array(z.string()).optional(),
   /** Posición libre del centro del texto (0–1). Si falta, manda textPosition. */
   textX: z.number().min(0).max(1).optional(),
   textY: z.number().min(0).max(1).optional(),
@@ -181,8 +183,8 @@ export const Scene = z.object({
   }).default({ background: 'oscuro', scale: 1 }),
   /** Tamaño del video dentro del cuadro (1 = llena la pantalla; menos deja ver un fondo desenfocado). */
   videoScale: z.number().min(0.4).max(2.5).default(1),
-  /** «completo»: se ve el video entero aunque su forma no sea la del cuadro (una grabación de pantalla horizontal en un reel), con el mismo video desenfocado detrás. */
-  videoFit: z.enum(['cubrir', 'completo']).optional(),
+  /** «completo»: se ve el video entero aunque su forma no sea la del cuadro (una grabación de pantalla horizontal en un reel), con el mismo video desenfocado detrás. «monitor»: el video dentro de un monitor sobre un escritorio, como una toma grabada con el celular. */
+  videoFit: z.enum(['cubrir', 'completo', 'monitor']).optional(),
   /** Fondo detrás de la persona recortada (necesita el recorte del proyecto). 'ninguno' = el video tal cual. */
   backdrop: z.enum(['ninguno', 'cine', 'oscuro', 'claro', 'marca', 'degradado', 'desenfoque', 'imagen']).default('ninguno'),
   /** Imagen o video del proyecto que va de fondo cuando backdrop es 'imagen'. */

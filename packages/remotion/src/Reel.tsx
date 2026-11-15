@@ -12,6 +12,7 @@ import { loadFont as loadOswald } from '@remotion/google-fonts/Oswald';
 import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlack';
 import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import { ease, isKeyword, keywordOf, layerStyle } from '@axioma/schema';
+import { DeskShot } from './Desk.tsx';
 import { loadFont as loadPlayfair } from '@remotion/google-fonts/PlayfairDisplay';
 import { loadFont as loadRubik } from '@remotion/google-fonts/Rubik';
 import { loadFont as loadRaleway } from '@remotion/google-fonts/Raleway';
@@ -240,7 +241,7 @@ const ReelBody: React.FC<Timeline> = (t) => {
       {t.overlays.map((o, i) => (inFront(o) ? null :
         <Sequence key={`o${i}`} from={o.fromFrame} durationInFrames={o.durationInFrames}>
           <Overlay overlay={o} font={font} t={t} />
-          {o.logo && t.brand.logoSrc ? <LogoBadge overlay={o} t={t} /> : null}
+          {(o.logo && t.brand.logoSrc) || o.icons?.length ? <LogoBadge overlay={o} t={t} /> : null}
         </Sequence>
       ))}
       {chunks.map((ch, i) => (
@@ -256,7 +257,7 @@ const ReelBody: React.FC<Timeline> = (t) => {
       {t.overlays.map((o, i) => (!inFront(o) ? null :
         <Sequence key={`of${i}`} from={o.fromFrame} durationInFrames={o.durationInFrames}>
           <Overlay overlay={o} font={font} t={t} />
-          {o.logo && t.brand.logoSrc ? <LogoBadge overlay={o} t={t} /> : null}
+          {(o.logo && t.brand.logoSrc) || o.icons?.length ? <LogoBadge overlay={o} t={t} /> : null}
         </Sequence>
       ))}
       {t.finish.halation ? <AbsoluteFill style={{ backdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', WebkitBackdropFilter: 'blur(18px) brightness(1.35) saturate(1.2)', mixBlendMode: 'screen', opacity: 0.28, pointerEvents: 'none' }} /> : null}
@@ -519,6 +520,9 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
       ) : null}
       {clip.motion ? (
         <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
+      ) : clip.fit === 'monitor' ? (
+        // Toma de escritorio: el video del proyecto o el b-roll (una grabación de pantalla) dentro del monitor.
+        <DeskShot src={clip.brollSrc ?? t.videoSrc} trimBefore={clip.brollSrc ? clip.sceneOffsetFrames : clip.sourceStartFrame} absFrame={clip.fromFrame + frame} fps={fps} width={t.width} height={t.height} accent={t.brand.primary} name={t.brand.name} font={font} filter={filter} />
       ) : clip.brollSrc && clip.brollLayout ? (
         <BrollLayout clip={clip} t={t} cover={cover} pos={pos} filter={filter} />
       ) : clip.brollSrc ? (
@@ -808,11 +812,18 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
 const LogoBadge: React.FC<{ overlay: TimelineOverlay; t: Timeline }> = ({ overlay, t }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const e = spring({ frame, fps, config: { damping: 12, stiffness: 180 }, durationInFrames: 14 });
-  const size = t.width * 0.15 * overlay.size;
+  const srcs = [...(overlay.logo && t.brand.logoSrc ? [t.brand.logoSrc] : []), ...(overlay.icons ?? [])];
+  // Con dos o más íconos (formato «App + App»), van lado a lado y un poco más chicos.
+  const size = t.width * (srcs.length > 1 ? 0.165 : 0.15) * Math.min(1.3, overlay.size);
+  const gap = size * 0.28;
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
-      <Img src={t.brand.logoSrc!} style={{ position: 'absolute', left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: size, height: size, objectFit: 'contain', transform: `translate(-50%, calc(-100% - ${t.height * 0.035}px)) scale(${e})`, filter: 'drop-shadow(0 8px 18px rgba(0,0,0,0.45))' }} />
+      <div style={{ position: 'absolute', left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, display: 'flex', gap, transform: `translate(-50%, calc(-100% - ${t.height * (overlay.style === 'rotulo' ? 0.022 : 0.035)}px))` }}>
+        {srcs.map((src, i) => {
+          const e = spring({ frame: frame - i * 4, fps, config: { damping: 12, stiffness: 180 }, durationInFrames: 14 });
+          return <Img key={i} src={src} style={{ width: size, height: size, objectFit: 'cover', borderRadius: size * 0.23, transform: `scale(${e})`, filter: 'drop-shadow(0 8px 18px rgba(0,0,0,0.45))' }} />;
+        })}
+      </div>
     </AbsoluteFill>
   );
 };
@@ -926,6 +937,18 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
             <div style={{ ...line, transform: 'scaleX(-1)' }} />
           </div>
           {after ? <div style={small}>{after}</div> : null}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (overlay.style === 'rotulo') {
+    // Rótulo de los videos de producto: pequeño, rectángulo negro (o del color elegido) y letra nítida.
+    const bg = overlay.color ?? '#0A0A0C';
+    return (
+      <AbsoluteFill>
+        <div style={{ ...wrap, width: 'auto', maxWidth: '88%', whiteSpace: 'nowrap', padding: `${10 * k}px ${18 * k}px`, borderRadius: 10 * k, backgroundColor: bg, color: onColor(bg), fontSize: 36 * k, fontWeight: 700, lineHeight: 1.2, textTransform: 'none', letterSpacing: 0, boxShadow: '0 6px 18px rgba(0,0,0,0.25)' }}>
+          {shown}
         </div>
       </AbsoluteFill>
     );
