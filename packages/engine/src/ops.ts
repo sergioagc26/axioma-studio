@@ -15,8 +15,9 @@ import { readProject, readTranscript, writeProject } from './store.ts';
 import { listPresets, savePreset } from './presets.ts';
 import { extractWav16k, mediaDuration, processVoice } from './media.ts';
 import { AUTO_SFX, ensureProjectSfx } from './sfx.ts';
-import { generateImage } from './imagegen.ts';
+import { generateImage, generateImageLocal, imageEngineName, localImageReady, LOCAL_PY } from './imagegen.ts';
 import { ensureDepth } from './depth.ts';
+import { run } from './exec.ts';
 import { transcribeWav } from './transcribe.ts';
 import { spreadWords } from './dub.ts';
 import { synthesize, type TtsProvider } from './tts.ts';
@@ -397,7 +398,7 @@ export async function setBrollFromIdea(dir: string, sceneId: string, idea: strin
   try {
     const project = await readProject(dir);
     const scene = findScene(project, sceneId);
-    scene.brollFile = await importAsset(dir, project, file, 'broll', { source: `Creada con IA a partir de la idea: ${idea.trim().slice(0, 120)}`, license: 'Generada con IA (Pollinations)' });
+    scene.brollFile = await importAsset(dir, project, file, 'broll', { source: `Creada con IA a partir de la idea: ${idea.trim().slice(0, 120)}`, license: `Generada con IA (${imageEngineName()})` });
     if (asBackdrop) {
       // La imagen va detrás de la persona recortada, no en su lugar.
       scene.backdropFile = scene.brollFile;
@@ -676,3 +677,67 @@ export function alignToScript(words: Word[], script: string): Word[] {
   }
   return out;
 }
+
+/** Escena por defecto de la foto del escritorio (como la toma de los videos «X + Claude»). */
+const DESK_PROMPT = 'candid vertical smartphone photo taken by hand at night, looking at a home office desk: a huge flat widescreen computer monitor fills the whole width of the photo and is cut off at both the left and right edges, the monitor screen is a solid flat pure bright green color (#00FF00) with nothing on it, purple and magenta LED ambient light washing the wall behind, a glowing neon sign on the wall partly cut off at the top, warm round desk lamp glowing on the left, white minimalist keyboard and small mouse on a light desk in the foreground slightly out of focus, realistic photo, natural phone camera look, no people';
+
+/**
+ * Foto real del escritorio para la «toma de escritorio»: el generador local crea la foto con la
+ * pantalla en verde, la app vuelve transparente ese verde y mide las 4 esquinas de la pantalla.
+ * Se usa en las escenas indicadas (o en todas las que están en «toma de escritorio»).
+ */
+export async function setDeskPhoto(dir: string, opts: { sceneIds?: string[]; idea?: string; seed?: number } = {}) {
+  if (!localImageReady()) throw new Error('Para la foto del escritorio hace falta el generador de imágenes local (Z-Image Turbo).');
+  const before = await readProject(dir);
+  const { width, height } = before.format;
+  const k = 1536 / Math.max(width, height);
+  const raw = await generateImageLocal(opts.idea?.trim() || DESK_PROMPT, { width: width * k, height: height * k }, opts.seed);
+  await mkdir(path.join(dir, 'media', 'escritorio'), { recursive: true });
+  const rel = `media/escritorio/escritorio-${path.basename(raw, path.extname(raw)).replace(/[^a-z0-9-]/gi, '')}.png`;
+  const { stdout } = await run(LOCAL_PY, ['-I', '-c', DESK_KEY_PY, raw, path.join(dir, rel)], { quiet: true });
+  const screen = JSON.parse(stdout.trim().split('\n').pop()!) as number[] | { error: string };
+  if (!Array.isArray(screen)) throw new Error(screen.error);
+  const project = await readProject(dir);
+  project.assets = [...project.assets.filter((a) => a.file !== rel), { file: rel, kind: 'broll', source: 'Foto del escritorio creada con IA', license: `Generada con IA (${imageEngineName()})` }];
+  for (const scene of project.scenes) {
+    if (opts.sceneIds?.length ? !opts.sceneIds.includes(scene.id) : scene.videoFit !== 'monitor') continue;
+    scene.videoFit = 'monitor';
+    scene.deskPhoto = { file: rel, screen };
+  }
+  await writeProject(dir, project);
+  return { file: rel, screen };
+}
+
+/** Vuelve transparente la pantalla verde y devuelve sus 4 esquinas (0..1). */
+const DESK_KEY_PY = String.raw`
+import sys, json
+import numpy as np
+from PIL import Image, ImageFilter
+src, out = sys.argv[1], sys.argv[2]
+im = Image.open(src).convert('RGB'); a = np.asarray(im).astype(np.int16)
+r, g, b = a[..., 0], a[..., 1], a[..., 2]
+m = (g > 110) & (g > r + 45) & (g > b + 45)
+mi = Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.MedianFilter(7))
+m = np.asarray(mi) > 127
+h, w = m.shape
+if m.sum() < w * h * 0.04:
+    print(json.dumps({'error': 'La foto no trae una pantalla verde clara: prueba con otra semilla.'})); sys.exit()
+# Solo la mancha verde más grande (la pantalla).
+try:
+    from scipy import ndimage
+    lab, n = ndimage.label(m)
+    if n > 1:
+        sizes = ndimage.sum(m, lab, range(1, n + 1)); m = lab == (1 + int(np.argmax(sizes)))
+except Exception:
+    pass
+ys, xs = np.nonzero(m)
+s1, s2 = xs + ys, xs - ys
+pts = [(xs[np.argmin(s1)], ys[np.argmin(s1)]), (xs[np.argmax(s2)], ys[np.argmax(s2)]), (xs[np.argmax(s1)], ys[np.argmax(s1)]), (xs[np.argmin(s2)], ys[np.argmin(s2)])]
+# Hueco un poco más grande que el verde (sin borde verde) y con el verde de los bordes quitado.
+hole = np.asarray(Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5))) > 127
+rgba = np.dstack([np.asarray(im), np.where(hole, 0, 255).astype(np.uint8)])
+spill = (~hole) & (g > r + 20) & (g > b + 20)
+rgba[..., 1] = np.where(spill, np.maximum(r, b), rgba[..., 1])
+Image.fromarray(rgba.astype(np.uint8), 'RGBA').save(out)
+print(json.dumps([round(v, 5) for p in pts for v in (p[0] / w, p[1] / h)]))
+`;

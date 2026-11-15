@@ -74,6 +74,8 @@ export type TimelineClip = {
   videoScale: number;
   /** Se ve el video entero (con fondo desenfocado) en vez de recortarlo al cuadro. */
   fit?: 'completo' | 'monitor';
+  /** Foto real del escritorio (toma de escritorio): la imagen y las 4 esquinas de la pantalla. */
+  desk?: { src: string; screen: number[] };
   /** Fondo detrás de la persona recortada. */
   backdrop?: string;
   backdropSrc?: string;
@@ -335,6 +337,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             cameraAmount: scene.cameraAmount,
             videoScale: scene.videoScale,
             fit: scene.videoFit === 'completo' || scene.videoFit === 'monitor' ? scene.videoFit : undefined,
+            desk: scene.videoFit === 'monitor' && scene.deskPhoto && urls.asset ? { src: urls.asset(scene.deskPhoto.file), screen: scene.deskPhoto.screen } : undefined,
             backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, pc.start, pc.end) ? scene.backdrop : undefined,
             backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,
             brollDepthSrc: brollSrc && urls.depth?.includes(depthOf(brollFile!)) ? urls.asset!(depthOf(brollFile!)) : undefined,

@@ -522,7 +522,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
       ) : clip.fit === 'monitor' ? (
         // Toma de escritorio: el video del proyecto o el b-roll (una grabación de pantalla) dentro del monitor.
-        <DeskShot src={clip.brollSrc ?? t.videoSrc} trimBefore={clip.brollSrc ? clip.sceneOffsetFrames : clip.sourceStartFrame} absFrame={clip.fromFrame + frame} fps={fps} width={t.width} height={t.height} accent={t.brand.primary} name={t.brand.name} font={font} filter={filter} />
+        <DeskShot src={clip.brollSrc ?? t.videoSrc} trimBefore={clip.brollSrc ? clip.sceneOffsetFrames : clip.sourceStartFrame} absFrame={clip.fromFrame + frame} fps={fps} width={t.width} height={t.height} accent={t.brand.primary} name={t.brand.name} font={font} filter={filter} photo={clip.desk} />
       ) : clip.brollSrc && clip.brollLayout ? (
         <BrollLayout clip={clip} t={t} cover={cover} pos={pos} filter={filter} />
       ) : clip.brollSrc ? (

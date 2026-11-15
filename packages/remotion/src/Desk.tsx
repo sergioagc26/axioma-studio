@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, OffthreadVideo } from 'remotion';
+import { AbsoluteFill, Img, OffthreadVideo } from 'remotion';
 
 /**
  * «Toma de escritorio»: el video (una grabación de pantalla) dentro de un monitor sobre un
@@ -9,7 +9,9 @@ import { AbsoluteFill, OffthreadVideo } from 'remotion';
 export const DeskShot: React.FC<{
   src: string; trimBefore: number; absFrame: number; fps: number; width: number; height: number;
   accent: string; name?: string; font?: string; filter?: string;
-}> = ({ src, trimBefore, absFrame, fps, width, height, accent, name, font, filter }) => {
+  /** Foto real del escritorio con la pantalla transparente y sus 4 esquinas (0..1). */
+  photo?: { src: string; screen: number[] };
+}> = ({ src, trimBefore, absFrame, fps, width, height, accent, name, font, filter, photo }) => {
   const u = width / 1080;
   const s = absFrame / fps;
   // Cámara en mano: varias ondas lentas sumadas (nunca se repite igual) y un acercamiento muy lento.
@@ -17,6 +19,26 @@ export const DeskShot: React.FC<{
   const hy = (Math.cos(s * 0.53) * 7 + Math.sin(s * 1.41 + 2) * 3 + Math.cos(s * 4.1) * 1) * u;
   const rot = Math.sin(s * 0.37) * 0.7 + Math.sin(s * 1.3) * 0.2;
   const push = 1.06 + Math.min(0.05, s * 0.004);
+  if (photo) {
+    // La grabación se deforma para calzar exacto en las 4 esquinas de la pantalla de la foto, y la
+    // foto va encima (su pantalla es transparente): el marco y lo que está delante tapan los bordes.
+    const W = 1600, H = 900;
+    const q = photo.screen.map((v, i) => v * (i % 2 ? height : width));
+    const cx = (q[0] + q[2] + q[4] + q[6]) / 4, cy = (q[1] + q[3] + q[5] + q[7]) / 4;
+    const g = q.map((v, i) => (i % 2 ? cy + (v - cy) * 1.012 : cx + (v - cx) * 1.012));
+    return (
+      <AbsoluteFill style={{ overflow: 'hidden', backgroundColor: '#120818' }}>
+        <AbsoluteFill style={{ transform: `translate(${hx}px, ${hy}px) rotate(${rot}deg) scale(${push})`, transformOrigin: '50% 45%' }}>
+          <div style={{ position: 'absolute', left: 0, top: 0, width: W, height: H, transformOrigin: '0 0', transform: quadMatrix(W, H, g), backgroundColor: '#000', overflow: 'hidden' }}>
+            <OffthreadVideo src={src} trimBefore={trimBefore} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter: ['saturate(1.08) contrast(1.03) brightness(0.96)', filter].filter(Boolean).join(' ') }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(115deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.02) 35%, transparent 50%, rgba(255,180,255,0.05) 100%)' }} />
+          </div>
+          <Img src={photo.src} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill' }} />
+        </AbsoluteFill>
+        <AbsoluteFill style={{ background: 'radial-gradient(ellipse at 50% 45%, transparent 60%, rgba(20,0,30,0.3) 100%)', pointerEvents: 'none' }} />
+      </AbsoluteFill>
+    );
+  }
   const mw = 1580 * u; const mh = mw * 9 / 16;
   return (
     <AbsoluteFill style={{ overflow: 'hidden', backgroundColor: '#2A1240' }}>
@@ -56,3 +78,18 @@ export const DeskShot: React.FC<{
     </AbsoluteFill>
   );
 };
+
+/** matrix3d que lleva un rectángulo W×H (desde 0,0) a un cuadrilátero (x0,y0 … x3,y3 en sentido horario). */
+export function quadMatrix(W: number, H: number, d: number[]): string {
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = d;
+  // Homografía del cuadrado unidad al cuadrilátero.
+  const dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2;
+  const sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3;
+  const den = dx1 * dy2 - dx2 * dy1;
+  const g = (sx * dy2 - dx2 * sy) / den, h = (dx1 * sy - sx * dy1) / den;
+  const a = x1 - x0 + g * x1, b = x3 - x0 + h * x3, c = x0;
+  const dd = y1 - y0 + g * y1, e = y3 - y0 + h * y3, f = y0;
+  // Escala del rectángulo W×H al cuadrado unidad.
+  const m = [a / W, dd / W, 0, g / W, b / H, e / H, 0, h / H, 0, 0, 1, 0, c, f, 0, 1];
+  return `matrix3d(${m.map((v) => +v.toFixed(10)).join(',')})`;
+}
