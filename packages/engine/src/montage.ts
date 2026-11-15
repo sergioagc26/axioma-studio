@@ -46,15 +46,18 @@ export async function expandInputs(inputs: string[]): Promise<string[]> {
 async function normalizeClip(input: string, out: string, fps: number, k = 1, shape: { width: number; height: number } = PROJECT_SHAPES.vertical) {
   const W = shape.width * k, H = shape.height * k;
   const info = await probe(input);
-  const vf = [
-    `scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}`, `fps=${fps}`,
-    info.hdr ? 'colorspace=all=bt709:iall=bt2020:itrc=bt2020-10:format=yuv420p' : 'format=yuv420p',
-  ].join(',');
+  const color = info.hdr ? 'colorspace=all=bt709:iall=bt2020:itrc=bt2020-10:format=yuv420p' : 'format=yuv420p';
+  // Una pantalla horizontal en un proyecto vertical (o al revés) no se recorta: va entera y centrada
+  // sobre ella misma desenfocada, como se ve una grabación de pantalla en un reel.
+  const flip = (info.width / info.height > 1.2 && W / H < 0.85) || (info.width / info.height < 0.85 && W / H > 1.2);
+  const vf = flip
+    ? [`split[a][b]`, `[a]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=28:2,eq=brightness=-0.18[bg]`, `[b]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos[fg]`, `[bg][fg]overlay=(W-w)/2:(H-h)/2,fps=${fps},${color}`].join(';')
+    : [`scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}`, `fps=${fps}`, color].join(',');
   const audioIn = info.hasAudio ? [] : ['-f', 'lavfi', '-t', info.duration.toFixed(3), '-i', 'anullsrc=r=48000:cl=stereo'];
   await ffmpeg([
     '-i', input, ...audioIn,
-    '-map', '0:v:0', '-map', info.hasAudio ? '0:a:0' : '1:a:0',
-    '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', k > 1 ? '15' : '18', '-g', String(Math.round(fps)),
+    ...(flip ? ['-filter_complex', `[0:v:0]${vf}[v]`, '-map', '[v]'] : ['-map', '0:v:0', '-vf', vf]), '-map', info.hasAudio ? '0:a:0' : '1:a:0',
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', k > 1 ? '15' : '18', '-g', String(Math.round(fps)),
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-shortest',
     out,
   ]);
