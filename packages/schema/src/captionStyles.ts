@@ -19,7 +19,7 @@ export interface CaptionDesignSpec {
   /** Relleno especial de las letras. */
   fill?: 'degradado' | 'fuego' | 'cromado' | 'oro' | 'hueco' | 'hielo';
   /** Fondo: de toda la línea o de cada palabra. */
-  bg?: 'caja' | 'caja-acento' | 'blanca' | 'negra' | 'pildora' | 'pildora-acento' | 'cristal' | 'borde' | 'palabra' | 'palabra-acento' | 'palabra-blanca' | 'alterna';
+  bg?: 'caja' | 'caja-acento' | 'blanca' | 'negra' | 'pildora' | 'pildora-acento' | 'cristal' | 'borde' | 'palabra' | 'palabra-acento' | 'palabra-blanca' | 'alterna' | 'nota';
   /** Giro de la línea (grados), inclinación, giro alterno por palabra, separación extra entre letras (em). */
   tilt?: number; skew?: number; alt?: number; spacing?: number;
 }
@@ -52,6 +52,7 @@ export const CAPTION_DESIGNS: CaptionDesignSpec[] = [
   d('caja-color', 'Caja de color', 'Cajas y tiras', { bg: 'caja-acento', font: 'Montserrat', weight: 800, upper: true, size: 0.92 }),
   d('caja-blanca', 'Caja blanca', 'Cajas y tiras', { bg: 'blanca', font: 'Inter', weight: 800, size: 0.9 }),
   d('caja-negra', 'Caja negra', 'Cajas y tiras', { bg: 'negra', font: 'Inter', weight: 800, size: 0.9 }),
+  d('nota', 'Nota de cuaderno', 'Cajas y tiras', { bg: 'nota', font: 'Inter', weight: 700, size: 0.62, upper: false, color: 'negro', stroke: 'ninguno', shadow: 'ninguna' }),
   d('pildora', 'Píldora', 'Cajas y tiras', { bg: 'pildora', font: 'DM Sans', weight: 700, size: 0.86, upper: false }),
   d('pildora-color', 'Píldora de color', 'Cajas y tiras', { bg: 'pildora-acento', font: 'Poppins', weight: 800, size: 0.86 }),
   d('cristal', 'Cristal', 'Cajas y tiras', { bg: 'cristal', font: 'Sora', weight: 700, size: 0.88, upper: false }),

@@ -1,8 +1,21 @@
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Raíz del repositorio (dos niveles sobre packages/engine/src). */
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
+/**
+ * Todo lo de la app vive junto a la app (p. ej. en el disco externo): los archivos temporales
+ * (renders, imágenes, descargas) van a .tmp/ y los modelos de Hugging Face a .modelos/hf, no al
+ * disco del sistema. os.tmpdir() lee TMPDIR en cada llamada, así que basta con fijarlo aquí.
+ */
+export const APP_TMP = path.resolve(process.env.SE_TMP ?? path.join(REPO_ROOT, '.tmp'));
+try {
+  mkdirSync(APP_TMP, { recursive: true });
+  process.env.TMPDIR = APP_TMP; process.env.TMP = APP_TMP; process.env.TEMP = APP_TMP;
+  process.env.HF_HOME ??= path.join(REPO_ROOT, '.modelos', 'hf');
+} catch { /* sin permiso de escritura: se queda el temporal del sistema */ }
 
 export const WORKSPACE = path.resolve(process.env.SE_WORKSPACE ?? path.join(REPO_ROOT, 'workspace'));
 /** 1.7.4+ trae alineación DTW: tiempos por palabra mucho más precisos. */

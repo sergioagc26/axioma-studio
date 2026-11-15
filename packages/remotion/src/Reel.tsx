@@ -13,6 +13,7 @@ import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlac
 import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import { ease, isKeyword, keywordOf, layerStyle } from '@axioma/schema';
 import { DeskShot } from './Desk.tsx';
+import { Drawn } from './Drawn.tsx';
 import { loadFont as loadPlayfair } from '@remotion/google-fonts/PlayfairDisplay';
 import { loadFont as loadRubik } from '@remotion/google-fonts/Rubik';
 import { loadFont as loadRaleway } from '@remotion/google-fonts/Raleway';
@@ -489,6 +490,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const mfont = useFont(clip.motion?.style?.font ?? '');
+  const dfont = { sans: useFont('Sora'), serif: useFont('Playfair Display'), comic: useFont('Bangers'), mono: useFont('Space Mono') };
   const { cover, pos, filter } = clipView(clip, t, frame, fps);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
@@ -520,6 +522,9 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
       ) : null}
       {clip.motion ? (
         <AbsoluteFill><MotionGraphic spec={clip.motion} brand={t.brand} font={mfont || font} upper={t.captions.uppercase} offset={clip.sceneOffsetFrames} /></AbsoluteFill>
+      ) : clip.drawing && clip.brollSrc ? (
+        // Estilo pizarra: la imagen de la escena se dibuja a mano sobre papel y luego se colorea.
+        <Drawn spec={{ color: clip.brollSrc, ...clip.drawing }} f={clip.sceneOffsetFrames + frame} fps={fps} width={t.width} height={t.height} font={dfont.sans} serif={dfont.serif} comic={dfont.comic} mono={dfont.mono} />
       ) : clip.fit === 'monitor' ? (
         // Toma de escritorio: el video del proyecto o el b-roll (una grabación de pantalla) dentro del monitor.
         <DeskShot src={clip.brollSrc ?? t.videoSrc} trimBefore={clip.brollSrc ? clip.sceneOffsetFrames : clip.sourceStartFrame} absFrame={clip.fromFrame + frame} fps={fps} width={t.width} height={t.height} accent={t.brand.primary} name={t.brand.name} font={font} filter={filter} photo={clip.desk} />
@@ -661,7 +666,7 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
   const sec = t.brand.secondary;
   const col = (c: CapColor | undefined, fallback: string) => (c === 'acento' ? hl : c === 'secundario' ? sec : c === 'blanco' ? '#fff' : c === 'negro' ? '#000' : c === 'texto' ? s.color : fallback);
   // Fondos que fijan el color de la letra.
-  const bgText = G?.bg === 'caja-acento' || G?.bg === 'pildora-acento' ? onColor(hl) : G?.bg === 'blanca' ? '#000' : G?.bg === 'negra' ? '#fff' : null;
+  const bgText = G?.bg === 'caja-acento' || G?.bg === 'pildora-acento' ? onColor(hl) : G?.bg === 'blanca' ? '#000' : G?.bg === 'negra' ? '#fff' : G?.bg === 'nota' ? '#1B1B22' : null;
   const wordBg = G?.bg === 'palabra' || G?.bg === 'palabra-acento' || G?.bg === 'palabra-blanca' || G?.bg === 'alterna';
   const FILLS: Record<string, string> = {
     degradado: `linear-gradient(100deg, ${hl}, ${sec})`,
@@ -707,6 +712,8 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
     : G?.bg === 'negra' ? { display: 'inline-block', backgroundColor: '#000', padding: '0.12em 0.42em', borderRadius: '0.14em' }
     : G?.bg === 'pildora' ? { display: 'inline-block', backgroundColor: 'rgba(8,8,10,0.72)', padding: '0.2em 0.7em', borderRadius: 999 }
     : G?.bg === 'pildora-acento' ? { display: 'inline-block', backgroundColor: hl, padding: '0.2em 0.7em', borderRadius: 999 }
+    // Nota de cuaderno: píldora blanca con borde suave del color de resalte y un rombo delante.
+    : G?.bg === 'nota' ? { display: 'inline-block', backgroundColor: '#FFFFFF', border: `0.09em solid ${hl}55`, boxShadow: `0 0.12em 0 ${hl}40`, padding: '0.3em 0.75em', borderRadius: '0.5em', color: '#1B1B22' }
     : G?.bg === 'cristal' ? { display: 'inline-block', backgroundColor: 'rgba(255,255,255,0.16)', border: '2px solid rgba(255,255,255,0.35)', padding: '0.18em 0.55em', borderRadius: '0.3em', backdropFilter: 'blur(10px)' }
     : G?.bg === 'borde' ? { display: 'inline-block', border: `0.07em solid ${hl}`, padding: '0.16em 0.5em', borderRadius: '0.12em', backgroundColor: 'rgba(0,0,0,0.35)' }
     : s.plate ? { display: 'inline-block', backgroundColor: 'rgba(8,8,10,0.62)', padding: '0.16em 0.45em', borderRadius: '0.28em', backdropFilter: 'blur(6px)' }
@@ -758,6 +765,7 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
       <div style={box}>
         {emoji ? <EmojiPop emoji={emoji.emoji} fresh={emoji.fresh} size={s.fontSize * 1.7} /> : null}
         <span style={lineBg}>
+          {G?.bg === 'nota' ? <span style={{ color: hl, marginRight: '0.4em', fontSize: '0.8em' }}>◆</span> : null}
           {chunk.words.map((w, i) => {
             const start = w.startFrame;
             const end = chunk.words[i + 1]?.startFrame ?? chunk.endFrame;

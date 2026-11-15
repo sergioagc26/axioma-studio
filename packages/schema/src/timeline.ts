@@ -76,6 +76,8 @@ export type TimelineClip = {
   fit?: 'completo' | 'monitor';
   /** Foto real del escritorio (toma de escritorio): la imagen y las 4 esquinas de la pantalla. */
   desk?: { src: string; screen: number[] };
+  /** Estilo pizarra: la imagen se dibuja a mano y luego se colorea (ver Scene.drawing). */
+  drawing?: { lines: string; title?: string; burst?: string; tag?: string; draw: number; hand?: { src: string; tipX: number; tipY: number; armX?: number; armY?: number; armW?: number; armColor?: string }; sameTitle?: boolean };
   /** Fondo detrás de la persona recortada. */
   backdrop?: string;
   backdropSrc?: string;
@@ -337,6 +339,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             cameraAmount: scene.cameraAmount,
             videoScale: scene.videoScale,
             fit: scene.videoFit === 'completo' || scene.videoFit === 'monitor' ? scene.videoFit : undefined,
+            drawing: scene.drawing && urls.asset ? { lines: urls.asset(scene.drawing.lines), title: scene.drawing.title, burst: scene.drawing.burst, tag: scene.drawing.tag, draw: scene.drawing.draw, hand: scene.drawing.hand ? { ...scene.drawing.hand, src: urls.asset(scene.drawing.hand.file) } : undefined, sameTitle: Boolean(scene.drawing.title) && project.scenes[project.scenes.indexOf(scene) - 1]?.drawing?.title === scene.drawing.title } : undefined,
             desk: scene.videoFit === 'monitor' && scene.deskPhoto && urls.asset ? { src: urls.asset(scene.deskPhoto.file), screen: scene.deskPhoto.screen } : undefined,
             backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, pc.start, pc.end) ? scene.backdrop : undefined,
             backdropSrc: scene.backdrop === 'imagen' && scene.backdropFile && urls.asset ? urls.asset(scene.backdropFile) : undefined,

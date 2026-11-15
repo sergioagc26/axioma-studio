@@ -842,6 +842,30 @@ export function createServer() {
     },
   );
 
+  tool(
+    'crear_pizarra',
+    'Crea un video EXPLICATIVO DIBUJADO (estilo pizarra, como los reels de «haz estas tres cosas»): papel de fondo, una mano que dibuja con plumón cada ilustración y luego se colorea, título arriba con una *palabra* destacada, globos de cómic y subtítulos de cuaderno, con voz en off. Cada fila del guion es una escena que entra cuando la voz dice su frase. Las ilustraciones las crea el generador local (unos 5 minutos cada una): con 15 filas tarda más de una hora.',
+    {
+      nombre: z.string(),
+      cliente: z.string().optional(),
+      etiqueta: z.string().optional().describe('Etiqueta de la serie arriba, p. ej. «CASO 01 · REELS»'),
+      filas: z.array(z.object({
+        voz: z.string().describe('Lo que dice la voz en esta parte'),
+        titulo: z.string().optional().describe('Título de arriba; *palabra* va destacada. Repetido = se queda quieto'),
+        dibujo: z.string().describe('Qué se ve en la ilustración (mejor en inglés): personajes, objetos, acción'),
+        globo: z.string().optional().describe('Globo de cómic al terminar el dibujo: ¡OJO!, ¡ÑAM!…'),
+        dibujar: z.number().min(0).max(8).optional().describe('Segundos que tarda la mano en dibujar (0 = aparece ya coloreada)'),
+      })).min(2),
+      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      voz: z.string().optional(),
+      musica: z.string().optional().describe('Ruta de una música suave (opcional)'),
+    },
+    async ({ nombre, cliente, etiqueta, filas, proveedor_voz, voz, musica }) => {
+      const { dir } = await E.createDrawnExplainer({ name: nombre, client: cliente, tag: etiqueta, rows: filas, provider: proveedor_voz, voice: voz, music: musica, onProgress: (m) => log(m) });
+      return E.summarize(await E.readProject(dir), dir);
+    },
+  );
+
   tool('leer_tomas', 'Tomas detectadas en un montaje, con la ruta de una miniatura de cada una.', { proyecto }, async ({ proyecto }) => {
     const dir = await resolveProject(proyecto);
     const shots = await E.detectShots(dir);

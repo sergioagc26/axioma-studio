@@ -13,3 +13,4 @@ packages/studio/dist/
 .sfx/
 .modelos/
 .venv*/
+.tmp/

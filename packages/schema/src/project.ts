@@ -187,6 +187,15 @@ export const Scene = z.object({
   videoFit: z.enum(['cubrir', 'completo', 'monitor']).optional(),
   /** Foto real del escritorio para la «toma de escritorio»: imagen del proyecto con la pantalla transparente y las 4 esquinas de la pantalla (x,y de 0 a 1: arriba-izq, arriba-der, abajo-der, abajo-izq). Sin ella, la app dibuja el escritorio. */
   deskPhoto: z.object({ file: z.string(), screen: z.array(z.number()).length(8) }).optional(),
+  /** Estilo «pizarra» (video explicativo dibujado): la imagen de la escena (brollFile) se dibuja a mano sobre papel y luego se colorea. lines: la misma imagen solo en líneas; title: el título de arriba (*palabra* va destacada); burst: globo de cómic («¡OJO!»); tag: la etiqueta de la serie arriba; draw: segundos que tarda en dibujarse (0 = aparece ya coloreada); hand: la mano con el plumón y la punta (0..1). */
+  drawing: z.object({
+    lines: z.string(),
+    title: z.string().optional(),
+    burst: z.string().optional(),
+    tag: z.string().optional(),
+    draw: z.number().min(0).max(8).default(2),
+    hand: z.object({ file: z.string(), tipX: z.number(), tipY: z.number(), armX: z.number().optional(), armY: z.number().optional(), armW: z.number().optional(), armColor: z.string().optional() }).optional(),
+  }).optional(),
   /** Fondo detrás de la persona recortada (necesita el recorte del proyecto). 'ninguno' = el video tal cual. */
   backdrop: z.enum(['ninguno', 'cine', 'oscuro', 'claro', 'marca', 'degradado', 'desenfoque', 'imagen']).default('ninguno'),
   /** Imagen o video del proyecto que va de fondo cuando backdrop es 'imagen'. */
