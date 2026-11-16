@@ -369,7 +369,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         }
       });
       // En cámara lenta no suena la voz: tampoco hay subtítulos.
-      if (sourceWords && !slow) {
+      // Con palabras gigantes, esas palabras hacen de subtítulo: la escena no lleva los normales.
+      if (sourceWords && !slow && !scene.words?.length) {
         for (const w of sourceWords.words) {
           const mid = (w.start + w.end) / 2;
           if (mid < r.start || mid >= r.end) continue;

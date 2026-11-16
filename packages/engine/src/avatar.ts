@@ -40,8 +40,8 @@ export async function createAvatarFace(description: string, out: string, seed?: 
 
 /**
  * El avatar dice un audio: devuelve un video vertical del tamaño de la foto, con el audio.
- * still = la cabeza casi quieta (no deforma el cuerpo en planos medios). Tarda ~2 min por segundo
- * de audio en la CPU de un Mac.
+ * still = la cabeza casi quieta (no deforma el cuerpo en planos medios). Tarda ~30 s por segundo de
+ * audio con la GPU de un Mac (unas 4 veces más en CPU).
  */
 export async function avatarSpeak(face: string, audio: string, out: string, opts: { still?: boolean; enhance?: boolean; onProgress?: (m: string) => void } = {}): Promise<string> {
   if (!avatarReady()) throw new Error('Falta el motor de avatares (SadTalker). Instálalo una vez con scripts/instalar-avatares.sh (unos 3 GB).');
@@ -50,15 +50,19 @@ export async function avatarSpeak(face: string, audio: string, out: string, opts
   // El motor quiere wav mono 16 kHz.
   const wav = path.join(work, 'voz.wav');
   await ffmpeg(['-i', audio, '-ac', '1', '-ar', '16000', wav]);
-  opts.onProgress?.('El avatar está hablando el guion (unos 2 minutos por segundo de voz)…');
-  const args = ['inference.py', '--driven_audio', wav, '--source_image', face, '--result_dir', work, '--preprocess', 'full', '--cpu'];
+  opts.onProgress?.('El avatar está hablando el guion (unos 30 segundos por segundo de voz)…');
+  // En Mac con Apple Silicon usa la GPU (unas 4 veces más rápido que la CPU); lo que la GPU no
+  // sabe hacer pasa solo a la CPU.
+  const mps = process.platform === 'darwin' && process.arch === 'arm64';
+  if (mps) Object.assign(process.env, { SADTALKER_MPS: '1', PYTORCH_ENABLE_MPS_FALLBACK: '1' });
+  const args = ['inference.py', '--driven_audio', wav, '--source_image', face, '--result_dir', work, '--preprocess', 'full'];
+  if (!mps) args.push('--cpu');
   if (opts.still !== false) args.push('--still');
   if (opts.enhance) args.push('--enhancer', 'gfpgan');
   await run(AVATAR_PY, args, { cwd: SADTALKER, quiet: true });
-  // El resultado queda en una subcarpeta con fecha: <foto>##voz_full.mp4 (o _enhanced).
-  const sub = (await readdir(work, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => path.join(work, d.name));
-  let video = '';
-  for (const d of sub) for (const f of await readdir(d)) if (/_full(_enhanced)?\.mp4$/.test(f) || (/\.mp4$/.test(f) && !f.startsWith('temp_') && !video)) video = path.join(d, f);
+  // El resultado queda en la carpeta de trabajo como <fecha>.mp4 (el plano completo, con la cara puesta).
+  const top = (await readdir(work)).filter((f) => /\.mp4$/i.test(f));
+  const video = top.length ? path.join(work, top.sort().pop()!) : '';
   if (!video) throw new Error('El motor de avatares no devolvió el video.');
   await mkdir(path.dirname(out), { recursive: true });
   // Video del avatar + el audio original en buena calidad.

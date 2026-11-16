@@ -97,7 +97,7 @@ export function createServer() {
 
   tool(
     'avatar_hablando',
-    'Hace que un avatar de IA diga un guion: genera la voz y anima la cara (boca, parpadeo, gestos) en este computador. Tarda unos 2 minutos por segundo de voz. Devuelve un video vertical «hablando a cámara» que se edita con crear_proyecto como cualquier otro. Al publicar, márcalo como hecho con IA.',
+    'Hace que un avatar de IA diga un guion: genera la voz y anima la cara (boca, parpadeo, gestos) en este computador. Tarda unos 30 segundos por segundo de voz. Devuelve un video vertical «hablando a cámara» que se edita con crear_proyecto como cualquier otro. Al publicar, márcalo como hecho con IA.',
     {
       cara: z.string().describe('Foto del avatar (de crear_avatar)'),
       guion: z.string().describe('Lo que dice el avatar'),

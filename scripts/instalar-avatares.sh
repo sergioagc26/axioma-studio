@@ -16,6 +16,23 @@ sed -i.bak 's/from torchvision.transforms.functional_tensor import rgb_to_graysc
 cd .avatar/SadTalker
 grep -rl "np\.float\b" src | xargs sed -i.bak -E 's/np\.float([^0-9_a-zA-Z])/np.float64\1/g' || true
 sed -i.bak 's/    trans_params = np.array(\[w0, h0, s, t\[0\], t\[1\]\])/    trans_params = np.array([w0, h0, s, float(np.asarray(t[0]).ravel()[0]), float(np.asarray(t[1]).ravel()[0])])/' src/face3d/util/preprocess.py
+# GPU de los Mac (Apple Silicon): elegir «mps» y que las cuadrículas usen el dispositivo del tensor.
+../../.venv-avatar/bin/python - <<'PY'
+import re
+p='inference.py'; s=open(p).read()
+if 'SADTALKER_MPS' not in s:
+    s=s.replace('    else:\n        args.device = "cpu"','    elif os.environ.get("SADTALKER_MPS") == "1" and torch.backends.mps.is_available():\n        args.device = "mps"\n    else:\n        args.device = "cpu"',1)
+    open(p,'w').write(s)
+p='src/facerender/modules/util.py'; s=open(p).read()
+if '_like' not in s:
+    s=s.replace("make_coordinate_grid(spatial_size, mean.type())","make_coordinate_grid(spatial_size, mean)")
+    for v in 'whd': s=s.replace(f"torch.arange({v}).type(type)", f"_like(torch.arange({v}), type)")
+    s=s.replace("def make_coordinate_grid","def _like(t, ref):\n    if torch.is_tensor(ref):\n        return t.to(device=ref.device, dtype=ref.dtype)\n    return t.type(ref)\n\n\ndef make_coordinate_grid",1)
+    open(p,'w').write(s)
+p='src/facerender/modules/keypoint_detector.py'; s=open(p).read(); open(p,'w').write(s.replace("make_coordinate_grid(shape[2:], heatmap.type())","make_coordinate_grid(shape[2:], heatmap)"))
+p='src/facerender/modules/dense_motion.py'; s=open(p).read()
+open(p,'w').write(s.replace("make_coordinate_grid((d, h, w), type=kp_source['value'].type())","make_coordinate_grid((d, h, w), type=kp_source['value'])").replace("spatial_size[2]).type(heatmap.type())","spatial_size[2]).to(heatmap)"))
+PY
 mkdir -p checkpoints gfpgan/weights
 dl(){ [ -s "$2" ] || curl -sL --fail -o "$2" "$1"; }
 R=https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2-rc
