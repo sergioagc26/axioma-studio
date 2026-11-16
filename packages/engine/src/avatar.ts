@@ -40,7 +40,7 @@ export async function createAvatarFace(description: string, out: string, seed?: 
 
 /**
  * El avatar dice un audio: devuelve un video vertical del tamaño de la foto, con el audio.
- * still = la cabeza casi quieta (no deforma el cuerpo en planos medios). Tarda ~30 s por segundo de
+ * still = la cabeza casi quieta; sin still, se mueve como una persona. Tarda ~30 s por segundo de
  * audio con la GPU de un Mac (unas 4 veces más en CPU).
  */
 export async function avatarSpeak(face: string, audio: string, out: string, opts: { still?: boolean; enhance?: boolean; onProgress?: (m: string) => void } = {}): Promise<string> {
@@ -57,7 +57,10 @@ export async function avatarSpeak(face: string, audio: string, out: string, opts
   if (mps) Object.assign(process.env, { SADTALKER_MPS: '1', PYTORCH_ENABLE_MPS_FALLBACK: '1' });
   const args = ['inference.py', '--driven_audio', wav, '--source_image', face, '--result_dir', work, '--preprocess', 'full'];
   if (!mps) args.push('--cpu');
-  if (opts.still !== false) args.push('--still');
+  // Por defecto se mueve como una persona: la cabeza asiente y gira con la voz y la cara gesticula
+  // más (still = cabeza casi quieta, para planos donde el cuerpo se deformaría).
+  if (opts.still) args.push('--still');
+  else args.push('--pose_style', '12', '--expression_scale', '1.3');
   if (opts.enhance) args.push('--enhancer', 'gfpgan');
   await run(AVATAR_PY, args, { cwd: SADTALKER, quiet: true });
   // El resultado queda en la carpeta de trabajo como <fecha>.mp4 (el plano completo, con la cara puesta).

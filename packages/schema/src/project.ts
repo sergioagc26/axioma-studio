@@ -80,7 +80,7 @@ export type TextStyle = z.infer<typeof TextStyle>;
 export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia']);
 export type Look = z.infer<typeof Look>;
 /** Movimiento de cámara simulado durante la escena. */
-export const Camera = z.enum(['ninguno', 'acercar', 'alejar', 'izquierda', 'derecha', 'arriba', 'abajo', 'pulso', 'temblor', 'orbita', 'foco']);
+export const Camera = z.enum(['ninguno', 'acercar', 'alejar', 'izquierda', 'derecha', 'arriba', 'abajo', 'pulso', 'temblor', 'orbita', 'foco', 'respirar']);
 export type Camera = z.infer<typeof Camera>;
 
 export const SceneRole = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);

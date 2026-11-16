@@ -460,6 +460,9 @@ function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
     case 'pulso': drift = 1 + amt * 0.5 * Math.max(0, 1 - ((abs % Math.round(fps / 2)) / (fps / 6))); break;
     // Temblor: cámara en mano.
     case 'temblor': drift = 1 + amt * 0.5; dx = Math.sin(abs * 0.9) * amt * 9; dy = Math.cos(abs * 1.3) * amt * 9; break;
+    // Respirar: cámara en mano muy suave (balanceo lento y un respiro de zoom), para que una
+    // persona quieta (un avatar) se sienta grabada de verdad.
+    case 'respirar': { const ts = abs / fps; drift = 1.025 + amt * 0.12 * Math.sin(ts * 1.25); dx = Math.sin(ts * 0.53) * 0.55 + Math.sin(ts * 1.7) * 0.15; dy = Math.cos(ts * 0.41) * 0.45 + Math.sin(ts * 2.1) * 0.12; break; }
     // En video, la órbita es un arco lento (paneo que acelera y frena con un leve acercamiento).
     case 'orbita': { const e = at * at * (3 - 2 * at); drift = 1 + amt * (0.8 + 0.4 * Math.sin(Math.PI * e)); dx = (e - 0.5) * amt * 70; break; }
   }

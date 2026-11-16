@@ -59,7 +59,7 @@ const LOOK_NAMES: [Scene['look'], string][] = [
 ];
 const CAMERA_NAMES: [Scene['camera'], string][] = [
   ['ninguno', 'Quieta'], ['acercar', 'Se acerca'], ['alejar', 'Se aleja'], ['izquierda', 'Paneo a la izquierda'], ['derecha', 'Paneo a la derecha'],
-  ['arriba', 'Paneo hacia arriba'], ['abajo', 'Paneo hacia abajo'], ['pulso', 'Pulso al ritmo'], ['temblor', 'Cámara en mano'], ['orbita', 'Órbita alrededor (3D en fotos)'], ['foco', 'Cambio de foco (3D en fotos)'],
+  ['arriba', 'Paneo hacia arriba'], ['abajo', 'Paneo hacia abajo'], ['pulso', 'Pulso al ritmo'], ['temblor', 'Cámara en mano'], ['orbita', 'Órbita alrededor (3D en fotos)'], ['foco', 'Cambio de foco (3D en fotos)'], ['respirar', 'Respirar (cámara en mano suave)'],
 ];
 /** Campos para editar el contenido de un gráfico animado, según su plantilla. */
 const MotionData: React.FC<{ scene: Scene; onChange: (d: Record<string, unknown>) => void }> = ({ scene, onChange }) => {
