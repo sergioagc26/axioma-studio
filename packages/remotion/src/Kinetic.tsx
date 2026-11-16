@@ -216,7 +216,7 @@ export const Words: React.FC<{ words: KineticWord[]; f: number; fps: number; wid
 
 /**
  * Grabación de pantalla flotando en 3D: una ventana con esquinas redondas y sombra que entra
- * girando y queda en perspectiva, curvada como una pantalla ancha, sobre fondo claro u oscuro.
+ * girando y queda en perspectiva, sobre fondo claro u oscuro.
  */
 export const FloatScreen: React.FC<{ src: string; trimBefore: number; f: number; fps: number; width: number; height: number; bg: 'claro' | 'oscuro'; filter?: string }> = ({ src, trimBefore, f, fps, width, bg, filter }) => {
   const u = width / 1080;
@@ -226,22 +226,15 @@ export const FloatScreen: React.FC<{ src: string; trimBefore: number; f: number;
   const rx = interpolate(s, [0, 1], [16, 7]);
   const w = 1000 * u, h = w * 9 / 16;
   const light = bg === 'claro';
-  // Curvatura: tres franjas verticales del mismo video, las de los lados giradas hacia adentro.
-  const strip = (i: number) => {
-    const n = 5, sw = w / n, ang = (i - (n - 1) / 2) * -7;
-    return (
-      <div key={i} style={{ position: 'absolute', left: i * sw, top: 0, width: sw + 1, height: h, overflow: 'hidden', transform: `rotateY(${ang}deg) translateZ(${-Math.abs(i - (n - 1) / 2) * 14 * u}px)`, transformOrigin: '50% 50%' }}>
-        <div style={{ position: 'absolute', left: -i * sw, top: 0, width: w, height: h }}>
-          <OffthreadVideo src={src} trimBefore={trimBefore} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter }} />
-        </div>
-      </div>
-    );
-  };
   return (
     <AbsoluteFill style={{ background: light ? 'radial-gradient(ellipse at 50% 40%, #FFFFFF 0%, #EFEFED 55%, #DEDEDB 100%)' : 'radial-gradient(ellipse at 50% 40%, #2A2A2E 0%, #121214 60%, #070708 100%)', perspective: 1700 * u }}>
       <div style={{ position: 'absolute', left: '50%', top: '56%', width: w, height: h, transform: `translate(-50%, -50%) rotateY(${ry}deg) rotateX(${rx}deg) scale(${interpolate(s, [0, 1], [0.86, 1]) + t * 0.006})`, transformStyle: 'preserve-3d' }}>
         <div style={{ position: 'absolute', inset: -10 * u, borderRadius: 26 * u, background: '#1C1C1F', boxShadow: light ? `0 ${60 * u}px ${80 * u}px rgba(0,0,0,0.28)` : `0 ${60 * u}px ${90 * u}px rgba(0,0,0,0.75)`, transform: `translateZ(${-30 * u}px)` }} />
-        {Array.from({ length: 5 }, (_, i) => strip(i))}
+        {/* Una sola pieza: la pantalla en perspectiva (en franjas curvas se veían huecos con videos claros). */}
+        <div style={{ position: 'absolute', inset: 0, borderRadius: 16 * u, overflow: 'hidden', backgroundColor: '#000' }}>
+          <OffthreadVideo src={src} trimBefore={trimBefore} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(120deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, transparent 60%)' }} />
+        </div>
       </div>
       <div style={{ position: 'absolute', left: '50%', top: '78%', width: w * 0.8, height: 60 * u, transform: 'translateX(-50%)', borderRadius: '50%', background: light ? 'rgba(0,0,0,0.16)' : 'rgba(0,0,0,0.6)', filter: `blur(${30 * u}px)` }} />
     </AbsoluteFill>
