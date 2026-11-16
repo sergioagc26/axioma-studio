@@ -93,7 +93,7 @@ import { MotionGraphic } from './Motion.tsx';
 
 const FONTS: Record<string, () => { fontFamily: string }> = {
   Montserrat: () => loadMontserrat('normal', { weights: ['700', '800', '900'], subsets: ['latin', 'latin-ext'] }),
-  Inter: () => loadInter('normal', { weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] }),
+  Inter: () => loadInter('normal', { weights: ['600', '700', '800', '900'], subsets: ['latin', 'latin-ext'] }),
   'Space Grotesk': () => loadSpaceGrotesk('normal', { weights: ['600', '700'], subsets: ['latin', 'latin-ext'] }),
   Poppins: () => loadPoppins('normal', { weights: ['700', '800'], subsets: ['latin', 'latin-ext'] }),
   Anton: () => loadAnton('normal', { weights: ['400'], subsets: ['latin', 'latin-ext'] }),
@@ -481,9 +481,11 @@ function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
     }
   }
   // «Completo»: el video entero centrado (una pantalla horizontal en un reel), sin recortarlo.
+  // La persona más abajo en el cuadro (aire arriba para las palabras gigantes).
+  const fy = clip.frameY ? ` translateY(${clip.frameY * 100}%)` : '';
   const cover: React.CSSProperties = clip.fit === 'completo'
     ? { width: '100%', height: '100%', objectFit: 'contain', transform: `scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: '50% 50%', filter: [filter, 'drop-shadow(0 24px 48px rgba(0,0,0,0.55))'].filter(Boolean).join(' ') }
-    : { width: '100%', height: '100%', objectFit: 'cover', transform: `translate(${dx}%, ${dy}%) scale(${zoom * drift * kz * clip.videoScale})`, transformOrigin: `${pos.x * 100}% ${pos.y * 100}%`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
+    : { width: '100%', height: '100%', objectFit: 'cover', transform: `${fy}translate(${dx}%, ${dy}%) scale(${zoom * drift * kz * clip.videoScale})`.trim(), transformOrigin: `${pos.x * 100}% ${pos.y * 100}%`, filter, borderRadius: clip.videoScale < 1 ? 36 : undefined };
   return { cover, pos, filter };
 }
 
@@ -491,7 +493,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const mfont = useFont(clip.motion?.style?.font ?? '');
-  const dfont = { sans: useFont('Sora'), serif: useFont('Playfair Display'), comic: useFont('Bangers'), mono: useFont('Space Mono'), kinetic: useFont('Plus Jakarta Sans') };
+  const dfont = { sans: useFont('Sora'), serif: useFont('Playfair Display'), comic: useFont('Bangers'), mono: useFont('Space Mono'), kinetic: useFont('Inter') };
   const { cover, pos, filter } = clipView(clip, t, frame, fps);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
@@ -564,17 +566,18 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         />
       )}
         {clip.vignette > 0 ? <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${0.85 * clip.vignette}) 100%)`, pointerEvents: 'none' }} /> : null}
+        {clip.frameY ? <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: `${clip.frameY * 100 + 9}%`, background: `linear-gradient(180deg, #050506 0%, #050506 ${(clip.frameY * 100) / (clip.frameY * 100 + 9) * 100 - 2}%, transparent 100%)`, pointerEvents: 'none' }} /> : null}
         {clip.words?.length ? (() => {
           // Palabras gigantes: las de «detrás» van bajo la persona recortada, las demás encima.
           const wf = clip.sceneOffsetFrames + frame;
           const person = !clip.brollSrc && !clip.motion && clip.visual === 'original' && t.cutoutSrc;
           return (
             <>
-              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} layer="detras" />
+              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} serif={dfont.serif} layer="detras" />
               {person && clip.words.some((w) => w.behind && wf >= w.from && wf < w.to) ? (
                 <AbsoluteFill><OffthreadVideo src={t.cutoutSrc!} transparent trimBefore={clip.sourceStartFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }} /></AbsoluteFill>
               ) : null}
-              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} layer="delante" />
+              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} serif={dfont.serif} layer="delante" />
             </>
           );
         })() : null}

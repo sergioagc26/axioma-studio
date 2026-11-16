@@ -1,74 +1,249 @@
 import React from 'react';
-import { AbsoluteFill, interpolate, OffthreadVideo, spring } from 'remotion';
+import { AbsoluteFill, Img, interpolate, OffthreadVideo, spring } from 'remotion';
 
 /**
- * Piezas de los reels «de creador»: palabras gigantes que salen al ritmo de la voz (también
- * detrás de la persona), etiquetas en píldora, texto en una pantalla vieja, y grabaciones de
- * pantalla flotando en 3D.
+ * Piezas de los reels «de creador»: palabras gigantes al ritmo de la voz (también detrás de la
+ * persona) y los objetos que aparecen en pantalla: etiquetas, cajas de selección, notas pegadas,
+ * tarjetas de datos, íconos de app, una ventana de chat, una línea de tiempo, curvas de animación,
+ * miniaturas que entran volando y la onda de voz; y grabaciones de pantalla flotando en 3D.
  */
 export interface KineticWord {
   text: string; from: number; to: number;
   color: 'blanco' | 'rojo' | 'amarillo' | 'negro';
   x: number; y: number; size: number; behind: boolean;
-  style: 'gigante' | 'pildora' | 'pantalla';
+  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic';
+  rotate?: number; files?: string[]; then?: number;
 }
 
 const COLORS = { blanco: '#FFFFFF', rojo: '#E8261F', amarillo: '#F6E60B', negro: '#111114' } as const;
+const ORANGE = '#D97757';
+const LIME = '#C6F432';
 
-/** Una palabra (o frase corta) con su entrada: crece desde un poco más chica y se enfoca. */
-export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: number; font: string; mono: string }> = ({ w, f, fps, width, font, mono }) => {
+/** Chispa de ocho puntas (el ícono de «IA» de la referencia, dibujado genérico). */
+const Spark: React.FC<{ size: number; color?: string }> = ({ size, color = ORANGE }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100">
+    {Array.from({ length: 8 }, (_, i) => <rect key={i} x={46} y={8} width={8} height={42} rx={4} fill={color} transform={`rotate(${i * 45} 50 50)`} />)}
+  </svg>
+);
+
+/** El ícono de Axioma Studio: triángulo de play lima con cara, sobre petróleo. */
+const AxiomaMark: React.FC<{ size: number }> = ({ size }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100">
+    <path d="M30 18 L84 50 L30 82 Z" fill={LIME} stroke={LIME} strokeWidth={10} strokeLinejoin="round" />
+    <circle cx={46} cy={44} r={4} fill="#0F5C63" /><circle cx={60} cy={44} r={4} fill="#0F5C63" />
+    <path d="M44 56 Q53 64 62 56" stroke="#0F5C63" strokeWidth={4} fill="none" strokeLinecap="round" />
+  </svg>
+);
+
+const typedText = (text: string, local: number, speed = 1.3) => text.slice(0, Math.max(0, Math.ceil(local * speed)));
+
+/** Un elemento con su entrada (crece desde un poco más chico y se enfoca) y su salida. */
+export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: number; font: string; mono: string; serif: string }> = ({ w, f, fps, width, font, mono, serif }) => {
   if (f < w.from || f >= w.to) return null;
   const local = f - w.from;
   const u = width / 1080;
+  const k = w.size;
   const s = spring({ frame: local, fps, config: { damping: 14, stiffness: 230 }, durationInFrames: 9 });
   const out = interpolate(f, [w.to - 4, w.to], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const base: React.CSSProperties = { position: 'absolute', left: `${w.x * 100}%`, top: `${w.y * 100}%`, transform: `translate(-50%, -50%) scale(${interpolate(s, [0, 1], [0.82, 1])})`, opacity: Math.min(1, s * 1.6) * out, whiteSpace: 'nowrap' };
-  if (w.style === 'pildora') {
-    // Etiqueta oscura con borde claro (como «Le pegas un archivo»).
-    return <div style={{ ...base, fontFamily: font, fontWeight: 600, fontSize: 40 * u * w.size, color: '#F2F2F2', padding: `${14 * u}px ${30 * u}px`, borderRadius: 999, border: `${2 * u}px solid rgba(255,255,255,0.28)`, background: 'rgba(30,30,32,0.72)', backdropFilter: 'blur(6px)' }}>{w.text}</div>;
-  }
-  if (w.style === 'pantalla') {
-    // Texto en una pantalla de computadora vieja: monoespaciado, verde claro con brillo y un cursor.
-    const typed = w.text.slice(0, Math.ceil(local * 1.3));
-    return <div style={{ ...base, transform: 'translate(-50%, -50%)', opacity: out, fontFamily: mono, fontWeight: 700, fontSize: 58 * u * w.size, lineHeight: 1.15, color: '#E9F5E4', textShadow: '0 0 10px rgba(200,255,200,0.7)', whiteSpace: 'pre', textAlign: 'left' }}>{typed}<span style={{ opacity: Math.floor(local / 8) % 2 ? 0 : 1 }}>_</span></div>;
-  }
+  const rot = w.rotate ? ` rotate(${w.rotate}deg)` : '';
+  const base: React.CSSProperties = { position: 'absolute', left: `${w.x * 100}%`, top: `${w.y * 100}%`, transform: `translate(-50%, -50%) scale(${interpolate(s, [0, 1], [0.82, 1])})${rot}`, opacity: Math.min(1, s * 1.6) * out, whiteSpace: 'nowrap' };
+  const then = w.then !== undefined && f >= w.then;
   const color = COLORS[w.color];
-  const glow = w.color === 'blanco' ? `0 0 ${18 * u}px rgba(255,255,255,0.55), 0 ${6 * u}px ${30 * u}px rgba(0,0,0,0.35)` : w.color === 'amarillo' ? `0 0 ${22 * u}px rgba(246,230,11,0.35)` : 'none';
-  return (
-    <div style={{ ...base, fontFamily: font, fontWeight: 800, fontSize: 150 * u * w.size, letterSpacing: '-0.035em', lineHeight: 1, color, textShadow: glow, filter: `blur(${interpolate(s, [0, 1], [6, 0])}px)` }}>{w.text}</div>
-  );
+
+  switch (w.style) {
+    case 'pildora':
+      return <div style={{ ...base, fontFamily: font, fontWeight: 600, fontSize: 40 * u * k, color: '#F2F2F2', padding: `${14 * u}px ${30 * u}px`, borderRadius: 999, border: `${2 * u}px solid rgba(255,255,255,0.28)`, background: 'rgba(30,30,32,0.72)' }}>{w.text}</div>;
+    case 'pantalla': {
+      // Texto de computadora que se escribe; con «then», se borra y se escribe el segundo (text = «uno|dos»).
+      const [a, b = ''] = w.text.split('|');
+      const cur = then && b ? b : a;
+      const since = then && b ? f - w.then! : local;
+      const shown = typedText(cur, since, 0.9);
+      const parts = shown.split(/(\*[^*]*\*?)/g);
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%)${rot}`, opacity: out, fontFamily: mono, fontWeight: 700, fontSize: 60 * u * k, lineHeight: 1.12, color: '#EDF6EA', textShadow: '0 0 10px rgba(220,255,220,0.65)', whiteSpace: 'pre', textAlign: 'left' }}>
+          {parts.map((p, i) => p.startsWith('*') ? <span key={i} style={{ color: '#FF4B3E', textShadow: '0 0 12px rgba(255,80,60,0.7)' }}>{p.replace(/\*/g, '')}</span> : <span key={i}>{p}</span>)}
+          <span style={{ opacity: Math.floor(local / 8) % 2 ? 0 : 1 }}>_</span>
+        </div>
+      );
+    }
+    case 'resaltado':
+      // Palabra en caja amarilla (como «Más información»).
+      return <div style={{ ...base, fontFamily: font, fontWeight: 900, fontSize: 104 * u * k, letterSpacing: '-0.04em', color: '#111', background: '#F6E60B', padding: `${4 * u}px ${14 * u}px`, outline: `${3 * u}px solid #111`, outlineOffset: -3 * u }}>{w.text}</div>;
+    case 'seleccion': {
+      // Palabra con la caja de selección de un editor (borde y tiradores rojos).
+      const hs = 12 * u;
+      return (
+        <div style={{ ...base, fontFamily: font, fontWeight: 800, fontSize: 92 * u * k, letterSpacing: '-0.03em', color: color, padding: `${2 * u}px ${12 * u}px`, border: `${3 * u}px solid #E8261F` }}>
+          {w.text}
+          {[[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y], i) => <span key={i} style={{ position: 'absolute', left: `calc(${x * 100}% - ${hs / 2}px)`, top: `calc(${y * 100}% - ${hs / 2}px)`, width: hs, height: hs, background: '#fff', border: `${2.5 * u}px solid #E8261F` }} />)}
+        </div>
+      );
+    }
+    case 'tachado': {
+      // La palabra y una raya roja que la cruza (se dibuja de izquierda a derecha).
+      const line = interpolate(local, [4, 12], [0, 100], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+      return (
+        <div style={{ ...base, fontFamily: font, fontWeight: 800, fontSize: 110 * u * k, letterSpacing: '-0.035em', color }}>
+          {w.text}
+          <span style={{ position: 'absolute', left: '-4%', top: '52%', height: 9 * u * k, width: `${line * 1.08}%`, background: '#E8261F', borderRadius: 6 * u, transform: 'rotate(-3deg)' }} />
+        </div>
+      );
+    }
+    case 'nota':
+      // Papelito pegado con cinta, letra a mano; *palabra* resaltada en amarillo.
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%) rotate(${w.rotate ?? -4}deg) scale(${interpolate(s, [0, 1], [0.6, 1])})`, width: 260 * u * k, padding: `${26 * u * k}px ${22 * u * k}px`, background: w.color === 'amarillo' ? '#FFF27A' : '#F7F3EA', boxShadow: `0 ${10 * u}px ${18 * u}px rgba(0,0,0,0.35)`, fontFamily: font, fontWeight: 700, fontSize: 34 * u * k, lineHeight: 1.15, color: '#222', whiteSpace: 'normal' }}>
+          <span style={{ position: 'absolute', left: '30%', top: -14 * u, width: '40%', height: 26 * u, background: 'rgba(240,235,220,0.75)', transform: 'rotate(3deg)' }} />
+          {w.text.split(/(\*[^*]+\*)/g).map((p, i) => p.startsWith('*') ? <span key={i} style={{ background: '#F6E60B', padding: `0 ${4 * u}px` }}>{p.slice(1, -1)}</span> : <span key={i}>{p}</span>)}
+        </div>
+      );
+    case 'tarjeta': {
+      // Tarjeta blanca de dato: título pequeño, el número en rojo y barras que crecen.
+      const grow = interpolate(local, [3, 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+      const [title, value] = w.text.includes('|') ? w.text.split('|') : ['retención', w.text];
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%) rotate(${w.rotate ?? -3}deg) scale(${interpolate(s, [0, 1], [0.7, 1])})`, background: '#fff', borderRadius: 16 * u, padding: `${14 * u}px ${20 * u}px`, boxShadow: `0 ${12 * u}px ${30 * u}px rgba(0,0,0,0.25)`, display: 'flex', alignItems: 'flex-end', gap: 18 * u, fontFamily: font }}>
+          <div><div style={{ fontSize: 16 * u * k, color: '#888', fontWeight: 600 }}>{title}</div><div style={{ fontSize: 54 * u * k, fontWeight: 800, color: '#E8261F', lineHeight: 1 }}>{value}</div></div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 * u, height: 60 * u * k }}>{[0.35, 0.55, 0.75, 1].map((h, i) => <div key={i} style={{ width: 11 * u * k, height: `${h * 100 * grow}%`, background: '#E8261F', borderRadius: 3 * u }} />)}</div>
+        </div>
+      );
+    }
+    case 'icono':
+      // Tarjeta blanca redondeada con el ícono (axioma o chispa).
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%) rotate(${w.rotate ?? 0}deg) scale(${interpolate(s, [0, 1], [0.4, 1])})`, width: 110 * u * k, height: 110 * u * k, borderRadius: 26 * u * k, background: w.text === 'axioma' ? '#0F5C63' : '#FFFFFF', display: 'grid', placeItems: 'center', boxShadow: `0 ${10 * u}px ${24 * u}px rgba(0,0,0,0.35)` }}>
+          {w.text === 'axioma' ? <AxiomaMark size={80 * u * k} /> : <Spark size={70 * u * k} />}
+        </div>
+      );
+    case 'archivo': {
+      // Caja de selección (con tiradores blancos) con un ícono y el texto que se va escribiendo.
+      const hs = 10 * u;
+      return (
+        <div style={{ ...base, display: 'flex', alignItems: 'center', gap: 22 * u, padding: `${20 * u}px ${26 * u}px`, minWidth: 340 * u * k, border: `${2 * u}px solid rgba(255,255,255,0.8)`, fontFamily: font, fontWeight: 700, fontSize: 40 * u * k, lineHeight: 1.05, color: '#fff', whiteSpace: 'pre' }}>
+          <div style={{ width: 70 * u * k, height: 70 * u * k, borderRadius: 16 * u, background: '#fff', display: 'grid', placeItems: 'center', transform: 'rotate(-12deg)' }}><AxiomaMark size={56 * u * k} /></div>
+          <div>{typedText(w.text, local, 0.8)}</div>
+          {[[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y], i) => <span key={i} style={{ position: 'absolute', left: `calc(${x * 100}% - ${hs / 2}px)`, top: `calc(${y * 100}% - ${hs / 2}px)`, width: hs, height: hs, background: '#fff' }} />)}
+        </div>
+      );
+    }
+    case 'tira': {
+      // Línea de tiempo pequeña en perspectiva: pistas con clips de colores y el cabezal que corre.
+      const head = interpolate(local, [0, Math.max(1, w.to - w.from)], [12, 88]);
+      const rows = [['#E8453C', '#F4B740', '#E8453C', '#F4B740'], ['#F4B740', '#7C5CFF', '#F4B740'], ['#3DB46D', '#3DB46D', '#3DB46D', '#3DB46D', '#3DB46D']];
+      return (
+        <div style={{ ...base, width: 900 * u * k, padding: `${14 * u}px`, background: 'rgba(18,18,22,0.92)', borderRadius: 14 * u, transform: `translate(-50%, -50%) perspective(${900 * u}px) rotateX(18deg) scale(${interpolate(s, [0, 1], [0.85, 1])})`, boxShadow: `0 ${20 * u}px ${40 * u}px rgba(0,0,0,0.5)` }}>
+          {rows.map((r, ri) => (
+            <div key={ri} style={{ display: 'flex', gap: 6 * u, marginBottom: 8 * u, height: 26 * u }}>
+              {r.map((c, ci) => <div key={ci} style={{ flex: 1 + ((ri + ci) % 3) * 0.6, background: c, borderRadius: 5 * u, opacity: 0.92 }} />)}
+            </div>
+          ))}
+          <div style={{ position: 'absolute', left: `${head}%`, top: 4 * u, bottom: 4 * u, width: 3 * u, background: '#fff' }} />
+        </div>
+      );
+    }
+    case 'ruta': {
+      // Curva de animación azul con sus puntos de control (como en un editor de motion).
+      const draw = interpolate(local, [0, 14], [0, 1], { extrapolateRight: 'clamp' });
+      return (
+        <svg style={{ ...base, overflow: 'visible' }} width={760 * u * k} height={160 * u * k} viewBox="0 0 760 160">
+          <path d="M20 120 C 160 120, 200 40, 330 70 S 520 140, 600 60 S 700 30, 740 110" fill="none" stroke="#3B6FE8" strokeWidth={5} strokeDasharray={1200} strokeDashoffset={1200 * (1 - draw)} strokeLinecap="round" />
+          {[[20, 120], [330, 70], [600, 60], [740, 110]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r={11} fill="#fff" stroke="#3B6FE8" strokeWidth={4} opacity={draw > i / 4 ? 1 : 0} />)}
+        </svg>
+      );
+    }
+    case 'miniaturas': {
+      // Collage de miniaturas (reels) que entran volando desde abajo, una tras otra, ladeadas.
+      const files = w.files ?? [];
+      const spots = [[0.11, 0.1, -8], [0.86, 0.08, 6], [0.27, 0.07, 4], [0.7, 0.12, -5], [0.12, 0.3, 7], [0.88, 0.3, -6], [0.1, 0.5, -4], [0.9, 0.52, 5]];
+      return (
+        <AbsoluteFill style={{ opacity: out }}>
+          {files.slice(0, spots.length).map((src, i) => {
+            const p = spring({ frame: local - i * 3, fps, config: { damping: 16, stiffness: 140 } });
+            const [x, y, r] = spots[i];
+            return <Img key={i} src={src} style={{ position: 'absolute', left: `${x * 100}%`, top: `${y * 100}%`, width: 150 * u * k, height: 266 * u * k, objectFit: 'cover', borderRadius: 14 * u, boxShadow: `0 ${10 * u}px ${24 * u}px rgba(0,0,0,0.3)`, transform: `translate(-50%, ${interpolate(p, [0, 1], [900 * u, -50 * u])}px) rotate(${r}deg)`, opacity: Math.min(1, p * 2) }} />;
+          })}
+        </AbsoluteFill>
+      );
+    }
+    case 'chat': {
+      // Ventana de chat oscura: saludo con la chispa, el mensaje pegado y, en «then», el adjunto.
+      const wpx = 940 * u * k;
+      const attach = then && w.files?.[0];
+      const ap = then ? spring({ frame: f - w.then!, fps, config: { damping: 15, stiffness: 180 } }) : 0;
+      return (
+        <div style={{ ...base, width: wpx, transform: `translate(-50%, -50%) perspective(${1600 * u}px) rotateY(-6deg) rotateX(4deg) scale(${interpolate(s, [0, 1], [0.86, 1])})`, background: '#262624', borderRadius: 26 * u, boxShadow: `0 ${40 * u}px ${80 * u}px rgba(0,0,0,0.45), 0 0 0 ${1.5 * u}px rgba(255,255,255,0.08)`, padding: `${34 * u}px ${38 * u}px ${44 * u}px`, minHeight: 760 * u * k, fontFamily: font, color: '#ECECEC', whiteSpace: 'normal' }}>
+          <div style={{ display: 'flex', gap: 9 * u, marginBottom: 26 * u }}>{['#FF5F57', '#FEBC2E', '#28C840'].map((c) => <span key={c} style={{ width: 13 * u, height: 13 * u, borderRadius: 13 * u, background: c }} />)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 * u, fontFamily: serif, fontSize: 56 * u * k, marginTop: 110 * u * k, marginBottom: 40 * u }}><Spark size={40 * u * k} />Buenas noches</div>
+          <div style={{ background: '#30302E', border: `${1.5 * u}px solid rgba(255,255,255,0.12)`, borderRadius: 22 * u, padding: `${22 * u}px` }}>
+            <div style={{ display: 'flex', gap: 18 * u, alignItems: 'flex-start' }}>
+              <div style={{ width: 340 * u * k, background: '#3A3A37', borderRadius: 14 * u, padding: `${18 * u}px`, fontSize: 30 * u * k, lineHeight: 1.25 }}>{w.text}<div style={{ marginTop: 10 * u, fontSize: 15 * u * k, color: '#999', border: `1px solid #666`, display: 'inline-block', padding: `${2 * u}px ${8 * u}px`, borderRadius: 6 * u }}>PEGADO</div></div>
+              {attach ? <div style={{ position: 'relative', width: 250 * u * k, height: 250 * u * k, borderRadius: 16 * u, overflow: 'hidden', transform: `scale(${ap})` }}><Img src={attach} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /><div style={{ position: 'absolute', left: 8 * u, bottom: 8 * u, fontSize: 16 * u * k, fontWeight: 700, background: 'rgba(0,0,0,0.6)', padding: `${2 * u}px ${8 * u}px`, borderRadius: 6 * u }}>mi-video.mp4</div></div> : null}
+            </div>
+            <div style={{ marginTop: 26 * u, fontSize: 34 * u * k, color: '#9A9A96' }}>¿En qué te ayudo hoy?</div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 * u }}><span style={{ width: 44 * u, height: 44 * u, borderRadius: 10 * u, background: ORANGE, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 26 * u, fontWeight: 800 }}>↑</span></div>
+          </div>
+        </div>
+      );
+    }
+    case 'mic': {
+      // Píldora oscura con el micrófono rojo y la onda de voz moviéndose; debajo, lo que se pide.
+      const bars = Array.from({ length: 14 }, (_, i) => 0.3 + 0.7 * Math.abs(Math.sin(local * 0.45 + i * 1.3)));
+      return (
+        <div style={{ ...base, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 * u, background: 'rgba(22,22,24,0.88)', borderRadius: 22 * u, padding: `${14 * u}px ${22 * u}px`, fontFamily: font }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 * u }}>
+            <span style={{ width: 44 * u * k, height: 44 * u * k, borderRadius: 44 * u, background: '#E8453C', display: 'grid', placeItems: 'center' }}><span style={{ width: 12 * u * k, height: 20 * u * k, borderRadius: 8 * u, background: '#fff' }} /></span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 * u, height: 40 * u * k }}>{bars.map((h, i) => <span key={i} style={{ width: 5 * u * k, height: `${h * 100}%`, background: '#fff', borderRadius: 3 * u }} />)}</div>
+          </div>
+          {w.text ? <div style={{ fontSize: 22 * u * k, color: '#ddd', fontWeight: 600 }}>{typedText(w.text, local - 6, 1.2)}</div> : null}
+        </div>
+      );
+    }
+    default: {
+      // Palabra gigante: entra desenfocada y se enfoca; en blanco con brillo, roja, amarilla o negra.
+      const glow = w.color === 'blanco' ? `0 0 ${18 * u}px rgba(255,255,255,0.55), 0 ${6 * u}px ${30 * u}px rgba(0,0,0,0.35)` : w.color === 'amarillo' ? `0 0 ${22 * u}px rgba(246,230,11,0.35)` : 'none';
+      return <div style={{ ...base, fontFamily: font, fontWeight: 900, fontSize: 158 * u * k, letterSpacing: '-0.055em', lineHeight: 1, color, textShadow: glow, filter: `blur(${interpolate(s, [0, 1], [8, 0])}px)` }}>{w.text}</div>;
+    }
+  }
 };
 
-/** Las palabras de un tramo; las de «detrás» quedan bajo la persona recortada (si hay recorte). */
-export const Words: React.FC<{ words: KineticWord[]; f: number; fps: number; width: number; font: string; mono: string; layer: 'detras' | 'delante' }> = ({ words, f, fps, width, font, mono, layer }) => (
+/** Los elementos de un tramo; los de «detrás» quedan bajo la persona recortada (si hay recorte). */
+export const Words: React.FC<{ words: KineticWord[]; f: number; fps: number; width: number; font: string; mono: string; serif: string; layer: 'detras' | 'delante' }> = ({ words, f, fps, width, font, mono, serif, layer }) => (
   <AbsoluteFill style={{ pointerEvents: 'none' }}>
-    {words.filter((w) => (layer === 'detras') === w.behind).map((w, i) => <Word key={i} w={w} f={f} fps={fps} width={width} font={font} mono={mono} />)}
+    {words.filter((w) => (layer === 'detras') === w.behind).map((w, i) => <Word key={i} w={w} f={f} fps={fps} width={width} font={font} mono={mono} serif={serif} />)}
   </AbsoluteFill>
 );
 
 /**
  * Grabación de pantalla flotando en 3D: una ventana con esquinas redondas y sombra que entra
- * girando y queda en perspectiva, girando muy lento, sobre fondo claro o oscuro.
+ * girando y queda en perspectiva, curvada como una pantalla ancha, sobre fondo claro u oscuro.
  */
-export const FloatScreen: React.FC<{ src: string; trimBefore: number; f: number; fps: number; width: number; height: number; bg: 'claro' | 'oscuro'; filter?: string }> = ({ src, trimBefore, f, fps, width, height, bg, filter }) => {
+export const FloatScreen: React.FC<{ src: string; trimBefore: number; f: number; fps: number; width: number; height: number; bg: 'claro' | 'oscuro'; filter?: string }> = ({ src, trimBefore, f, fps, width, bg, filter }) => {
   const u = width / 1080;
   const s = spring({ frame: f, fps, config: { damping: 20, stiffness: 90 }, durationInFrames: 22 });
   const t = f / fps;
-  const ry = interpolate(s, [0, 1], [34, 14]) - t * 1.6;
-  const rx = interpolate(s, [0, 1], [18, 9]);
-  const w = 1040 * u, h = w * 9 / 16;
+  const ry = interpolate(s, [0, 1], [24, 5]) - t * 0.8;
+  const rx = interpolate(s, [0, 1], [16, 7]);
+  const w = 1000 * u, h = w * 9 / 16;
   const light = bg === 'claro';
-  return (
-    <AbsoluteFill style={{ background: light ? 'radial-gradient(ellipse at 50% 40%, #FFFFFF 0%, #ECECEA 55%, #D9D9D6 100%)' : 'radial-gradient(ellipse at 50% 40%, #2A2A2E 0%, #121214 60%, #070708 100%)', perspective: 1800 * u }}>
-      <div style={{ position: 'absolute', left: '50%', top: '52%', width: w, height: h, transform: `translate(-50%, -50%) rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${-2 + t * 0.3}deg) scale(${interpolate(s, [0, 1], [0.86, 1.02]) + t * 0.006})`, transformStyle: 'preserve-3d' }}>
-        <div style={{ position: 'absolute', inset: -10 * u, borderRadius: 26 * u, background: light ? '#2B2B2F' : '#1C1C1F', boxShadow: light ? `0 ${60 * u}px ${80 * u}px rgba(0,0,0,0.28), 0 ${12 * u}px ${24 * u}px rgba(0,0,0,0.18)` : `0 ${60 * u}px ${90 * u}px rgba(0,0,0,0.75), 0 0 0 ${1.5 * u}px rgba(255,255,255,0.08)` }} />
-        <div style={{ position: 'absolute', inset: 0, borderRadius: 18 * u, overflow: 'hidden', backgroundColor: '#000' }}>
+  // Curvatura: tres franjas verticales del mismo video, las de los lados giradas hacia adentro.
+  const strip = (i: number) => {
+    const n = 5, sw = w / n, ang = (i - (n - 1) / 2) * -7;
+    return (
+      <div key={i} style={{ position: 'absolute', left: i * sw, top: 0, width: sw + 1, height: h, overflow: 'hidden', transform: `rotateY(${ang}deg) translateZ(${-Math.abs(i - (n - 1) / 2) * 14 * u}px)`, transformOrigin: '50% 50%' }}>
+        <div style={{ position: 'absolute', left: -i * sw, top: 0, width: w, height: h }}>
           <OffthreadVideo src={src} trimBefore={trimBefore} muted style={{ width: '100%', height: '100%', objectFit: 'cover', filter }} />
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(120deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, transparent 60%)' }} />
         </div>
       </div>
-      {/* Reflejo en el piso. */}
-      <div style={{ position: 'absolute', left: '50%', top: '74%', width: w * 0.8, height: 60 * u, transform: 'translateX(-50%)', borderRadius: '50%', background: light ? 'rgba(0,0,0,0.16)' : 'rgba(0,0,0,0.6)', filter: `blur(${30 * u}px)` }} />
+    );
+  };
+  return (
+    <AbsoluteFill style={{ background: light ? 'radial-gradient(ellipse at 50% 40%, #FFFFFF 0%, #EFEFED 55%, #DEDEDB 100%)' : 'radial-gradient(ellipse at 50% 40%, #2A2A2E 0%, #121214 60%, #070708 100%)', perspective: 1700 * u }}>
+      <div style={{ position: 'absolute', left: '50%', top: '56%', width: w, height: h, transform: `translate(-50%, -50%) rotateY(${ry}deg) rotateX(${rx}deg) scale(${interpolate(s, [0, 1], [0.86, 1]) + t * 0.006})`, transformStyle: 'preserve-3d' }}>
+        <div style={{ position: 'absolute', inset: -10 * u, borderRadius: 26 * u, background: '#1C1C1F', boxShadow: light ? `0 ${60 * u}px ${80 * u}px rgba(0,0,0,0.28)` : `0 ${60 * u}px ${90 * u}px rgba(0,0,0,0.75)`, transform: `translateZ(${-30 * u}px)` }} />
+        {Array.from({ length: 5 }, (_, i) => strip(i))}
+      </div>
+      <div style={{ position: 'absolute', left: '50%', top: '78%', width: w * 0.8, height: 60 * u, transform: 'translateX(-50%)', borderRadius: '50%', background: light ? 'rgba(0,0,0,0.16)' : 'rgba(0,0,0,0.6)', filter: `blur(${30 * u}px)` }} />
     </AbsoluteFill>
   );
 };

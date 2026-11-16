@@ -199,8 +199,15 @@ export const Scene = z.object({
     y: z.number().min(0).max(1).default(0.17),
     size: z.number().min(0.3).max(3).default(1),
     behind: z.boolean().default(false),
-    style: z.enum(['gigante', 'pildora', 'pantalla']).default('gigante'),
+    /** gigante: palabra grande · pildora: etiqueta · pantalla: texto que se escribe (*palabra* en rojo) · resaltado: caja amarilla · seleccion: caja roja con tiradores · tachado: palabra con raya roja · nota: papelito pegado · tarjeta: dato con barras (92%) · icono: tarjeta de app (axioma o chispa) · archivo: caja de selección con ícono y texto que se escribe · tira: línea de tiempo pequeña · ruta: curva de animación con puntos · miniaturas: collage de imágenes que entran volando (files) · chat: ventana de chat (text = mensaje; files[0] = adjunto que llega en «then») · mic: onda de voz con micrófono (text = lo que se pide). */
+    style: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic']).default('gigante'),
+    rotate: z.number().min(-45).max(45).optional(),
+    files: z.array(z.string()).optional(),
+    /** Segundos (desde el inicio de la escena) del segundo paso del elemento (el adjunto del chat, el cambio de texto). */
+    then: z.number().min(0).optional(),
   })).optional(),
+  /** Bajar a la persona en el cuadro (0..0,4 de la altura) para dejar aire arriba para las palabras. */
+  frameY: z.number().min(0).max(0.4).optional(),
   /** Foto real del escritorio para la «toma de escritorio»: imagen del proyecto con la pantalla transparente y las 4 esquinas de la pantalla (x,y de 0 a 1: arriba-izq, arriba-der, abajo-der, abajo-izq). Sin ella, la app dibuja el escritorio. */
   deskPhoto: z.object({ file: z.string(), screen: z.array(z.number()).length(8) }).optional(),
   /** Estilo «pizarra» (video explicativo dibujado): la imagen de la escena (brollFile) se dibuja a mano sobre papel y luego se colorea. lines: la misma imagen solo en líneas; title: el título de arriba (*palabra* va destacada); burst: globo de cómic («¡OJO!»); tag: la etiqueta de la serie arriba; draw: segundos que tarda en dibujarse (0 = aparece ya coloreada); hand: la mano con el plumón y la punta (0..1). */
