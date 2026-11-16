@@ -23,7 +23,11 @@ let seq = 0;
  * compartían el temporal y uno fallaba.
  */
 export async function writeProject(dir: string, project: Project) {
-  const parsed = Project.parse({ ...project, updatedAt: new Date().toISOString() });
+  // Cada guardado lleva una marca distinta de la anterior, aunque caiga en el mismo milisegundo:
+  // así «la exportación quedó vieja» (y cualquier comparación de versiones) nunca se pierde un cambio.
+  const prev = Date.parse(project.updatedAt ?? '');
+  const stamp = Math.max(Date.now(), Number.isFinite(prev) ? prev + 1 : 0);
+  const parsed = Project.parse({ ...project, updatedAt: new Date(stamp).toISOString() });
   const run = async () => {
     const tmp = path.join(dir, `${P.project}.${process.pid}.${++seq}.tmp`);
     await writeFile(tmp, JSON.stringify(parsed, null, 2));

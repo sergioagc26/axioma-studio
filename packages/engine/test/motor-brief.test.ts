@@ -124,6 +124,25 @@ describe('última exportación', () => {
     await E.recordExport(dir, { error: 'Se cerró el navegador' });
     expect(await E.lastExport(dir)).toMatchObject({ file: 'renders/exportado-1.mp4', error: 'Se cerró el navegador' });
   });
+
+  it('no se pierde nada si exportar, guardar y fallar caen en el mismo milisegundo', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
+      const dir = fakeProject('mismo-ms');
+      const p = await E.writeProject(dir, await E.readProject(dir));
+      const out = path.join(dir, 'renders', 'mismo-ms-1.mp4');
+      mkdirSync(path.dirname(out), { recursive: true });
+      writeFileSync(out, 'x');
+      await E.recordExport(dir, { out, projectUpdatedAt: p.updatedAt });
+      await E.writeProject(dir, p);
+      expect((await E.lastExport(dir))?.stale).toBe(true);
+      await E.recordExport(dir, { error: 'Se cerró el navegador' });
+      expect((await E.lastExport(dir))?.error).toBe('Se cerró el navegador');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('montaje: la música se elige antes de cortar', () => {

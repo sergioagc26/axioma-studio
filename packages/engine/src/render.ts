@@ -231,7 +231,7 @@ export async function lastExport(dir: string): Promise<{ file: string | null; pa
       hit = { file: rel.startsWith('..') ? null : rel.split(path.sep).join('/'), path: best.f, at: new Date(best.t).toISOString() };
     }
   }
-  const error = rec?.error && rec.errorAt && (!hit || rec.errorAt > hit.at) ? rec.error : undefined;
+  const error = rec?.error && rec.errorAt && (!hit || rec.errorAt >= hit.at) ? rec.error : undefined;
   if (!hit) return error ? { file: null, path: '', at: rec?.errorAt ?? '', stale: true, error } : null;
   // Cambió si su versión no es la exportada (o, sin ese dato, si se guardó después de exportar).
   const stale = hit.ref ? project.updatedAt !== hit.ref : project.updatedAt > hit.at;
