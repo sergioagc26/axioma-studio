@@ -196,6 +196,12 @@ export function cutByScript(
   const flush = () => {
     if (!group.length) return;
     const ranges = rangesOf(group);
+    // Dos filas dichas de corrido: el margen de cada corte se pisaría y se oiría un trozo dos veces.
+    const prev = scenes[scenes.length - 1]?.ranges.at(-1);
+    if (prev && ranges[0] && ranges[0].start >= prev.start && ranges[0].start < prev.end) {
+      ranges[0].start = prev.end;
+      if (ranges[0].end - ranges[0].start <= 0.05) ranges.shift();
+    }
     if (ranges.length) {
       const id = `s${String(scenes.length + 1).padStart(2, '0')}`;
       scenes.push(Scene.parse({ id, ranges, scriptText: group.map((l) => l.text).join(' ') }));

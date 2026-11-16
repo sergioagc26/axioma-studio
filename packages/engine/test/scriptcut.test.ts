@@ -121,6 +121,13 @@ describe('cutByScript', () => {
     expect(r.scenes[0].ranges[0].start).toBeGreaterThan(r.scenes[1].ranges[0].start);
   });
 
+  it('dos filas dichas de corrido no repiten audio entre escenas', () => {
+    const w = said('No sabe editar como un editor. Con la app corta las pausas en segundos.');
+    const r = cutByScript(w, ['No sabe editar como un editor.', 'Con la app corta las pausas en segundos.'], Pacing.parse({ maxPause: 0.3, pad: 0.15, punchZoomEvery: 0 }), 10);
+    expect(r.scenes).toHaveLength(2);
+    expect(r.scenes[1].ranges[0].start).toBeGreaterThanOrEqual(r.scenes[0].ranges.at(-1)!.end);
+  });
+
   it('con «primera» se queda con la primera toma completa', () => {
     const w = said('Primero, usa atajos de teclado. | Primero, usa atajos de teclado.');
     expect(cutByScript(w, ['Primero, usa atajos de teclado.'], pacing, 10, [], { take: 'primera' }).report.lines[0].chosenTake).toBe(1);
