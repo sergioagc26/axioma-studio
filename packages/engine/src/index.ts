@@ -65,3 +65,5 @@ export * from './stabilize.ts';
 export * from './machine.ts';
 export * from './settings.ts';
 export * from './drawn.ts';
+export * from './scriptcut.ts';
+export * from './avatar.ts';

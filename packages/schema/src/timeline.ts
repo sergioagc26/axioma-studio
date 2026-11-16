@@ -73,7 +73,10 @@ export type TimelineClip = {
   cameraAmount: number;
   videoScale: number;
   /** Se ve el video entero (con fondo desenfocado) en vez de recortarlo al cuadro. */
-  fit?: 'completo' | 'monitor';
+  fit?: 'completo' | 'monitor' | 'flotante';
+  floatBg?: 'claro' | 'oscuro';
+  /** Palabras gigantes de la escena (frames desde el inicio de la escena). */
+  words?: { text: string; from: number; to: number; color: 'blanco' | 'rojo' | 'amarillo' | 'negro'; x: number; y: number; size: number; behind: boolean; style: 'gigante' | 'pildora' | 'pantalla' }[];
   /** Foto real del escritorio (toma de escritorio): la imagen y las 4 esquinas de la pantalla. */
   desk?: { src: string; screen: number[] };
   /** Estilo pizarra: la imagen se dibuja a mano y luego se colorea (ver Scene.drawing). */
@@ -338,7 +341,9 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             camera: scene.camera,
             cameraAmount: scene.cameraAmount,
             videoScale: scene.videoScale,
-            fit: scene.videoFit === 'completo' || scene.videoFit === 'monitor' ? scene.videoFit : undefined,
+            fit: scene.videoFit === 'completo' || scene.videoFit === 'monitor' || scene.videoFit === 'flotante' ? scene.videoFit : undefined,
+            floatBg: scene.floatBg,
+            words: scene.words?.length ? scene.words.map((w, wi, all) => ({ text: w.text, from: Math.round(w.at * fps), to: Math.round((w.until ?? all[wi + 1]?.at ?? 999) * fps), color: w.color, x: w.x, y: w.y, size: w.size, behind: w.behind, style: w.style })) : undefined,
             drawing: scene.drawing && urls.asset ? { lines: urls.asset(scene.drawing.lines), title: scene.drawing.title, burst: scene.drawing.burst, tag: scene.drawing.tag, draw: scene.drawing.draw, hand: scene.drawing.hand ? { ...scene.drawing.hand, src: urls.asset(scene.drawing.hand.file) } : undefined, sameTitle: Boolean(scene.drawing.title) && project.scenes[project.scenes.indexOf(scene) - 1]?.drawing?.title === scene.drawing.title } : undefined,
             desk: scene.videoFit === 'monitor' && scene.deskPhoto && urls.asset ? { src: urls.asset(scene.deskPhoto.file), screen: scene.deskPhoto.screen } : undefined,
             backdrop: urls.cutout && scene.backdrop !== 'ninguno' && hasPerson(urls.cutoutCoverage, pc.start, pc.end) ? scene.backdrop : undefined,

@@ -27,6 +27,10 @@ export const Guion: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [voice, setVoice] = useState('');
   const [tags, setTags] = useState<{ value: string; label: string }[]>([]);
   const [prompter, setPrompter] = useState(false);
+  // Cortar con el guion (videos hablados): el texto que la persona pensaba decir.
+  const [cutText, setCutText] = useState(project.scriptCut?.text ?? '');
+  const [take, setTake] = useState<'ultima' | 'mejor' | 'primera'>(project.scriptCut?.take ?? 'ultima');
+  const cut = project.scriptCut;
   const montage = project.kind === 'montaje';
   const aiVoice = store.catalog.voices.includes('qwen');
 
@@ -36,6 +40,7 @@ export const Guion: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       if (!live) return;
       setG(x); setLoaded(true);
       if (x) { setIdea(x.idea); setEstructura(x.estructura); setDuracion(x.duracion); setTono(x.tono); setVoice(x.voz ?? ''); }
+      if (x && !project.scriptCut?.text) setCutText(x.filas.map((f) => f.voz.trim()).filter(Boolean).join('\n'));
     }).catch(() => setLoaded(true));
     // Qué hay grabado (etiquetas de las tomas), para elegir la toma de cada fila.
     if (montage) api<{ id: string; tag?: string; file?: string }[]>(`/api/tomas?id=${pid}`).then((s) => { if (live) setTags([...[...new Set(s.map((x) => x.tag).filter((t): t is string => Boolean(t)))].map((t) => ({ value: t, label: `Cualquiera de: ${t}` })), ...s.map((x) => ({ value: x.id, label: `Toma ${x.id.slice(1)}${x.tag ? ` · ${x.tag}` : ''}` }))]); }).catch(() => {});
@@ -75,6 +80,20 @@ export const Guion: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ctx.go('listo', { p: project.id });
     } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
   };
+
+  const cutWithScript = async () => {
+    if (!cutText.trim()) { ctx.toast('Pega primero el guion que pensabas decir.'); return; }
+    if (project.scenes.length && !confirm('Esto rehace las escenas del video según el guion (la versión actual queda guardada en Versiones). ¿Seguir?')) return;
+    setBusy('Buscando cada frase del guion en la grabación…');
+    try {
+      const done = await waitJob(await op({ op: 'guion-cortar', text: cutText, take }), (j) => setBusy(j.message));
+      const d = await api(`/api/project?id=${pid}`);
+      store.replace(d.project);
+      const missing = (done.result?.corte as { missing?: string[] } | undefined)?.missing ?? [];
+      ctx.toast(missing.length ? `Video cortado con tu guion. Ojo: ${missing.length} frase(s) no se encontraron en la grabación.` : 'Video cortado con tu guion: todas las frases encontradas.');
+    } catch (e: any) { ctx.toast(e.message); } finally { setBusy(''); }
+  };
+  const loadFile = (f?: File) => { if (f) f.text().then((t) => setCutText(t)).catch(() => ctx.toast('No pude leer el archivo.')); };
 
   const total = g ? guionSeconds({ filas: g.filas.map((f) => ({ ...f, segundos: Math.max(0.8, spokenSeconds(f.voz)) })) }) : 0;
   let t = 0;
@@ -120,6 +139,49 @@ export const Guion: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           {busy && <span className="small muted" role="status">{busy}</span>}
         </div>
       </div>
+
+      {!montage && (
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <strong className="row"><Icon name="scissors" /> Cortar el video con mi guion</strong>
+          <span className="small muted">Pega (o sube) lo que pensabas decir, una frase o párrafo por línea. La app busca cada frase en tu grabación, se queda con una toma de cada una, quita lo que dijiste fuera del guion, las muletillas y los silencios, y arma las escenas en el orden del guion.</span>
+          <textarea rows={7} value={cutText} onChange={(e) => setCutText(e.target.value)} placeholder={'Hoy te enseño tres trucos para editar más rápido.\nPrimero, usa atajos de teclado.\n…'} aria-label="Guion para cortar el video" />
+          <div className="row" style={{ flexWrap: 'wrap', gap: 10 }}>
+            <label className="btn rect" style={{ cursor: 'pointer' }}><Icon name="export" /> Subir .txt
+              <input type="file" accept=".txt,.md,text/plain,text/markdown" style={{ display: 'none' }} onChange={(e) => { loadFile(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {g && guionVoice(g) && <button className="btn ghost" onClick={() => setCutText(g.filas.map((f) => f.voz.trim()).filter(Boolean).join('\n'))}>Usar el guion de abajo</button>}
+            <label className="field" style={{ minWidth: 240 }}>Si una frase se grabó varias veces
+              <select value={take} onChange={(e) => setTake(e.target.value as typeof take)}>
+                <option value="ultima">Quedarme con la última toma completa</option>
+                <option value="primera">Quedarme con la primera toma completa</option>
+                <option value="mejor">La que dice más palabras del guion</option>
+              </select>
+            </label>
+            <button className="btn primary" disabled={Boolean(busy) || !cutText.trim()} onClick={cutWithScript}><Icon name="scissors" /> Cortar con este guion</button>
+          </div>
+          {cut && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span className="small muted">Último corte: {cut.sourceDuration.toFixed(0)} s → {cut.outputDuration.toFixed(1)} s · se quitaron {cut.removedRetakeWords} palabras de tomas repetidas, {cut.removedOffScriptWords} fuera del guion y {cut.removedFillers} muletillas.</span>
+              {cut.missing.length > 0 && (
+                <div className="small" role="alert" style={{ border: '1px solid var(--warn, #E0A100)', borderRadius: 10, padding: '8px 12px' }}>
+                  <strong className="row"><Icon name="warning" /> No encontré en la grabación {cut.missing.length === 1 ? 'esta frase' : 'estas frases'} del guion</strong>
+                  <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{cut.missing.map((m, i) => <li key={i}>«{m}»</li>)}</ul>
+                </div>
+              )}
+              <table className="small" style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <thead><tr style={{ textAlign: 'left' }}><th style={{ padding: 4 }}>Escena</th><th style={{ padding: 4 }}>Frase del guion</th><th style={{ padding: 4 }}>Toma</th></tr></thead>
+                <tbody>{cut.lines.map((l, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid var(--line)', opacity: l.found ? 1 : 0.7 }}>
+                    <td style={{ padding: 4, whiteSpace: 'nowrap' }}>{l.found && l.sceneId ? <a href="#" onClick={(e) => { e.preventDefault(); ctx.go('editor', { p: project.id, s: l.sceneId! }); }}>{l.sceneId}</a> : '—'}</td>
+                    <td style={{ padding: 4 }}>{l.text}</td>
+                    <td style={{ padding: 4, whiteSpace: 'nowrap' }}>{!l.found ? 'No se encontró' : `${l.takes > 1 ? `${l.chosenTake} de ${l.takes}` : 'única'} · ${l.start?.toFixed(1)} s${l.coverage < 0.85 ? ` · incompleta (${Math.round(l.coverage * 100)} %)` : ''}`}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {g && (
         <>

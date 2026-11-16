@@ -66,6 +66,7 @@ import { addBankSound, searchSounds } from './sounds.ts';
 import { downloadBroll, searchBroll } from './pexels.ts';
 import { envValue, keyStatus, removeEnvValue, setEnvValue } from './env.ts';
 import { applyScript, readScript, resyncToVoice, saveScript, writeScript } from './script.ts';
+import { cutProjectToScript } from './scriptcut.ts';
 import { TAG_NAMES, setShotTag, tagShots } from './voicesync.ts';
 import { Guion, PROJECT_SHAPES, guionMarkdown, type ProjectShape } from '@axioma/schema';
 import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
@@ -819,6 +820,19 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         j.message = 'Escribiendo el guion…';
         return { guion: await writeScript(dir, { idea: b.idea || undefined, estructura: b.estructura || undefined, duracion: Number(b.duracion) || undefined, tono: b.tono || undefined, voz: b.voz || undefined }) };
       });
+      return json(res, job);
+    }
+    if (b.op === 'guion-cortar') {
+      // Video hablado: se queda con lo que dice el guion (mejor toma de cada frase, en su orden).
+      const busy = runningJob(pid, 'crear', 'editar');
+      if (busy) return json(res, busy);
+      const job = startJob('crear', async (j) => {
+        j.message = 'Buscando cada frase del guion en la grabación…';
+        await ops.saveVersion(dir, 'antes-del-corte-con-guion').catch(() => {});
+        const take = ['ultima', 'mejor', 'primera'].includes(b.take) ? b.take : 'ultima';
+        return { corte: await cutProjectToScript(dir, { text: typeof b.text === 'string' ? b.text : undefined, take }) };
+      });
+      Object.assign(job, { tag: 'editar' });
       return json(res, job);
     }
     if (b.op === 'guion-aplicar') {

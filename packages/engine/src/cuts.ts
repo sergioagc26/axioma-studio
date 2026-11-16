@@ -1,7 +1,7 @@
 import { Scene, sceneLength, type Pacing, type Range, type Word } from '@axioma/schema';
 
 /** Muletillas puras. No incluye palabras reales como "este" o "bueno". */
-const FILLERS = new Set(['eh', 'ehh', 'eeh', 'em', 'emm', 'mm', 'mmm', 'hmm', 'ah', 'ahh', 'uh', 'um', 'ehm']);
+export const FILLERS = new Set(['eh', 'ehh', 'eeh', 'em', 'emm', 'mm', 'mmm', 'hmm', 'ah', 'ahh', 'uh', 'um', 'ehm']);
 const SENTENCE_END = /[.!?…]$/;
 const PHRASE_PAUSE = 0.7;
 

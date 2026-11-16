@@ -128,6 +128,8 @@ export const Scene = z.object({
   trimStart: z.number().default(0),
   trimEnd: z.number().default(0),
   visual: SceneVisual.default('original'),
+  /** Frase(s) del guion que se dicen en esta escena (cuando se cortó con el guion). */
+  scriptText: z.string().optional(),
   onScreenText: z.string().optional(),
   /** Texto que puso un estilo (no el usuario): si sigue igual, otro estilo lo puede cambiar. */
   autoText: z.string().optional(),
@@ -184,7 +186,21 @@ export const Scene = z.object({
   /** Tamaño del video dentro del cuadro (1 = llena la pantalla; menos deja ver un fondo desenfocado). */
   videoScale: z.number().min(0.4).max(2.5).default(1),
   /** «completo»: se ve el video entero aunque su forma no sea la del cuadro (una grabación de pantalla horizontal en un reel), con el mismo video desenfocado detrás. «monitor»: el video dentro de un monitor sobre un escritorio, como una toma grabada con el celular. */
-  videoFit: z.enum(['cubrir', 'completo', 'monitor']).optional(),
+  videoFit: z.enum(['cubrir', 'completo', 'monitor', 'flotante']).optional(),
+  /** Fondo de la pantalla flotante («flotante»): claro (estudio) u oscuro. */
+  floatBg: z.enum(['claro', 'oscuro']).optional(),
+  /** Palabras gigantes al ritmo de la voz (reels de creador): at/until en segundos desde el inicio de la escena; behind = detrás de la persona (necesita el recorte del proyecto). */
+  words: z.array(z.object({
+    text: z.string(),
+    at: z.number().min(0),
+    until: z.number().min(0).optional(),
+    color: z.enum(['blanco', 'rojo', 'amarillo', 'negro']).default('blanco'),
+    x: z.number().min(0).max(1).default(0.5),
+    y: z.number().min(0).max(1).default(0.17),
+    size: z.number().min(0.3).max(3).default(1),
+    behind: z.boolean().default(false),
+    style: z.enum(['gigante', 'pildora', 'pantalla']).default('gigante'),
+  })).optional(),
   /** Foto real del escritorio para la «toma de escritorio»: imagen del proyecto con la pantalla transparente y las 4 esquinas de la pantalla (x,y de 0 a 1: arriba-izq, arriba-der, abajo-der, abajo-izq). Sin ella, la app dibuja el escritorio. */
   deskPhoto: z.object({ file: z.string(), screen: z.array(z.number()).length(8) }).optional(),
   /** Estilo «pizarra» (video explicativo dibujado): la imagen de la escena (brollFile) se dibuja a mano sobre papel y luego se colorea. lines: la misma imagen solo en líneas; title: el título de arriba (*palabra* va destacada); burst: globo de cómic («¡OJO!»); tag: la etiqueta de la serie arriba; draw: segundos que tarda en dibujarse (0 = aparece ya coloreada); hand: la mano con el plumón y la punta (0..1). */
@@ -332,6 +348,41 @@ export const Request = z.object({
   time: z.number().optional(),
 });
 
+/** Una frase del guion escrito y lo que el corte encontró de ella en la grabación. */
+export const ScriptCutLine = z.object({
+  /** Fila (párrafo o fila del guion) a la que pertenece, desde 0. */
+  row: z.number().int(),
+  text: z.string(),
+  found: z.boolean(),
+  /** Cuántas veces se grabó (tomas reconocibles). */
+  takes: z.number().int().default(0),
+  /** Qué toma quedó (1 = la primera que se grabó). */
+  chosenTake: z.number().int().optional(),
+  /** Tramo de la grabación de la toma elegida (s). */
+  start: z.number().optional(),
+  end: z.number().optional(),
+  /** Parte de la frase del guion que sí se dijo en esa toma (0–1). */
+  coverage: z.number().default(0),
+  sceneId: z.string().optional(),
+});
+export type ScriptCutLine = z.infer<typeof ScriptCutLine>;
+
+export const ScriptCut = z.object({
+  at: z.string(),
+  /** El guion tal como se pegó. */
+  text: z.string(),
+  take: z.enum(['ultima', 'mejor', 'primera']).default('ultima'),
+  lines: z.array(ScriptCutLine).default([]),
+  /** Frases del guion que no se encontraron en la grabación. */
+  missing: z.array(z.string()).default([]),
+  removedFillers: z.number().default(0),
+  removedRetakeWords: z.number().default(0),
+  removedOffScriptWords: z.number().default(0),
+  sourceDuration: z.number().default(0),
+  outputDuration: z.number().default(0),
+});
+export type ScriptCut = z.infer<typeof ScriptCut>;
+
 export const Project = z.object({
   version: z.literal(SCHEMA_VERSION),
   id: z.string(),
@@ -437,6 +488,8 @@ export const Project = z.object({
   assets: z.array(Asset).default([]),
   approval: z.enum(['borrador', 'en_revision', 'aprobado']).default('borrador'),
   requests: z.array(Request).default([]),
+  /** Último corte hecho con el guion escrito: qué frase quedó en cada escena y cuáles faltan. */
+  scriptCut: ScriptCut.optional(),
   /** Enlace de revisión para el cliente: la clave que da acceso solo a este reel. */
   review: z.object({ token: z.string(), createdAt: z.string() }).optional(),
 });

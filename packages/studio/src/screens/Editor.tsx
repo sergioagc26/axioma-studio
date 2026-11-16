@@ -1198,6 +1198,11 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
               <h2 style={{ fontSize: 18 }}>Escena {idx + 1} · {scene.title || ROLE_LABEL[scene.role]}</h2>
               <span className="small muted">{((spans[idx]?.dur ?? 0) / timeline.fps).toFixed(1)} s</span>
             </div>
+            {scene.scriptText && (
+              <div className="small" style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--panel2)' }} title="Esta escena salió de cortar el video con tu guion">
+                <strong>Frase del guion:</strong> «{scene.scriptText}»
+              </div>
+            )}
             <label className="field">Título
               <input key={scene.id + 't' + scene.title} defaultValue={scene.title} onBlur={(e) => e.target.value !== scene.title && edit((s) => { s.title = e.target.value; })} />
             </label>
@@ -1344,6 +1349,7 @@ export const Editor: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <Slider label="Tamaño del video" value={scene.videoScale} min={0.4} max={2.5} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.videoScale = v; })} />
             <label className="row small" style={{ gap: 8 }}><input type="checkbox" checked={scene.videoFit === 'completo'} onChange={(e) => edit((s) => { s.videoFit = e.target.checked ? 'completo' : undefined; })} /> Ver el video completo (pantallas horizontales en un reel)</label>
             <label className="row small" style={{ gap: 8 }}><input type="checkbox" checked={scene.videoFit === 'monitor'} onChange={(e) => edit((s) => { s.videoFit = e.target.checked ? 'monitor' : undefined; })} /> Toma de escritorio (el video dentro de un monitor, como grabado con el celular)</label>
+            <label className="row small" style={{ gap: 8 }}><input type="checkbox" checked={scene.videoFit === 'flotante'} onChange={(e) => edit((s) => { s.videoFit = e.target.checked ? 'flotante' : undefined; })} /> Pantalla flotando en 3D (grabaciones de pantalla)</label>
             <span className="small muted help">Menos de 100 % lo deja como una tarjeta con tu video desenfocado de fondo; más lo acerca.</span>
             <Slider label="Fuerza del movimiento" value={scene.cameraAmount} min={0.03} max={0.5} step={0.01} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.cameraAmount = v; })} />
             <Slider label="Brillo" value={scene.brightness} min={0.5} max={1.6} step={0.02} show={(v) => `${Math.round(v * 100)} %`} onCommit={(v) => edit((s) => { s.brightness = v; })} />

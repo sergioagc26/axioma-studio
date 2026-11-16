@@ -14,6 +14,7 @@ import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import { ease, isKeyword, keywordOf, layerStyle } from '@axioma/schema';
 import { DeskShot } from './Desk.tsx';
 import { Drawn } from './Drawn.tsx';
+import { FloatScreen, Words } from './Kinetic.tsx';
 import { loadFont as loadPlayfair } from '@remotion/google-fonts/PlayfairDisplay';
 import { loadFont as loadRubik } from '@remotion/google-fonts/Rubik';
 import { loadFont as loadRaleway } from '@remotion/google-fonts/Raleway';
@@ -490,7 +491,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const mfont = useFont(clip.motion?.style?.font ?? '');
-  const dfont = { sans: useFont('Sora'), serif: useFont('Playfair Display'), comic: useFont('Bangers'), mono: useFont('Space Mono') };
+  const dfont = { sans: useFont('Sora'), serif: useFont('Playfair Display'), comic: useFont('Bangers'), mono: useFont('Space Mono'), kinetic: useFont('Plus Jakarta Sans') };
   const { cover, pos, filter } = clipView(clip, t, frame, fps);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
@@ -525,6 +526,9 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
       ) : clip.drawing && clip.brollSrc ? (
         // Estilo pizarra: la imagen de la escena se dibuja a mano sobre papel y luego se colorea.
         <Drawn spec={{ color: clip.brollSrc, ...clip.drawing }} f={clip.sceneOffsetFrames + frame} fps={fps} width={t.width} height={t.height} font={dfont.sans} serif={dfont.serif} comic={dfont.comic} mono={dfont.mono} />
+      ) : clip.fit === 'flotante' && clip.brollSrc ? (
+        // Grabación de pantalla flotando en 3D (reels de creador).
+        <FloatScreen src={clip.brollSrc} trimBefore={clip.sceneOffsetFrames} f={clip.sceneOffsetFrames + frame} fps={fps} width={t.width} height={t.height} bg={clip.floatBg ?? 'claro'} filter={filter} />
       ) : clip.fit === 'monitor' ? (
         // Toma de escritorio: el video del proyecto o el b-roll (una grabación de pantalla) dentro del monitor.
         <DeskShot src={clip.brollSrc ?? t.videoSrc} trimBefore={clip.brollSrc ? clip.sceneOffsetFrames : clip.sourceStartFrame} absFrame={clip.fromFrame + frame} fps={fps} width={t.width} height={t.height} accent={t.brand.primary} name={t.brand.name} font={font} filter={filter} photo={clip.desk} />
@@ -560,6 +564,20 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         />
       )}
         {clip.vignette > 0 ? <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${0.85 * clip.vignette}) 100%)`, pointerEvents: 'none' }} /> : null}
+        {clip.words?.length ? (() => {
+          // Palabras gigantes: las de «detrás» van bajo la persona recortada, las demás encima.
+          const wf = clip.sceneOffsetFrames + frame;
+          const person = !clip.brollSrc && !clip.motion && clip.visual === 'original' && t.cutoutSrc;
+          return (
+            <>
+              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} layer="detras" />
+              {person && clip.words.some((w) => w.behind && wf >= w.from && wf < w.to) ? (
+                <AbsoluteFill><OffthreadVideo src={t.cutoutSrc!} transparent trimBefore={clip.sourceStartFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }} /></AbsoluteFill>
+              ) : null}
+              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} layer="delante" />
+            </>
+          );
+        })() : null}
       </AbsoluteFill>
       {tr?.spec.destello ? (
         <AbsoluteFill style={{ backgroundColor: tr.spec.destello.color, opacity: tr.spec.destello.pico * Math.sin(Math.PI * Math.min(1, frame / tr.frames)) }} />

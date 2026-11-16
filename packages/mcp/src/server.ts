@@ -84,6 +84,33 @@ export function createServer() {
     },
   );
 
+  tool(
+    'crear_avatar',
+    'Crea la cara de un AVATAR DE IA: una persona ficticia, fotorrealista, en plano medio vertical mirando a cámara (lo que mejor se anima). Tarda unos 5 minutos. Nunca describas ni imites a una persona real. Después usa avatar_hablando.',
+    {
+      descripcion: z.string().describe('Cómo es: edad, pelo, ropa, fondo. Ej.: «mujer latina de 28 años, pelo castaño ondulado, camiseta verde petróleo, estudio oscuro con luces cálidas»'),
+      archivo: z.string().describe('Ruta absoluta donde guardar la foto (.png)'),
+      semilla: z.number().int().optional(),
+    },
+    async ({ descripcion, archivo, semilla }) => `Cara del avatar guardada en ${await E.createAvatarFace(descripcion, archivo, semilla)}. Mírala antes de usarla.`,
+  );
+
+  tool(
+    'avatar_hablando',
+    'Hace que un avatar de IA diga un guion: genera la voz y anima la cara (boca, parpadeo, gestos) en este computador. Tarda unos 2 minutos por segundo de voz. Devuelve un video vertical «hablando a cámara» que se edita con crear_proyecto como cualquier otro. Al publicar, márcalo como hecho con IA.',
+    {
+      cara: z.string().describe('Foto del avatar (de crear_avatar)'),
+      guion: z.string().describe('Lo que dice el avatar'),
+      salida: z.string().describe('Ruta absoluta del video (.mp4)'),
+      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      voz: z.string().optional(),
+    },
+    async ({ cara, guion, salida, proveedor_voz, voz }) => {
+      if (!E.avatarReady()) return 'Falta el motor de avatares: corre scripts/instalar-avatares.sh una vez (unos 3 GB).';
+      return `Video del avatar listo: ${await E.avatarVideo({ face: cara, text: guion, out: salida, provider: proveedor_voz, voice: voz, onProgress: log })}`;
+    },
+  );
+
   tool('leer_proyecto', 'Resumen del proyecto: brief, escenas, variantes, estado.', { proyecto }, async ({ proyecto }) => {
     const dir = await resolveProject(proyecto);
     return E.summarize(await E.readProject(dir), dir);
@@ -928,6 +955,22 @@ export function createServer() {
     const g = await E.readScript(await resolveProject(proyecto));
     return g ? S.guionMarkdown(g) : 'Este proyecto todavía no tiene guion. Usa escribir_guion o guardar_guion.';
   });
+
+  tool(
+    'cortar_con_guion',
+    'Corta un video hablado a cámara según el guion que la persona pensaba decir: busca cada frase del guion en la transcripción palabra por palabra, se queda solo con lo que corresponde al guion, elige una toma cuando una frase se grabó varias veces (por defecto la última completa), quita lo dicho fuera del guion, muletillas y silencios, y arma las escenas en el orden del guion. Reemplaza el storyboard (guarda una versión antes). Devuelve qué frase quedó en cada escena y avisa las frases del guion que no están en la grabación. Sin «guion», usa la voz del guion guardado del proyecto.',
+    {
+      proyecto,
+      guion: z.string().optional().describe('El texto del guion: una fila por línea (cada línea puede tener varias frases). Las acotaciones entre paréntesis o corchetes se ignoran.'),
+      toma: z.enum(['ultima', 'mejor', 'primera']).default('ultima').describe('Qué toma se queda cuando una frase se grabó varias veces: la última completa (lo normal), la primera completa o la que dice más palabras del guion.'),
+    },
+    async ({ proyecto, guion, toma }) => {
+      const dir = await resolveProject(proyecto);
+      await E.saveVersion(dir, 'antes-del-corte-con-guion').catch(() => {});
+      const r = await E.cutProjectToScript(dir, { text: guion, take: toma });
+      return `${E.formatScriptCut(r)}\n\n${E.summarize(await E.readProject(dir), dir)}`;
+    },
+  );
 
   tool(
     'guardar_guion',
