@@ -28,6 +28,7 @@ async function call<T>(url: string, init: RequestInit = {}): Promise<T> {
   try { body = JSON.parse(text); } catch { /* respuesta no JSON */ }
   if (!r.ok || body?.error) {
     const msg = body?.error?.message ?? body?.message ?? text.slice(0, 200);
+    if (r.status === 402) throw new Error('Tu cuenta de HeyGen no tiene créditos de API. La API se paga aparte del plan de la web: compra créditos de API en app.heygen.com › Settings › API (o en heygen.com/api-pricing) y vuelve a intentarlo.');
     if (r.status === 401 || r.status === 403) throw new Error('HeyGen no aceptó la clave: revisa que sea la de API (Settings › API) y que tu plan tenga acceso a la API.');
     throw new Error(`HeyGen respondió con un error (${r.status}): ${msg}`);
   }
