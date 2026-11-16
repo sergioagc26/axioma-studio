@@ -440,9 +440,21 @@ const Progress: React.FC<{ t: Timeline }> = ({ t }) => {
  * y la capa de «comida por delante», que tiene que calzar pixel a pixel con ella.
  */
 function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
-  const zoom = clip.punchZoom
-    ? interpolate(spring({ frame, fps, config: { damping: 14, stiffness: 180 } }), [0, 1], [1.18, 1.08])
-    : 1;
+  // Acercamientos de golpe: con palabras gigantes, cada palabra que entra salta el encuadre
+  // (cerca, lejos, cerca…) con un muelle corto, como los cortes de un editor; sin palabras, un
+  // golpe de zoom al entrar a la escena.
+  const sceneF = clip.sceneOffsetFrames + frame;
+  const beats = clip.punchZoom && clip.words?.length ? clip.words.filter((w) => !['miniaturas', 'chat', 'tira', 'ruta', 'tarjeta', 'icono', 'nota', 'mic'].includes(w.style)).map((w) => w.from).filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y) : [];
+  let zoom = 1;
+  if (beats.length) {
+    let n = 0;
+    while (n < beats.length && beats[n] <= sceneF) n++;
+    const lvl = (k: number) => (k <= 0 ? 1.04 : [1.17, 1.04, 1.24, 1.1][(k - 1) % 4]);
+    const p = n > 0 ? spring({ frame: sceneF - beats[n - 1], fps, config: { damping: 20, stiffness: 320 }, durationInFrames: 5 }) : 1;
+    zoom = interpolate(p, [0, 1], [lvl(n - 1), lvl(n)]);
+  } else if (clip.punchZoom) {
+    zoom = interpolate(spring({ frame, fps, config: { damping: 14, stiffness: 180 } }), [0, 1], [1.18, 1.08]);
+  }
   // Movimiento de cámara continuo a lo largo de toda la escena.
   const at = Math.min(1, (clip.sceneOffsetFrames + frame) / Math.max(1, clip.sceneFrames));
   const amt = clip.cameraAmount;
@@ -569,7 +581,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
         />
       )}
         {clip.vignette > 0 ? <AbsoluteFill style={{ background: `radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,${0.85 * clip.vignette}) 100%)`, pointerEvents: 'none' }} /> : null}
-        {clip.frameY ? <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: `${clip.frameY * 100 + 9}%`, background: `linear-gradient(180deg, #050506 0%, #050506 ${(clip.frameY * 100) / (clip.frameY * 100 + 9) * 100 - 2}%, transparent 100%)`, pointerEvents: 'none' }} /> : null}
+        {clip.frameY && !clip.backdrop ? <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: `${clip.frameY * 100 + 9}%`, background: `linear-gradient(180deg, #050506 0%, #050506 ${(clip.frameY * 100) / (clip.frameY * 100 + 9) * 100 - 2}%, transparent 100%)`, pointerEvents: 'none' }} /> : null}
         {clip.words?.length ? (() => {
           // Palabras gigantes: las de «detrás» van bajo la persona recortada, las demás encima.
           const wf = clip.sceneOffsetFrames + frame;
