@@ -67,3 +67,4 @@ export * from './settings.ts';
 export * from './drawn.ts';
 export * from './scriptcut.ts';
 export * from './avatar.ts';
+export * from './heygen.ts';

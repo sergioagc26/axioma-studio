@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { api } from './useProject.ts';
 import { Icon } from './Icon.tsx';
 
-type Keys = { pexels: boolean; pixabay: boolean; freesound: boolean; elevenlabs: boolean };
+type Keys = { pexels: boolean; pixabay: boolean; freesound: boolean; elevenlabs: boolean; heygen?: boolean };
 let memo: Promise<Keys> | null = null;
-const loadKeys = (fresh = false) => (memo = fresh || !memo ? api<Keys>('/api/claves').catch(() => ({ pexels: false, pixabay: false, freesound: false, elevenlabs: false })) : memo);
+const loadKeys = (fresh = false) => (memo = fresh || !memo ? api<Keys>('/api/claves').catch((): Keys => ({ pexels: false, pixabay: false, freesound: false, elevenlabs: false, heygen: false })) : memo);
 
 /** ¿Está puesta la clave de este banco? null mientras se comprueba. */
 export function useBankKey(banco: keyof Keys): [boolean | null, () => void] {
   const [ok, setOk] = useState<boolean | null>(null);
-  const check = (fresh = false) => { loadKeys(fresh).then((k) => setOk(k[banco])); };
+  const check = (fresh = false) => { loadKeys(fresh).then((k) => setOk(Boolean(k[banco]))); };
   useEffect(() => { check(); }, [banco]);
   return [ok, () => check(true)];
 }
@@ -41,6 +41,7 @@ const SERVICES: { id: keyof Keys; name: string; link: string; cost: string; unlo
   { id: 'pexels', name: 'Pexels', link: 'https://www.pexels.com/api/', cost: 'Gratis (ya no da claves nuevas)', unlocks: 'Otro banco de videos de apoyo. No hace falta si ya tienes la de Pixabay; si la tienes, se usa primero.' },
   { id: 'freesound', name: 'Freesound', link: 'https://freesound.org/apiv2/apply', cost: 'Gratis · Recomendada', unlocks: 'Música automática para tus videos y efectos de sonido. Sin esta clave, la app solo usa las canciones que subas tú: si no subes ninguna, tus videos salen sin música.' },
   { id: 'elevenlabs', name: 'ElevenLabs', link: 'https://elevenlabs.io/app/settings/api-keys', cost: 'De pago (opcional)', unlocks: 'Voz natural en la voz en off y el doblaje (sin ella se usa la voz del computador).' },
+  { id: 'heygen', name: 'HeyGen', link: 'https://app.heygen.com/settings?nav=API', cost: 'De pago (opcional)', unlocks: 'Usar tus avatares de HeyGen: dicen tu guion con tu voz y la app edita el video. Gasta créditos de tu plan de HeyGen.' },
 ];
 
 /** Todas las claves en un solo lugar: qué desbloquea cada una, si está puesta y dónde sacarla. */

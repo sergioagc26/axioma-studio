@@ -84,6 +84,36 @@ export function createServer() {
     },
   );
 
+  tool('heygen_avatares', 'Tus avatares de HeyGen (y fotos que hablan): id, nombre y vista previa. Necesita la clave de HeyGen en Claves.', {}, async () => {
+    const list = await E.heygenAvatars();
+    if (!list.length) return 'Tu cuenta de HeyGen no tiene avatares.';
+    return list.map((a) => `${a.kind === 'foto' ? 'foto' : 'avatar'} · ${a.name} · id ${a.id}${a.preview ? ` · ${a.preview}` : ''}`).join('\n');
+  });
+
+  tool(
+    'heygen_hablando',
+    'Un avatar de HeyGen dice un guion: genera la voz con la app (ElevenLabs u otra) o usa una voz de HeyGen, HeyGen anima tu avatar y la app baja el video vertical, listo para editarlo con crear_proyecto. Gasta créditos de tu plan de HeyGen. Solo avatares con consentimiento (tu gemelo, de stock o autorizados); al publicar, márcalo como hecho con IA.',
+    {
+      avatar: z.string().describe('Id del avatar (de heygen_avatares)'),
+      tipo: z.enum(['avatar', 'foto']).default('avatar'),
+      guion: z.string().describe('Lo que dice el avatar'),
+      salida: z.string().describe('Ruta absoluta del video (.mp4)'),
+      voz_heygen: z.string().optional().describe('Id de una voz de HeyGen; sin esto, la voz la hace la app (proveedor_voz/voz)'),
+      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      voz: z.string().optional(),
+    },
+    async ({ avatar, tipo, guion, salida, voz_heygen, proveedor_voz, voz }) => {
+      let audio: string | undefined;
+      if (!voz_heygen) {
+        audio = salida.replace(/\.mp4$/i, '') + '-voz.mp3';
+        log('Generando la voz…');
+        await E.synthesize(guion, audio, { provider: proveedor_voz, voice: voz });
+      }
+      const out = await E.heygenVideo({ avatarId: avatar, kind: tipo, out: salida, audio, text: voz_heygen ? guion : undefined, voiceId: voz_heygen, onProgress: log });
+      return `Video de tu avatar de HeyGen listo: ${out}`;
+    },
+  );
+
   tool(
     'crear_avatar',
     'Crea la cara de un AVATAR DE IA: una persona ficticia, fotorrealista, en plano medio vertical mirando a cámara (lo que mejor se anima). Tarda unos 5 minutos. Nunca describas ni imites a una persona real. Después usa avatar_hablando.',
