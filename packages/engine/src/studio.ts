@@ -8,7 +8,7 @@ import { AI_VOICES } from '@axioma/schema';
 import { cancelScope, isCancelled, newCancelScope, runCancellable, type CancelScope } from './cancel.ts';
 import { dictate, downloadReference, igSession, linkKind, profileVideos, removeIgCookies, saveIgCookies, setIgSession, type IgSessionMode } from './refsource.ts';
 import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync, watch } from 'node:fs';
+import { createWriteStream, existsSync, watch, readdirSync } from 'node:fs';
 import { appendFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
@@ -427,10 +427,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/projects' && method === 'GET') {
     const all = await ops.listProjects();
     const making = new Set([...jobs.values()].filter((j) => j.kind === 'nuevo' && j.status === 'running' && j.projectId).map((j) => j.projectId));
-    return json(res, all.map(({ project: x }) => ({
+    // «Editado»: se aplicó el brief, o el proyecto ya tiene brief y escenas armadas, o ya se exportó
+    // (los que arma Claude con las herramientas no pasan por la pantalla del brief).
+    const exported = (d: string) => { try { return readdirSync(path.join(d, 'renders')).some((f) => f.endsWith('.mp4')); } catch { return false; } };
+    return json(res, all.map(({ project: x, dir: d }) => ({
       id: x.id, name: x.name, client: x.client ?? 'personal', approval: x.approval, scenes: x.scenes.length, updatedAt: x.updatedAt,
       kind: x.kind, duration: +outputDuration(x).toFixed(1),
-      edited: Boolean(x.briefAppliedAt), creating: making.has(x.id),
+      edited: Boolean(x.briefAppliedAt) || (Object.keys(x.brief ?? {}).length >= 3 && x.scenes.length > 0) || exported(d), creating: making.has(x.id),
       // Miniatura: un fotograma del medio de la primera escena.
       thumbT: (() => { const r = x.scenes[0]?.ranges[0]; return r ? +((r.start + r.end) / 2).toFixed(2) : 1; })(),
     })));

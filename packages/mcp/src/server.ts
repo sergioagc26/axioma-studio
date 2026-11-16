@@ -886,9 +886,10 @@ export function createServer() {
       proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional(),
       musica: z.string().optional().describe('Ruta de una música suave (opcional)'),
+      brief: z.record(z.string(), z.string()).optional().describe('Respuestas del brief: objetivo, publico, tono, cta… (el proyecto queda con su brief)'),
     },
-    async ({ nombre, cliente, etiqueta, filas, proveedor_voz, voz, musica }) => {
-      const { dir } = await E.createDrawnExplainer({ name: nombre, client: cliente, tag: etiqueta, rows: filas, provider: proveedor_voz, voice: voz, music: musica, onProgress: (m) => log(m) });
+    async ({ nombre, cliente, etiqueta, filas, proveedor_voz, voz, musica, brief }) => {
+      const { dir } = await E.createDrawnExplainer({ name: nombre, client: cliente, tag: etiqueta, rows: filas, provider: proveedor_voz, voice: voz, music: musica, brief, onProgress: (m) => log(m) });
       return E.summarize(await E.readProject(dir), dir);
     },
   );

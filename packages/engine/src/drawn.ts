@@ -118,6 +118,8 @@ export async function makeHand(dir: string, seed = 7): Promise<{ file: string; t
  */
 export async function createDrawnExplainer(opts: {
   name: string; client?: string; rows: DrawnRow[]; tag?: string;
+  /** Respuestas del brief (objetivo, público, CTA…): el proyecto queda con su brief desde el inicio. */
+  brief?: Record<string, string>;
   provider?: 'elevenlabs' | 'qwen' | 'piper' | 'sistema'; voice?: string; music?: string;
   onProgress?: (message: string, progress: number) => void;
 }): Promise<{ dir: string }> {
@@ -168,6 +170,7 @@ export async function createDrawnExplainer(opts: {
     drawing: { lines: drawings[i].lines, title: r.titulo, burst: r.globo, tag: opts.tag, draw: r.dibujar ?? 2.2, hand },
   }));
   // Voz al frente, música suave debajo; subtítulos de cuaderno abajo, la palabra que suena en morado.
+  project.brief = { formato: 'Reel 9:16', tono: 'Didáctico y cercano', ritmo: 'Medio', duracion: `${Math.round(end)} s`, ...opts.brief };
   project.audio.originalVolume = 0;
   project.audio.musicVolume = 0.12;
   Object.assign(project.captions, { design: 'nota', effect: 'color', fontSize: 60, color: '#1B1B22', highlightColor: '#5B4FD6', uppercase: false, stroke: false, emphasis: false, wordsPerLine: 3, y: 0.86, lineAnim: 'pop', plate: false, behind: false, emojis: false });
