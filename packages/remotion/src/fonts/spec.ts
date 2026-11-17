@@ -1,0 +1,98 @@
+/**
+ * Las tipografías que usa la plantilla, con el estilo, los pesos y los subconjuntos de cada una.
+ * Sus archivos viven dentro de la app (src/fonts/files) para que exportar no dependa de internet:
+ * si cambias esta lista, corre «npm run fuentes» para bajar los archivos y regenerar el índice.
+ */
+export interface FontSpec {
+  /** Nombre con el que se usa en la plantilla (fontFamily). */
+  family: string;
+  /** Nombre del módulo en @remotion/google-fonts (de donde salen los archivos). */
+  importName: string;
+  style: 'normal' | 'italic';
+  /** Pesos a incluir; sin pesos = todos los que tiene la fuente. */
+  weights?: string[];
+  subsets: string[];
+}
+
+export const FONT_SPECS: FontSpec[] = [
+  { family: 'Montserrat', importName: 'Montserrat', style: 'normal', weights: ['700', '800', '900'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Inter', importName: 'Inter', style: 'normal', weights: ['600', '700', '800', '900'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Space Grotesk', importName: 'SpaceGrotesk', style: 'normal', weights: ['600', '700'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Poppins', importName: 'Poppins', style: 'normal', weights: ['700', '800'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Anton', importName: 'Anton', style: 'normal', weights: ['400'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Bebas Neue', importName: 'BebasNeue', style: 'normal', weights: ['400'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Oswald', importName: 'Oswald', style: 'normal', weights: ['600', '700'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Archivo Black', importName: 'ArchivoBlack', style: 'normal', weights: ['400'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Playfair Display', importName: 'PlayfairDisplay', style: 'italic', weights: ['600', '700'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Rubik', importName: 'Rubik', style: 'normal', subsets: ['latin'] },
+  { family: 'Raleway', importName: 'Raleway', style: 'normal', subsets: ['latin'] },
+  { family: 'Nunito', importName: 'Nunito', style: 'normal', subsets: ['latin'] },
+  { family: 'Barlow Condensed', importName: 'BarlowCondensed', style: 'normal', subsets: ['latin'] },
+  { family: 'Roboto Condensed', importName: 'RobotoCondensed', style: 'normal', subsets: ['latin'] },
+  { family: 'League Spartan', importName: 'LeagueSpartan', style: 'normal', subsets: ['latin'] },
+  { family: 'Teko', importName: 'Teko', style: 'normal', subsets: ['latin'] },
+  { family: 'Kanit', importName: 'Kanit', style: 'normal', subsets: ['latin'] },
+  { family: 'Sora', importName: 'Sora', style: 'normal', subsets: ['latin', 'latin-ext'] },
+  { family: 'Bangers', importName: 'Bangers', style: 'normal', subsets: ['latin'] },
+  { family: 'Righteous', importName: 'Righteous', style: 'normal', subsets: ['latin'] },
+  { family: 'Permanent Marker', importName: 'PermanentMarker', style: 'normal', subsets: ['latin'] },
+  { family: 'Pacifico', importName: 'Pacifico', style: 'normal', subsets: ['latin'] },
+  { family: 'Lobster', importName: 'Lobster', style: 'normal', subsets: ['latin'] },
+  { family: 'Caveat', importName: 'Caveat', style: 'normal', subsets: ['latin'] },
+  { family: 'Lora', importName: 'Lora', style: 'normal', subsets: ['latin'] },
+  { family: 'DM Sans', importName: 'DMSans', style: 'normal', weights: ['600', '700', '800'], subsets: ['latin', 'latin-ext'] },
+  { family: 'Cormorant Garamond', importName: 'CormorantGaramond', style: 'normal', subsets: ['latin'] },
+  { family: 'DM Serif Display', importName: 'DMSerifDisplay', style: 'normal', subsets: ['latin'] },
+  { family: 'Fraunces', importName: 'Fraunces', style: 'normal', subsets: ['latin'] },
+  { family: 'Libre Baskerville', importName: 'LibreBaskerville', style: 'normal', subsets: ['latin'] },
+  { family: 'Bodoni Moda', importName: 'BodoniModa', style: 'normal', subsets: ['latin'] },
+  { family: 'Cinzel', importName: 'Cinzel', style: 'normal', subsets: ['latin'] },
+  { family: 'Abril Fatface', importName: 'AbrilFatface', style: 'normal', subsets: ['latin'] },
+  { family: 'Marcellus', importName: 'Marcellus', style: 'normal', subsets: ['latin'] },
+  { family: 'Yeseva One', importName: 'YesevaOne', style: 'normal', subsets: ['latin'] },
+  { family: 'Prata', importName: 'Prata', style: 'normal', subsets: ['latin'] },
+  { family: 'Italiana', importName: 'Italiana', style: 'normal', subsets: ['latin'] },
+  { family: 'Outfit', importName: 'Outfit', style: 'normal', subsets: ['latin'] },
+  { family: 'Manrope', importName: 'Manrope', style: 'normal', subsets: ['latin'] },
+  { family: 'Plus Jakarta Sans', importName: 'PlusJakartaSans', style: 'normal', subsets: ['latin'] },
+  { family: 'Urbanist', importName: 'Urbanist', style: 'normal', subsets: ['latin'] },
+  { family: 'Figtree', importName: 'Figtree', style: 'normal', subsets: ['latin'] },
+  { family: 'Lexend', importName: 'Lexend', style: 'normal', subsets: ['latin'] },
+  { family: 'Work Sans', importName: 'WorkSans', style: 'normal', subsets: ['latin'] },
+  { family: 'Syne', importName: 'Syne', style: 'normal', subsets: ['latin'] },
+  { family: 'Unbounded', importName: 'Unbounded', style: 'normal', subsets: ['latin'] },
+  { family: 'Red Hat Display', importName: 'RedHatDisplay', style: 'normal', subsets: ['latin'] },
+  { family: 'Josefin Sans', importName: 'JosefinSans', style: 'normal', subsets: ['latin'] },
+  { family: 'Quicksand', importName: 'Quicksand', style: 'normal', subsets: ['latin'] },
+  { family: 'Bricolage Grotesque', importName: 'BricolageGrotesque', style: 'normal', subsets: ['latin'] },
+  { family: 'Fjalla One', importName: 'FjallaOne', style: 'normal', subsets: ['latin'] },
+  { family: 'Alfa Slab One', importName: 'AlfaSlabOne', style: 'normal', subsets: ['latin'] },
+  { family: 'Titan One', importName: 'TitanOne', style: 'normal', subsets: ['latin'] },
+  { family: 'Staatliches', importName: 'Staatliches', style: 'normal', subsets: ['latin'] },
+  { family: 'Saira Condensed', importName: 'SairaCondensed', style: 'normal', subsets: ['latin'] },
+  { family: 'Antonio', importName: 'Antonio', style: 'normal', subsets: ['latin'] },
+  { family: 'Passion One', importName: 'PassionOne', style: 'normal', subsets: ['latin'] },
+  { family: 'Russo One', importName: 'RussoOne', style: 'normal', subsets: ['latin'] },
+  { family: 'Lilita One', importName: 'LilitaOne', style: 'normal', subsets: ['latin'] },
+  { family: 'Luckiest Guy', importName: 'LuckiestGuy', style: 'normal', subsets: ['latin'] },
+  { family: 'Dancing Script', importName: 'DancingScript', style: 'normal', subsets: ['latin'] },
+  { family: 'Great Vibes', importName: 'GreatVibes', style: 'normal', subsets: ['latin'] },
+  { family: 'Satisfy', importName: 'Satisfy', style: 'normal', subsets: ['latin'] },
+  { family: 'Kaushan Script', importName: 'KaushanScript', style: 'normal', subsets: ['latin'] },
+  { family: 'Sacramento', importName: 'Sacramento', style: 'normal', subsets: ['latin'] },
+  { family: 'Amatic SC', importName: 'AmaticSC', style: 'normal', subsets: ['latin'] },
+  { family: 'Shadows Into Light', importName: 'ShadowsIntoLight', style: 'normal', subsets: ['latin'] },
+  { family: 'Yellowtail', importName: 'Yellowtail', style: 'normal', subsets: ['latin'] },
+  { family: 'Space Mono', importName: 'SpaceMono', style: 'normal', subsets: ['latin'] },
+  { family: 'JetBrains Mono', importName: 'JetBrainsMono', style: 'normal', subsets: ['latin'] },
+  { family: 'Orbitron', importName: 'Orbitron', style: 'normal', subsets: ['latin'] },
+  { family: 'Press Start 2P', importName: 'PressStart2P', style: 'normal', subsets: ['latin'] },
+  { family: 'Roboto Slab', importName: 'RobotoSlab', style: 'normal', subsets: ['latin'] },
+  { family: 'Zilla Slab', importName: 'ZillaSlab', style: 'normal', subsets: ['latin'] },
+  { family: 'Bitter', importName: 'Bitter', style: 'normal', subsets: ['latin'] },
+  { family: 'Monoton', importName: 'Monoton', style: 'normal', subsets: ['latin'] },
+  { family: 'Rye', importName: 'Rye', style: 'normal', subsets: ['latin'] },
+  { family: 'Fredoka', importName: 'Fredoka', style: 'normal', subsets: ['latin'] },
+  { family: 'Baloo 2', importName: 'Baloo2', style: 'normal', subsets: ['latin'] },
+  { family: 'Chewy', importName: 'Chewy', style: 'normal', subsets: ['latin'] },
+];

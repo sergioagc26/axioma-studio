@@ -5,7 +5,9 @@
 
 ## Veredicto corto
 
-**Casi sí.** Todo el motor funciona en la nube (instalación, transcripción, cortes, edición, MCP). **Lo único que no funcionó tal cual fue exportar el video**: Remotion necesita bajar las fuentes de Google en el momento del render y, en esta máquina, su navegador no acepta el certificado de la salida a internet. Con las fuentes servidas en local (arreglo temporal, solo para la prueba, no subido) los dos pedidos salieron completos y correctos.
+**Sí, con el arreglo de fuentes ya aplicado.** Todo el motor funciona en la nube (instalación, transcripción, cortes, edición, MCP). En la prueba original lo único que falló fue exportar: Remotion bajaba las fuentes de Google en cada render y aquí su navegador no acepta el certificado de la salida a internet.
+
+> **Actualización:** las tipografías ya viven dentro de la app (`packages/remotion/src/fonts/`, 3 MB). Exportar ya no necesita internet: el pedido hablado se volvió a exportar en esta misma máquina, sin ningún parche, y salió idéntico.
 
 | Parte | Resultado |
 |---|---|
@@ -13,7 +15,7 @@
 | `doctor` | ✅ Todo en verde (opcionales en aviso) |
 | Pedido hablado (preparar → transcribir → cortar con guion → editar) | ✅ Funciona |
 | Pedido montaje (3 clips + música) | ✅ Funciona (ver fallo de clips sin audio abajo) |
-| Exportar con Remotion | ❌ Tal cual **falla** (fuentes de Google) · ✅ con fuentes en local |
+| Exportar con Remotion | ✅ Con las fuentes dentro de la app (antes ❌ por las fuentes de Google) |
 | Herramientas MCP (`estado_sistema`, `leer_pedidos`) | ✅ Responden (106 herramientas) |
 
 ---
@@ -123,11 +125,12 @@ Arrancado exactamente como dice `plugin/.mcp.json` (`node packages/mcp/bin/serve
 
 **Tamaño práctico de archivo (estimación, no medido con videos reales):** con ~27 GB útiles, el disco no es el límite para reels de 1–3 min. El límite real será **cómo sube el cliente su video y cómo descarga el resultado** (ver "qué falta"), y el tiempo: un video de 3 min tardaría ~12–15 min en procesar.
 
-### ❌ Bloqueo 1 — Exportar falla tal cual (fuentes de Google)
+### ✅ Bloqueo 1 (resuelto) — Exportar fallaba por las fuentes de Google
 
 - **Qué pasa:** la plantilla de Remotion carga ~80 tipografías con `@remotion/google-fonts`, que las baja de `fonts.gstatic.com` *durante el render*. Remotion abre su navegador saltándose el proxy de la máquina (`--no-proxy-server`); la salida directa a internet presenta un certificado de la propia nube que ese navegador no reconoce → `ERR_CERT_AUTHORITY_INVALID` → el render se queda esperando la fuente "Sora" y se cae a los 58 s.
 - **Cómo lo comprobé:** para terminar la prueba hice un arreglo **temporal y no subido**: un mini-servidor local que entrega las fuentes pasando por el proxy oficial, y apunté las fuentes ahí. Con eso los dos videos se exportaron perfecto. No desactivé la verificación de certificados ni toqué la confianza de la máquina.
 - **Arreglo recomendado (en la app):** llevar las tipografías *dentro* de la app (archivos `.woff2` en el repo, cargados con `staticFile`) en vez de bajarlas en cada render. Así exportar no necesita internet, y además es más rápido y más robusto también en Mac/PC.
+- **Hecho:** las 80 tipografías (125 archivos `.woff2`, 3 MB) están en `packages/remotion/src/fonts/files/` y se cargan desde ahí, tanto al exportar como en Studio. La lista vive en `fonts/spec.ts`; si se cambia, `npm run fuentes` baja los archivos y regenera el índice. Un test comprueba que cada letra elegible tenga sus archivos y que la plantilla no vuelva a usar Google Fonts. Pendiente menor: el manual de marca (`brandbook.ts`) aún pide sus letras a Google.
 - **Alternativa (en la máquina, no en la app):** que el entorno de la nube agregue su certificado de salida al almacén del navegador. No lo pude probar (requiere un permiso que esta sesión no tenía) y depende de cada entorno: no lo recomiendo como solución de producto.
 
 ### ⚠ Fallo 2 — Clips sin pista de audio rompen el pedido (no es de la nube)
@@ -177,11 +180,10 @@ Lo que hace, en orden:
 7. `npm run se -- instalar-claude` → crea `plugin/.mcp.json`; y crea la carpeta `workspace`.
 8. `npm run se -- doctor`.
 
-**Lo que el script NO resuelve:** el bloqueo de las fuentes (necesita el cambio en la app del punto 5).
 
 ## 8. Qué falta para el modo nube
 
-1. **Fuentes dentro de la app** (bloqueante): sin eso, ningún video se exporta en esta nube.
+1. ~~**Fuentes dentro de la app**~~ ✅ hecho.
 2. **Entrada y salida de archivos** (no probado, crítico para el producto): cómo sube el cliente sus videos a la máquina y cómo se lleva el MP4 final. Es el verdadero cuello de botella del modo nube; hay que definirlo y probarlo con videos reales de celular (1–3 min, 100–500 MB).
 3. **Modo "sin IA local"**: que no espere 20 s a Ollama en cada paso.
 4. **Clips sin pista de audio**: tratarlos como "sin voz" en vez de "hablado".

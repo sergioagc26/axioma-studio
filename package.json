@@ -11,6 +11,7 @@
     "test": "vitest run",
     "remotion:studio": "remotion studio packages/remotion/src/index.ts",
     "setup": "node scripts/setup.mjs",
+    "fuentes": "tsx scripts/fuentes.ts",
     "build:studio": "npm run build -w @axioma/studio",
     "studio": "tsx packages/engine/src/cli.ts studio",
     "studio:red": "tsx packages/engine/src/cli.ts studio --red"

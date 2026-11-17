@@ -1,9 +1,9 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { loadFont as loadSora } from '@remotion/google-fonts/Sora';
+import { loadLocalFont } from './fonts/index.ts';
 import { Axi, AxiLogo, BRAND, type AxiColor, type AxiState } from './Axi.tsx';
 
-const sora = loadSora('normal', { weights: ['300', '400', '600', '700'], subsets: ['latin', 'latin-ext'] }).fontFamily;
+const sora = loadLocalFont('Sora');
 
 /** Axi en un estado, para exportar como animación suelta (fondo transparente u oscuro). */
 export interface AxiClipProps { state: AxiState; color?: AxiColor; background?: 'transparente' | 'oscuro' | 'petroleo'; progress?: boolean; [k: string]: unknown }

@@ -69,5 +69,3 @@ paso "Revisión final"
 npm run se -- doctor || true
 echo
 echo "✓ Máquina lista en $(( $(date +%s) - t0 )) s."
-echo "⚠ Exportar necesita que el navegador de Remotion pueda bajar las fuentes de Google."
-echo "  En algunas máquinas en la nube eso falla (certificado del proxy). Ver docs/PRUEBA-NUBE.md."

@@ -1,0 +1,2 @@
+Tipografías de Google Fonts (licencias SIL Open Font License 1.1 o Apache 2.0), copiadas dentro de la app
+para que exportar no dependa de internet. Se regeneran con «npm run fuentes» a partir de ../spec.ts.
