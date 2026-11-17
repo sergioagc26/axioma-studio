@@ -22,7 +22,7 @@ export async function ensureWhisper(model: WhisperModel = whisperModel(), log = 
 /** Transcribe un WAV 16 kHz mono con tiempos por palabra. */
 export async function transcribeWav(
   wav: string,
-  { model = whisperModel(), language = 'es', onProgress }: { model?: WhisperModel; language?: string; onProgress?: (p: number) => void } = {},
+  { model = whisperModel(), language = 'es', onProgress, prompt }: { model?: WhisperModel; language?: string; onProgress?: (p: number) => void; /** Palabras que Whisper debe conocer (nombres de marca: «Axioma Studio, Claude»). */ prompt?: string } = {},
 ): Promise<Transcript> {
   await ensureWhisper(model);
   const out = await whisperTranscribe({
@@ -37,7 +37,7 @@ export async function transcribeWav(
     printOutput: false,
     onProgress,
     // La atención flash (activa por defecto desde 1.8) desactiva la alineación DTW.
-    additionalArgs: ['-nfa'],
+    additionalArgs: ['-nfa', ...(prompt?.trim() ? ['--prompt', prompt.trim().slice(0, 200)] : [])],
   });
   const { captions } = toCaptions({ whisperCppOutput: out });
   const items = captions
@@ -69,7 +69,9 @@ export function isNoise(text: string): boolean {
   if (!t) return true;
   if (/^[\[\(\*♪♫¶#]+.*[\]\)\*♪♫¶#]+$/.test(t) || /^[♪♫¶#\s.,!-]+$/.test(t)) return true;
   const plain = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, '').trim();
-  return /^(musica|music|aplausos|applause|risas|laughter|silencio|silence|ruido|noise|instrumental|blank audio|sin audio|subtitulos realizados por.*|subtitles by.*|gracias por ver|thanks for watching)$/.test(plain);
+  // Una palabra suelta como «música» o «silencio» puede ser parte de lo que se dice: solo se toma
+  // como ruido entre corchetes/asteriscos (arriba) o en frases fantasma de Whisper.
+  return /^(blank audio|sin audio|subtitulos realizados por.*|subtitles by.*|gracias por ver|thanks for watching)$/.test(plain);
 }
 
 /**

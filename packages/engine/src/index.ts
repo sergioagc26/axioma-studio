@@ -68,3 +68,4 @@ export * from './drawn.ts';
 export * from './scriptcut.ts';
 export * from './avatar.ts';
 export * from './heygen.ts';
+export * from './creator.ts';

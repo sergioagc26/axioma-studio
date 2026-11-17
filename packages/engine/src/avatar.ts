@@ -81,3 +81,30 @@ export async function avatarVideo(opts: { face: string; text: string; out: strin
   await synthesize(opts.text, audio, { provider: opts.provider, voice: opts.voice });
   return avatarSpeak(opts.face, audio, opts.out, { onProgress: opts.onProgress });
 }
+
+/** Mejora la cara cuadro por cuadro (GFPGAN) y la vuelve a pegar: el avatar se ve nítido. ~2 cuadros por segundo. */
+const ENHANCE_PY = String.raw`
+import sys, cv2, numpy as np, subprocess
+from gfpgan import GFPGANer
+src, out, weights = sys.argv[1], sys.argv[2], sys.argv[3]
+r = GFPGANer(model_path=weights, upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
+cap = cv2.VideoCapture(src); fps = cap.get(cv2.CAP_PROP_FPS); w = int(cap.get(3)); h = int(cap.get(4))
+p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}', '-r', str(fps), '-i', '-', '-c:v', 'libx264', '-crf', '16', '-pix_fmt', 'yuv420p', out], stdin=subprocess.PIPE)
+while True:
+    ok, f = cap.read()
+    if not ok: break
+    _, _, res = r.enhance(f, has_aligned=False, only_center_face=True, paste_back=True, weight=0.6)
+    p.stdin.write((res if res is not None else f).astype(np.uint8).tobytes())
+p.stdin.close(); p.wait()
+`;
+
+export async function enhanceFaces(video: string, out: string): Promise<string> {
+  if (!avatarReady()) throw new Error('Falta el motor de avatares (scripts/instalar-avatares.sh).');
+  const weights = path.join(SADTALKER, 'gfpgan', 'weights', 'GFPGANv1.4.pth');
+  const silent = out.replace(/\.mp4$/i, '') + '-sin-audio.mp4';
+  await run(AVATAR_PY, ['-c', ENHANCE_PY, video, silent, weights], { cwd: SADTALKER, quiet: true });
+  // El audio del video original.
+  await ffmpeg(['-i', silent, '-i', video, '-map', '0:v', '-map', '1:a?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out]);
+  await rm(silent, { force: true });
+  return out;
+}

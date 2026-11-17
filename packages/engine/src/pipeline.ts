@@ -14,7 +14,7 @@ import { analyzeFaces } from './faces.ts';
 import { analyzeVision } from './vision.ts';
 import { buildMontage, createMontage, detectShots } from './montage.ts';
 import { listPresets } from './presets.ts';
-import { setMusic, setVoiceover } from './ops.ts';
+import { alignToScript, setMusic, setVoiceover } from './ops.ts';
 import { renderProject } from './render.ts';
 import { createProject, readProject, readTranscript, writeProject, writeTranscript } from './store.ts';
 import { hasSpeech, transcribeWav } from './transcribe.ts';
@@ -88,12 +88,17 @@ export async function analyzeAudio(dir: string): Promise<Analysis> {
   return analysis;
 }
 
-export async function transcribeProject(dir: string, log: Log = console.log) {
+export async function transcribeProject(dir: string, log: Log = console.log, opts: { /** Lo que se dice, si se conoce (un avatar, una voz generada): las palabras salen bien escritas con los tiempos del audio. */ script?: string; /** Nombres que Whisper debe reconocer (marca, productos). */ vocabulary?: string } = {}) {
   const existing = await readTranscript(dir);
   if (existing) return existing;
   log('Transcribiendo con whisper.cpp…');
   let last = -1;
+  // El nombre de la marca ayuda a Whisper a no escribir «Actioma» o «Cloud».
+  const project = await readProject(dir);
+  const kit = await readKit(project.client).catch(() => null);
+  const vocabulary = [opts.vocabulary, kit?.name, project.client?.replace(/-/g, ' ')].filter(Boolean).join(', ');
   const raw = await transcribeWav(path.join(dir, P.wav16k), {
+    prompt: vocabulary || undefined,
     onProgress: (p) => {
       const pct = Math.floor(p * 10) * 10;
       if (pct !== last) log(`  transcripción ${(last = pct)}%`);
@@ -101,7 +106,8 @@ export async function transcribeProject(dir: string, log: Log = console.log) {
   });
   await writeFile(path.join(dir, P.transcriptRaw), JSON.stringify(raw, null, 2));
   const { silences } = (await readAnalysis(dir)) ?? (await analyzeAudio(dir));
-  const t = { ...raw, words: snapWordsToSpeech(raw.words, silences) };
+  const snapped = snapWordsToSpeech(raw.words, silences);
+  const t = { ...raw, words: opts.script?.trim() ? alignToScript(snapped, opts.script) : snapped };
   await writeTranscript(dir, t);
   return t;
 }

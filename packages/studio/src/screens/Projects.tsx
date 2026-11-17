@@ -6,6 +6,7 @@ import type { IconName } from '../icons.ts';
 import type { Ctx } from '../App.tsx';
 import { api, uploadFile, waitJob, type Job } from '../useProject.ts';
 import { KeysPanel, useBankKey } from '../Bank.tsx';
+import { ReelCreador } from '../ReelCreador.tsx';
 import { CuentasPanel, useCuentas } from '../Cuentas.tsx';
 
 /** `edited` = ya se aplicó el brief; `creating` = el servidor aún lo está preparando. */
@@ -104,6 +105,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [items, setItems] = useState<Item[] | null>(null);
   const [client, setClient] = useState('');
   const [keysOpen, setKeysOpen] = useState(false);
+  const [reelOpen, setReelOpen] = useState(false);
   const [papeleraOpen, setPapeleraOpen] = useState(false);
   // Cuentas de Instagram para publicar: el botón avisa si alguna hay que conectarla otra vez.
   const [cuentasOpen, setCuentasOpen] = useState(false);
@@ -287,6 +289,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   return (
     <main className="page projects" style={{ maxWidth: 1080, width: '100%', margin: '0 auto' }}>
       {keysOpen && <KeysPanel onClose={() => setKeysOpen(false)} toast={ctx.toast} />}
+      {reelOpen && <ReelCreador onClose={() => setReelOpen(false)} toast={ctx.toast} clients={clients.length ? clients : ['personal']} />}
       {papeleraOpen && <PapeleraPanel onClose={() => setPapeleraOpen(false)} onRestored={() => void reload()} toast={ctx.toast} />}
       {cuentasOpen && <CuentasPanel onClose={() => setCuentasOpen(false)} toast={ctx.toast} />}
       {access && (
@@ -327,6 +330,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           {last && !job && (
             <a className="btn rect" href={openHref(last)} title={`Abrir «${last.name}»`}>Seguir con «{last.name.length > 28 ? last.name.slice(0, 27) + '…' : last.name}»<Icon name="next" /></a>
           )}
+          <button className="btn rect" onClick={() => setReelOpen(true)} title="Guion, avatar y duración: la app hace todo el reel"><Icon name="sparkle" />Reel con avatar</button>
           <a className="btn rect" href="#/calendario"><Icon name="calendar" />Calendario</a>
           <details className="more ajustes" ref={ajustes}>
             <summary className="btn rect" aria-label={aviso ? 'Ajustes (hay avisos)' : 'Ajustes'}><Icon name="settings" />Ajustes{aviso && <span className="dot" aria-hidden="true" />}</summary>

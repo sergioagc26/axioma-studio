@@ -25,6 +25,7 @@ import { claudeBin, openClaudeLogin } from './assistant.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, ensureUsedSfx, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
+import { createCreatorReel, listAvatars } from './creator.ts';
 import { analyzeReference, deleteReference, listReferences, presetFromReference, referencesDir, renameReference, updateReferenceWish, type ReferenceReport } from './reference.ts';
 import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
@@ -482,6 +483,29 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, job);
   }
 
+  // Reel de creador con un solo pedido: avatares guardados y el trabajo completo (guion → video revisado).
+  if (p === '/api/avatares' && method === 'GET') return json(res, (await listAvatars()).map((a) => ({ id: a.id, name: a.name, description: a.description })));
+  if (p === '/api/avatares/cara' && method === 'GET') {
+    const a = (await listAvatars()).find((x) => x.id === url.searchParams.get('id'));
+    if (!a || !sendFile(req, res, path.join(a.dir, 'cara.png'))) res.writeHead(404).end();
+    return;
+  }
+  if (p === '/api/reel-creador' && method === 'POST') {
+    const b = await readBody(req);
+    if (!String(b.guion ?? '').trim() && !String(b.idea ?? '').trim()) return json(res, { error: 'Escribe el guion o la idea del video.' }, 400);
+    const job = startJob('nuevo', async (j) => {
+      const r = await createCreatorReel({
+        script: String(b.guion ?? '').trim() || undefined, idea: String(b.idea ?? '').trim() || undefined,
+        reference: b.referencia ? String(b.referencia) : undefined, duration: Math.max(10, Math.min(180, Number(b.duracion) || 60)),
+        avatar: b.avatar ? String(b.avatar) : undefined, client: b.cliente ? String(b.cliente) : undefined,
+        name: b.nombre ? String(b.nombre) : undefined, cta: b.cta ? String(b.cta) : undefined,
+        onProgress: (m, pr) => { j.message = m; j.progress = pr; },
+      });
+      const project = await readProject(r.dir);
+      return { projectId: project.id, file: relOut(r.dir, r.file), warnings: r.warnings, script: r.script };
+    });
+    return json(res, job);
+  }
   if (p === '/api/projects' && method === 'POST') {
     // Subida de un video: el cuerpo es el archivo.
     const filename = path.basename(url.searchParams.get('filename') ?? 'video.mp4');
@@ -1285,6 +1309,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
 
   if (p === '/api/references' && method === 'GET') {
+    // Sin proyecto, las de un cliente (para el reel de un solo pedido).
+    if (!id && url.searchParams.get('client')) return json(res, await listReferences(String(url.searchParams.get('client'))));
     const project = await readProject(await findDir(id));
     return json(res, await listReferences(project.client));
   }

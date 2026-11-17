@@ -84,6 +84,65 @@ export function createServer() {
     },
   );
 
+  tool(
+    'crear_reel_creador',
+    'UN SOLO PEDIDO → reel de creador completo (como los de «X + Claude»): guion a la duración pedida, voz, avatar que habla (o tu video), palabras gigantes al ritmo de la voz (también detrás de la persona), objetos según lo que se dice (chat, onda de voz, tarjetas, tachados, caja amarilla), grabaciones de la app flotando, acercamientos de golpe, música y efectos; exporta y revisa el resultado. Con avatar tarda ~1,5 min por segundo de video la primera vez (luego usa la caché). Escribe tú el guion (mejor que la IA local) y pásalo en «guion».',
+    {
+      guion: z.string().optional().describe('Lo que dice, ya escrito (recomendado). ~2,6 palabras por segundo.'),
+      idea: z.string().optional().describe('Si no hay guion: de qué trata (la IA local lo escribe)'),
+      referencia: z.string().optional().describe('Id de una referencia analizada (su estructura guía el guion)'),
+      duracion: z.number().min(10).max(180).default(60),
+      avatar: z.string().optional().describe('Avatar guardado (avatares_guardados). Por defecto, el primero.'),
+      video: z.string().optional().describe('O un video tuyo hablando a cámara (ruta absoluta), en vez de avatar'),
+      cliente: z.string().optional(),
+      nombre: z.string().optional(),
+      cta: z.string().optional().describe('Palabra que se pide comentar (sale en caja amarilla al final)'),
+      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      voz: z.string().optional(),
+      musica: z.string().optional(),
+    },
+    async ({ guion, idea, referencia, duracion, avatar, video, cliente, nombre, cta, proveedor_voz, voz, musica }) => {
+      const r = await E.createCreatorReel({ script: guion, idea, reference: referencia, duration: duracion, avatar, video, client: cliente, name: nombre, cta, provider: proveedor_voz, voice: voz, music: musica, onProgress: (m) => log(m) });
+      return [`Reel listo: ${r.file}`, `Proyecto: ${r.dir}`, r.warnings.length ? `Revisión automática:\n- ${r.warnings.join('\n- ')}` : 'Revisión automática: sin problemas.', '', `Guion:\n${r.script}`].join('\n');
+    },
+  );
+
+  tool('avatares_guardados', 'Avatares guardados para los reels (nombre, descripción y voz).', {}, async () => {
+    const l = await E.listAvatars();
+    return l.length ? l.map((a) => `${a.id} · ${a.name}${a.description ? ` · ${a.description}` : ''}${a.voice?.voice ? ` · voz ${a.voice.provider ?? ''} ${a.voice.voice}` : ''}`).join('\n') : 'No hay avatares guardados: crea uno con crear_avatar y guárdalo con guardar_avatar.';
+  });
+
+  tool(
+    'guardar_avatar',
+    'Guarda un avatar (persona ficticia o tú mismo con tu permiso) con su cara, su voz y sus fondos, para hacer reels con crear_reel_creador.',
+    {
+      nombre: z.string(),
+      cara: z.string().describe('Foto de la cara (de crear_avatar)'),
+      descripcion: z.string().optional(),
+      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      voz: z.string().optional(),
+      fondos: z.object({ estudio: z.string().optional(), noche: z.string().optional(), claro: z.string().optional(), oscuro: z.string().optional(), pc: z.string().optional() }).optional().describe('Imágenes de fondo (rutas). Se pueden crear con el generador local.'),
+      miniaturas: z.array(z.string()).optional().describe('Portadas de reels para el collage del inicio'),
+    },
+    async ({ nombre, cara, descripcion, proveedor_voz, voz, fondos, miniaturas }) => {
+      const a = await E.saveAvatar({ name: nombre, face: cara, description: descripcion, voice: { provider: proveedor_voz, voice: voz }, backgrounds: fondos, thumbnails: miniaturas });
+      return `Avatar «${a.name}» guardado (${a.id}) en ${a.dir}.`;
+    },
+  );
+
+  tool(
+    'etiquetar_material',
+    'Agrega una grabación de la app a la biblioteca con lo que muestra (etiquetas): los reels la ponen cuando la voz habla de eso.',
+    {
+      archivo: z.string().describe('Ruta (absoluta o relativa a workspace/marca/pantallas)'),
+      inicio: z.number().min(0).optional(),
+      fin: z.number().min(0).optional(),
+      etiquetas: z.array(z.string()).min(1),
+      claro: z.boolean().optional().describe('Se ve mejor sobre fondo claro'),
+    },
+    async ({ archivo, inicio, fin, etiquetas, claro }) => `Biblioteca: ${(await E.tagLibraryClip({ file: archivo, start: inicio, end: fin, tags: etiquetas, light: claro })).length} grabaciones.`,
+  );
+
   tool('heygen_avatares', 'Tus avatares de HeyGen (y fotos que hablan): id, nombre y vista previa. Necesita la clave de HeyGen en Claves.', {}, async () => {
     const list = await E.heygenAvatars();
     if (!list.length) return 'Tu cuenta de HeyGen no tiene avatares.';
