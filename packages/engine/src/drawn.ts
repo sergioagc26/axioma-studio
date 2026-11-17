@@ -173,6 +173,7 @@ export async function createDrawnExplainer(opts: {
   project.brief = { formato: 'Reel 9:16', tono: 'Didáctico y cercano', ritmo: 'Medio', duracion: `${Math.round(end)} s`, ...opts.brief };
   project.audio.originalVolume = 0;
   project.audio.musicVolume = 0.12;
+  project.briefAppliedAt = new Date().toISOString();
   Object.assign(project.captions, { design: 'nota', effect: 'color', fontSize: 60, color: '#1B1B22', highlightColor: '#5B4FD6', uppercase: false, stroke: false, emphasis: false, wordsPerLine: 3, y: 0.86, lineAnim: 'pop', plate: false, behind: false, emojis: false });
   await writeProject(dir, project);
   if (opts.music && existsSync(opts.music)) {

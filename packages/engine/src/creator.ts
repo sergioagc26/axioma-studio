@@ -196,6 +196,8 @@ export interface CreatorReelOptions {
   voice?: string;
   music?: string;
   brief?: Record<string, string>;
+  /** Borrador rápido: la cara quieta (sin animar) y exportación liviana, para revisar antes de la versión final. */
+  preview?: boolean;
   onProgress?: (message: string, progress: number) => void;
 }
 
@@ -246,27 +248,33 @@ export async function createCreatorReel(opts: CreatorReelOptions): Promise<{ dir
     const key = cacheKey(script, provider ?? '', voice ?? '');
     const audio = path.join(cache, `${key}-voz.wav`);
     if (!existsSync(audio)) { say('Generando la voz…', 0.04); await synthesize(script, audio, { provider, voice }); }
+    if (opts.preview) {
+      // Borrador: la foto del avatar con la voz, a 15 cuadros por segundo (rápido de recortar y exportar).
+      const still = path.join(cache, `${key}-borrador.mp4`);
+      if (!existsSync(still)) { say('Preparando el borrador…', 0.1); await ffmpeg(['-loop', '1', '-framerate', '15', '-i', path.join(avatar.dir, 'cara.png'), '-i', audio, '-shortest', '-vf', 'scale=864:1536,format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', '-b:a', '160k', still]); }
+      talking = still;
+    }
     const raw = path.join(cache, `${key}-avatar.mp4`);
-    if (!existsSync(raw)) await avatarSpeak(path.join(avatar.dir, 'cara.png'), audio, raw, { onProgress: (m) => say(m, 0.1) });
+    if (!talking && !existsSync(raw)) await avatarSpeak(path.join(avatar.dir, 'cara.png'), audio, raw, { onProgress: (m) => say(m, 0.1) });
     const clear = path.join(cache, `${key}-nitida.mp4`);
-    if (!existsSync(clear)) { say('Dando nitidez a la cara…', 0.45); await enhanceFaces(raw, clear); }
-    talking = clear;
+    if (!talking && !existsSync(clear)) { say('Dando nitidez a la cara…', 0.45); await enhanceFaces(raw, clear); }
+    talking ??= clear;
   }
   // 3. Proyecto, transcripción con el guion (palabras bien escritas) y recorte de la persona.
   say('Preparando el proyecto…', 0.62);
-  const { dir } = await createProject({ input: talking, name: opts.name ?? `${opts.client ?? 'Reel'} · ${script.split(' ').slice(0, 5).join(' ')}`, client: opts.client });
+  const { dir } = await createProject({ input: talking, name: `${opts.name ?? `${opts.client ?? 'Reel'} · ${script.split(' ').slice(0, 5).join(' ')}`}${opts.preview ? ' (borrador)' : ''}`, client: opts.client });
   await prepareMedia(dir, () => {});
   await transcribeProject(dir, () => {}, { script });
   say('Recortando a la persona…', 0.68);
   await buildCutout(dir, () => {});
   // 4. Escenas.
   say('Armando las escenas…', 0.74);
-  await planCreatorScenes(dir, { script, avatar, cta: opts.cta, brief: opts.brief });
+  await planCreatorScenes(dir, { script, avatar, cta: opts.cta, brief: opts.brief, reference: opts.reference });
   if (opts.music) await setMusic(dir, opts.music, { source: 'archivo local', license: 'CC0', volume: 0.1 }).catch(() => {});
   await setAutoSfx(dir, true).catch(() => {});
   // 5. Exportar y revisar.
   say('Exportando…', 0.8);
-  const file = (await renderProject(dir, { onProgress: (p) => say('Exportando…', 0.8 + p * 0.17) })).out;
+  const file = (await renderProject(dir, { quality: opts.preview ? 'ligera' : undefined, onProgress: (p) => say('Exportando…', 0.8 + p * 0.17) })).out;
   say('Revisando el video…', 0.98);
   const warnings = await reviewCreatorReel(dir, String(file), duration);
   say('Listo', 1);
@@ -277,12 +285,15 @@ export async function createCreatorReel(opts: CreatorReelOptions): Promise<{ dir
  * Las escenas de un reel de creador sobre un proyecto ya transcrito: una por frase, con lo que
  * se ve elegido por planScenes, palabras gigantes y objetos automáticos.
  */
-export async function planCreatorScenes(dir: string, opts: { script: string; avatar?: SavedAvatar; cta?: string; brief?: Record<string, string> }) {
+export async function planCreatorScenes(dir: string, opts: { script: string; avatar?: SavedAvatar; cta?: string; brief?: Record<string, string>; reference?: string }) {
   const project = await readProject(dir);
   const tr = (await readTranscript(dir))!;
   const words = tr.words.map((w) => ({ ...w, n: norm(w.text) }));
   const lastEnd = words[words.length - 1].end + 0.35;
   const library = await readLibrary();
+  // La referencia (si hay): si sus textos van abajo, aquí también (en las escenas sin persona).
+  const ref = opts.reference ? (await listReferences(project.client).catch(() => [])).find((r) => r.id === opts.reference) : undefined;
+  const refLow = (ref?.captions?.y ?? 0.2) > 0.6;
   const phrases = scriptPhrases(opts.script);
   const plan = planScenes(phrases, library);
   // Material de la escena: fondos y miniaturas del avatar, y los clips de la biblioteca recortados.
@@ -330,7 +341,7 @@ export async function planCreatorScenes(dir: string, opts: { script: string; ava
     const dark = sc.kind === 'pantalla-pc' ? true : sc.kind === 'flotante' || sc.kind === 'chat' ? !sc.light : sc.background !== 'estudio';
     const color = sc.kind === 'flotante' && sc.light ? 'rojo' : sc.kind === 'chat' && sc.light ? 'negro' : !dark ? 'rojo' : si % 4 === 3 ? 'amarillo' : 'blanco';
     const person = sc.kind === 'avatar' || sc.kind === 'pedido' || sc.kind === 'cierre';
-    const y = person ? 0.12 : sc.kind === 'chat' ? 0.13 : 0.15;
+    const y = person ? 0.12 : sc.kind === 'chat' ? 0.13 : refLow ? 0.84 : 0.15;
     // Palabras gigantes, con remarcados automáticos: la marca y la palabra a comentar en caja
     // amarilla, la acción negada («no sabe editar») tachada.
     if (sc.kind !== 'pantalla-pc') {
@@ -340,6 +351,7 @@ export async function planCreatorScenes(dir: string, opts: { script: string; ava
         const special: Record<string, unknown> =
           (opts.cta && norm(c.text) === norm(opts.cta)) || (brand && norm(c.text).includes(norm(brand)) && si === 0) ? { style: 'resaltado', color: 'negro', size: 1.1 }
           : /^no/.test(prev) && /(ar|er|ir)$/.test(norm(c.text)) ? { style: 'tachado' }
+          : si === 0 && /(edito|hizo|creo|armo)$/.test(norm(c.text)) ? { style: 'seleccion', size: 0.9 }
           : {};
         els.push({ text: c.text, at: rel(c.start), style: 'gigante', color, x: 0.5, y, size: 1, behind: person && !sc.background, ...special });
       }
@@ -357,7 +369,10 @@ export async function planCreatorScenes(dir: string, opts: { script: string; ava
       const line = (x: string[]) => x.reduce((acc, word) => { const last = acc[acc.length - 1]; if (last && (last + ' ' + word).length <= 14) acc[acc.length - 1] = `${last} ${word}`; else acc.push(word); return acc; }, [] as string[]).slice(0, 3).join('\n');
       els.push({ text: `${line(w.slice(0, half))}|${line(w.slice(half)).replace(/(\S+)$/, '*$1*')}`, at: 0.2, then: (s1 - s0) * 0.5, style: 'pantalla', x: 0.5, y: 0.44, size: 1.1, behind: false });
       els.push({ text: '¿subtítulos?', at: 0, style: 'nota', color: 'blanco', x: 0.2, y: 0.31, size: 0.7, rotate: -8, behind: false });
+      els.push({ text: '¡no olvidar! cortar las *pausas*', at: 0.3, style: 'nota', color: 'blanco', x: 0.8, y: 0.56, size: 0.8, rotate: 5, behind: false });
     }
+    if (/(motion|animaci)/.test(t) && sc.kind !== 'flotante') els.push({ text: '', at: 0.2, style: 'ruta', x: 0.5, y: 0.3, size: 1.05, behind: false });
+    if (/(reels|tiktok|shorts)/.test(t)) els.push({ text: 'Listo para Reels y TikTok', at: 0.3, style: 'pildora', x: 0.5, y: person ? 0.86 : 0.8, size: 1, behind: false });
     if (/\b(app|aplicacion|axioma)\b/.test(t) && person && si > 0) els.push({ text: 'axioma', at: 0.3, style: 'icono', x: 0.84, y: 0.22, size: 0.9, rotate: -6, behind: false });
     // Los objetos duran hasta el final de la escena (salvo que digan otra cosa).
     for (const e of els) if (!['gigante', 'resaltado', 'seleccion', 'tachado'].includes(String(e.style)) && e.until === undefined) e.until = s1 - s0;
@@ -393,6 +408,7 @@ export async function planCreatorScenes(dir: string, opts: { script: string; ava
   project.scenes = scenes as never;
   for (const file of [...new Set(assets)]) if (!project.assets.some((x) => x.file === file)) project.assets.push({ file, kind: 'broll', source: 'Material del reel (fondos del avatar o grabación de la app)', license: 'propia / generada con IA' } as never);
   project.audio.originalVolume = 1;
+  project.briefAppliedAt = new Date().toISOString();
   project.brief = { formato: 'Reel 9:16', ritmo: 'Rápido', duracion: `${Math.round(lastEnd)} s`, ...(opts.cta ? { cta: `Comenta «${opts.cta}»` } : {}), ...project.brief, ...opts.brief };
   await writeProject(dir, project);
   return project;

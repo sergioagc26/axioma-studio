@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
 import { api, waitJob, type Job } from './useProject.ts';
 
-type Avatar = { id: string; name: string; description?: string };
+type Avatar = { id: string; name: string; description?: string; voice?: { provider?: string; voice?: string } };
+type Voice = { provider: string; voice?: string; name: string; gender?: string };
 type Ref = { id: string; name: string };
 
 /**
@@ -19,8 +20,13 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
   const [cliente, setCliente] = useState(clients[0] ?? '');
   const [referencia, setReferencia] = useState('');
   const [cta, setCta] = useState('');
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [voz, setVoz] = useState('');
   const [job, setJob] = useState<Job | null>(null);
-  const [result, setResult] = useState<{ projectId: string; warnings: string[] } | null>(null);
+  const [result, setResult] = useState<{ projectId: string; warnings: string[]; borrador?: boolean } | null>(null);
+  useEffect(() => { api<Voice[]>('/api/voces').then(setVoices).catch(() => {}); }, []);
+  // Al elegir avatar, su voz queda elegida (se puede cambiar).
+  useEffect(() => { const a = avatars.find((x) => x.id === avatar); if (a?.voice?.provider) setVoz(`${a.voice.provider}|${a.voice.voice ?? ''}`); }, [avatar, avatars]);
   useEffect(() => { api<Avatar[]>('/api/avatares').then((l) => { setAvatars(l); setAvatar((a) => a || l[0]?.id || ''); }).catch(() => {}); }, []);
   useEffect(() => { if (cliente) api<Ref[]>(`/api/references?client=${encodeURIComponent(cliente)}`).then((l) => setRefs(Array.isArray(l) ? l : [])).catch(() => setRefs([])); }, [cliente]);
   useEffect(() => {
@@ -30,12 +36,12 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
   }, [job, onClose]);
   const words = guion.trim().split(/\s+/).filter(Boolean).length;
   const target = Math.round(duracion * 2.6);
-  const go = async () => {
+  const go = async (borrador = false) => {
     try {
-      const j = await api<Job>('/api/reel-creador', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guion, idea, duracion, avatar, cliente, referencia, cta }) });
+      const j = await api<Job>('/api/reel-creador', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guion, idea, duracion, avatar, cliente, referencia, cta, proveedor: voz.split('|')[0] || undefined, voz: voz.split('|')[1] || undefined, borrador }) });
       const done = await waitJob(j, setJob);
-      setResult(done.result as never);
-      toast('Tu reel está listo.');
+      setResult({ ...(done.result as { projectId: string; warnings: string[] }), borrador });
+      toast(borrador ? 'El borrador está listo: revísalo antes de hacer la versión final.' : 'Tu reel está listo.');
     } catch (e: any) { toast(e.message); setJob(null); }
   };
   return (
@@ -48,7 +54,8 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
             {result.warnings.length ? <ul className="small">{result.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul> : null}
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={onClose}>Cerrar</button>
-              <a className="btn primary rect" href={`#/listo?p=${encodeURIComponent(result.projectId)}`}>Abrir el reel<Icon name="next" /></a>
+              <a className="btn rect" href={`#/listo?p=${encodeURIComponent(result.projectId)}`}>{result.borrador ? 'Ver el borrador' : 'Abrir el reel'}<Icon name="next" /></a>
+              {result.borrador ? <button className="btn primary rect" onClick={() => { setResult(null); void go(false); }}><Icon name="sparkle" />Está bien: hacer la versión final</button> : null}
             </div>
           </>
         ) : job ? (
@@ -75,6 +82,11 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
               <label className="col small">Referencia
                 <select className="input" value={referencia} onChange={(e) => setReferencia(e.target.value)}><option value="">Ninguna</option>{refs.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
               </label>
+              <label className="col small">Voz
+                <select className="input" value={voz} onChange={(e) => setVoz(e.target.value)}>
+                  {voices.map((v) => <option key={`${v.provider}|${v.voice ?? ''}`} value={`${v.provider}|${v.voice ?? ''}`}>{v.name}</option>)}
+                </select>
+              </label>
               <label className="col small">Palabra a comentar<input className="input" value={cta} onChange={(e) => setCta(e.target.value)} placeholder="editor" style={{ width: 120 }} /></label>
             </div>
             <span className="small">Avatar{avatars.find((a) => a.id === avatar) ? `: ${avatars.find((a) => a.id === avatar)!.name}` : ''}</span>
@@ -91,7 +103,8 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
             <span className="small muted">El avatar es una persona creada con IA: al publicar, marca el video como «hecho con IA».</span>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={onClose}>Cancelar</button>
-              <button className="btn primary rect" disabled={!avatar || (!guion.trim() && !idea.trim())} onClick={go}><Icon name="sparkle" />Hacer el reel</button>
+              <button className="btn rect" disabled={!avatar || (!guion.trim() && !idea.trim())} onClick={() => go(true)} title="En pocos minutos, con la cara quieta: para revisar escenas y textos antes de la versión final"><Icon name="eye" />Ver borrador rápido</button>
+              <button className="btn primary rect" disabled={!avatar || (!guion.trim() && !idea.trim())} onClick={() => go(false)}><Icon name="sparkle" />Hacer el reel</button>
             </div>
           </>
         )}

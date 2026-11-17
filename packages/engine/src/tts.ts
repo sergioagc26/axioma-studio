@@ -167,3 +167,42 @@ function elevenError(e: unknown): string {
   if (!status) return 'No hay conexión con ElevenLabs.';
   return `ElevenLabs respondió ${status}.`;
 }
+
+/** Una voz que se puede elegir: proveedor, id de la voz y cómo suena. */
+export interface VoiceOption { provider: TtsProvider; voice?: string; name: string; gender?: 'f' | 'm'; note?: string }
+
+/** Voces prediseñadas de ElevenLabs (multilingües: hablan español con el modelo multilingual v2). */
+export const ELEVEN_PREMADE: VoiceOption[] = [
+  { provider: 'elevenlabs', voice: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah (cálida, joven)', gender: 'f' },
+  { provider: 'elevenlabs', voice: 'FGY2WhTYpPnrIDTdsKH5', name: 'Laura (alegre, rápida)', gender: 'f' },
+  { provider: 'elevenlabs', voice: 'Xb7hH8MSUJpSbSDYk0k2', name: 'Alice (clara, segura)', gender: 'f' },
+  { provider: 'elevenlabs', voice: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda (amable, narradora)', gender: 'f' },
+  { provider: 'elevenlabs', voice: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica (expresiva, juvenil)', gender: 'f' },
+  { provider: 'elevenlabs', voice: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily (suave, elegante)', gender: 'f' },
+  { provider: 'elevenlabs', voice: 'nPczCjzI2devNBz1zQrb', name: 'Brian (profunda, cercana)', gender: 'm' },
+  { provider: 'elevenlabs', voice: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel (seria, de noticiero)', gender: 'm' },
+  { provider: 'elevenlabs', voice: 'JBFqnCBsd6RMkjVDRZzb', name: 'George (cálida, madura)', gender: 'm' },
+  { provider: 'elevenlabs', voice: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam (enérgica, joven)', gender: 'm' },
+  { provider: 'elevenlabs', voice: 'iP95p4xoKVk53GoZ742B', name: 'Chris (relajada, natural)', gender: 'm' },
+  { provider: 'elevenlabs', voice: 'cjVigY5qzO86Huf0OWal', name: 'Eric (amable, confiable)', gender: 'm' },
+];
+
+/**
+ * Todas las voces que se pueden usar en este computador: las de ElevenLabs (las prediseñadas y,
+ * si la clave lo permite, las tuyas y tus clones), las locales con acento (gratis) y la del sistema.
+ */
+export async function voiceCatalog(): Promise<VoiceOption[]> {
+  const providers = await ttsProviders();
+  const out: VoiceOption[] = [];
+  if (providers.includes('elevenlabs')) {
+    // Tus voces (clones y de la biblioteca): necesita el permiso «voices_read» en la clave.
+    try {
+      const r = await fetch('https://api.elevenlabs.io/v2/voices?page_size=100&voice_type=personal', { headers: { 'xi-api-key': (await envValue('ELEVENLABS_API_KEY'))! }, signal: AbortSignal.timeout(10_000) });
+      if (r.ok) for (const v of ((await r.json()) as { voices?: { voice_id: string; name: string }[] }).voices ?? []) out.push({ provider: 'elevenlabs', voice: v.voice_id, name: `${v.name} (tuya)`, note: 'Tu voz de ElevenLabs' });
+    } catch { /* sin permiso o sin conexión: solo las prediseñadas */ }
+    out.push(...ELEVEN_PREMADE);
+  }
+  if (providers.includes('qwen')) for (const v of AI_VOICES) out.push({ provider: 'qwen', voice: v.id, name: `${v.name} (local, gratis)`, gender: /mujer/i.test(v.name) ? 'f' : 'm' });
+  if (providers.includes('sistema')) out.push({ provider: 'sistema', name: 'Voz del computador (gratis, más robótica)' });
+  return out;
+}

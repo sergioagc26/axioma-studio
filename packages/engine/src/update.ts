@@ -1,4 +1,8 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { cp, mkdir, readdir, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { run } from './exec.ts';
 import { REPO_ROOT } from './paths.ts';
 
@@ -70,4 +74,44 @@ export function restartStudio() {
     child.unref();
     process.exit(0);
   }, 800);
+}
+
+/**
+ * Actualizar SIN GitHub: con un archivo .zip de la versión nueva (lo arma quien tiene la app al día
+ * con scripts/empaquetar-actualizacion.sh y lo manda por WhatsApp, Drive o USB). Se copia el código
+ * encima; nunca toca workspace/ (proyectos), .env (claves), modelos ni entornos instalados.
+ */
+const KEEP = new Set(['workspace', '.env', '.git', 'node_modules', '.modelos', '.whisper', '.avatar', '.tmp', '.sfx']);
+
+export async function applyUpdateFromZip(zip: string, onProgress: (m: string) => void = () => {}): Promise<{ updated: boolean; message: string; restart: boolean }> {
+  const tmp = path.join(os.tmpdir(), `axioma-actualizacion-${Date.now()}`);
+  await mkdir(tmp, { recursive: true });
+  try {
+    onProgress('Abriendo el archivo de actualización…');
+    // macOS: ditto; Windows 10+ y Linux: tar entiende .zip.
+    if (process.platform === 'darwin') await run('ditto', ['-x', '-k', zip, tmp]);
+    else await run('tar', ['-xf', zip, '-C', tmp]);
+    // El zip puede traer una carpeta raíz: se busca la que tiene el package.json de la app.
+    let root = tmp;
+    if (!existsSync(path.join(root, 'package.json'))) {
+      const sub = (await readdir(tmp, { withFileTypes: true })).find((d) => d.isDirectory() && existsSync(path.join(tmp, d.name, 'package.json')));
+      if (!sub) throw new Error('Ese archivo no es una actualización de la app (no trae su package.json).');
+      root = path.join(tmp, sub.name);
+    }
+    const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+    const mine = JSON.parse(await readFile(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+    if (pkg.name !== mine.name) throw new Error('Ese archivo es de otra aplicación, no de esta.');
+    onProgress('Copiando la versión nueva…');
+    for (const e of await readdir(root, { withFileTypes: true })) {
+      if (KEEP.has(e.name) || e.name.startsWith('.venv')) continue;
+      await cp(path.join(root, e.name), path.join(REPO_ROOT, e.name), { recursive: true, force: true });
+    }
+    onProgress('Instalando lo nuevo…');
+    await npmRun(['install', '--no-audit', '--no-fund']);
+    onProgress('Preparando la interfaz…');
+    await npmRun(['run', 'build:studio']);
+    return { updated: true, message: 'Actualizada desde el archivo.', restart: true };
+  } finally {
+    await rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
 }

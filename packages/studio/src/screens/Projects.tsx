@@ -106,6 +106,17 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const [client, setClient] = useState('');
   const [keysOpen, setKeysOpen] = useState(false);
   const [reelOpen, setReelOpen] = useState(false);
+  /** Actualizar con un .zip (sin GitHub): sube el archivo, espera y recarga cuando la app se reinicia. */
+  const updateFromFile = async (f: File) => {
+    try {
+      ctx.toast('Actualizando la app con el archivo…');
+      const j = await api<Job>('/api/actualizar-archivo', { method: 'POST', body: f });
+      const done = await waitJob(j, () => {});
+      const r = done.result as { message?: string; restarting?: boolean } | undefined;
+      ctx.toast(r?.message ?? 'Actualizada.');
+      if (r?.restarting) setTimeout(() => location.reload(), 6000);
+    } catch (e: any) { ctx.toast(e.message); }
+  };
   const [papeleraOpen, setPapeleraOpen] = useState(false);
   // Cuentas de Instagram para publicar: el botón avisa si alguna hay que conectarla otra vez.
   const [cuentasOpen, setCuentasOpen] = useState(false);
@@ -340,6 +351,10 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
                 title={upd?.error ?? (upd?.behind ? `Novedades:\n${upd.changes.join('\n')}` : 'Revisa si hay una versión nueva de la app')}>
                 <Icon name={upd?.error ? 'warning' : 'update'} />{updating || (upd?.error ? 'Actualizar (no se pudo revisar)' : upd?.behind ? `Actualizar (${upd.behind} novedad${upd.behind === 1 ? '' : 'es'})` : 'Actualizar la app')}
               </button>
+              <label className="btn-like" title="Para quien no usa GitHub: sube el archivo .zip de la versión nueva (se arma con scripts/empaquetar-actualizacion.sh). No toca tus proyectos ni tus claves." style={{ cursor: 'pointer' }}>
+                <Icon name="upload" />Actualizar desde archivo
+                <input type="file" accept=".zip,application/zip" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; closeAjustes(); if (f) void updateFromFile(f); }} />
+              </label>
               <button onClick={() => { closeAjustes(); void openAccess(); }} title="Abrir la app desde tu portátil o celular"><Icon name="devices" />Otros equipos</button>
               <button className={freesound === false ? 'warn' : ''} onClick={() => { closeAjustes(); setKeysOpen(true); }}
                 title={freesound === false ? 'Falta la clave gratuita de Freesound: sin ella no hay música automática' : 'Pixabay, Pexels, Freesound y ElevenLabs'}>

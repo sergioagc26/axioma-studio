@@ -117,6 +117,7 @@ export const Listo: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const hasWords = timeline.words.length > 0;
   const vo = project.audio.voiceover;
   const sfxCount = project.scenes.filter((s) => s.sfx?.length).length;
+  const last = ctx.lastExport;
   const done: [IconName, string, string][] = [
     ['scissors', `${outputDuration(project).toFixed(0)} s`, montaje ? `${project.scenes.length} cortes${project.audio.music ? ' al ritmo de la música' : ''}` : `${project.scenes.length} escenas, sin silencios ni tomas repetidas`],
     ...(hasWords ? [['captions', 'Subtítulos', CAPTION_DESIGNS.find((d) => d.id === project.captions.design)?.name ?? project.captions.design] as [IconName, string, string]] : []),
@@ -132,14 +133,15 @@ export const Listo: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   ];
 
   const exp = ctx.exportError;
-  const last = ctx.lastExport;
   const mediaHref = (file: string) => `/media/${encodeURIComponent(project.id)}/${file}`;
   const calendarLink = (
     <a className="btn rect" href={`#/calendario?s=${encodeURIComponent(project.id)}`} title="Elige el día y la hora para publicarlo"><Icon name="calendar" />Programar publicación</a>
   );
 
   // Todavía no se editó: no se dice «listo» sobre los cortes en bruto.
-  if (!project.briefAppliedAt && !verIgual) return (
+  // Ya editado también si tiene brief y escenas (lo armó Claude con sus herramientas) o ya se exportó.
+  const editado = Boolean(project.briefAppliedAt) || Boolean(last) || (Object.keys(project.brief ?? {}).length >= 3 && project.scenes.length > 0);
+  if (!editado && !verIgual) return (
     <div className="cols" style={{ justifyContent: 'center', alignItems: 'flex-start' }}>
       <main className="card col" style={{ flex: '1 1 340px', maxWidth: 460, gap: 18, padding: 24, borderRadius: 20 }}>
         <h1 style={{ fontSize: 26 }}>Aún no está editado</h1>

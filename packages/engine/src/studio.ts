@@ -26,6 +26,7 @@ import { applyRecommendedTransitions } from './transitions.ts';
 import { SFX, ensureUsedSfx, sfxFile } from './sfx.ts';
 import { ttsProviders } from './tts.ts';
 import { createCreatorReel, listAvatars } from './creator.ts';
+import { voiceCatalog } from './tts.ts';
 import { analyzeReference, deleteReference, listReferences, presetFromReference, referencesDir, renameReference, updateReferenceWish, type ReferenceReport } from './reference.ts';
 import { applyBrief } from './brief.ts';
 import { readKit, saveKit } from './kit.ts';
@@ -60,7 +61,7 @@ import { backupStatus, runBackup, scheduleBackups } from './backup.ts';
 import { learnFromResults } from './results.ts';
 import { connectPage, connectUrl, connectWithToken, disconnectAccount, finishConnect, prePublish, publishReel, redact, socialStatus, startMetricsTimer, syncMetrics } from './social.ts';
 import { buildPrompt, suggestBrief } from './briefai.ts';
-import { applyUpdate, checkUpdate, restartStudio } from './update.ts';
+import { applyUpdate, applyUpdateFromZip, checkUpdate, restartStudio } from './update.ts';
 import { createImages } from './images.ts';
 import { buildCutout } from './matte.ts';
 import { addBankSound, searchSounds } from './sounds.ts';
@@ -484,7 +485,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
 
   // Reel de creador con un solo pedido: avatares guardados y el trabajo completo (guion → video revisado).
-  if (p === '/api/avatares' && method === 'GET') return json(res, (await listAvatars()).map((a) => ({ id: a.id, name: a.name, description: a.description })));
+  if (p === '/api/voces' && method === 'GET') return json(res, await voiceCatalog());
+  if (p === '/api/avatares' && method === 'GET') return json(res, (await listAvatars()).map((a) => ({ id: a.id, name: a.name, description: a.description, voice: a.voice })));
   if (p === '/api/avatares/cara' && method === 'GET') {
     const a = (await listAvatars()).find((x) => x.id === url.searchParams.get('id'));
     const mini = a ? path.join(a.dir, 'cara-mini.jpg') : '';
@@ -494,18 +496,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/reel-creador' && method === 'POST') {
     const b = await readBody(req);
     if (!String(b.guion ?? '').trim() && !String(b.idea ?? '').trim()) return json(res, { error: 'Escribe el guion o la idea del video.' }, 400);
-    const job = startJob('nuevo', async (j) => {
-      const r = await createCreatorReel({
-        script: String(b.guion ?? '').trim() || undefined, idea: String(b.idea ?? '').trim() || undefined,
-        reference: b.referencia ? String(b.referencia) : undefined, duration: Math.max(10, Math.min(180, Number(b.duracion) || 60)),
-        avatar: b.avatar ? String(b.avatar) : undefined, client: b.cliente ? String(b.cliente) : undefined,
-        name: b.nombre ? String(b.nombre) : undefined, cta: b.cta ? String(b.cta) : undefined,
-        onProgress: (m, pr) => { j.message = m; j.progress = pr; },
-      });
-      const project = await readProject(r.dir);
-      return { projectId: project.id, file: relOut(r.dir, r.file), warnings: r.warnings, script: r.script };
-    });
-    return json(res, job);
+    return json(res, startCreatorJob(b));
   }
   if (p === '/api/projects' && method === 'POST') {
     // Subida de un video: el cuerpo es el archivo.
@@ -1210,6 +1201,23 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     });
     return json(res, job);
   }
+  // Actualizar sin GitHub: se sube el .zip de la versión nueva (solo desde este computador).
+  if (p === '/api/actualizar-archivo' && method === 'POST') {
+    if (!isLoopback(req.socket.remoteAddress)) return json(res, { error: 'La app se actualiza desde el computador donde está instalada.' }, 403);
+    const tmpDir = path.join(os.tmpdir(), `axioma-zip-${Date.now()}`);
+    await mkdir(tmpDir, { recursive: true });
+    const zip = path.join(tmpDir, 'actualizacion.zip');
+    await pipe(req, createWriteStream(zip));
+    const job = startJob('actualizar', async (j) => {
+      try {
+        const r = await applyUpdateFromZip(zip, (m) => { j.message = m; });
+        const canRestart = r.restart && process.argv.includes('studio');
+        if (canRestart) restartStudio();
+        return { ...r, restarting: canRestart };
+      } finally { await rm(tmpDir, { recursive: true, force: true }).catch(() => {}); }
+    });
+    return json(res, job);
+  }
   // Copia de seguridad: estado, y hacerla ahora (corre en segundo plano).
   if (p === '/api/copia' && method === 'GET') return json(res, await backupStatus());
   if (p === '/api/copia' && method === 'POST') {
@@ -1493,6 +1501,46 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 let running: Promise<string> | null = null;
 
 /** Arranca el studio (o reutiliza el que ya corre) y devuelve su URL base. */
+/**
+ * Reel de un solo pedido como trabajo del estudio. El pedido queda anotado en
+ * workspace/.trabajos/ hasta terminar: si el estudio se cierra a mitad, al volver a abrirse lo
+ * retoma (la voz, el avatar y la nitidez ya hechos quedan en la caché del avatar y no se repiten).
+ */
+const PENDING_DIR = path.join(WORKSPACE, '.trabajos');
+function startCreatorJob(b: Record<string, any>, pendingFile?: string): Job {
+  const file = pendingFile ?? path.join(PENDING_DIR, `reel-${Date.now()}.json`);
+  void mkdir(PENDING_DIR, { recursive: true }).then(() => writeFile(file, JSON.stringify(b))).catch(() => {});
+  return startJob('nuevo', async (j) => {
+    try {
+      const r = await createCreatorReel({
+        script: String(b.guion ?? '').trim() || undefined, idea: String(b.idea ?? '').trim() || undefined,
+        reference: b.referencia ? String(b.referencia) : undefined, duration: Math.max(10, Math.min(180, Number(b.duracion) || 60)),
+        avatar: b.avatar ? String(b.avatar) : undefined, client: b.cliente ? String(b.cliente) : undefined,
+        name: b.nombre ? String(b.nombre) : undefined, cta: b.cta ? String(b.cta) : undefined,
+        provider: b.proveedor ? (String(b.proveedor) as never) : undefined, voice: b.voz ? String(b.voz) : undefined,
+        preview: b.borrador === true,
+        onProgress: (m, pr) => { j.message = m; j.progress = pr; },
+      });
+      const project = await readProject(r.dir);
+      return { projectId: project.id, file: relOut(r.dir, r.file), warnings: r.warnings, script: r.script };
+    } finally {
+      // Si se canceló a mano tampoco se retoma.
+      await rm(file, { force: true }).catch(() => {});
+    }
+  });
+}
+
+/** Al abrir el estudio: retoma los reels que quedaron a medias (el estudio se cerró o el disco se desconectó). */
+export async function resumeCreatorJobs(): Promise<number> {
+  if (!existsSync(PENDING_DIR)) return 0;
+  const files = (await readdir(PENDING_DIR)).filter((f) => f.startsWith('reel-') && f.endsWith('.json'));
+  for (const f of files) {
+    const b = JSON.parse(await readFile(path.join(PENDING_DIR, f), 'utf8').catch(() => '{}'));
+    if (b.guion || b.idea) startCreatorJob(b, path.join(PENDING_DIR, f));
+  }
+  return files.length;
+}
+
 export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
   running ??= new Promise<string>(async (resolve, reject) => {
     // En modo red se escucha en todas las interfaces y se exige la clave a los demás equipos.
@@ -1520,7 +1568,7 @@ export function startStudio(opts: { network?: boolean } = {}): Promise<string> {
     // Tras actualizarse, el proceso nuevo espera a que el anterior suelte el puerto.
     const wait = process.env.AXIOMA_RESTART_WAIT ? 2500 : 0;
     delete process.env.AXIOMA_RESTART_WAIT;
-    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); void detectMachine().catch(() => {}); llmWarmUp().catch(() => {}); if (!process.env.VITEST) { void stockMusic(); startMetricsTimer(); } resolve(base); }), wait);
+    setTimeout(() => server.listen(STUDIO_PORT, opts.network ? '0.0.0.0' : '127.0.0.1', () => { scheduleBackups(); void detectMachine().catch(() => {}); void resumeCreatorJobs().catch(() => {}); llmWarmUp().catch(() => {}); if (!process.env.VITEST) { void stockMusic(); startMetricsTimer(); } resolve(base); }), wait);
   });
   return running;
 }

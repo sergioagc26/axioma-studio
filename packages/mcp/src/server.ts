@@ -100,9 +100,10 @@ export function createServer() {
       proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional(),
       musica: z.string().optional(),
+      borrador: z.boolean().optional().describe('Borrador rápido (minutos): la cara quieta y exportación liviana, para revisar antes de la versión final (que reutiliza la voz)'),
     },
-    async ({ guion, idea, referencia, duracion, avatar, video, cliente, nombre, cta, proveedor_voz, voz, musica }) => {
-      const r = await E.createCreatorReel({ script: guion, idea, reference: referencia, duration: duracion, avatar, video, client: cliente, name: nombre, cta, provider: proveedor_voz, voice: voz, music: musica, onProgress: (m) => log(m) });
+    async ({ guion, idea, referencia, duracion, avatar, video, cliente, nombre, cta, proveedor_voz, voz, musica, borrador }) => {
+      const r = await E.createCreatorReel({ script: guion, idea, reference: referencia, duration: duracion, avatar, video, client: cliente, name: nombre, cta, provider: proveedor_voz, voice: voz, music: musica, preview: borrador, onProgress: (m) => log(m) });
       return [`Reel listo: ${r.file}`, `Proyecto: ${r.dir}`, r.warnings.length ? `Revisión automática:\n- ${r.warnings.join('\n- ')}` : 'Revisión automática: sin problemas.', '', `Guion:\n${r.script}`].join('\n');
     },
   );
@@ -1101,9 +1102,9 @@ export function createServer() {
     return 'Voz en off quitada.';
   });
 
-  tool('voces_disponibles', 'Proveedores de voz en off disponibles en este computador.', {}, async () => {
-    const list = await E.ttsProviders();
-    return list.length ? `Disponibles (del mejor al más básico): ${list.join(', ')}` : 'No hay ningún proveedor de voz disponible.';
+  tool('voces_disponibles', 'Voces que se pueden usar (proveedor e id): ElevenLabs (prediseñadas y las tuyas si la clave lo permite), voces locales con acento mexicano o colombiano (gratis) y la del sistema.', {}, async () => {
+    const list = await E.voiceCatalog();
+    return list.length ? list.map((v) => `${v.provider}${v.voice ? ` · ${v.voice}` : ''} · ${v.name}`).join('\n') : 'No hay ningún proveedor de voz disponible.';
   });
 
   tool('ajustar_sonido_original', 'Volumen del sonido original del video (0 = silenciado, 1 = normal).', { proyecto, volumen: z.number().min(0).max(1) }, async ({ proyecto, volumen }) => {
