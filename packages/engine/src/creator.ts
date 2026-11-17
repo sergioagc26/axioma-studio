@@ -242,7 +242,7 @@ export async function createCreatorReel(opts: CreatorReelOptions): Promise<{ dir
     const provider = opts.provider ?? avatar.voice?.provider;
     const voice = opts.voice ?? avatar.voice?.voice;
     const key = cacheKey(script, provider ?? '', voice ?? '');
-    const audio = path.join(cache, `${key}-voz.mp3`);
+    const audio = path.join(cache, `${key}-voz.wav`);
     if (!existsSync(audio)) { say('Generando la voz…', 0.04); await synthesize(script, audio, { provider, voice }); }
     const raw = path.join(cache, `${key}-avatar.mp4`);
     if (!existsSync(raw)) await avatarSpeak(path.join(avatar.dir, 'cara.png'), audio, raw, { onProgress: (m) => say(m, 0.1) });

@@ -40,7 +40,7 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
   };
   return (
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget && !job) onClose(); }}>
-      <div className="modal card col" role="dialog" aria-modal="true" aria-label="Reel con avatar" style={{ maxWidth: 620, gap: 12 }}>
+      <div className="modal card col" role="dialog" aria-modal="true" aria-label="Reel con avatar" style={{ maxWidth: 620, gap: 12, maxHeight: '92vh', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 20 }}>Reel con avatar, de un solo pedido</h2>
         {result ? (
           <>
@@ -61,7 +61,7 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
         ) : (
           <>
             <label className="col small">Guion (lo que dice el avatar)
-              <textarea className="input" rows={7} value={guion} onChange={(e) => setGuion(e.target.value)} placeholder="Todo este video lo editó Axioma Studio con Claude…" />
+              <textarea className="input" rows={5} value={guion} onChange={(e) => setGuion(e.target.value)} placeholder="Todo este video lo editó Axioma Studio con Claude…" />
               <span className="muted">{words} palabras · para {duracion} s van unas {target}{words && Math.abs(words - target) > target * 0.15 ? (words > target ? ' (sobran palabras)' : ' (faltan palabras)') : ''}</span>
             </label>
             {!guion.trim() ? <label className="col small">O la idea (la IA escribe el guion)<input className="input" value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="Cómo editar reels con Axioma Studio y Claude" /></label> : null}
