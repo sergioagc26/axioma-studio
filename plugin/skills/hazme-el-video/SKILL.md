@@ -13,6 +13,11 @@ Sigue también la skill `reglas-edicion`.
 
 Llama `leer_pedidos`.
 
+**Si la persona te pasa enlaces** (Google Drive, Dropbox o un enlace directo), baja cada uno con `traer_de_enlace` al pedido. El nombre del pedido sale de lo que dijo o del tema del video, por ejemplo `promo-noviembre`. Así entra el material cuando trabaja sin instalar nada (Claude en la nube), porque ahí no puede arrastrar archivos.
+
+- Si `traer_de_enlace` dice que el enlace no es público, pídele que lo comparta como «Cualquier persona con el enlace».
+- Las carpetas de Google Drive no se pueden bajar solas: pídele los videos uno por uno, o una carpeta de Dropbox.
+
 - **No hay pedidos.** Explícale los 3 pasos y para:
   1. Crear una carpeta con el nombre del video dentro de «Para editar». La ruta exacta la da `leer_pedidos`.
   2. Meter ahí lo que grabó.

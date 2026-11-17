@@ -71,6 +71,19 @@ export function createServer() {
     return `Carpeta de pedidos: ${inbox}\nVideos terminados: ${ready}\n\n${list}`;
   });
 
+  tool('traer_de_enlace', 'Baja a un pedido de «Para editar» lo que la persona compartió por enlace (Google Drive: un archivo; Dropbox: archivo o carpeta entera; o un enlace directo). Es como entra el material cuando se trabaja sin instalar nada (en la nube no se pueden arrastrar archivos). Llámala una vez por enlace; después usa hacer_video con el mismo pedido.', {
+    enlace: z.string().describe('El enlace tal como lo copió la persona'),
+    pedido: z.string().describe('Nombre del pedido (carpeta). Si no existe, se crea.'),
+  }, async ({ enlace, pedido }) => {
+    const r = await E.fetchToOrder(enlace, pedido, { onProgress: log });
+    const c = r.classified;
+    const mb = (r.bytes / 1e6).toFixed(r.bytes > 1e8 ? 0 : 1);
+    return [
+      `Bajé ${r.files.length} archivo(s) (${mb} MB) al pedido «${r.pedido}»: ${r.files.join(', ')}.`,
+      `El pedido tiene ahora: ${c.videos.length} video(s)${c.referencias.length ? `, ${c.referencias.length} referencia(s)` : ''}${c.pedido ? ', pedido' : ''}${c.guion ? ', guion' : ''}${c.logo ? ', logo' : ''}${c.musica ? ', música' : ''}.`,
+    ].join('\n');
+  });
+
   tool(
     'hacer_video',
     'UN PEDIDO → VIDEO TERMINADO, sin preguntar: toma un pedido de «Para editar», reconoce lo que hay (alguien hablando a cámara, varias partes habladas que se unen, o video sin voz que va como montaje), usa el pedido.txt, el guion (corta con él), la referencia (su estilo), el logo y la música si vienen, edita todo (corte, gancho, subtítulos, textos, música, efectos) y deja el MP4 en «Listos». Tarda de 3 a 15 minutos. "respuestas" agrega o corrige lo del pedido (claves del brief: objetivo, formato, duracion, ritmo, tono, publico, cta, notas).',
