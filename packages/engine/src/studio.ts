@@ -74,6 +74,7 @@ import { Guion, PROJECT_SHAPES, guionMarkdown, type ProjectShape } from '@axioma
 import { brandFor, lastExport, recordExport, renderProject, timelineExtras } from './render.ts';
 import { buildMontage, createMontage, detectShots, asMontage } from './montage.ts';
 import { safeJoin, sendFile } from './server.ts';
+import { ORDER_QUESTIONS, READY_DIR, ensureInbox, findOrder, listOrders, makeOrder, orderFolder, parseOrder, saveOrderText } from './inbox.ts';
 import { createProject, readProject, readTranscript, writeProject } from './store.ts';
 import { emptyTrash, listTrash, restoreTrash } from './trash.ts';
 
@@ -96,6 +97,8 @@ interface Job {
   cancellable?: boolean;
 }
 const jobs = new Map<string, Job>();
+// Pedido → trabajo que lo está haciendo (para no lanzar dos veces el mismo y mostrar su avance).
+const orderJobs = new Map<string, string>();
 /** Cómo parar cada trabajo en marcha. */
 const scopes = new Map<string, CancelScope>();
 /** Trabajos que no se cancelan a mitad: publicar en redes, actualizar la app y copias de seguridad. */
@@ -439,6 +442,64 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       // Miniatura: un fotograma del medio de la primera escena.
       thumbT: (() => { const r = x.scenes[0]?.ranges[0]; return r ? +((r.start + r.end) / 2).toFixed(2) : 1; })(),
     })));
+  }
+
+  // Pedidos («Para editar» → «Listos»): dejar el material y que la app haga el video sola.
+  if (p === '/api/pedidos' && method === 'GET') {
+    const { inbox, ready } = await ensureInbox();
+    const orders = await listOrders();
+    const b = (f?: string) => (f ? path.relative(orderPathOf(f), f) : undefined);
+    const orderPathOf = (f: string) => orders.find((o) => f.startsWith(o.path + path.sep))?.path ?? path.dirname(f);
+    return json(res, {
+      inbox, ready, questions: ORDER_QUESTIONS,
+      orders: await Promise.all(orders.map(async (o) => {
+        const parsed = o.files.pedido ? parseOrder(await readFile(o.files.pedido, 'utf8').catch(() => '')) : null;
+        const run = orderJobs.get(o.name);
+        const job = run ? jobs.get(run) : undefined;
+        return {
+          name: o.name, loose: o.path === o.files.videos[0],
+          files: { videos: o.files.videos.map((f) => b(f)!), referencias: o.files.referencias.map((f) => b(f)!), guion: b(o.files.guion), pedido: b(o.files.pedido), logo: b(o.files.logo), musica: b(o.files.musica), otros: o.files.otros.map((f) => b(f)!) },
+          answers: parsed ? { ...parsed.brief, ...(parsed.client ? { cliente: parsed.client } : {}) } : {},
+          state: o.state.video && !existsSync(o.state.video) ? { ...o.state, video: undefined } : o.state,
+          job: job?.status === 'running' ? job : undefined,
+        };
+      })),
+    });
+  }
+  if (p === '/api/pedidos/subir' && method === 'POST') {
+    // Un archivo del pedido, directo a su carpeta (se crea si no existe). Nombre de archivo sin rutas.
+    const dir = await orderFolder(url.searchParams.get('pedido') ?? '');
+    const name = path.basename(url.searchParams.get('filename') ?? '').replace(/^\.+/, '');
+    if (!name) return json(res, { error: 'Falta el nombre del archivo.' }, 400);
+    await pipe(req, createWriteStream(path.join(dir, name)));
+    return json(res, { ok: true, file: name });
+  }
+  if (p === '/api/pedidos/pedido' && method === 'POST') {
+    const body = await readBody(req);
+    await saveOrderText(body.pedido ?? '', body.respuestas ?? {});
+    return json(res, { ok: true });
+  }
+  if (p === '/api/pedidos/hacer' && method === 'POST') {
+    const body = await readBody(req);
+    const order = await findOrder(body.pedido);
+    const prev = orderJobs.get(order.name);
+    const running = prev ? jobs.get(prev) : undefined;
+    if (running?.status === 'running') return json(res, running);
+    const job = startJob('crear', async (j) => {
+      const r = await makeOrder(order.name, { onProgress: (m) => { j.message = m.trim(); } });
+      j.projectId = (await readProject(r.dir)).id;
+      dirCache.set(j.projectId, r.dir);
+      return { video: r.out, proyecto: j.projectId, resumen: r.summary, apoyo: r.broll.map((f) => path.basename(f)) };
+    });
+    orderJobs.set(order.name, job.id);
+    return json(res, job);
+  }
+  if (p === '/api/pedidos/video' && method === 'GET') {
+    // El video terminado (solo si está dentro de «Listos»).
+    const order = await findOrder(url.searchParams.get('pedido') ?? '');
+    const file = order.state.video && safeJoin(READY_DIR, path.relative(READY_DIR, order.state.video));
+    if (!file || !sendFile(req, res, file, url.searchParams.get('descargar') ? { 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}` } : {})) return json(res, { error: 'Este pedido aún no tiene video.' }, 404);
+    return;
   }
 
   if (p === '/api/upload' && method === 'POST') {

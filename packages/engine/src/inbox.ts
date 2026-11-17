@@ -417,3 +417,39 @@ export function formatOrders(orders: Order[]): string {
     return [`• ${o.name} [${st}]`, `  videos: ${f.videos.map((v) => path.basename(v)).join(', ') || '—'}`, ...extra.map((x) => `  ${x}`), o.state.proyecto ? `  proyecto: ${o.state.proyecto}` : ''].filter(Boolean).join('\n');
   }).join('\n');
 }
+
+/** Nombre seguro para la carpeta de un pedido (sin barras ni caracteres raros). */
+export function orderFolderName(name: string): string {
+  const clean = name.normalize('NFC').replace(/[\\/:*?"<>|]+/g, ' ').replace(/^[._\s]+/, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (!clean) throw new Error('Ponle un nombre al video (por ejemplo: promo-noviembre).');
+  return clean;
+}
+
+/** Crea (si no existe) la carpeta de un pedido y la devuelve. */
+export async function orderFolder(name: string): Promise<string> {
+  const dir = path.join(INBOX_DIR, orderFolderName(name));
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
+/** Las preguntas de la plantilla, con la clave del brief que llena cada una. */
+export const ORDER_QUESTIONS: { key: string; label: string; hint: string }[] = [
+  { key: 'cliente', label: 'Marca o cliente', hint: 'Gym Fuerza' },
+  { key: 'notas', label: '¿Qué es este video?', hint: 'promo de la clase de las 6 am' },
+  { key: 'objetivo', label: '¿Qué quieres que haga quien lo vea?', hint: 'que me escriban por DM' },
+  { key: 'formato', label: '¿Dónde lo vas a publicar?', hint: 'Instagram, TikTok, YouTube, anuncio' },
+  { key: 'duracion', label: '¿Cuánto debe durar?', hint: '30 segundos, o lo que dure' },
+  { key: 'ritmo', label: 'Ritmo o estilo', hint: 'rápido y con energía' },
+  { key: 'cta', label: 'Frase final (llamado a la acción)', hint: 'Escríbeme CLASE por DM' },
+  { key: 'extra', label: 'Sí o sí debe salir / no debe salir', hint: 'que se vea el precio' },
+];
+
+/** Escribe el pedido.txt de un pedido con las respuestas del formulario (mismo formato de la plantilla). */
+export async function saveOrderText(name: string, answers: Record<string, string>): Promise<string> {
+  const dir = await orderFolder(name);
+  const text = ['PEDIDO — llena lo que quieras. Lo que dejes vacío lo decide Axioma.', '',
+    ...ORDER_QUESTIONS.map((q) => `${q.label}: ${(answers[q.key] ?? '').replace(/\s*\n\s*/g, ' ').trim()}`), ''].join('\n');
+  const file = path.join(dir, 'pedido.txt');
+  await writeFile(file, text);
+  return file;
+}

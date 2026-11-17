@@ -115,3 +115,15 @@ describe('el corte con guion sobrevive a un cambio de ritmo', () => {
     expect((await E.readProject(dir)).scriptCut).toBeUndefined();
   });
 });
+
+describe('pedido desde el estudio', () => {
+  it('el formulario escribe un pedido.txt que se lee igual que la plantilla', async () => {
+    expect(E.orderFolderName('  ../promo: noviembre/  ')).toBe('promo noviembre');
+    expect(() => E.orderFolderName('  //  ')).toThrow('Ponle un nombre');
+    const file = await E.saveOrderText('Clase spinning', { cliente: 'Gym Fuerza', objetivo: 'que reserven', duracion: '15 s', extra: 'que se vea el\nprecio' });
+    const r = E.parseOrder(readFileSync(file, 'utf8'));
+    expect(r.client).toBe('Gym Fuerza');
+    expect(r.brief).toEqual({ objetivo: 'que reserven', duracion: '15 s', notas: 'que se vea el precio' });
+    expect(E.classifyFiles([file]).pedido).toBe(file);
+  });
+});

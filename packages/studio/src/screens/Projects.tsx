@@ -342,6 +342,7 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             <a className="btn rect" href={openHref(last)} title={`Abrir «${last.name}»`}>Seguir con «{last.name.length > 28 ? last.name.slice(0, 27) + '…' : last.name}»<Icon name="next" /></a>
           )}
           <button className="btn rect" onClick={() => setReelOpen(true)} title="Guion, avatar y duración: la app hace todo el reel"><Icon name="sparkle" />Reel con avatar</button>
+          <a className="btn rect" href="#/pedidos" title="Deja lo que grabaste y la app hace el video sola"><Icon name="folder" />Para editar</a>
           <a className="btn rect" href="#/calendario"><Icon name="calendar" />Calendario</a>
           <details className="more ajustes" ref={ajustes}>
             <summary className="btn rect" aria-label={aviso ? 'Ajustes (hay avisos)' : 'Ajustes'}><Icon name="settings" />Ajustes{aviso && <span className="dot" aria-hidden="true" />}</summary>

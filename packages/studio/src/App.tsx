@@ -16,11 +16,12 @@ import { Configuracion } from './screens/Configuracion.tsx';
 import { JobsBar } from './JobsBar.tsx';
 import { AxiLive, axiForToast } from './AxiLive.tsx';
 import { Calendario } from './screens/Calendario.tsx';
+import { Pedidos } from './screens/Pedidos.tsx';
 import { Icon } from './Icon.tsx';
 import type { IconName } from './icons.ts';
 import { Listo } from './screens/Listo.tsx';
 
-export type Screen = 'proyectos' | 'calendario' | 'ajustes' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'guion' | 'tomas' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
+export type Screen = 'proyectos' | 'pedidos' | 'calendario' | 'ajustes' | 'listo' | 'brief' | 'storyboard' | 'editor' | 'texto' | 'guion' | 'tomas' | 'variantes' | 'audio' | 'imagenes' | 'referencias';
 
 export interface Ctx {
   store: ProjectStore;
@@ -65,7 +66,7 @@ const REDO = MAC ? '⇧⌘Z' : 'Ctrl+Shift+Z';
 function parseHash(): { screen: Screen; p: string | null; s: string | null } {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   const q = new URLSearchParams(query);
-  const screen = (['proyectos', 'calendario', 'ajustes', 'listo', 'brief', 'storyboard', 'editor', 'texto', 'guion', 'tomas', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
+  const screen = (['proyectos', 'pedidos', 'calendario', 'ajustes', 'listo', 'brief', 'storyboard', 'editor', 'texto', 'guion', 'tomas', 'variantes', 'audio', 'imagenes', 'referencias'] as Screen[]).find((x) => x === path) ?? 'proyectos';
   return { screen, p: q.get('p'), s: q.get('s') };
 }
 
@@ -403,6 +404,7 @@ export const App: React.FC = () => {
       <div key={`${route.screen}-${route.p ?? ''}`} className="screen-fade" style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {route.screen === 'ajustes' ? <Configuracion ctx={ctx} theme={theme} setTheme={setTheme} />
         : route.screen === 'calendario' ? <div className="scroll"><Calendario ctx={ctx} /></div>
+        : route.screen === 'pedidos' ? <div className="scroll"><Pedidos ctx={ctx} /></div>
         : !needsProject || !route.p ? <Projects ctx={ctx} />
         : !project ? (
           <div className="page" style={{ display: 'grid', placeItems: 'center' }}>
