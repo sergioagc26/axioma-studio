@@ -14,7 +14,9 @@ import { analyzeReference } from './reference.ts';
 import { renderProject } from './render.ts';
 import { cutProjectToScript } from './scriptcut.ts';
 import { createProject, readProject, writeProject } from './store.ts';
-import { hasSpeech, transcribeWav } from './transcribe.ts';
+import { isTalking, transcribeWav } from './transcribe.ts';
+import { llmJson } from './llm.ts';
+import { maxSeconds } from './brief.ts';
 
 /**
  * Pedidos: la forma más simple de usar la app. La persona deja sus videos en crudo en
@@ -226,7 +228,19 @@ export function parseOrder(text: string): { brief: Record<string, string>; clien
       else loose.push(`${m[1].trim()}: ${v}`);
     } else loose.push(line);
   }
-  if (loose.length) add('notas', loose.join(' '));
+  if (loose.length) {
+    const free = loose.join(' ');
+    add('notas', free);
+    // Lo que se dice en palabras normales también cuenta: «unos 30 segundos», «para Instagram».
+    if (!brief.duracion) {
+      const d = free.match(/\b(\d+(?:[.,]\d+)?)\s*(segundos?|seg\b|s\b|minutos?|min\b)|medio minuto|un minuto/i);
+      if (d) brief.duracion = d[0];
+    }
+    if (!brief.formato) {
+      const f = free.match(/youtube shorts?|shorts?\b|tiktok|historias?\b|reels?\b|instagram|youtube|facebook/i);
+      if (f) brief.formato = /short/i.test(f[0]) ? 'YouTube Short' : /tiktok/i.test(f[0]) ? 'TikTok' : /historia/i.test(f[0]) ? 'Historia' : /youtube/i.test(f[0]) ? 'YouTube' : 'Reel';
+    }
+  }
   return { brief, client };
 }
 
@@ -240,7 +254,7 @@ export function shapeFor(formato?: string): ProjectShape {
 
 let wavSeq = 0;
 
-/** ¿Este video tiene a alguien hablando? Escucha sus primeros 45 s. Null si no se pudo saber. */
+/** ¿Este video tiene a alguien hablándole a la cámara (no solo contando o dando ánimo)? Escucha sus primeros 45 s. Null si no se pudo saber. */
 export async function videoHasSpeech(file: string): Promise<boolean | null> {
   // Nombre único: dos videos escuchados seguidos no pueden pisarse el audio.
   // Sin pista de audio (grabación de pantalla, stock, clip generado) no puede haber voz.
@@ -249,12 +263,62 @@ export async function videoHasSpeech(file: string): Promise<boolean | null> {
   const wav = path.join(APP_TMP, `voz-${process.pid}-${++wavSeq}-${Date.now()}.wav`);
   try {
     await ffmpeg(['-y', '-t', '45', '-i', file, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', wav]);
-    return hasSpeech(await transcribeWav(wav));
+    return isTalking(await transcribeWav(wav));
   } catch {
     return null;
   } finally {
     await rm(wav, { force: true });
   }
+}
+
+/** ¿El pedido pide textos o frases en pantalla? */
+export function wantsTexts(notas: string): boolean {
+  return /\b(textos?|frases?|mensajes?|letreros?|palabras)\b/i.test(notas);
+}
+
+/** De qué tratan los textos pedidos: lo que va después de «sobre», «de» o «acerca de». */
+export function textTopic(notas: string): string {
+  const m = notas.match(/(?:textos?|frases?|mensajes?)[^.]*?\b(?:sobre|acerca de|de)\s+([^.,;]+)/i);
+  return (m?.[1] ?? notas).trim().slice(0, 120);
+}
+
+const FALLBACK_TEXTS = ['DISCIPLINA SOBRE MOTIVACIÓN', 'UNA REPETICIÓN MÁS', 'NADIE LO HARÁ POR TI', 'EL ESFUERZO NO MIENTE', 'HOY SÍ', 'CONSTANCIA', 'HAZLO CANSADO', 'SIN EXCUSAS'];
+
+/**
+ * Pone en un montaje las frases que pidió el cliente: la IA local escribe frases cortas sobre el
+ * tema (sin datos inventados) y cada una queda unos 3 s, con un corte libre entre una y otra.
+ */
+export async function montageTexts(dir: string, notas: string): Promise<string[]> {
+  const p = await readProject(dir);
+  const n = p.scenes.length;
+  if (n < 2) return [];
+  const total = p.scenes.reduce((a, sc) => a + sc.ranges.reduce((b, r) => b + (r.end - r.start), 0), 0) || n;
+  const per = total / n;
+  const block = Math.max(1, Math.round(3 / per));
+  const slots = Math.max(1, Math.floor(n / (block + 1)));
+  const topic = textTopic(notas);
+  let lines: string[] = [];
+  try {
+    const r = await llmJson<{ frases: string[] }>(
+      'Escribes textos cortos en pantalla para reels en español. Cada frase tiene de 2 a 5 palabras, en mayúsculas, sin números, sin datos, sin emojis y sin comillas. Directas y con fuerza.',
+      `Escribe ${slots} frases distintas sobre: ${topic}. Pedido completo del cliente: ${notas}`,
+      { type: 'object', properties: { frases: { type: 'array', items: { type: 'string' } } }, required: ['frases'] },
+      { temperature: 0.7, timeoutMs: 60_000 },
+    );
+    lines = (r.frases ?? []).map((t: string) => t.replace(/["«»]/g, '').trim().toUpperCase()).filter((t: string) => t && !/\d/.test(t) && t.split(/\s+/).length <= 6);
+  } catch { /* sin IA local: frases de respaldo */ }
+  // Si la IA dio menos frases de las que caben, se completa con las de respaldo (sin repetir).
+  for (const f of FALLBACK_TEXTS) { if (lines.length >= slots) break; if (!lines.includes(f)) lines.push(f); }
+  const placed: string[] = [];
+  for (const sc of p.scenes) { sc.onScreenText = undefined; sc.autoText = undefined; }
+  for (let k = 0; k < slots; k++) {
+    const text = lines[k % lines.length];
+    const start = k * (block + 1);
+    for (let j = start; j < Math.min(n, start + block); j++) { p.scenes[j].onScreenText = text; p.scenes[j].autoText = text; }
+    if (!placed.includes(text)) placed.push(text);
+  }
+  await writeProject(dir, p);
+  return placed;
 }
 
 export interface OrderResult {
@@ -319,7 +383,7 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
       await prepareMedia(dir, say);
       say('Escribiendo lo que dices…');
       const t = await transcribeProject(dir, say);
-      kind = hasSpeech(t) ? 'hablado' : 'montaje';
+      kind = isTalking(t) ? 'hablado' : 'montaje';
       if (kind === 'hablado') {
         if (f.guion) {
           say('Cortando con tu guion…');
@@ -327,12 +391,17 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
           summary.push(`Corté con tu guion: ${cut.lines.filter((l) => l.found).length} de ${cut.lines.length} frases encontradas, ${cut.sourceDuration.toFixed(0)} s → ${cut.outputDuration.toFixed(0)} s.`);
           if (cut.missing.length) summary.push(`⚠ No encontré en la grabación: ${cut.missing.map((m) => `«${m}»`).join(', ')}.`);
         } else await cutProject(dir);
-      } else if (talking.length === 1 && f.videos.length === 1) {
-        // Un solo video que al final no tenía voz: se rehace como montaje (mejor que un hablado vacío).
+      } else {
+        // Al final nadie le habla a la cámara (solo se oye contar repeticiones, dar ánimo o ruido):
+        // se rehace como montaje con TODO lo grabado, también los videos sin voz.
         await rm(dir, { recursive: true, force: true });
+        say('Nadie habla a cámara: lo armo como montaje con todas tus tomas…');
         ({ dir } = await createMontage({ inputs: f.videos, name: order.name, client, shape }));
         await prepareMedia(dir, say);
         await detectShots(dir);
+        summary.splice(0);
+        summary.push(`En tus videos solo se oye contar o dar ánimo, nadie le habla a la cámara: lo armé como montaje con los ${f.videos.length} videos.`);
+        silent = [];
       }
     } else {
       // 2b. Nadie habla: montaje con todo lo grabado.
@@ -372,6 +441,28 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
     say('Editando todo…');
     summary.push(...(await editEverything(dir, { referenceId, onProgress: say })).summary);
     kind = (await readProject(dir)).kind === 'montaje' ? 'montaje' : 'hablado';
+    // Montaje con «textos sobre…» en el pedido: frases cortas repartidas por el video.
+    if (kind === 'montaje' && brief.notas && wantsTexts(brief.notas)) {
+      say('Escribiendo los textos que pediste…');
+      const placed = await montageTexts(dir, brief.notas);
+      if (placed.length) {
+        const i = summary.findIndex((l) => l.startsWith('No pude aplicar tu nota'));
+        if (i >= 0) summary.splice(i, 1);
+        // El conteo de textos del resumen se hizo antes de ponerlos: se actualiza.
+        const pt = await readProject(dir);
+        const nTexts = new Set(pt.scenes.map((sc) => sc.onScreenText).filter(Boolean)).size;
+        const q = summary.findIndex((l) => /\b\d+ textos en pantalla\b/.test(l));
+        if (q >= 0) summary[q] = summary[q].replace(/\b\d+ textos en pantalla\b/, `${nTexts} textos en pantalla`);
+        summary.push(`Textos en pantalla, como pediste: ${placed.map((t) => `«${t}»`).join(', ')}.`);
+      }
+    }
+    // Si pidió más duración de la que alcanza el material (sin repetir tomas), se dice claro.
+    const asked = maxSeconds(brief.duracion);
+    if (asked && kind === 'montaje') {
+      const pm = await readProject(dir);
+      const got = pm.scenes.reduce((a, sc) => a + sc.ranges.reduce((b, r) => b + (r.end - r.start), 0), 0);
+      if (got < asked * 0.85) summary.push(`Pediste ${asked} s, pero lo que grabaste alcanza para ${Math.round(got)} s sin repetir tomas. Si sumas más videos al pedido y lo vuelves a hacer, llega a ${asked} s.`);
+    }
     if (silent.length) summary.push(`Hay ${silent.length} video(s) sin voz que se pueden usar de apoyo: ${silent.map((v) => path.basename(v)).join(', ')}.`);
 
     // 5. Exportar a «Listos».

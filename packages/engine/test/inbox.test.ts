@@ -44,8 +44,8 @@ describe('parseOrder', () => {
     expect(r.brief).toEqual({ notas: 'promo de la clase de las 6 am', objetivo: 'que me escriban por DM', formato: 'Instagram', cta: 'Escribe CLASE' });
   });
 
-  it('el texto suelto queda como nota', () => {
-    expect(E.parseOrder('Quiero algo rápido y con energía\nque dure 30 segundos').brief).toEqual({ notas: 'Quiero algo rápido y con energía que dure 30 segundos' });
+  it('el texto suelto queda como nota (y de él se saca la duración)', () => {
+    expect(E.parseOrder('Quiero algo rápido y con energía\nque dure 30 segundos').brief).toEqual({ notas: 'Quiero algo rápido y con energía que dure 30 segundos', duracion: '30 segundos' });
     expect(E.parseOrder('Duración: 30 s\nno muestres la cara del niño').brief).toEqual({ duracion: '30 s', notas: 'no muestres la cara del niño' });
   });
 

@@ -21,7 +21,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { asMontage, createMontage, detectShots } from './montage.ts';
 import { prepareMedia, transcribeProject } from './pipeline.ts';
-import { hasSpeech } from './transcribe.ts';
+import { hasSpeech, isTalking } from './transcribe.ts';
 import { VOICE_LEAD, sceneSwitchPoint, syncShotsToVoice, tagShots } from './voicesync.ts';
 import { buildFront } from './front.ts';
 import { renderProject } from './render.ts';
@@ -255,7 +255,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
     const said = speechOf(first, await readTranscript(dir).catch(() => null));
     try {
       const hook = await llmHook(said, project.brief.publico);
-      if (hook) {
+      if (hook && goodHook(hook)) {
         first.onScreenText = hook;
         first.autoText = hook;
         project = await writeProject(dir, project);
@@ -294,8 +294,8 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
   log(`Proyecto: ${dir}`);
   await prepareMedia(dir, log);
   const t = await transcribeProject(dir, log);
-  if (!hasSpeech(t)) {
-    // Sin voz: se rehace como montaje de tomas.
+  if (!isTalking(t)) {
+    // Sin voz (o solo conteo de repeticiones): se rehace como montaje de tomas.
     log('  sin voz: se arma como montaje');
     await rm(dir, { recursive: true, force: true });
     ({ dir } = await createMontage({ inputs: [input], client: opts.client }));
@@ -313,6 +313,19 @@ export async function autoVideo(input: string, opts: { client?: string; outFolde
     log(`Listo: ${out}`);
   }
   return { dir, out, summary };
+}
+
+/**
+ * ¿El gancho se entiende? Se descarta el que es casi todo números o conteo («5 duro 6 duro»),
+ * el que repite palabras o el que no tiene al menos dos palabras con contenido.
+ */
+export function goodHook(hook: string): boolean {
+  const w = hook.toLowerCase().split(/\s+/).map((x) => x.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+  if (w.length < 2) return false;
+  const digits = w.filter((x) => /\d/.test(x)).length;
+  if (digits / w.length > 0.34) return false;
+  if (new Set(w).size < w.length * 0.75) return false;
+  return w.filter((x) => x.length >= 4 && !/\d/.test(x)).length >= 2;
 }
 
 /**
@@ -334,14 +347,14 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
   }
   // Un video marcado como «hablado» sin voz real (Whisper inventa «*música*» sobre la música) se
   // edita como montaje: si no, se recortaba a lo poco que «se dijo» y se subtitulaba el ruido.
-  if (project.kind === 'hablado' && !hasSpeech(await readTranscript(dir).catch(() => null))) {
+  if (project.kind === 'hablado' && !isTalking(await readTranscript(dir).catch(() => null))) {
     say('No hay voz: lo armo como montaje…');
     asMontage(project);
     project.scenes = [];
     await writeProject(dir, project);
     await detectShots(dir).catch(() => []);
     project = await readProject(dir);
-    fixes.push('No encontré voz en el video: lo edité como montaje al ritmo de la música (sin subtítulos).');
+    fixes.push('Nadie le habla a la cámara (solo música, ruido o conteo de repeticiones): lo edité como montaje al ritmo de la música, sin subtítulos.');
   }
   // La referencia elegida en el brief es la única que manda: su estilo (ritmo, subtítulos, textos)
   // va sobre el tono; el brief sigue decidiendo la duración y el cierre. Sin elegir, ninguna.
@@ -372,7 +385,7 @@ export async function editEverything(dir: string, opts: { referenceId?: string; 
       if (first && (await llmReady())) {
         try {
           const hook = await llmHook(speechOf(first, await readTranscript(dir).catch(() => null)), project.brief.publico);
-          if (hook) {
+          if (hook && goodHook(hook)) {
             first.onScreenText = hook; first.autoText = hook;
             await writeProject(dir, project);
             const i = summary.findIndex((l) => l.startsWith('Gancho:'));
@@ -538,7 +551,7 @@ export async function montageHook(dir: string, project: Awaited<ReturnType<typeo
   ].filter(Boolean).join('\n');
   if (await llmReady()) {
     const hook = await llmHook(`(Video sin voz: escribe el texto de apertura que le hable a quien lo ve, sobre lo que se ve en el video, a partir de esto y sin inventar datos ni mencionar seguidores, likes o redes)\n${context}`, b.publico).catch(() => null);
-    if (hook) return hook;
+    if (hook && goodHook(hook)) return hook;
   }
   // Sin IA: la nota o el dato del cliente, cortado a 6 palabras.
   const plain = (b.notas || extras[0] || '').replace(/[.!?¡¿"«»]/g, '').trim();

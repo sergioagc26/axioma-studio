@@ -84,6 +84,24 @@ export function hasSpeech(t: Transcript | null | undefined): boolean {
   return words.length >= 3 && spoken >= 1.5;
 }
 
+/** Palabras de conteo y de ánimo en el gimnasio («5, duro, 6, vamos, una más»): no son un mensaje. */
+const CUES = new Set(('uno una un dos tres cuatro cinco seis siete ocho nueve diez once doce trece catorce quince veinte treinta ' +
+  'va vas vamos dale duro mas más otra otro ya eso bien arriba abajo baja sube aguanta listo normales normal fuerza ' +
+  'respira ahí ahi aja ajá sí si no y la el de que con ok okay venga bueno uf').split(' '));
+
+/**
+ * ¿Alguien le habla a la cámara (un mensaje que se puede subtitular y cortar), o solo se oye
+ * contar repeticiones, dar ánimo o ruido de fondo? En el segundo caso el video va como montaje.
+ */
+export function isTalking(t: Transcript | null | undefined): boolean {
+  if (!hasSpeech(t)) return false;
+  const words = (t!.words ?? []).filter((w) => !isNoise(w.text)).map((w) => w.text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+  const content = words.filter((w) => !/^\d+$/.test(w) && !CUES.has(w));
+  // Casi todo es conteo o ánimo, o hay muy pocas palabras con contenido: no es un mensaje.
+  if (content.length < 6) return false;
+  return content.length / words.length >= 0.4;
+}
+
 /** Texto compacto para Claude: una línea por frase con su tiempo de inicio. */
 export function compactTranscript(t: Transcript): string {
   const lines: string[] = [];

@@ -338,9 +338,6 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1 style={{ fontSize: 28 }}>Nuevo video</h1>
         <div className="row">
-          {last && !job && (
-            <a className="btn rect" href={openHref(last)} title={`Abrir «${last.name}»`}>Seguir con «{last.name.length > 28 ? last.name.slice(0, 27) + '…' : last.name}»<Icon name="next" /></a>
-          )}
           <button className="btn rect" onClick={() => setReelOpen(true)} title="Guion, avatar y duración: la app hace todo el reel"><Icon name="sparkle" />Reel con avatar</button>
           <a className="btn rect" href="#/pedidos" title="Deja lo que grabaste y la app hace el video sola"><Icon name="folder" />Para editar</a>
           <a className="btn rect" href="#/calendario"><Icon name="calendar" />Calendario</a>
@@ -372,6 +369,10 @@ export const Projects: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </details>
         </div>
       </div>
+      {/* En su propia línea: si aparece al cargar, no corre los botones de arriba. */}
+      {last && !job && (
+        <div className="row"><a className="btn rect" href={openHref(last)} title={`Abrir «${last.name}»`}>Seguir con «{last.name.length > 28 ? last.name.slice(0, 27) + '…' : last.name}»<Icon name="next" /></a></div>
+      )}
       <div
         className={`drop ${over ? 'over' : ''}`}
         onDragOver={(e) => { e.preventDefault(); setOver(true); }}
