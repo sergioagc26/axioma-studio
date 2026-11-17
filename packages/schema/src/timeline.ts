@@ -438,12 +438,13 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     const prev = clips[idx - 1];
     const frames = Math.max(2, Math.min(toFrame(scene.transition?.duration ?? spec.duration), Math.floor(clip.durationInFrames / 2)));
     const tail = prev.sourceStartFrame + prev.durationInFrames;
-    clip.transition = {
-      spec,
-      frames,
-      // Solo si la escena anterior es la toma original y queda material después del corte.
-      out: prev.visual === 'original' && tail + frames <= sourceFrames ? { sourceStartFrame: tail, focusX: prev.focusX, focusY: prev.focusY } : undefined,
-    };
+    // Solo si la escena anterior es la toma original tal cual (sin fondo cambiado ni pantalla
+    // flotante) y queda material después del corte.
+    const out = prev.visual === 'original' && !prev.backdrop && !prev.fit && !prev.motion && tail + frames <= sourceFrames ? { sourceStartFrame: tail, focusX: prev.focusX, focusY: prev.focusY } : undefined;
+    // Sin la escena anterior debajo, aparecer desde transparente sería aparecer desde negro:
+    // la nueva entra con el resto del efecto (desenfoque, escala…) pero ya visible.
+    const { opacidad: _o, ...entra } = spec.entra ?? {};
+    clip.transition = { spec: out || !spec.entra?.opacidad ? spec : { ...spec, entra }, frames, out };
   }
 
   // Efectos de sonido: los de cada escena y, si están activados, los automáticos.
