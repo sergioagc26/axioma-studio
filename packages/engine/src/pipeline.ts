@@ -113,7 +113,7 @@ export async function transcribeProject(dir: string, log: Log = console.log, opt
 }
 
 /** Aplica cortes automáticos según el preset/pacing del proyecto. */
-export async function cutProject(dir: string, presetId?: string): Promise<CutReport> {
+export async function cutProject(dir: string, presetId?: string, opts: { /** Corte automático aunque el video se haya cortado con un guion (lo olvida). */ ignoreScript?: boolean } = {}): Promise<CutReport> {
   const project = await readProject(dir);
   const transcript = await readTranscript(dir);
   if (!transcript) throw new Error('Falta la transcripción.');
@@ -122,6 +122,18 @@ export async function cutProject(dir: string, presetId?: string): Promise<CutRep
     project.presetId = preset.id;
     project.pacing = Pacing.parse(preset.pacing);
     project.captions = CaptionStyle.parse({ ...preset.captions, ...kitCaptions(await readKit(project.client)) });
+  }
+  if (opts.ignoreScript) project.scriptCut = undefined;
+  // Cortado con el guion de la persona: al cambiar el ritmo (brief, edición automática) se vuelve a
+  // cortar con ese mismo guion, no con el corte automático (que traería de vuelta lo que no iba).
+  const sc = project.scriptCut;
+  if (sc && project.kind !== 'montaje') {
+    await writeProject(dir, project);
+    const { cutProjectToScript } = await import('./scriptcut.ts');
+    const cut = await cutProjectToScript(dir, { text: sc.text, take: sc.take });
+    const kept = (await readProject(dir)).scenes.flatMap((s) => s.ranges);
+    const keptWords = transcript.words.filter((w) => kept.some((r) => (w.start + w.end) / 2 >= r.start && (w.start + w.end) / 2 <= r.end)).length;
+    return { keptWords, removedFillers: cut.removedFillers, removedRetakeWords: cut.removedRetakeWords + cut.removedOffScriptWords, sourceDuration: cut.sourceDuration, outputDuration: cut.outputDuration };
   }
   const { silences } = (await readAnalysis(dir)) ?? (await analyzeAudio(dir));
   // Un clip de un video largo solo usa su tramo.

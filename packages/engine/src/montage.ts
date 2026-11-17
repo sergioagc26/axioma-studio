@@ -65,6 +65,35 @@ async function normalizeClip(input: string, out: string, fps: number, k = 1, sha
 }
 
 /**
+ * Une varios videos en uno solo con la forma pedida (en orden, con su sonido). Sirve para un video
+ * hablado grabado en varias partes: se transcribe y se corta como uno solo.
+ */
+export async function joinClips(files: string[], out: string, shape: ProjectShape = 'vertical'): Promise<{ file: string; start: number; end: number }[]> {
+  const first = await probe(files[0]);
+  const fps = first.fps > 45 ? 60 : 30;
+  const tmp = `${out}.partes`;
+  await mkdir(tmp, { recursive: true });
+  const parts: string[] = [];
+  const boundaries: { file: string; start: number; end: number }[] = [];
+  let t = 0;
+  try {
+    for (const [i, f] of files.entries()) {
+      const part = path.join(tmp, `${String(i + 1).padStart(2, '0')}.mp4`);
+      const d = await normalizeClip(f, part, fps, 1, PROJECT_SHAPES[shape]);
+      boundaries.push({ file: path.basename(f), start: t, end: t + d });
+      t += d;
+      parts.push(part);
+    }
+    const list = path.join(tmp, 'lista.txt');
+    await writeFile(list, parts.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n'));
+    await ffmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', out]);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+  return boundaries;
+}
+
+/**
  * Crea un proyecto de montaje (sin depender de la voz) con uno o varios videos.
  * Varios videos se unen en un solo master vertical; se recuerda dónde empieza cada uno.
  */

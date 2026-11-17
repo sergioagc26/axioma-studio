@@ -506,6 +506,8 @@ npm run typecheck
 
 ## Guía
 
+Para clientes (lo más simple: dejar los videos en una carpeta y decir «hazme el video»): `docs/COMO-PEDIR-UN-VIDEO.md`.
+
 Paso a paso sin tecnicismos: `docs/TU-PRIMER-REEL.md`.
 
 ## Cambiar el nombre

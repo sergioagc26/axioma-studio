@@ -11,6 +11,7 @@ Sigue también la skill `reglas-edicion`.
 
 ## 1. Video y sistema
 
+- Si la persona dejó sus videos en «Para editar», dice «hazme el video» o nombra un pedido, usa la skill `hazme-el-video`.
 - Si el usuario no dio la ruta del video, pídela. Debe ser una ruta absoluta; en Mac puede arrastrar el archivo a la ventana. Si quiere seguir con un proyecto existente, usa `listar_proyectos` y continúa en el paso 5.
 - Si es la primera vez en la sesión, llama `estado_sistema`. Si algo falla, explica el arreglo en una línea y para.
 - Si en el video nadie habla (gimnasio, comida, producto) o `crear_proyecto` dice que no detectó voz, usa la skill `montaje`.

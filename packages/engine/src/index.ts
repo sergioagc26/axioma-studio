@@ -69,3 +69,4 @@ export * from './scriptcut.ts';
 export * from './avatar.ts';
 export * from './heygen.ts';
 export * from './creator.ts';
+export * from './inbox.ts';

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -54,6 +55,56 @@ export function createServer() {
     const all = await E.listProjects();
     if (!all.length) return 'No hay proyectos.';
     return all.slice(0, limite).map((p) => `${p.project.id} · ${p.project.client ?? 'personal'} · ${p.project.approval} · ${p.project.scenes.length} escenas · ${p.dir}`).join('\n');
+  });
+
+  tool('leer_pedidos', 'Pedidos de la carpeta «Para editar»: cada carpeta (o video suelto) es un video por hacer. Dice qué trajo cada uno (videos, pedido.txt, guion, referencia, logo, música) y si ya está listo. Es lo primero que se mira cuando la persona dice «hazme el video».', {}, async () => {
+    const { inbox, ready } = await E.ensureInbox();
+    const orders = await E.listOrders();
+    const withText = await Promise.all(orders.map(async (o) => {
+      const pedido = o.files.pedido ? (await readFile(o.files.pedido, 'utf8').catch(() => '')).trim() : '';
+      const leido = pedido ? E.parseOrder(pedido) : null;
+      return leido && Object.keys(leido.brief).length + (leido.client ? 1 : 0)
+        ? `\n  lo que pide: ${[leido.client && `marca ${leido.client}`, ...Object.entries(leido.brief).map(([k, v]) => `${k}: ${v}`)].filter(Boolean).join(' · ')}`
+        : '';
+    }));
+    const list = orders.length ? orders.map((o, i) => E.formatOrders([o]) + withText[i]).join('\n') : 'No hay pedidos todavía.';
+    return `Carpeta de pedidos: ${inbox}\nVideos terminados: ${ready}\n\n${list}`;
+  });
+
+  tool(
+    'hacer_video',
+    'UN PEDIDO → VIDEO TERMINADO, sin preguntar: toma un pedido de «Para editar», reconoce lo que hay (alguien hablando a cámara, varias partes habladas que se unen, o video sin voz que va como montaje), usa el pedido.txt, el guion (corta con él), la referencia (su estilo), el logo y la música si vienen, edita todo (corte, gancho, subtítulos, textos, música, efectos) y deja el MP4 en «Listos». Tarda de 3 a 15 minutos. "respuestas" agrega o corrige lo del pedido (claves del brief: objetivo, formato, duracion, ritmo, tono, publico, cta, notas).',
+    {
+      pedido: z.string().optional().describe('Nombre de la carpeta (o del video suelto). Vacío: el único pendiente.'),
+      cliente: z.string().optional().describe('Marca o cliente; si no, el que diga el pedido o "personal"'),
+      respuestas: z.record(z.string(), z.string()).optional(),
+      exportar: z.boolean().default(true).describe('false: deja el proyecto editado sin exportar (para revisarlo antes)'),
+    },
+    async ({ pedido, cliente, respuestas, exportar }) => {
+      const r = await E.makeOrder(pedido, { client: cliente, brief: respuestas, render: exportar, onProgress: log });
+      const project = await E.readProject(r.dir);
+      return [
+        `Pedido «${r.order}» · ${r.kind === 'hablado' ? 'video hablado' : 'montaje sin voz'}`,
+        r.out ? `Video listo: ${r.out}` : 'Editado, aún sin exportar (usa entregar_video).',
+        '',
+        'Lo que hice:',
+        ...r.summary.map((x) => `- ${x}`),
+        r.broll.length ? `\nVideos sin voz para apoyo (ponlos con usar_broll, archivo local, licencia "propia"): ${r.broll.join(', ')}` : '',
+        '',
+        E.summarize(project, r.dir),
+      ].join('\n');
+    },
+  );
+
+  tool('entregar_video', 'Vuelve a exportar el video de un pedido (después de pedir cambios) y lo deja en «Listos» con el nombre del pedido. El anterior se guarda con su fecha.', {
+    pedido: z.string().describe('Nombre del pedido'),
+    proyecto: z.string().optional().describe('Id del proyecto si no es el que hizo hacer_video'),
+  }, async ({ pedido, proyecto }) => {
+    const order = await E.findOrder(pedido);
+    const dir = proyecto ? await resolveProject(proyecto) : order.state.dir;
+    if (!dir) throw new Error(`El pedido «${order.name}» aún no tiene proyecto: usa hacer_video.`);
+    const out = await E.deliverOrder(order.name, dir);
+    return `Video listo: ${out}`;
   });
 
   tool(
@@ -289,11 +340,11 @@ export function createServer() {
     return `Referencia ${referencia} quitada (está en la papelera). Quedan ${rest.length}.`;
   });
 
-  tool('aplicar_cortes', 'Rehace el corte automático (borra el storyboard actual). Opcionalmente cambia de preset.', {
-    proyecto, preset: z.string().optional(),
-  }, async ({ proyecto, preset }) => {
+  tool('aplicar_cortes', 'Rehace el corte automático (borra el storyboard actual). Opcionalmente cambia de preset. Si el video se cortó con un guion, lo vuelve a cortar con ese guion; con olvidar_guion=true vuelve al corte automático.', {
+    proyecto, preset: z.string().optional(), olvidar_guion: z.boolean().default(false),
+  }, async ({ proyecto, preset, olvidar_guion }) => {
     const dir = await resolveProject(proyecto);
-    const r = await E.cutProject(dir, preset);
+    const r = await E.cutProject(dir, preset, { ignoreScript: olvidar_guion });
     return `Corte: ${r.sourceDuration.toFixed(1)} s → ${r.outputDuration.toFixed(1)} s\n\n${E.summarize(await E.readProject(dir), dir)}`;
   });
 

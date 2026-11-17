@@ -23,6 +23,8 @@ Abre la app de Claude, entra a la pestaña **Code** y elige la carpeta del progr
 
 ## 3. Pedir el reel
 
+> **Lo más fácil:** deja tus videos en `workspace/Para editar` y escribe «hazme el video». Guía de una página: `docs/COMO-PEDIR-UN-VIDEO.md`.
+
 Escribe, cambiando la ruta por la de tu video (en Mac puedes arrastrar el archivo a la ventana):
 
 > edita este video para CRE: /Users/tu-usuario/Videos/mi-video.mp4
