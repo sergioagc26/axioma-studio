@@ -105,11 +105,12 @@ export async function fetchToOrder(link: string, pedido: string, opts: { onProgr
   try {
     opts.onProgress?.(target.kind === 'directo' ? 'Bajando el archivo…' : `Bajando desde ${target.kind === 'drive' ? 'Google Drive' : 'Dropbox'}…`);
     // -J -O: el nombre del archivo lo da el servidor (Drive y Dropbox lo mandan); --fail: un 404 es error.
-    await run(process.env.SE_CURL ?? 'curl', ['-L', '--fail', '-sS', '-J', '-O', '--retry', '2', '--connect-timeout', '20', '-A', 'Mozilla/5.0 (AxiomaStudio)', target.url], { cwd: tmp })
+    await run(process.env.SE_CURL ?? 'curl', ['-L', '--fail', '-sS', '-J', '-O', '--retry', '2', '--retry-max-time', '60', '--connect-timeout', '20', '-A', 'Mozilla/5.0 (AxiomaStudio)', target.url], { cwd: tmp })
       .catch((e: Error) => {
         const code = e.message.match(/error: (\d{3})/)?.[1] ?? e.message.match(/returned error: (\d{3})/)?.[1];
         throw new Error(code === '404' ? 'El enlace no existe o ya venció.' : code === '403' || code === '401'
           ? 'El enlace no es público: compártelo como «Cualquier persona con el enlace» y vuelve a intentar.'
+          : code === '429' ? 'El sitio está limitando las descargas desde esta máquina: sube el video a Google Drive o Dropbox y comparte ese enlace.'
           : `No pude bajar el enlace: ${e.message.split('\n').find((l) => l.includes('curl:')) ?? e.message.split('\n')[0]}`);
       });
     let got = await walk(tmp);

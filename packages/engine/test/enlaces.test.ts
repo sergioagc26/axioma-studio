@@ -47,6 +47,7 @@ describe('fetchToOrder', () => {
       if (u.pathname === '/carpeta' && hasZip) { res.writeHead(200, { 'Content-Disposition': 'attachment; filename="Pedido.zip"' }); return void res.end(readFileSync(path.join(src, 'carpeta.zip'))); }
       if (u.pathname === '/pagina') { res.writeHead(200, { 'Content-Type': 'text/html' }); return void res.end('<!DOCTYPE html><html><body>Inicia sesión</body></html>'); }
       if (u.pathname === '/privado') return void res.writeHead(403).end();
+      if (u.pathname === '/limitado') return void res.writeHead(429, { 'Retry-After': '600' }).end();
       if (u.pathname === '/redirige') { res.writeHead(302, { Location: '/archivo' }); return void res.end(); }
       res.writeHead(404).end();
     });
@@ -76,6 +77,10 @@ describe('fetchToOrder', () => {
     await expect(E.fetchToOrder(`${base}/privado`, 'x')).rejects.toThrow('no es público');
     await expect(E.fetchToOrder(`${base}/pagina`, 'x')).rejects.toThrow('abre una página');
     await expect(E.fetchToOrder(`${base}/nada`, 'x')).rejects.toThrow('no existe');
+    // Un 429 con «Retry-After: 600» (Wikimedia en la nube) no deja la descarga colgada 10 min.
+    const t0 = Date.now();
+    await expect(E.fetchToOrder(`${base}/limitado`, 'x')).rejects.toThrow('limitando las descargas');
+    expect(Date.now() - t0).toBeLessThan(15_000);
     // Nada quedó a medio bajar.
     expect(existsSync(path.join(ws, 'Para editar', 'x')) ? (await import('node:fs')).readdirSync(path.join(ws, 'Para editar', 'x')) : []).toEqual([]);
   });

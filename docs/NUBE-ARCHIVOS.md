@@ -30,7 +30,7 @@ código lo pone el sitio, no el proxy.
 **Estimación** con los 2,8 MB/s medidos (puede variar con Drive/Dropbox): un video de 100 MB entra
 en ~35 s, uno de 500 MB en ~3 min.
 
-Hallazgo para `enlaces.ts` (hecho, no hipótesis): cuando un sitio responde 429 con
+Hallazgo para `enlaces.ts` (hecho, no hipótesis; **ya corregido**, ver abajo): cuando un sitio responde 429 con
 `retry-after: 600`, el `--retry 2` de curl espera **10 min por intento** sin escribir nada; la
 primera prueba quedó colgada más de 10 min. Conviene limitarlo (p. ej. `--retry-max-time 60`) y
 mostrar un error claro («el sitio está limitando las descargas, prueba con Drive o Dropbox»).
@@ -72,3 +72,10 @@ dueño (no se tenía uno público).
 - La rama remota `prueba-salida-tmp` **no se pudo borrar** desde la sesión (el proxy corta el
   borrado). Se la dejó apuntando a un commit viejo de `main`, así que ya **no contiene el MP4**,
   pero hay que borrarla a mano en GitHub (Branches › `prueba-salida-tmp` › borrar).
+
+## Corrección aplicada
+
+`fetchToOrder` ahora usa `--retry-max-time 60`: si un sitio pide esperar más, curl no reintenta y
+la app responde en segundos «El sitio está limitando las descargas desde esta máquina: sube el
+video a Google Drive o Dropbox y comparte ese enlace». Prueba nueva en
+`packages/engine/test/enlaces.test.ts` (429 con `Retry-After: 600`); falla con el código anterior.
