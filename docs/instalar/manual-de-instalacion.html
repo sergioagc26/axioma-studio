@@ -154,7 +154,8 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
       <table>
         <tbody>
           <tr><td>Abrir</td><td>Ícono «Axioma Studio» del Escritorio. Si ya estaba abierta, solo abre el navegador.</td></tr>
-          <tr><td>Actualizar</td><td>Pide el paquete nuevo, extráelo encima de la misma carpeta (reemplaza los archivos) y abre el instalador otra vez. Tus proyectos no se tocan.</td></tr>
+          <tr><td>Actualizar</td><td>Pide el archivo de actualización (<code>Axioma-Studio-actualizacion-….zip</code>) y súbelo en <strong>Proyectos › Ajustes › Actualizar desde archivo</strong>, desde el mismo computador donde está la app. Se instala sola y se reinicia. Tus proyectos y tus claves no se tocan.</td></tr>
+          <tr><td>Avatares de IA</td><td>Opcional (unos 3 GB). Mac: abre Terminal en la carpeta de la app y corre <code>bash scripts/instalar-avatares.sh</code>. Windows: <code>powershell -ExecutionPolicy Bypass -File scripts\instalar-avatares.ps1</code> (en Windows es mucho más lento, salvo con tarjeta NVIDIA). Después aparece el botón <strong>Reel con avatar</strong>.</td></tr>
           <tr><td>Reparar</td><td>Abre el instalador otra vez: salta lo que ya está y arregla lo que falte.</td></tr>
           <tr><td>Tus videos</td><td>Quedan en la carpeta de la app, en <code>workspace</code>. Las exportaciones van a <code>renders</code> de cada proyecto.</td></tr>
         </tbody>
