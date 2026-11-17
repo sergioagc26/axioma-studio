@@ -208,12 +208,36 @@ export async function writeCreatorScript(opts: { idea: string; duration: number;
   const ref = opts.reference ? (await listReferences(opts.client).catch(() => [])).find((r) => r.id === opts.reference) : undefined;
   const refNote = ref?.understanding ? `Sigue la FORMA de esta referencia (no copies sus frases): ${ref.understanding.formato}; gancho: ${ref.understanding.gancho}; partes: ${ref.understanding.estructura.map((x) => x.parte).join(' → ')}.` : '';
   const r = await llmJson<{ guion: string }>(
-    `Eres guionista de reels en español latino. Escribes lo que dice una persona a cámara: frases cortas, ritmo rápido, un gancho fuerte al inicio y una llamada a la acción clara al final. Nunca inventas datos, precios ni resultados.`,
+    `Eres guionista de reels en español latino. Escribes lo que dice una persona a cámara: frases cortas, ritmo rápido, un gancho fuerte al inicio y una llamada a la acción clara al final. Nunca inventas datos, precios ni resultados. Solo afirmas lo que dice el tema: no prometes tiempos («en segundos»), resultados ni funciones que el tema no menciona.`,
     `Tema: ${opts.idea}\nMarca: ${opts.brand ?? opts.client ?? ''}\nDuración: ${opts.duration} s (unas ${words} palabras, ni más ni menos).\n${refNote}\n${opts.cta ? `Cierra pidiendo que comenten «${opts.cta}».` : ''}\nDevuelve solo el texto hablado.`,
     { type: 'object', properties: { guion: { type: 'string' } }, required: ['guion'] },
     { temperature: 0.6, timeoutMs: 240_000 },
   );
-  return r.guion.trim();
+  // La IA suele quedarse corta: se le piden solo las frases que faltan y se meten antes del
+  // cierre (los modelos chicos no alargan bien un texto entero). Si se pasa, se recorta.
+  let text = r.guion.trim();
+  for (let i = 0; i < 4; i++) {
+    const n = text.split(/\s+/).filter(Boolean).length;
+    if (Math.abs(n - words) <= words * 0.15) break;
+    if (n < words) {
+      const missing = words - n, k = Math.max(1, Math.round(missing / 10));
+      const add = await llmJson<{ frases: string[] }>(
+        'Eres guionista de reels en español latino. Escribes frases cortas y concretas para alargar un guion, sin inventar datos ni repetir lo que ya dice. Solo afirmas lo que dice el tema: no prometes tiempos («en segundos»), resultados ni funciones que el tema no menciona.',
+        `Tema: ${opts.idea}\nGuion actual:\n${text}\n\nEscribe exactamente ${k} frases nuevas (unas ${missing} palabras en total) con más detalle concreto: qué hace, cómo funciona o para quién es. No repitas frases del guion ni pongas la llamada a la acción.`,
+        { type: 'object', properties: { frases: { type: 'array', items: { type: 'string' } } }, required: ['frases'] },
+        { temperature: 0.6, timeoutMs: 240_000 },
+      );
+      const parts = scriptPhrases(text, 99);
+      const close = parts.length > 1 ? parts.pop()! : '';
+      text = [...parts, ...add.frases.map((f) => f.trim()).filter(Boolean), close].join(' ').replace(/\s+/g, ' ').trim();
+    } else {
+      const parts = scriptPhrases(text, 99);
+      // Se quitan frases del medio (nunca el gancho ni el cierre) hasta caber.
+      while (parts.length > 3 && parts.join(' ').split(/\s+/).length > words * 1.1) parts.splice(Math.floor(parts.length / 2), 1);
+      text = parts.join(' ');
+    }
+  }
+  return text;
 }
 
 /** Las palabras de una frase dentro de la transcripción (desde «from»): índice de la primera. */
