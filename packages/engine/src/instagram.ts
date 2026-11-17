@@ -16,7 +16,7 @@ const GRAPH = 'https://graph.facebook.com';
 const DIALOG = 'https://www.facebook.com';
 const VERSION = 'v26.0';
 /** Publicar, leer cifras y ver las páginas; los tres últimos hacen falta si la página es de un cliente (portafolio de negocio). */
-export const IG_SCOPES = ['instagram_basic', 'instagram_content_publish', 'instagram_manage_insights', 'pages_show_list', 'pages_read_engagement', 'business_management', 'ads_management', 'ads_read'];
+export const IG_SCOPES = ['instagram_basic', 'instagram_content_publish', 'instagram_manage_insights', 'pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'business_management', 'ads_management', 'ads_read'];
 const PAGE_FIELDS = 'id,name,access_token,tasks,instagram_business_account{id,username}';
 
 /** Versión de la Graph API: la del .env (META_API_VERSION) o la vigente. */
@@ -123,7 +123,9 @@ export async function igAuthUrl(state: string, redirect: string): Promise<string
 interface Page { id: string; name?: string; access_token?: string; tasks?: string[]; instagram_business_account?: { id?: string; username?: string } }
 export interface IgFound { igUserId: string; usuario: string; nombre?: string; pageId: string; envKey: string; aviso?: string }
 /** `expiresAt`: cuándo caduca el permiso de Facebook (null = Meta no lo dijo; sin el campo = no cambió). */
-export interface IgConnected { cuentas: IgFound[]; paginas: number; expiresAt?: string | null }
+/** Una página de Facebook donde se puede publicar (su permiso queda en el .env, en `envKey`). */
+export interface FbFound { pageId: string; nombre: string; envKey: string; aviso?: string }
+export interface IgConnected { cuentas: IgFound[]; paginas: number; expiresAt?: string | null; facebook?: FbFound[] }
 
 /** Guarda en el .env el permiso de cada página con Instagram y devuelve las cuentas, ya sin permisos. */
 async function keepPages(pages: Page[]): Promise<IgFound[]> {
@@ -135,6 +137,19 @@ async function keepPages(pages: Page[]): Promise<IgFound[]> {
     if (p.access_token) await setEnvValue(envKey, p.access_token);
     const can = !p.tasks || p.tasks.includes('MANAGE') || p.tasks.includes('CREATE_CONTENT');
     out.push({ igUserId: ig.id, usuario: ig.username ?? ig.id, nombre: p.name, pageId: p.id, envKey, aviso: can ? undefined : `En la página «${p.name ?? p.id}» no tienes permiso para publicar. Pide acceso completo a esa página.` });
+  }
+  return out;
+}
+
+/** Guarda el permiso de cada página de Facebook (para publicar Reels en la página) y la devuelve sin permisos. */
+async function keepFbPages(pages: Page[]): Promise<FbFound[]> {
+  const out: FbFound[] = [];
+  for (const p of pages) {
+    if (!p.access_token || !/^\d{4,40}$/.test(p.id)) continue;
+    const envKey = `FB_TOKEN_${p.id}`;
+    await setEnvValue(envKey, p.access_token);
+    const can = !p.tasks || p.tasks.includes('MANAGE') || p.tasks.includes('CREATE_CONTENT');
+    out.push({ pageId: p.id, nombre: p.name ?? p.id, envKey, aviso: can ? undefined : `En la página «${p.name ?? p.id}» no tienes permiso para publicar. Pide acceso completo a esa página.` });
   }
   return out;
 }
@@ -161,7 +176,7 @@ export async function igConnectWithToken(shortToken: string): Promise<IgConnecte
     if (!after) break;
   }
   const secs = Number(long.expires_in);
-  return { cuentas: await keepPages(pages), paginas: pages.length, expiresAt: secs > 0 ? new Date(Date.now() + secs * 1000).toISOString() : null };
+  return { cuentas: await keepPages(pages), facebook: await keepFbPages(pages), paginas: pages.length, expiresAt: secs > 0 ? new Date(Date.now() + secs * 1000).toISOString() : null };
 }
 
 /** Termina el inicio de sesión con Facebook: canjea el código y conecta las cuentas. */
@@ -178,8 +193,8 @@ export async function igAddPage(pageId: string): Promise<IgConnected> {
   const user = await envValue('META_USER_TOKEN');
   if (!user) throw new Error('Conecta primero con Facebook o pega un token.');
   const page = await graph<Page>(user, 'GET', pageId, { fields: PAGE_FIELDS });
-  if (!page.instagram_business_account?.id) throw new Error('Esa página no tiene una cuenta de Instagram profesional vinculada.');
-  return { cuentas: await keepPages([page]), paginas: 1 };
+  // La página sirve para publicar en Facebook aunque no tenga Instagram vinculado.
+  return { cuentas: await keepPages([page]), facebook: await keepFbPages([page]), paginas: 1 };
 }
 
 // --- Publicar ---
@@ -372,4 +387,40 @@ export async function igMetrics(a: Account, mediaId: string): Promise<IgMetrics 
     if (n) m = { views: num(n.total_views_count), likes: m.likes ?? num(n.like_count), comments: m.comments ?? num(n.comments_count), shares: m.shares ?? num(n.shares_count), saves: m.saves ?? num(n.saved_count) };
   }
   return Object.values(m).some((v) => v != null) ? m : null;
+}
+
+// --- Publicar en una página de Facebook (Reel de Facebook) ---
+export type FbStage = IgStage;
+
+/**
+ * Publica un Reel en una página de Facebook con el flujo oficial de tres pasos: se pide la subida
+ * (start), se envía el MP4 a la dirección de Facebook y se publica (finish). Luego se espera a que
+ * Facebook lo procese para devolver el enlace. Usa el permiso de la página (pages_manage_posts).
+ */
+export async function fbPublish(a: Account, o: { file: string; caption: string; onStage?: (stage: FbStage, progress: number) => void | Promise<void> }): Promise<{ id?: string; url?: string; aviso?: string }> {
+  if (!a.pageId) throw fail('Esta cuenta no es una página de Facebook.');
+  await o.onStage?.('preparando', 0.05);
+  const buf = await readFile(o.file);
+  const id = await withToken(a, async (token) => {
+    const start = await graph(token, 'POST', `${a.pageId}/video_reels`, { upload_phase: 'start' });
+    if (!start?.video_id || !start?.upload_url) throw fail('Facebook no dio una dirección para subir el video.');
+    await o.onStage?.('subiendo', 0.15);
+    await upload(String(start.upload_url), token, buf, 0);
+    await o.onStage?.('publicando', 0.7);
+    const fin = await graph(token, 'POST', `${a.pageId}/video_reels`, { upload_phase: 'finish', video_id: String(start.video_id), video_state: 'PUBLISHED', description: o.caption });
+    if (fin?.success === false) throw fail('Facebook no confirmó la publicación.');
+    return String(start.video_id);
+  });
+  // Facebook procesa el video unos minutos; se pide el enlace sin bloquear si tarda.
+  await o.onStage?.('procesando', 0.85);
+  let url: string | undefined, aviso: string | undefined;
+  for (let i = 0; i < 12; i++) {
+    const st = await withToken(a, (t) => graph(t, 'GET', id, { fields: 'status,permalink_url' })).catch(() => null);
+    const phase = st?.status?.video_status;
+    if (st?.permalink_url) url = st.permalink_url.startsWith('http') ? st.permalink_url : `https://www.facebook.com${st.permalink_url}`;
+    if (phase === 'error') { aviso = 'Facebook recibió el video pero dio un error al procesarlo. Revísalo en la página.'; break; }
+    if (phase === 'ready' || phase === 'published') break;
+    await pause(10_000);
+  }
+  return { id, url, aviso };
 }

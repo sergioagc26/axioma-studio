@@ -4,9 +4,9 @@ import { Icon } from './Icon.tsx';
 
 export interface Cuenta { id: string; usuario: string; nombre?: string; estado: 'ok' | 'reconectar'; error?: string; aviso?: string }
 interface RedStatus { app: boolean; config: boolean; retorno: string; caduca?: string; aviso?: string; cuentas: Cuenta[] }
-export type Redes = { instagram: RedStatus };
+export type Redes = { instagram: RedStatus; facebook?: { cuentas: Cuenta[] } };
 
-const NOMBRE: Record<Red, string> = { instagram: 'Instagram', tiktok: 'TikTok' };
+const NOMBRE: Record<Red, string> = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
 /** Las cuentas solo se conectan desde el computador donde está instalada la app. */
 const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -31,14 +31,15 @@ export function useCuentas(): Redes | null {
   return redes;
 }
 
-const PERMISOS = 'instagram_basic, instagram_content_publish, instagram_manage_insights, pages_show_list, pages_read_engagement, business_management, ads_management, ads_read';
+const PERMISOS = 'instagram_basic, instagram_content_publish, instagram_manage_insights, pages_show_list, pages_read_engagement, pages_manage_posts, business_management, ads_management, ads_read';
 const APP_FIELDS: [keyof AppData, string, string][] = [['meta_app_id', 'App ID', 'text'], ['meta_app_secret', 'App Secret', 'password'], ['meta_config_id', 'Configuration ID', 'text']];
 interface AppData { meta_app_id: string; meta_app_secret: string; meta_config_id: string }
 const NO_APP: AppData = { meta_app_id: '', meta_app_secret: '', meta_config_id: '' };
 
 /** Cuentas de las redes: datos de la app de Meta, conectar con Facebook y lista de cuentas conectadas. */
 export const CuentasPanel: React.FC<{ onClose: () => void; toast: (m: string) => void }> = ({ onClose, toast }) => {
-  const st = useCuentas()?.instagram;
+  const redes = useCuentas();
+  const st = redes?.instagram;
   const [error, setError] = useState('');
   const [nota, setNota] = useState('');
   const [app, setApp] = useState(NO_APP);
@@ -137,6 +138,22 @@ export const CuentasPanel: React.FC<{ onClose: () => void; toast: (m: string) =>
             </div>
           ))}
 
+          {(redes?.facebook?.cuentas.length ?? 0) > 0 && (
+            <div className="col" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid var(--line)' }} aria-label="Páginas de Facebook">
+              <strong className="small"><Icon name="publish" style={{ marginRight: 6 }} />Páginas de Facebook (se publican como Reel de la página)</strong>
+              {redes!.facebook!.cuentas.map((c) => (
+                <div key={c.id} className="col" style={{ gap: 2 }}>
+                  <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><strong>{c.estado === 'ok' ? <Icon name="check" style={{ marginRight: 6 }} /> : WARN}{c.usuario}</strong></span>
+                    {LOCAL && <button className="btn ghost small" style={{ height: 30, flex: 'none' }} onClick={() => disconnect(c)}>Desconectar</button>}
+                  </div>
+                  {c.estado === 'reconectar' && <span className="small" style={{ color: 'var(--pinkText)' }}>Hay que conectarla otra vez{c.error ? `: ${c.error}` : '.'}</span>}
+                  {c.aviso && <span className="small muted">{c.aviso}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
           {LOCAL && st && (
             <>
               {st.app && !editApp ? (
@@ -232,7 +249,9 @@ export const PublicarBox: React.FC<{
   projectId: string; red: Red; /** Publicación del calendario donde anotarlo. */ entrada?: string;
   onClose: () => void; /** Abrir el panel de cuentas (no hay cuenta o hay que reconectar). */ onCuentas: () => void;
   /** Algo cambió en el calendario (se publicó o falló). */ onChange?: () => void; toast: (m: string) => void;
-}> = ({ projectId, red, entrada, onClose, onCuentas, onChange, toast }) => {
+}> = ({ projectId, red: redInicial, entrada, onClose, onCuentas, onChange, toast }) => {
+  // Se puede cambiar de red aquí mismo (Instagram o la página de Facebook).
+  const [red, setRed] = useState<Red>(redInicial);
   const [previo, setPrevio] = useState<Previo | null>(null);
   const [texto, setTexto] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -249,7 +268,7 @@ export const PublicarBox: React.FC<{
       setTexto((t) => t ?? p.texto);
     } catch (e: any) { setError(e.message); }
   };
-  useEffect(() => { void load(); }, [projectId]);
+  useEffect(() => { setPrevio(null); void load(); }, [projectId, red]);
   // Si ya se está publicando este video (por ejemplo, tras recargar la página), se sigue su avance
   // en vez de dejar pulsar Publicar otra vez.
   useEffect(() => {
@@ -266,7 +285,7 @@ export const PublicarBox: React.FC<{
     return () => { alive = false; };
   }, [projectId]);
   // Si cambian las cuentas mientras está abierto (por ejemplo, tras conectar una), se revisa otra vez.
-  const now = firma(redes?.instagram.cuentas);
+  const now = firma(red === 'facebook' ? redes?.facebook?.cuentas : redes?.instagram.cuentas);
   useEffect(() => { if (previo && now !== undefined && now !== firma(previo.cuentas)) void load(previo.cuenta); }, [now]);
 
   // La confirmación vale para una cuenta concreta: si cambia la cuenta (o resulta que ya se publicó), se pide otra vez.
@@ -295,9 +314,16 @@ export const PublicarBox: React.FC<{
     <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget && !job) onClose(); }}>
       <div className="modal card col" role="dialog" aria-modal="true" aria-label={`Publicar en ${name}`} style={{ maxWidth: 480, gap: 12 }}>
         <h2 style={{ fontSize: 20 }}><Icon name="publish" style={{ marginRight: 8 }} />Publicar en {name}</h2>
+        {!done && !job && (redes?.facebook?.cuentas.length ?? 0) > 0 && (
+          <div className="row" role="radiogroup" aria-label="Red">
+            {(['instagram', 'facebook'] as const).map((r) => (
+              <button key={r} role="radio" aria-checked={red === r} className={`btn rect small${red === r ? ' primary' : ''}`} onClick={() => setRed(r)}>{r === 'facebook' ? 'Página de Facebook' : 'Instagram'}</button>
+            ))}
+          </div>
+        )}
         {done ? (
           <div className="col" style={{ gap: 8, padding: 12, borderRadius: 12, background: 'var(--cyanSoft)' }} role="status">
-            <strong><Icon name="check" style={{ marginRight: 6 }} />Publicado{done.cuenta ? ` en @${done.cuenta}` : ''}</strong>
+            <strong><Icon name="check" style={{ marginRight: 6 }} />Publicado{done.cuenta ? ` en ${red === 'facebook' ? `la página «${done.cuenta}»` : `@${done.cuenta}`}` : ''}</strong>
             {done.aviso && <span className="small">{WARN}{done.aviso}</span>}
             {safe(done.url)
               ? <a className="btn primary" style={{ alignSelf: 'flex-start' }} href={safe(done.url)} target="_blank" rel="noreferrer"><Icon name="open" />Ver</a>

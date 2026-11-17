@@ -17,8 +17,8 @@ export async function envValue(name: string): Promise<string | undefined> {
 
 /** Claves que la app deja guardar desde su pantalla. Las META_* son los datos de la app de Meta (Instagram). */
 export const KEY_NAMES = ['PEXELS_API_KEY', 'PIXABAY_API_KEY', 'FREESOUND_API_KEY', 'ELEVENLABS_API_KEY', 'HEYGEN_API_KEY', 'META_APP_ID', 'META_APP_SECRET', 'META_USER_TOKEN', 'META_CONFIG_ID', 'META_API_VERSION'] as const;
-/** Claves por cuenta conectada: el token de cada cuenta de Instagram (IG_TOKEN_<id de la cuenta>). */
-export const ACCOUNT_KEY = /^IG_TOKEN_[A-Z0-9]{4,40}$/;
+/** Claves por cuenta conectada: el token de cada cuenta de Instagram (IG_TOKEN_<id>) y de cada página de Facebook (FB_TOKEN_<id>). */
+export const ACCOUNT_KEY = /^(IG|FB)_TOKEN_[A-Z0-9]{4,40}$/;
 
 const allowed = (name: string) => (KEY_NAMES as readonly string[]).includes(name) || ACCOUNT_KEY.test(name);
 

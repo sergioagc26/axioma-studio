@@ -703,8 +703,8 @@ export function createServer() {
   }, async ({ cliente }) => E.formatInsights(await E.learnFromResults(cliente, true)));
 
   tool('revisar_publicacion', 'Antes de publicar: dice qué video se subiría, en qué cuenta, con qué texto, el cupo del día y si algo lo impide. No publica nada. Úsala para enseñarle todo al usuario y pedirle que confirme.', {
-    proyecto, red: z.enum(['instagram']).default('instagram'),
-    cuenta: z.string().optional().describe('Id de la cuenta (ig-…), si hay varias conectadas.'),
+    proyecto, red: z.enum(['instagram', 'facebook']).default('instagram'),
+    cuenta: z.string().optional().describe('Id de la cuenta (ig-… o fb-… para una página de Facebook), si hay varias conectadas.'),
   }, async (a) => {
     const r = await E.prePublish(await resolveProject(a.proyecto), a.red, a.cuenta);
     const acc = r.cuentas.find((c) => c.id === r.cuenta);
@@ -719,17 +719,17 @@ export function createServer() {
     ].join('\n');
   });
 
-  tool('publicar_en_redes','Publica el último video vertical exportado del reel como Reel de Instagram, en la cuenta conectada. ES PÚBLICO Y NO SE PUEDE DESHACER desde la app: úsala solo cuando el usuario pida explícitamente publicar ese reel en esa red, nunca por iniciativa propia ni como parte de «termina el video». Antes usa revisar_publicacion y dile en qué cuenta saldrá y con qué texto.', {
-    proyecto, red: z.enum(['instagram']).default('instagram'),
+  tool('publicar_en_redes','Publica el último video vertical exportado del reel como Reel de Instagram o de una página de Facebook, en la cuenta conectada. ES PÚBLICO Y NO SE PUEDE DESHACER desde la app: úsala solo cuando el usuario pida explícitamente publicar ese reel en esa red, nunca por iniciativa propia ni como parte de «termina el video». Antes usa revisar_publicacion y dile en qué cuenta saldrá y con qué texto.', {
+    proyecto, red: z.enum(['instagram', 'facebook']).default('instagram'),
     confirmado: z.boolean().describe('true solo si el usuario pidió explícitamente publicar este reel ahora.'),
-    cuenta: z.string().optional().describe('Id de la cuenta (ig-…), si hay varias conectadas.'),
+    cuenta: z.string().optional().describe('Id de la cuenta (ig-… o fb-…), si hay varias conectadas.'),
     texto: z.string().optional().describe('Texto de la publicación. Por defecto, el texto para publicar del reel.'),
     repetir: z.boolean().optional().describe('Publicarlo aunque ya se haya publicado antes desde la app.'),
   }, async (a) => {
     if (!a.confirmado) return 'No se publicó nada: publicar es público y no se deshace, y hace falta que el usuario lo pida explícitamente.';
     const dir = await resolveProject(a.proyecto);
     const r = await E.publishReel(dir, { red: a.red, cuenta: a.cuenta, texto: a.texto, repetir: a.repetir }, (m) => log(m));
-    return [`Publicado en Instagram (@${r.cuenta})${r.url ? `: ${r.url}` : '.'}`, ...(r.aviso ? [r.aviso] : [])].join('\n');
+    return [`Publicado en ${a.red === 'facebook' ? `la página de Facebook «${r.cuenta}»` : `Instagram (@${r.cuenta})`}${r.url ? `: ${r.url}` : '.'}`, ...(r.aviso ? [r.aviso] : [])].join('\n');
   });
 
   tool('traer_resultados', 'Trae de Instagram las cifras reales (vistas, me gusta, comentarios, compartidos y guardados) de lo publicado desde la app y actualiza lo que le funciona al cliente. No inventa cifras: lo que Instagram aún no da queda pendiente. Úsala solo cuando el usuario pida ver o actualizar sus resultados.', {

@@ -128,7 +128,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
       ctx.toast(r.errores[0] ?? (r.actualizadas ? 'Cifras actualizadas.' : 'Instagram todavía no tiene cifras de este reel (pueden tardar hasta 48 h).'));
     } catch (e: any) { ctx.toast(e.message); } finally { setSyncing(false); }
   };
-  const canPublish = Boolean(sel && sel.network === 'instagram' && byId.has(sel.projectId) && sel.remote?.state !== 'publicado');
+  const canPublish = Boolean(sel && (sel.network === 'instagram' || sel.network === 'facebook') && byId.has(sel.projectId) && sel.remote?.state !== 'publicado');
   const saveResults = async () => {
     if (!sel || !(Number(nums.views) > 0)) return ctx.toast('Pon al menos las vistas.');
     if (!(await call('PUT', { metrics: nums }, sel.id))) return;
@@ -282,7 +282,7 @@ export const Calendario: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </div>
         </div>
       )}
-      {sel && publicar && <PublicarBox projectId={sel.projectId} red="instagram" entrada={sel.id} onClose={() => setPublicar(false)} onCuentas={() => setCuentasOpen(true)} onChange={reload} toast={ctx.toast} />}
+      {sel && publicar && <PublicarBox projectId={sel.projectId} red={sel.network === 'facebook' ? 'facebook' : 'instagram'} entrada={sel.id} onClose={() => setPublicar(false)} onCuentas={() => setCuentasOpen(true)} onChange={reload} toast={ctx.toast} />}
       {cuentasOpen && <CuentasPanel onClose={() => setCuentasOpen(false)} toast={ctx.toast} />}
     </main>
   );

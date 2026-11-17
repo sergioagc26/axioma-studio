@@ -6,7 +6,7 @@ import path from 'node:path';
 import { publishPack, publishText, type Project } from '@axioma/schema';
 import { ensureEntry, listEntries, localNow, setRemote, updateEntry, type Remote } from './calendar.ts';
 import { envValue, removeEnvValue } from './env.ts';
-import { igAddPage, igAuthUrl, igConnectWithCode, igConnectWithToken, igMetrics, igPublish, igQuota, type IgConnected, type IgStage } from './instagram.ts';
+import { fbPublish, igAddPage, igAuthUrl, igConnectWithCode, igConnectWithToken, igMetrics, igPublish, igQuota, type IgConnected, type IgStage } from './instagram.ts';
 import { readKit } from './kit.ts';
 import { probe } from './media.ts';
 import { listProjects } from './ops.ts';
@@ -22,7 +22,9 @@ import { readProject, readTranscript, writeJsonAtomic } from './store.ts';
  * publica solo, siempre lo pide una persona.
  * (social.ts e instagram.ts se importan entre sí; solo se usan dentro de funciones.)
  */
-export type Red = 'instagram' | 'tiktok';
+export type Red = 'instagram' | 'facebook' | 'tiktok';
+/** Nombre de la red para los mensajes. */
+export const RED_NAME: Record<Red, string> = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
 
 /** Una cuenta conectada. `envKey` es el NOMBRE de la clave del .env donde está su permiso, no el permiso. */
 export interface Account {
@@ -71,7 +73,12 @@ export function pause(ms: number): Promise<void> {
 }
 
 function onlyInstagram(red: unknown): asserts red is 'instagram' {
-  if (red !== 'instagram') throw new Error('Por ahora solo se puede publicar en Instagram.');
+  if (red !== 'instagram') throw new Error('Por ahora solo se puede publicar en Instagram y en páginas de Facebook, y las dos se conectan juntas desde «Instagram».');
+}
+
+/** Redes donde ya se puede publicar: Instagram y páginas de Facebook. */
+function canPublish(red: unknown): asserts red is 'instagram' | 'facebook' {
+  if (red !== 'instagram' && red !== 'facebook') throw new Error('Por ahora solo se puede publicar en Instagram y en páginas de Facebook.');
 }
 
 // --- Cuentas (workspace/cuentas.json, sin permisos) ---
@@ -125,7 +132,7 @@ export interface RedStatus {
 const publicAccount = (a: Account, hasToken = true): RedStatus['cuentas'][number] => ({ id: a.id, usuario: a.usuario, nombre: a.nombre, estado: a.error || !hasToken ? 'reconectar' : 'ok', error: a.error, aviso: a.aviso });
 
 /** Qué hay conectado, para la pantalla «Cuentas». Solo nombres y estados: ningún permiso. */
-export async function socialStatus(): Promise<{ instagram: RedStatus }> {
+export async function socialStatus(): Promise<{ instagram: RedStatus; facebook: { cuentas: RedStatus['cuentas'] } }> {
   const f = await readAccounts();
   const user = Boolean(await envValue('META_USER_TOKEN'));
   const cuentas: RedStatus['cuentas'] = [];
@@ -143,6 +150,7 @@ export async function socialStatus(): Promise<{ instagram: RedStatus }> {
         : left < 7 * DAY ? `El permiso de Facebook caduca el ${day}. Conecta otra vez antes de ese día.` : undefined,
       cuentas,
     },
+    facebook: { cuentas: await Promise.all(f.cuentas.filter((x) => x.red === 'facebook').map(async (a) => publicAccount(a, user || Boolean(await envValue(a.envKey))))) },
   };
 }
 
@@ -182,7 +190,8 @@ export interface Connected { conectadas: string[]; avisos: string[] }
 
 /** Guarda en cuentas.json las cuentas encontradas (sus permisos ya quedaron en el .env). */
 async function keepAccounts(found: IgConnected): Promise<Connected> {
-  if (!found.cuentas.length) {
+  const fb = found.facebook ?? [];
+  if (!found.cuentas.length && !fb.length) {
     throw new Error(`${found.paginas ? `Encontré ${found.paginas} página${found.paginas === 1 ? '' : 's'} de Facebook, pero ninguna tiene` : 'No encontré'} cuentas de Instagram profesionales vinculadas a tus páginas de Facebook. Si la página es de un cliente, añádela con su ID de página.`);
   }
   await editAccounts((f) => {
@@ -191,9 +200,20 @@ async function keepAccounts(found: IgConnected): Promise<Connected> {
       const old = f.cuentas.find((x) => x.id === id);
       f.cuentas = [...f.cuentas.filter((x) => x.id !== id), { id, red: 'instagram', usuario: c.usuario, nombre: c.nombre, igUserId: c.igUserId, pageId: c.pageId, envKey: c.envKey, tokenKind: old?.tokenKind, connectedAt: new Date().toISOString(), aviso: c.aviso }];
     }
+    for (const c of fb) {
+      const id = `fb-${c.pageId}`;
+      const old = f.cuentas.find((x) => x.id === id);
+      f.cuentas = [...f.cuentas.filter((x) => x.id !== id), { id, red: 'facebook', usuario: c.nombre, nombre: 'Página de Facebook', pageId: c.pageId, envKey: c.envKey, tokenKind: old?.tokenKind, connectedAt: new Date().toISOString(), aviso: c.aviso }];
+    }
     if (found.expiresAt !== undefined) f.userTokenExpiresAt = found.expiresAt ?? undefined;
   });
-  return { conectadas: found.cuentas.map((c) => `@${c.usuario}`), avisos: found.cuentas.flatMap((c) => (c.aviso ? [c.aviso] : [])) };
+  return {
+    conectadas: [...found.cuentas.map((c) => `@${c.usuario} (Instagram)`), ...fb.map((c) => `${c.nombre} (página de Facebook)`)],
+    avisos: [
+      ...(!found.cuentas.length ? [`Encontré ${found.paginas} página${found.paginas === 1 ? '' : 's'} de Facebook, pero ninguna tiene cuentas de Instagram profesionales vinculadas: conecté solo ${fb.length === 1 ? 'la página' : 'las páginas'} de Facebook.`] : []),
+      ...new Set([...found.cuentas, ...fb].flatMap((c) => (c.aviso ? [c.aviso] : []))),
+    ],
+  };
 }
 
 /** Termina la conexión cuando Facebook vuelve con el código. La marca `state` se comprueba antes que nada. */
@@ -225,13 +245,13 @@ export async function disconnectAccount(id: string): Promise<void> {
   const a = f.cuentas.find((x) => x.id === id);
   if (!a) throw new Error('Esa cuenta ya no está conectada.');
   await removeEnvValue(a.envKey);
-  const last = !f.cuentas.some((x) => x.id !== id && x.red === a.red);
-  // Sin más cuentas de Instagram, tampoco se guarda el permiso de Facebook.
-  if (last && a.red === 'instagram') await removeEnvValue('META_USER_TOKEN');
+  // Sin más cuentas de Instagram ni páginas de Facebook, tampoco se guarda el permiso de Facebook.
+  const last = !f.cuentas.some((x) => x.id !== id && (x.red === 'instagram' || x.red === 'facebook'));
+  if (last && (a.red === 'instagram' || a.red === 'facebook')) await removeEnvValue('META_USER_TOKEN');
   await editAccounts((g) => {
     g.cuentas = g.cuentas.filter((x) => x.id !== id);
     for (const c of Object.values(g.porCliente)) for (const r of Object.keys(c) as Red[]) if (c[r] === id) delete c[r];
-    if (last && a.red === 'instagram') g.userTokenExpiresAt = undefined;
+    if (last && (a.red === 'instagram' || a.red === 'facebook')) g.userTokenExpiresAt = undefined;
   });
 }
 
@@ -330,7 +350,7 @@ const isDone = (r?: Remote) => Boolean(r?.id || r?.state === 'publicado');
 
 /** Lo que se enseña antes de publicar: el video, la cuenta, el texto y si hay algo que lo impida. */
 export async function prePublish(dir: string, red: Red, accountId?: string) {
-  onlyInstagram(red);
+  canPublish(red);
   const project = await readProject(dir);
   const problemas: string[] = [], avisos: string[] = [];
   let video: VideoInfo | null = null;
@@ -344,7 +364,7 @@ export async function prePublish(dir: string, red: Red, accountId?: string) {
     if (cuenta.aviso) avisos.push(cuenta.aviso);
     const kind = cuenta.tokenKind;
     try {
-      cupo = (await igQuota(cuenta)) ?? undefined;
+      cupo = red === 'instagram' ? (await igQuota(cuenta)) ?? undefined : undefined;
       if (cupo?.total && cupo.usadas >= cupo.total) problemas.push(`Esta cuenta ya llegó al máximo de publicaciones de hoy (${cupo.usadas} de ${cupo.total}).`);
       await settle(cuenta, kind);
     } catch (e) {
@@ -353,7 +373,7 @@ export async function prePublish(dir: string, red: Red, accountId?: string) {
     }
   }
   const done = (await listEntries()).filter((e) => e.projectId === project.id && e.network === red && isDone(e.remote)).pop();
-  if (done) avisos.push('Este video ya se publicó en Instagram desde la app. Si sigues, saldrá otra vez.');
+  if (done) avisos.push(`Este video ya se publicó en ${RED_NAME[red]} desde la app. Si sigues, saldrá otra vez.`);
   return {
     red, archivo: video ? path.basename(video.file) : null, peso: video?.size ?? 0, duracion: video?.duration ?? 0, texto: caption.texto,
     cuenta: cuenta?.id ?? null, cuentas: (await readAccounts()).cuentas.filter((a) => a.red === red).map((a) => publicAccount(a)),
@@ -405,7 +425,7 @@ async function takeLock(file: string): Promise<boolean> {
  * Si un intento anterior se quedó a medias, lo retoma en vez de subir y publicar otra vez.
  */
 export async function publishReel(dir: string, o: PublishOpts, onProgress?: (message: string, progress: number) => void): Promise<PublishResult> {
-  onlyInstagram(o.red);
+  canPublish(o.red);
   const project = await readProject(dir);
   const account = await accountFor(project.client, o.red, o.cuenta);
   const lock = lockFile(`${project.id}|${o.red}|${account.id}`);
@@ -419,7 +439,7 @@ export async function publishReel(dir: string, o: PublishOpts, onProgress?: (mes
     // La portada tiene que caer dentro del video (Instagram rechaza una posterior al final).
     const portadaMs = o.portadaMs == null || !Number.isFinite(o.portadaMs) ? undefined : Math.min(Math.max(0, Math.round(o.portadaMs)), Math.max(0, Math.floor(video.duration * 1000) - 1));
     const mine = (await listEntries()).filter((e) => e.projectId === project.id && e.network === o.red);
-    if (!o.repetir && mine.some((e) => isDone(e.remote))) throw new Error('Este video ya se publicó en Instagram. Para publicarlo otra vez, confírmalo.');
+    if (!o.repetir && mine.some((e) => isDone(e.remote))) throw new Error(`Este video ya se publicó en ${RED_NAME[o.red]}. Para publicarlo otra vez, confírmalo.`);
     // Un intento a medias manda sobre todo lo demás: se retoma en su misma entrada.
     const wanted = mine.find((e) => e.id === o.entrada);
     const entry = mine.find((e) => fresh(e.remote, account.id)) ?? mine.find((e) => pending(e.remote, account.id))
@@ -434,7 +454,11 @@ export async function publishReel(dir: string, o: PublishOpts, onProgress?: (mes
     await setRemote(entry.id, { ...clean, account: account.id, state: 'subiendo', sentAt: new Date().toISOString(), duration: video.duration, error: undefined });
     const kind = account.tokenKind;
     try {
-      const r = await igPublish(account, {
+      const stage = async (st: IgStage, progress: number) => {
+        onProgress?.(STAGES[st].replace('Instagram', RED_NAME[o.red]), progress);
+        if (st === 'procesando') await setRemote(entry.id, { state: 'procesando' });
+      };
+      const r = o.red === 'facebook' ? await fbPublish(account, { file: video.file, caption, onStage: stage }) : await igPublish(account, {
         file: video.file, caption, portadaMs,
         // Una subida de más de 24 h solo se consulta (por si ya salió); no se reutiliza.
         previo: prev ? { id: prev.containerId!, at: prev.containerAt!, igual: recent && prev.firma === firma } : undefined,

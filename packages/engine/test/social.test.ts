@@ -267,7 +267,7 @@ describe('errores de Meta', () => {
 describe('conectar Instagram', () => {
   it('canjea el token, recorre todas las páginas y guarda las cuentas sin permisos', async () => {
     const r = await conectar();
-    expect(r.conectadas).toEqual(['@minegocio', '@cliente']);
+    expect(r.conectadas).toEqual(['@minegocio (Instagram)', '@cliente (Instagram)', 'Mi negocio (página de Facebook)', 'Página sin Instagram (página de Facebook)', 'Cliente (página de Facebook)']);
     expect(r.avisos.join(' ')).toContain('«Cliente» no tienes permiso para publicar');
     sinSecretos(r);
     // Canje a larga duración con el secreto en el cuerpo, y las páginas con el cursor (no con la dirección «next»).
@@ -282,7 +282,9 @@ describe('conectar Instagram', () => {
     expect(envText()).toContain(`IG_TOKEN_${IG1}=${PAGE1}`);
     expect(envText()).toContain(`IG_TOKEN_${IG2}=${PAGE2}`);
     const file = JSON.parse(readFileSync(path.join(ws, 'cuentas.json'), 'utf8'));
-    expect(file.cuentas.map((a: { id: string }) => a.id)).toEqual([`ig-${IG1}`, `ig-${IG2}`]);
+    expect(file.cuentas.map((a: { id: string }) => a.id)).toEqual([`ig-${IG1}`, `ig-${IG2}`, 'fb-111000111', 'fb-222000222', 'fb-333000333']);
+    // Las páginas de Facebook también quedan, cada una con su permiso en el .env.
+    expect(envText()).toContain(`FB_TOKEN_111000111=${PAGE1}`);
     expect(Date.parse(file.userTokenExpiresAt)).toBeGreaterThan(Date.now() + 50 * 86_400_000);
     const st = await S.socialStatus();
     sinSecretos(st);
@@ -310,7 +312,7 @@ describe('conectar Instagram', () => {
     expect(calls).toHaveLength(0);
     const state = u2.searchParams.get('state')!;
     const r = await S.finishConnect('instagram', new URLSearchParams({ code: CODE, state }));
-    expect(r.conectadas).toContain('@minegocio');
+    expect(r.conectadas).toContain('@minegocio (Instagram)');
     expect(calls[0].form.get('code')).toBe(CODE);
     expect(calls[0].form.get('redirect_uri')).toBe(`http://localhost:${port}/api/redes/instagram/callback`);
     expect(calls[1].form.get('grant_type')).toBe('fb_exchange_token');
@@ -325,10 +327,13 @@ describe('conectar Instagram', () => {
     await expect(S.connectWithToken('instagram', 'corto')).rejects.toThrow('incompleto');
     await expect(S.connectWithToken('tiktok', SHORT)).rejects.toThrow('solo se puede publicar en Instagram');
     fake.on.push([/^GET me\/accounts$/, () => ({ data: [PAGES[1]] })]);
-    await expect(conectar()).rejects.toThrow('ninguna tiene cuentas de Instagram profesionales');
+    // Sin Instagram vinculado se conecta igual la página de Facebook, y se avisa.
+    const solo = await conectar();
+    expect(solo.conectadas).toEqual(['Página sin Instagram (página de Facebook)']);
+    expect(solo.avisos.join(' ')).toContain('ninguna tiene cuentas de Instagram profesionales');
     // El permiso de Facebook quedó guardado, así que se puede añadir la página del cliente por su ID.
     const r = await S.connectPage('instagram', PAGES[2].id);
-    expect(r.conectadas).toEqual(['@cliente']);
+    expect(r.conectadas).toEqual(['@cliente (Instagram)', 'Cliente (página de Facebook)']);
     expect(envText()).toContain(`IG_TOKEN_${IG2}=${PAGE2}`);
     await expect(S.connectPage('instagram', 'no-es-un-id')).rejects.toThrow('solo números');
   });
@@ -341,6 +346,10 @@ describe('conectar Instagram', () => {
     expect(envText()).toContain('META_USER_TOKEN=');
     await S.disconnectAccount(`ig-${IG1}`);
     expect(envText()).not.toContain('IG_TOKEN_');
+    // Mientras quede una página de Facebook conectada, el permiso de Facebook se conserva.
+    expect(envText()).toContain('META_USER_TOKEN');
+    for (const c of (await S.socialStatus()).facebook.cuentas) await S.disconnectAccount(c.id);
+    expect(envText()).not.toContain('FB_TOKEN_');
     expect(envText()).not.toContain('META_USER_TOKEN');
     expect(envText()).toContain(`META_APP_ID=${APP_ID}`);
     expect((await S.socialStatus()).instagram.cuentas).toEqual([]);
@@ -635,7 +644,7 @@ describe('rutas del studio', () => {
     expect((await (await get('/api/redes')).json()).instagram).toMatchObject({ app: true, config: true, cuentas: [] });
     const paste = await post('/api/redes/token', { red: 'instagram', token: SHORT });
     expect(paste.status).toBe(200);
-    expect(JSON.parse(await text(paste))).toMatchObject({ conectadas: ['@minegocio', '@cliente'], estado: { instagram: { app: true } } });
+    expect(JSON.parse(await text(paste))).toMatchObject({ conectadas: ['@minegocio (Instagram)', '@cliente (Instagram)', 'Mi negocio (página de Facebook)', 'Página sin Instagram (página de Facebook)', 'Cliente (página de Facebook)'], estado: { instagram: { app: true } } });
 
     // Botón «Conectar»: dirección de Facebook y vuelta con marca de un solo uso.
     const { url } = JSON.parse(await text(await post('/api/redes/conectar', { red: 'instagram' })));
@@ -730,5 +739,30 @@ describe('rutas del studio', () => {
     const tk = await post('/api/redes/conectar', { red: 'tiktok' });
     expect(tk.status).toBe(500);
     expect((await tk.json()).error).toContain('solo se puede publicar en Instagram');
+  });
+});
+
+describe('publicar en una página de Facebook', () => {
+  it('pide la subida, envía el video a Facebook, publica con el texto y guarda el enlace', async () => {
+    await conectar();
+    const page = '111000111';
+    fake.on.push([new RegExp(`^POST ${page}/video_reels$`), (c) => (c.form.get('upload_phase') === 'start'
+      ? { video_id: 'V1', upload_url: 'https://rupload.facebook.com/video-upload/v26.0/V1' }
+      : { success: true })]);
+    fake.on.push([/^GET V1$/, () => ({ id: 'V1', status: { video_status: 'ready' }, permalink_url: '/reel/V1' })]);
+    const r = await S.publishReel(pdir, { red: 'facebook', cuenta: `fb-${page}`, texto: 'Disciplina #gym' });
+    expect(r.url).toBe('https://www.facebook.com/reel/V1');
+    expect(r.cuenta).toBe('Mi negocio');
+    const keys = calls.map((c) => c.key);
+    expect(keys).toEqual(expect.arrayContaining([`POST ${page}/video_reels`, 'POST rupload', 'GET V1']));
+    const fin = calls.find((c) => c.key === `POST ${page}/video_reels` && c.form.get('upload_phase') === 'finish')!;
+    expect(fin.form.get('video_state')).toBe('PUBLISHED');
+    expect(fin.form.get('description')).toBe('Disciplina #gym');
+    // El video se sube con el permiso de la página, en la cabecera.
+    expect(calls.find((c) => c.key === 'POST rupload')!.headers.Authorization).toBe(`OAuth ${PAGE1}`);
+    const e = (await entries()).find((x) => x.network === 'facebook')!;
+    expect(e.remote).toMatchObject({ state: 'publicado', id: 'V1' });
+    // No se publica otra vez sin pedirlo.
+    await expect(S.publishReel(pdir, { red: 'facebook', cuenta: `fb-${page}` })).rejects.toThrow('ya se publicó en Facebook');
   });
 });

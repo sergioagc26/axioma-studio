@@ -1183,7 +1183,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     return json(res, await socialStatus());
   }
   if (p === '/api/redes/previo' && method === 'GET' && id) {
-    return json(res, await prePublish(await findDir(id), (url.searchParams.get('red') ?? 'instagram') as 'instagram', url.searchParams.get('cuenta') || undefined));
+    return json(res, await prePublish(await findDir(id), (url.searchParams.get('red') === 'facebook' ? 'facebook' : 'instagram'), url.searchParams.get('cuenta') || undefined));
   }
   if (p === '/api/redes/publicar' && method === 'POST' && id) {
     const dir = await findDir(id);

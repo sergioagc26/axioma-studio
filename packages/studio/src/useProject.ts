@@ -293,7 +293,7 @@ export async function askAssistant(projectId: string, text: string, sceneId: str
 }
 
 /** Redes donde la app puede publicar. Hoy solo Instagram; TikTok queda para después. */
-export type Red = 'instagram' | 'tiktok';
+export type Red = 'instagram' | 'facebook' | 'tiktok';
 
 /**
  * Publica el reel en una red y espera a que termine. Es público y no se puede deshacer:
