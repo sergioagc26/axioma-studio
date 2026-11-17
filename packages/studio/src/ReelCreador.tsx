@@ -69,9 +69,6 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
               <label className="col small">Duración
                 <select className="input" value={duracion} onChange={(e) => setDuracion(Number(e.target.value))}>{[15, 30, 45, 60, 90].map((d) => <option key={d} value={d}>{d} s</option>)}</select>
               </label>
-              <label className="col small">Avatar
-                <select className="input" value={avatar} onChange={(e) => setAvatar(e.target.value)}>{avatars.length ? avatars.map((a) => <option key={a.id} value={a.id}>{a.name}</option>) : <option value="">(no hay avatares guardados)</option>}</select>
-              </label>
               <label className="col small">Cliente
                 <select className="input" value={cliente} onChange={(e) => setCliente(e.target.value)}>{clients.map((c) => <option key={c} value={c}>{c}</option>)}</select>
               </label>
@@ -80,7 +77,17 @@ export const ReelCreador: React.FC<{ onClose: () => void; toast: (m: string) => 
               </label>
               <label className="col small">Palabra a comentar<input className="input" value={cta} onChange={(e) => setCta(e.target.value)} placeholder="editor" style={{ width: 120 }} /></label>
             </div>
-            {avatar ? <img src={`/api/avatares/cara?id=${encodeURIComponent(avatar)}`} alt="" style={{ width: 72, height: 128, objectFit: 'cover', borderRadius: 10 }} /> : null}
+            <span className="small">Avatar{avatars.find((a) => a.id === avatar) ? `: ${avatars.find((a) => a.id === avatar)!.name}` : ''}</span>
+            {avatars.length ? (
+              <div role="listbox" aria-label="Avatar" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 8, maxHeight: 250, overflowY: 'auto', padding: 2 }}>
+                {avatars.map((a) => (
+                  <button key={a.id} role="option" aria-selected={a.id === avatar} title={a.description ?? a.name} onClick={() => setAvatar(a.id)} style={{ padding: 0, border: a.id === avatar ? '3px solid var(--accent, #C6F432)' : '3px solid transparent', borderRadius: 12, background: 'none', cursor: 'pointer', textAlign: 'center', color: 'inherit' }}>
+                    <img src={`/api/avatares/cara?id=${encodeURIComponent(a.id)}`} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '9 / 13', objectFit: 'cover', objectPosition: '50% 20%', borderRadius: 9, display: 'block' }} />
+                    <span className="small" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : <span className="small muted">No hay avatares guardados todavía.</span>}
             <span className="small muted">El avatar es una persona creada con IA: al publicar, marca el video como «hecho con IA».</span>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={onClose}>Cancelar</button>

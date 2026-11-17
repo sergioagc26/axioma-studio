@@ -487,7 +487,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (p === '/api/avatares' && method === 'GET') return json(res, (await listAvatars()).map((a) => ({ id: a.id, name: a.name, description: a.description })));
   if (p === '/api/avatares/cara' && method === 'GET') {
     const a = (await listAvatars()).find((x) => x.id === url.searchParams.get('id'));
-    if (!a || !sendFile(req, res, path.join(a.dir, 'cara.png'))) res.writeHead(404).end();
+    const mini = a ? path.join(a.dir, 'cara-mini.jpg') : '';
+    if (!a || !sendFile(req, res, existsSync(mini) ? mini : path.join(a.dir, 'cara.png'))) res.writeHead(404).end();
     return;
   }
   if (p === '/api/reel-creador' && method === 'POST') {

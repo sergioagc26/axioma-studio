@@ -58,6 +58,8 @@ export async function saveAvatar(opts: { name: string; face: string; description
   const dir = path.join(AVATARS_DIR, id);
   await mkdir(path.join(dir, 'miniaturas'), { recursive: true });
   await copyFile(opts.face, path.join(dir, 'cara.png'));
+  // Miniatura liviana para la galería del estudio.
+  await ffmpeg(['-i', opts.face, '-vf', 'scale=270:-2', '-q:v', '4', path.join(dir, 'cara-mini.jpg')]).catch(() => {});
   for (const [k, f] of Object.entries(opts.backgrounds ?? {})) if (f) await copyFile(f, path.join(dir, `fondo-${k}.png`));
   for (const [i, f] of (opts.thumbnails ?? []).entries()) await copyFile(f, path.join(dir, 'miniaturas', `m${i + 1}${path.extname(f)}`));
   await writeFile(path.join(dir, 'avatar.json'), JSON.stringify({ name: opts.name, description: opts.description, voice: opts.voice }, null, 2));
