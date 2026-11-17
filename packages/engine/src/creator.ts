@@ -5,7 +5,7 @@ import path from 'node:path';
 import { checkCancelled } from './cancel.ts';
 import { avatarSpeak, enhanceFaces } from './avatar.ts';
 import { ffmpeg, ffprobe } from './exec.ts';
-import { llmJson, llmReady } from './llm.ts';
+import { llmJson, llmReady, visionJson, visionReady } from './llm.ts';
 import { buildCutout } from './matte.ts';
 import { setAutoSfx, setMusic } from './ops.ts';
 import { WORKSPACE, slugify } from './paths.ts';
@@ -89,6 +89,70 @@ export async function tagLibraryClip(clip: LibraryClip): Promise<LibraryClip[]> 
   await mkdir(path.dirname(LIBRARY), { recursive: true });
   await writeFile(LIBRARY, JSON.stringify(list, null, 2));
   return list;
+}
+
+/**
+ * Etiqueta sola la biblioteca: cada grabación de workspace/marca/pantallas que aún no esté en
+ * biblioteca.json la mira la IA que ve imágenes (3 fotogramas) y le pone etiquetas de lo que muestra.
+ */
+export async function autoTagLibrary(onProgress: (m: string) => void = () => {}): Promise<LibraryClip[]> {
+  const model = await visionReady();
+  if (!model) throw new Error('Falta la IA que ve imágenes (qwen3-vl): instálala en Ajustes › IA.');
+  const root = path.join(WORKSPACE, 'marca', 'pantallas');
+  const walk = async (d: string): Promise<string[]> => (await Promise.all((await readdir(d, { withFileTypes: true })).map((e) => e.isDirectory() ? (e.name === 'descartadas' ? [] : walk(path.join(d, e.name))) : /\.(mp4|mov|m4v|webm)$/i.test(e.name) ? [path.join(d, e.name)] : []))).flat();
+  const known = new Set((await readLibrary()).map((c) => c.file));
+  const files = (await walk(root)).map((f) => path.relative(root, f).split(path.sep).join('/')).filter((f) => !known.has(f));
+  let list = await readLibrary();
+  for (const [i, rel] of files.entries()) {
+    checkCancelled();
+    onProgress(`Mirando ${rel} (${i + 1} de ${files.length})…`);
+    const src = path.join(root, rel);
+    const dur = await videoDuration(src).catch(() => 10);
+    const frames: string[] = [];
+    for (const k of [0.2, 0.5, 0.8]) {
+      const f = path.join(root, `.etiqueta-${i}-${k}.jpg`);
+      await ffmpeg(['-ss', (dur * k).toFixed(2), '-i', src, '-frames:v', '1', '-vf', 'scale=-2:540', '-q:v', '4', f]);
+      frames.push(f);
+    }
+    try {
+      const r = await visionJson<{ etiquetas: string[]; claro: boolean }>(
+        'Describes grabaciones de pantalla de una app de edición de video para elegir cuál mostrar cuando la voz habla de algo.',
+        'Estos son 3 fotogramas de una grabación. Devuelve de 4 a 10 etiquetas cortas en español, en minúsculas y sin tildes, de lo que se ve o se hace (por ejemplo: subtitulos, linea de tiempo, exportar, guion, musica, nuevo video, brief, plantillas). Y si la pantalla es de fondo claro.',
+        frames, { type: 'object', properties: { etiquetas: { type: 'array', items: { type: 'string' } }, claro: { type: 'boolean' } }, required: ['etiquetas', 'claro'] },
+      );
+      list = await tagLibraryClip({ file: rel, start: 0, end: Math.min(dur, 10), tags: r.etiquetas.map((t) => t.split(/\s+/).map(norm).filter(Boolean).join(' ')).filter(Boolean), light: r.claro });
+    } finally {
+      for (const f of frames) await import('node:fs/promises').then((m) => m.rm(f, { force: true }));
+    }
+  }
+  return list;
+}
+
+/**
+ * Una frase por toma de un proyecto (qué se ve), con la IA que ve imágenes: queda en shots.json
+ * («desc») y ayuda a elegir la toma que corresponde a cada frase.
+ */
+export async function describeShots(dir: string, onProgress: (m: string) => void = () => {}): Promise<{ id: string; desc: string }[]> {
+  if (!(await visionReady())) throw new Error('Falta la IA que ve imágenes (qwen3-vl): instálala en Ajustes › IA.');
+  const { detectShots } = await import('./montage.ts');
+  const shots = await detectShots(dir) as (Awaited<ReturnType<typeof detectShots>>[number] & { desc?: string })[];
+  const project = await readProject(dir);
+  const source = path.join(dir, 'proxies', 'proxy.mp4');
+  const out: { id: string; desc: string }[] = [];
+  for (const [i, s] of shots.entries()) {
+    checkCancelled();
+    if (s.desc) { out.push({ id: s.id, desc: s.desc }); continue; }
+    onProgress(`Describiendo la toma ${i + 1} de ${shots.length}…`);
+    const f = path.join(dir, 'proxies', `.desc-${s.id}.jpg`);
+    await ffmpeg(['-ss', ((s.start + s.end) / 2).toFixed(2), '-i', existsSync(source) ? source : path.join(dir, project.source.file), '-frames:v', '1', '-vf', 'scale=-2:448', '-q:v', '4', f]);
+    try {
+      const r = await visionJson<{ descripcion: string }>('Describes fotogramas de video en español, en una frase corta y concreta (qué se ve y qué pasa), sin adornos.', 'Describe este fotograma en máximo 12 palabras.', [f], { type: 'object', properties: { descripcion: { type: 'string' } }, required: ['descripcion'] });
+      s.desc = r.descripcion.trim();
+      out.push({ id: s.id, desc: s.desc });
+    } finally { await import('node:fs/promises').then((m) => m.rm(f, { force: true })); }
+  }
+  await writeFile(path.join(dir, 'shots.json'), JSON.stringify(shots, null, 2));
+  return out;
 }
 
 // ───────────────────────── Texto ─────────────────────────

@@ -108,6 +108,16 @@ export function createServer() {
     },
   );
 
+  tool('etiquetar_biblioteca', 'Mira con la IA que ve imágenes las grabaciones nuevas de workspace/marca/pantallas y las etiqueta solas (lo que muestran), para que los reels las elijan.', {}, async () => {
+    const l = await E.autoTagLibrary(log);
+    return `Biblioteca: ${l.length} grabaciones.\n${l.map((c) => `${c.file}: ${c.tags.join(', ')}`).join('\n')}`;
+  });
+
+  tool('describir_tomas', 'Describe en una frase cada toma de un proyecto (qué se ve), con la IA que ve imágenes. Sirve para elegir qué toma va con cada frase.', { proyecto }, async ({ proyecto }) => {
+    const d = await E.describeShots(await resolveProject(proyecto), log);
+    return d.map((x) => `${x.id}: ${x.desc}`).join('\n') || 'El proyecto no tiene tomas.';
+  });
+
   tool('avatares_guardados', 'Avatares guardados para los reels (nombre, descripción y voz).', {}, async () => {
     const l = await E.listAvatars();
     return l.length ? l.map((a) => `${a.id} · ${a.name}${a.description ? ` · ${a.description}` : ''}${a.voice?.voice ? ` · voz ${a.voice.provider ?? ''} ${a.voice.voice}` : ''}`).join('\n') : 'No hay avatares guardados: crea uno con crear_avatar y guárdalo con guardar_avatar.';
