@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, rename, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ffmpeg, run } from './exec.ts';
@@ -114,5 +114,17 @@ export async function enhanceFaces(video: string, out: string): Promise<string> 
   // El audio del video original.
   await ffmpeg(['-i', silent, '-i', video, '-map', '0:v', '-map', '1:a?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out]);
   await rm(silent, { force: true });
+  return out;
+}
+
+/**
+ * Movimiento fluido: el avatar sale a 25 cuadros por segundo y el reel va a 30, y repetir un cuadro
+ * de cada cinco da saltitos. Aquí se crean los cuadros intermedios por movimiento (no se duplican),
+ * así la cabeza y la boca se mueven suave, como en una cámara real.
+ */
+export async function smoothMotion(video: string, out: string, fps = 30): Promise<string> {
+  const tmp = out.replace(/\.mp4$/i, '') + '-parcial.mp4';
+  await ffmpeg(['-i', video, '-map', '0:v', '-map', '0:a?', '-vf', `minterpolate=fps=${fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1`, '-c:v', 'libx264', '-crf', '16', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', tmp]);
+  await rename(tmp, out);
   return out;
 }

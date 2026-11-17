@@ -3,11 +3,19 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { checkCancelled } from './cancel.ts';
-import { avatarSpeak, enhanceFaces } from './avatar.ts';
+import { avatarSpeak, enhanceFaces, smoothMotion } from './avatar.ts';
 import { ffmpeg, ffprobe } from './exec.ts';
 import { llmJson, llmReady, visionJson, visionReady } from './llm.ts';
 import { buildCutout } from './matte.ts';
 import { setAutoSfx, setMusic } from './ops.ts';
+import { autoMusic } from './musiclib.ts';
+
+async function setMusicVolume(dir: string, v: number) {
+  const p = await readProject(dir);
+  if (!p.audio.music) return;
+  p.audio.musicVolume = v;
+  await writeProject(dir, p);
+}
 import { WORKSPACE, slugify } from './paths.ts';
 import { prepareMedia, transcribeProject } from './pipeline.ts';
 import { listReferences } from './reference.ts';
@@ -346,7 +354,9 @@ export async function createCreatorReel(opts: CreatorReelOptions): Promise<{ dir
     if (!talking && !existsSync(raw)) await avatarSpeak(path.join(avatar.dir, 'cara.png'), audio, raw, { onProgress: (m) => say(m, 0.1) });
     const clear = path.join(cache, `${key}-nitida.mp4`);
     if (!talking && !existsSync(clear)) { say('Dando nitidez a la cara…', 0.45); await enhanceFaces(raw, clear); }
-    talking ??= clear;
+    const fluid = path.join(cache, `${key}-fluida.mp4`);
+    if (!talking && !existsSync(fluid)) { say('Suavizando el movimiento…', 0.55); await smoothMotion(clear, fluid).catch(() => {}); }
+    talking ??= existsSync(fluid) ? fluid : clear;
   }
   // 3. Proyecto, transcripción con el guion (palabras bien escritas) y recorte de la persona.
   say('Preparando el proyecto…', 0.62);
@@ -358,7 +368,12 @@ export async function createCreatorReel(opts: CreatorReelOptions): Promise<{ dir
   // 4. Escenas.
   say('Armando las escenas…', 0.74);
   await planCreatorScenes(dir, { script, avatar, cta: opts.cta, brief: opts.brief, reference: opts.reference });
+  // Música: la pedida, o la que mejor va de la biblioteca (bajita debajo de la voz).
   if (opts.music) await setMusic(dir, opts.music, { source: 'archivo local', license: 'CC0', volume: 0.1 }).catch(() => {});
+  else {
+    say('Eligiendo la música…', 0.78);
+    await autoMusic(dir, undefined, { rebuild: false }).then(() => setMusicVolume(dir, 0.1)).catch(() => {});
+  }
   await setAutoSfx(dir, true).catch(() => {});
   // 5. Exportar y revisar.
   say('Exportando…', 0.8);
@@ -488,7 +503,8 @@ export async function planCreatorScenes(dir: string, opts: { script: string; ava
       backdrop: backdropFile ? 'imagen' : 'ninguno', backdropFile,
       camera: person ? 'respirar' : 'ninguno', cameraAmount: 0.08,
       punchZoom: true,
-      transition: si === 0 ? undefined : { id: ['giro', 'zoom', 'golpe', 'rotar'][si % 4] },
+      // Suaves: casi siempre corte limpio (el ritmo lo dan los acercamientos); cada tercera escena, desenfoque o fundido.
+      transition: si === 0 || si % 3 ? undefined : { id: si % 6 ? 'desenfoque' : 'fundido' },
       onScreenText: undefined, autoText: undefined, variants: [], sfx: [],
       words: els.map((e) => ({ color: 'blanco', behind: false, x: 0.5, y: 0.5, size: 1, ...e })),
     });
