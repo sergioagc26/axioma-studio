@@ -118,6 +118,10 @@ export function createServer() {
     return d.map((x) => `${x.id}: ${x.desc}`).join('\n') || 'El proyecto no tiene tomas.';
   });
 
+  tool('movimiento_avatar', 'Guarda un video de una persona real hablando de frente (tu grabación o tu avatar de HeyGen) para que los avatares copien su movimiento de cabeza y sus parpadeos: se ven mucho menos robóticos. Solo videos tuyos o con permiso.', {
+    video: z.string().describe('Ruta absoluta del video (de frente, hablando, 8 a 30 s)'),
+  }, async (a) => `Guardado: los próximos reels con avatar se mueven como esa persona (${await E.saveMotionRef(a.video)}).`);
+
   tool('avatares_guardados', 'Avatares guardados para los reels (nombre, descripción y voz).', {}, async () => {
     const l = await E.listAvatars();
     return l.length ? l.map((a) => `${a.id} · ${a.name}${a.description ? ` · ${a.description}` : ''}${a.voice?.voice ? ` · voz ${a.voice.provider ?? ''} ${a.voice.voice}` : ''}`).join('\n') : 'No hay avatares guardados: crea uno con crear_avatar y guárdalo con guardar_avatar.';

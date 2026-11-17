@@ -32,6 +32,12 @@ if '_like' not in s:
 p='src/facerender/modules/keypoint_detector.py'; s=open(p).read(); open(p,'w').write(s.replace("make_coordinate_grid(shape[2:], heatmap.type())","make_coordinate_grid(shape[2:], heatmap)"))
 p='src/facerender/modules/dense_motion.py'; s=open(p).read()
 open(p,'w').write(s.replace("make_coordinate_grid((d, h, w), type=kp_source['value'].type())","make_coordinate_grid((d, h, w), type=kp_source['value'])").replace("spatial_size[2]).type(heatmap.type())","spatial_size[2]).to(heatmap)"))
+# Movimiento copiado de una persona real a una fuerza ajustable (SADTALKER_POSE_SCALE).
+p='src/test_audio2coeff.py'; s=open(p).read()
+if 'SADTALKER_POSE_SCALE' not in s:
+    s=s.replace("coeffs_pred_numpy[:, 64:70] + ( refpose_coeff","coeffs_pred_numpy[:, 64:70] + float(os.environ.get('SADTALKER_POSE_SCALE', '1')) * ( refpose_coeff")
+    if '\nimport os' not in s: s='import os\n'+s
+    open(p,'w').write(s)
 PY
 mkdir -p checkpoints gfpgan/weights
 dl(){ [ -s "$2" ] || curl -sL --fail -o "$2" "$1"; }

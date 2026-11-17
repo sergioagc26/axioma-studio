@@ -86,6 +86,19 @@ export type Background = 'estudio' | 'noche' | 'claro' | 'oscuro' | 'pc';
 export interface LibraryClip { file: string; start?: number; end?: number; tags: string[]; light?: boolean }
 const LIBRARY = path.join(WORKSPACE, 'marca', 'pantallas', 'biblioteca.json');
 
+/**
+ * Video de movimiento: una persona real hablando de frente (por ejemplo tu propia grabación o tu
+ * avatar de HeyGen). Los avatares copian de ahí el movimiento de la cabeza y los parpadeos.
+ */
+export const MOTION_REF = path.join(AVATARS_DIR, 'movimiento.mp4');
+
+/** Guarda un video como movimiento de los avatares (de ida y vuelta, para que al repetirse no salte). */
+export async function saveMotionRef(video: string): Promise<string> {
+  await mkdir(AVATARS_DIR, { recursive: true });
+  await ffmpeg(['-i', video, '-filter_complex', '[0:v]fps=25,scale=-2:1280,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1[v]', '-map', '[v]', '-an', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', MOTION_REF]);
+  return MOTION_REF;
+}
+
 export async function readLibrary(): Promise<LibraryClip[]> {
   if (!existsSync(LIBRARY)) return [];
   return JSON.parse(await readFile(LIBRARY, 'utf8')) as LibraryClip[];
@@ -350,11 +363,14 @@ export async function createCreatorReel(opts: CreatorReelOptions): Promise<{ dir
       if (!existsSync(still)) { say('Preparando el borrador…', 0.1); await ffmpeg(['-loop', '1', '-framerate', '15', '-i', path.join(avatar.dir, 'cara.png'), '-i', audio, '-shortest', '-vf', 'scale=864:1536,format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', '-b:a', '160k', still]); }
       talking = still;
     }
-    const raw = path.join(cache, `${key}-avatar.mp4`);
-    if (!talking && !existsSync(raw)) await avatarSpeak(path.join(avatar.dir, 'cara.png'), audio, raw, { onProgress: (m) => say(m, 0.1) });
-    const clear = path.join(cache, `${key}-nitida.mp4`);
+    // Movimiento de una persona real (cabeza y parpadeos), si se guardó uno: se ve mucho más natural.
+    const motion = existsSync(MOTION_REF) ? MOTION_REF : undefined;
+    const tag = motion ? '-real' : '';
+    const raw = path.join(cache, `${key}-avatar${tag}.mp4`);
+    if (!talking && !existsSync(raw)) await avatarSpeak(path.join(avatar.dir, 'cara.png'), audio, raw, { motion, onProgress: (m) => say(m, 0.1) });
+    const clear = path.join(cache, `${key}-nitida${tag}.mp4`);
     if (!talking && !existsSync(clear)) { say('Dando nitidez a la cara…', 0.45); await enhanceFaces(raw, clear); }
-    const fluid = path.join(cache, `${key}-fluida.mp4`);
+    const fluid = path.join(cache, `${key}-fluida${tag}.mp4`);
     if (!talking && !existsSync(fluid)) { say('Suavizando el movimiento…', 0.55); await smoothMotion(clear, fluid).catch(() => {}); }
     talking ??= existsSync(fluid) ? fluid : clear;
   }

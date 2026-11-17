@@ -44,7 +44,7 @@ export async function createAvatarFace(description: string, out: string, seed?: 
  * still = la cabeza casi quieta; sin still, se mueve como una persona. Tarda ~30 s por segundo de
  * audio con la GPU de un Mac (unas 4 veces más en CPU).
  */
-export async function avatarSpeak(face: string, audio: string, out: string, opts: { still?: boolean; enhance?: boolean; onProgress?: (m: string) => void } = {}): Promise<string> {
+export async function avatarSpeak(face: string, audio: string, out: string, opts: { still?: boolean; enhance?: boolean; motion?: string; onProgress?: (m: string) => void } = {}): Promise<string> {
   if (!avatarReady()) throw new Error('Falta el motor de avatares (SadTalker). Instálalo una vez con scripts/instalar-avatares.sh (Mac) o scripts\\instalar-avatares.ps1 (Windows), unos 3 GB.');
   const work = path.join(os.tmpdir(), `axioma-avatar-${Date.now()}`);
   await mkdir(work, { recursive: true });
@@ -63,6 +63,13 @@ export async function avatarSpeak(face: string, audio: string, out: string, opts
   // Por defecto se mueve como una persona: la cabeza asiente y gira con la voz y la cara gesticula
   // más (still = cabeza casi quieta, para planos donde el cuerpo se deformaría).
   if (opts.still) args.push('--still');
+  // Con un video de una persona real hablando, copia su movimiento de cabeza y sus parpadeos
+  // (mucho más natural que el movimiento inventado); la boca sigue a la voz.
+  // (al 60 %: el de una persona hablando con las manos es demasiado para una foto y deforma la cara)
+  else if (opts.motion && existsSync(opts.motion)) {
+    process.env.SADTALKER_POSE_SCALE = '0.6';
+    args.push('--ref_pose', path.resolve(opts.motion), '--ref_eyeblink', path.resolve(opts.motion), '--expression_scale', '1.1');
+  }
   else args.push('--pose_style', '12', '--expression_scale', '1.3');
   if (opts.enhance) args.push('--enhancer', 'gfpgan');
   await run(AVATAR_PY, args, { cwd: SADTALKER, quiet: true });
