@@ -23,6 +23,18 @@ async function resolveProject(ref?: string): Promise<string> {
   return hit.dir;
 }
 
+/**
+ * «Video listo» + cómo hacérselo llegar a la persona. En la nube (Claude Code en la web) el cliente
+ * no ve la carpeta «Listos»: el MP4 se le envía como archivo adjunto en el chat, que se probó con
+ * videos de hasta 95 MB en web y celular (docs/NUBE-ARCHIVOS.md).
+ */
+export function videoListo(out: string, env: NodeJS.ProcessEnv = process.env): string {
+  const nube = /^(1|true)$/i.test(env.CLAUDE_CODE_REMOTE ?? '');
+  return nube
+    ? `Video listo: ${out}\nEstás en la nube: la persona no ve esta carpeta. Envíale este MP4 como archivo adjunto en el chat (es como lo descarga en la web y en el celular). No lo subas a git.`
+    : `Video listo: ${out}`;
+}
+
 const proyecto = z.string().optional().describe('Id o carpeta del proyecto. Si se omite, el más reciente.');
 const role = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
 const visual = z.enum(['original', 'broll', 'motion', 'texto']);
@@ -98,7 +110,7 @@ export function createServer() {
       const project = await E.readProject(r.dir);
       return [
         `Pedido «${r.order}» · ${r.kind === 'hablado' ? 'video hablado' : 'montaje sin voz'}`,
-        r.out ? `Video listo: ${r.out}` : 'Editado, aún sin exportar (usa entregar_video).',
+        r.out ? videoListo(r.out) : 'Editado, aún sin exportar (usa entregar_video).',
         '',
         'Lo que hice:',
         ...r.summary.map((x) => `- ${x}`),
@@ -117,7 +129,7 @@ export function createServer() {
     const dir = proyecto ? await resolveProject(proyecto) : order.state.dir;
     if (!dir) throw new Error(`El pedido «${order.name}» aún no tiene proyecto: usa hacer_video.`);
     const out = await E.deliverOrder(order.name, dir);
-    return `Video listo: ${out}`;
+    return videoListo(out);
   });
 
   tool(

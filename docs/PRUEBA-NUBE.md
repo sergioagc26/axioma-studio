@@ -184,7 +184,7 @@ Lo que hace, en orden:
 ## 8. Qué falta para el modo nube
 
 1. ~~**Fuentes dentro de la app**~~ ✅ hecho.
-2. **Entrada y salida de archivos** (no probado, crítico para el producto): cómo sube el cliente sus videos a la máquina y cómo se lleva el MP4 final. Es el verdadero cuello de botella del modo nube; hay que definirlo y probarlo con videos reales de celular (1–3 min, 100–500 MB).
+2. ~~**Entrada y salida de archivos**~~ ✅ resuelto (ver `docs/NUBE-ARCHIVOS.md`): **entra** por enlace de Google Drive o Dropbox (`traer_de_enlace`, ~2,8 MB/s medido con un enlace directo); **sale** como archivo adjunto en el chat de la sesión (probado hasta 95 MB, confirmado en web y celular). Falta medir una bajada real desde Drive con un video de celular.
 3. ~~**Modo "sin IA local"**~~ ✅ hecho: si Ollama no está instalado se sabe al instante (antes esperaba 20 s); con `AXIOMA_SIN_IA_LOCAL=1` ni se intenta.
 4. ~~**Clips sin pista de audio**~~ ✅ hecho: se tratan como "sin voz" (un solo clip así va directo a montaje).
 5. **Instalación automática por sesión**: cada sesión en la nube empieza limpia; conviene guardar `setup-nube.sh` como script de arranque del entorno para no gastar ~3 min (y créditos) cada vez.

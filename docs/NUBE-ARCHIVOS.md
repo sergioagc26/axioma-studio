@@ -41,7 +41,7 @@ Se usó un MP4 sintético de 30 MB (1280×720, `testsrc2`) y otro de 95 MB para 
 
 | Opción | ¿Funciona? | Velocidad | Límites | Privacidad | Para el cliente |
 |---|---|---|---|---|---|
-| **Adjunto de la sesión** (Claude envía el archivo a la conversación) | **Sí**: 30 MB y 95 MB entregados sin error | Inmediato | No se vio límite hasta 95 MB. **Desde dentro no se puede saber** si la persona lo baja bien en la web/app: falta confirmarlo del otro lado. | Queda en la conversación del cliente, privada. | Lo más simple: aparece en el chat. |
+| **Adjunto de la sesión** (Claude envía el archivo a la conversación) | **Sí**: 30 MB y 95 MB entregados sin error | Inmediato | No se vio límite hasta 95 MB. **Confirmado por el dueño (17-11-2026):** los dos videos (30 y 95 MB) se ven bien. | Queda en la conversación del cliente, privada. | Lo más simple: aparece en el chat. |
 | **Git** (commit del MP4 a una rama y push) | Sí | 30 MB en **5,9 s (~5 MB/s)** | Sin avisos con 30 MB. GitHub avisa desde 50 MB y **rechaza archivos de más de 100 MB**. Cada video queda en el historial para siempre (el repo crece). El proxy **no deja borrar ramas** remotas (`git push --delete` se corta). | El repo es privado (404 sin sesión): solo lo ve quien tenga acceso al repo. | Malo: el cliente necesita acceso al repo de GitHub. |
 | **Releases de GitHub** | **No** | — | `gh` está instalado pero su token (`GH_TOKEN`) es inválido; en esta sesión `gh` solo se permite para búsquedas y las herramientas de GitHub disponibles no crean releases ni suben archivos a un release. No se probó por otra vía para no pedir permisos nuevos. | — | — |
 | **Almacenamiento privado** (solo `curl -I`, sin subir nada) | La red llega a todos | — | `s3.amazonaws.com` 405, `content.dropboxapi.com` 404, `www.googleapis.com` 404 (responde el servidor). `example.r2.cloudflarestorage.com`: el proxy abre el túnel pero Cloudflare corta el TLS porque esa cuenta no existe; con una cuenta R2 real debería responder (hipótesis). | Privado si se usa enlace firmado con vencimiento. | Requiere guardar una clave en la sesión (no se probó). |
@@ -53,9 +53,9 @@ Se usó un MP4 sintético de 30 MB (1280×720, `testsrc2`) y otro de 95 MB para 
 1. **Ahora (cero configuración): adjunto de la sesión.** Al terminar, Claude envía el MP4 a la
    conversación y el cliente lo baja desde ahí. Funcionó hasta 95 MB, cubre los 20–100 MB que
    salen de la app y queda privado en la conversación del cliente.
-   **Siguiente acción:** que el dueño abra esta sesión en la web y en el celular y confirme que
-   los dos MP4 de prueba (30 y 95 MB) se bajan y se reproducen. Si eso funciona, documentarlo como
-   el camino oficial en `docs/PRUEBA-NUBE.md`.
+   ✅ **Confirmado por el dueño: es el camino oficial.** Las herramientas `hacer_video` y
+   `entregar_video` ahora se lo recuerdan a Claude cuando corren en la nube
+   (`CLAUDE_CODE_REMOTE=true`): «envíale este MP4 como archivo adjunto en el chat».
 2. **Si el adjunto falla o hace falta un enlace para compartir:** subir a almacenamiento propio
    (Cloudflare R2 o S3) con un enlace firmado que venza en 7 días. La red lo permite; hace falta
    crear la cuenta, guardar la clave como secreto del entorno y agregar a la app un paso «subir y
