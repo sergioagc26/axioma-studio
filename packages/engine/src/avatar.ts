@@ -14,7 +14,8 @@ import { synthesize, type TtsProvider } from './tts.ts';
  * Nunca se usa para imitar a una persona real; al publicar, marca el video como «hecho con IA».
  */
 const SADTALKER = path.join(REPO_ROOT, '.avatar', 'SadTalker');
-const AVATAR_PY = path.join(REPO_ROOT, '.venv-avatar', 'bin', 'python');
+// En Windows los entornos de Python guardan el ejecutable en Scripts\\python.exe.
+const AVATAR_PY = process.platform === 'win32' ? path.join(REPO_ROOT, '.venv-avatar', 'Scripts', 'python.exe') : path.join(REPO_ROOT, '.venv-avatar', 'bin', 'python');
 
 export function avatarReady(): boolean {
   return existsSync(AVATAR_PY) && existsSync(path.join(SADTALKER, 'checkpoints', 'SadTalker_V0.0.2_256.safetensors'));
@@ -44,7 +45,7 @@ export async function createAvatarFace(description: string, out: string, seed?: 
  * audio con la GPU de un Mac (unas 4 veces más en CPU).
  */
 export async function avatarSpeak(face: string, audio: string, out: string, opts: { still?: boolean; enhance?: boolean; onProgress?: (m: string) => void } = {}): Promise<string> {
-  if (!avatarReady()) throw new Error('Falta el motor de avatares (SadTalker). Instálalo una vez con scripts/instalar-avatares.sh (unos 3 GB).');
+  if (!avatarReady()) throw new Error('Falta el motor de avatares (SadTalker). Instálalo una vez con scripts/instalar-avatares.sh (Mac) o scripts\\instalar-avatares.ps1 (Windows), unos 3 GB.');
   const work = path.join(os.tmpdir(), `axioma-avatar-${Date.now()}`);
   await mkdir(work, { recursive: true });
   // El motor quiere wav mono 16 kHz.
@@ -57,6 +58,8 @@ export async function avatarSpeak(face: string, audio: string, out: string, opts
   if (mps) Object.assign(process.env, { SADTALKER_MPS: '1', PYTORCH_ENABLE_MPS_FALLBACK: '1' });
   const args = ['inference.py', '--driven_audio', wav, '--source_image', face, '--result_dir', work, '--preprocess', 'full'];
   if (!mps) args.push('--cpu');
+  // En la GPU, más cuadros a la vez (AXIOMA_AVATAR_LOTE para probar otro tamaño).
+  else args.push('--batch_size', process.env.AXIOMA_AVATAR_LOTE ?? '8');
   // Por defecto se mueve como una persona: la cabeza asiente y gira con la voz y la cara gesticula
   // más (still = cabeza casi quieta, para planos donde el cuerpo se deformaría).
   if (opts.still) args.push('--still');
@@ -87,7 +90,9 @@ const ENHANCE_PY = String.raw`
 import sys, cv2, numpy as np, subprocess
 from gfpgan import GFPGANer
 src, out, weights = sys.argv[1], sys.argv[2], sys.argv[3]
-r = GFPGANer(model_path=weights, upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
+import torch
+dev = torch.device('mps') if torch.backends.mps.is_available() and sys.argv[4:5] == ['mps'] else None
+r = GFPGANer(model_path=weights, upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None, device=dev)
 cap = cv2.VideoCapture(src); fps = cap.get(cv2.CAP_PROP_FPS); w = int(cap.get(3)); h = int(cap.get(4))
 p = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{w}x{h}', '-r', str(fps), '-i', '-', '-c:v', 'libx264', '-crf', '16', '-pix_fmt', 'yuv420p', out], stdin=subprocess.PIPE)
 while True:
@@ -102,7 +107,10 @@ export async function enhanceFaces(video: string, out: string): Promise<string> 
   if (!avatarReady()) throw new Error('Falta el motor de avatares (scripts/instalar-avatares.sh).');
   const weights = path.join(SADTALKER, 'gfpgan', 'weights', 'GFPGANv1.4.pth');
   const silent = out.replace(/\.mp4$/i, '') + '-sin-audio.mp4';
-  await run(AVATAR_PY, ['-c', ENHANCE_PY, video, silent, weights], { cwd: SADTALKER, quiet: true });
+  // En Mac con Apple Silicon, la mejora corre en la GPU (con respaldo en la CPU para lo que no sepa hacer).
+  const gpu = process.platform === 'darwin' && process.arch === 'arm64' && process.env.AXIOMA_NITIDEZ_CPU !== '1';
+  if (gpu) process.env.PYTORCH_ENABLE_MPS_FALLBACK = '1';
+  await run(AVATAR_PY, ['-c', ENHANCE_PY, video, silent, weights, ...(gpu ? ['mps'] : [])], { cwd: SADTALKER, quiet: true });
   // El audio del video original.
   await ffmpeg(['-i', silent, '-i', video, '-map', '0:v', '-map', '1:a?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out]);
   await rm(silent, { force: true });
