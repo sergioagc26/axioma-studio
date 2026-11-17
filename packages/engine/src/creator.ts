@@ -307,6 +307,15 @@ export async function planCreatorScenes(dir: string, opts: { script: string; ava
   let from = 0;
   for (const p of phrases) { const i = starts.length === 0 ? 0 : findPhrase(words, p, from); starts.push(i); from = i + 1; }
   const secAt = (i: number) => (i === 0 ? 0 : words[i].start - 0.05);
+  // Nunca más de 8 s seguidos sin la persona: la escena que se pasa vuelve a ser ella hablando.
+  let away = 0, turn = 0;
+  for (const [si, sc] of plan.entries()) {
+    const d = (si + 1 < plan.length ? secAt(starts[si + 1]) : lastEnd) - secAt(starts[si]);
+    const person = sc.kind === 'avatar' || sc.kind === 'pedido' || sc.kind === 'cierre';
+    if (person) { away = 0; continue; }
+    if (away > 0 && away + d > 8) { plan[si] = { phrase: sc.phrase, kind: 'avatar', background: (['noche', 'estudio'] as Background[])[turn++ % 2] }; away = 0; }
+    else away += d;
+  }
   const base = project.scenes[0];
   const assets: string[] = [];
   const scenes = [];
@@ -339,15 +348,17 @@ export async function planCreatorScenes(dir: string, opts: { script: string; ava
     if (si === 0 && thumbs.length) els.push({ text: '', at: 0, until: Math.min(3, s1 - s0), style: 'miniaturas', files: thumbs, x: 0.5, y: 0.5, size: 0.85, behind: false });
     if (pct) els.push({ text: `dato|${pct[1]}%`, at: 0.4, style: 'tarjeta', x: 0.26, y: 0.3, size: 1.1, behind: false });
     if (sc.kind === 'pedido') els.push({ text: sc.phrase.replace(/^[^,]*,\s*/, '').slice(0, 40), at: 0.3, style: 'mic', x: 0.64, y: 0.68, size: 1.1, behind: false });
-    if (sc.kind === 'chat') els.push({ text: sc.phrase.slice(0, 70), at: 0, then: Math.max(0.5, (s1 - s0) * 0.55), style: 'chat', x: 0.5, y: 0.57, size: 1, files: thumbs.slice(1, 2), behind: false });
+    if (sc.kind === 'chat') els.push({ text: sc.phrase.slice(0, 70), at: 0, then: Math.max(0.5, (s1 - s0) * 0.55), style: 'chat', x: 0.5, y: 0.57, size: 1, files: thumbs.slice(2, 3), behind: false });
     if (sc.kind === 'pantalla-pc') {
       const w = sc.phrase.toUpperCase().replace(/[.,:;¿?¡!]/g, '').split(' ');
       const half = Math.ceil(w.length / 2);
-      const line = (x: string[]) => x.reduce((acc, word) => { const last = acc[acc.length - 1]; if (last && (last + ' ' + word).length <= 14) acc[acc.length - 1] = `${last} ${word}`; else acc.push(word); return acc; }, [] as string[]).slice(0, 2).join('\n');
+      const line = (x: string[]) => x.reduce((acc, word) => { const last = acc[acc.length - 1]; if (last && (last + ' ' + word).length <= 14) acc[acc.length - 1] = `${last} ${word}`; else acc.push(word); return acc; }, [] as string[]).slice(0, 3).join('\n');
       els.push({ text: `${line(w.slice(0, half))}|${line(w.slice(half)).replace(/(\S+)$/, '*$1*')}`, at: 0.2, then: (s1 - s0) * 0.5, style: 'pantalla', x: 0.5, y: 0.44, size: 1.1, behind: false });
       els.push({ text: '¿subtítulos?', at: 0, style: 'nota', color: 'blanco', x: 0.2, y: 0.31, size: 0.7, rotate: -8, behind: false });
     }
     if (/\b(app|aplicacion|axioma)\b/.test(t) && person && si > 0) els.push({ text: 'axioma', at: 0.3, style: 'icono', x: 0.84, y: 0.22, size: 0.9, rotate: -6, behind: false });
+    // Los objetos duran hasta el final de la escena (salvo que digan otra cosa).
+    for (const e of els) if (!['gigante', 'resaltado', 'seleccion', 'tachado'].includes(String(e.style)) && e.until === undefined) e.until = s1 - s0;
     // Las palabras grandes no se pisan: cada una se va cuando entra la siguiente.
     const big = els.filter((e) => ['gigante', 'resaltado', 'seleccion', 'tachado'].includes(String(e.style))).sort((x, z) => Number(x.at) - Number(z.at));
     big.forEach((e, i) => { e.until = i + 1 < big.length ? Number(big[i + 1].at) : s1 - s0; });
