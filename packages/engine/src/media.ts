@@ -100,9 +100,20 @@ export async function processVoice(input: string, out: string, { denoise, denois
   ].join(',');
   const target = `I=${targetLufs}:TP=-1.5:LRA=11`;
   const { stderr } = await ffmpeg(['-i', input, '-vn', '-af', `${pre},loudnorm=${target}:print_format=json`, '-f', 'null', '-']);
-  const m = JSON.parse(stderr.slice(stderr.lastIndexOf('{'), stderr.lastIndexOf('}') + 1));
-  const second = `${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
-  await ffmpeg(['-i', input, '-vn', '-af', `${pre},loudnorm=${second}`, '-ar', '48000', '-c:a', 'pcm_s16le', out]);
+  const second = loudnormSecondPass(stderr, target);
+  // Silencio total (clip sin voz): no hay nada que nivelar, queda tal cual.
+  await ffmpeg(['-i', input, '-vn', '-af', second ? `${pre},loudnorm=${second}` : pre, '-ar', '48000', '-c:a', 'pcm_s16le', out]);
+}
+
+/**
+ * Segunda pasada de loudnorm con lo medido en la primera. Null si el audio es silencio total: la
+ * sonoridad medida es -inf y loudnorm la rechaza («Value -inf for parameter 'measured_I'»).
+ */
+export function loudnormSecondPass(firstPassStderr: string, target: string): string | null {
+  const m = JSON.parse(firstPassStderr.slice(firstPassStderr.lastIndexOf('{'), firstPassStderr.lastIndexOf('}') + 1));
+  const values = [m.input_i, m.input_tp, m.input_lra, m.input_thresh, m.target_offset].map(Number);
+  if (!values.every(Number.isFinite)) return null;
+  return `${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
 }
 
 /**
@@ -140,9 +151,8 @@ export async function measureLufs(file: string): Promise<number> {
 export async function normalizeMix(input: string, out: string, targetLufs: number, bitrate = '192k') {
   const target = `I=${targetLufs}:TP=-1.5:LRA=11`;
   const { stderr } = await ffmpeg(['-i', input, '-vn', '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-']);
-  const m = JSON.parse(stderr.slice(stderr.lastIndexOf('{'), stderr.lastIndexOf('}') + 1));
-  const second = `${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
-  await ffmpeg(['-i', input, '-c:v', 'copy', '-af', `loudnorm=${second}`, '-c:a', 'aac', '-b:a', bitrate, '-ar', '48000', '-movflags', '+faststart', out]);
+  const second = loudnormSecondPass(stderr, target);
+  await ffmpeg(['-i', input, '-c:v', 'copy', ...(second ? ['-af', `loudnorm=${second}`] : []), '-c:a', 'aac', '-b:a', bitrate, '-ar', '48000', '-movflags', '+faststart', out]);
 }
 
 /** Duración (s) de cualquier archivo de audio o video. */

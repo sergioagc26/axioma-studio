@@ -14,7 +14,7 @@
 | Instalar (npm, ffmpeg, whisper.cpp + modelo, Studio) | ✅ Funciona, ~3 min la primera vez |
 | `doctor` | ✅ Todo en verde (opcionales en aviso) |
 | Pedido hablado (preparar → transcribir → cortar con guion → editar) | ✅ Funciona |
-| Pedido montaje (3 clips + música) | ✅ Funciona (ver fallo de clips sin audio abajo) |
+| Pedido montaje (3 clips + música) | ✅ Funciona, también con clips sin pista de audio |
 | Exportar con Remotion | ✅ Con las fuentes dentro de la app (antes ❌ por las fuentes de Google) |
 | Herramientas MCP (`estado_sistema`, `leer_pedidos`) | ✅ Responden (106 herramientas) |
 
@@ -133,9 +133,11 @@ Arrancado exactamente como dice `plugin/.mcp.json` (`node packages/mcp/bin/serve
 - **Hecho:** las 80 tipografías (125 archivos `.woff2`, 3 MB) están en `packages/remotion/src/fonts/files/` y se cargan desde ahí, tanto al exportar como en Studio. La lista vive en `fonts/spec.ts`; si se cambia, `npm run fuentes` baja los archivos y regenera el índice. Un test comprueba que cada letra elegible tenga sus archivos y que la plantilla no vuelva a usar Google Fonts. Pendiente menor: el manual de marca (`brandbook.ts`) aún pide sus letras a Google.
 - **Alternativa (en la máquina, no en la app):** que el entorno de la nube agregue su certificado de salida al almacén del navegador. No lo pude probar (requiere un permiso que esta sesión no tenía) y depende de cada entorno: no lo recomiendo como solución de producto.
 
-### ⚠ Fallo 2 — Clips sin pista de audio rompen el pedido (no es de la nube)
+### ✅ Fallo 2 (resuelto) — Clips sin pista de audio rompían el pedido (no era de la nube)
 
-Si un clip **no trae pista de audio** (pasa con grabaciones de pantalla, stock o clips generados), el motor no puede "escucharlo", lo trata como si alguien hablara, lo une como video hablado y el nivelador de voz (`loudnorm`) se cae: `Value -inf for parameter 'measured_I'`. Está en `videoHasSpeech` (`packages/engine/src/inbox.ts`): devuelve "no sé" y ese caso se trata como hablado. Pasa igual en Mac. Para seguir la prueba le puse ruido ambiente a los clips (como uno real de celular) y funcionó.
+Si un clip **no traía pista de audio** (grabaciones de pantalla, stock, clips generados), el motor no podía "escucharlo", lo trataba como hablado y el nivelador de voz (`loudnorm`) se caía con `Value -inf for parameter 'measured_I'`. Pasaba igual en Mac.
+
+**Arreglado:** un clip sin pista de audio ahora cuenta como "sin voz" (sin gastar tiempo en transcribirlo), un solo video sin audio va directo a montaje, y limpiar la voz o nivelar la mezcla ya no fallan si el audio es silencio total. Probado con el pedido original de 3 clips mudos + música: sale como montaje en 2 min 40 s, y la fase "revisar lo que grabaste" pasó de 17 s a 0,3 s. Un test (`packages/engine/test/clips-sin-audio.test.ts`) cubre los tres casos.
 
 ### ⚠ Lentitud 3 — 20 s perdidos esperando a Ollama
 
@@ -186,6 +188,6 @@ Lo que hace, en orden:
 1. ~~**Fuentes dentro de la app**~~ ✅ hecho.
 2. **Entrada y salida de archivos** (no probado, crítico para el producto): cómo sube el cliente sus videos a la máquina y cómo se lleva el MP4 final. Es el verdadero cuello de botella del modo nube; hay que definirlo y probarlo con videos reales de celular (1–3 min, 100–500 MB).
 3. **Modo "sin IA local"**: que no espere 20 s a Ollama en cada paso.
-4. **Clips sin pista de audio**: tratarlos como "sin voz" en vez de "hablado".
+4. ~~**Clips sin pista de audio**~~ ✅ hecho.
 5. **Instalación automática por sesión**: cada sesión en la nube empieza limpia; conviene guardar `setup-nube.sh` como script de arranque del entorno para no gastar ~3 min (y créditos) cada vez.
 6. Probar con un **video real** de una persona hablando (esta prueba usó voz sintética).

@@ -5,6 +5,7 @@ import type { ProjectShape } from '@axioma/schema';
 import { editEverything } from './auto.ts';
 import { ffmpeg } from './exec.ts';
 import { saveClientLogo } from './kit.ts';
+import { probe } from './media.ts';
 import { createMontage, detectShots, joinClips } from './montage.ts';
 import { setBrief, setMusic } from './ops.ts';
 import { APP_TMP, WORKSPACE, slugify } from './paths.ts';
@@ -241,6 +242,8 @@ let wavSeq = 0;
 
 /** ¿Este video tiene a alguien hablando? Escucha sus primeros 45 s. Null si no se pudo saber. */
 export async function videoHasSpeech(file: string): Promise<boolean | null> {
+  // Sin pista de audio (grabación de pantalla, stock, clip generado) nadie habla: no es un «no sé».
+  try { if (!(await probe(file)).hasAudio) return false; } catch { return null; }
   // Nombre único: dos videos escuchados seguidos no pueden pisarse el audio.
   const wav = path.join(APP_TMP, `voz-${process.pid}-${++wavSeq}-${Date.now()}.wav`);
   try {
@@ -291,6 +294,9 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
       for (const v of f.videos) voiced.push(await videoHasSpeech(v));
       talking = f.videos.filter((_, i) => voiced[i] !== false);
       silent = f.videos.filter((_, i) => voiced[i] === false);
+    } else if ((await probe(f.videos[0]).catch(() => null))?.hasAudio === false) {
+      // Un solo video sin pista de audio: va directo a montaje (como hablado fallaría al limpiar la voz).
+      talking = [];
     }
 
     let dir: string;
