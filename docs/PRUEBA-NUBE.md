@@ -74,7 +74,7 @@ Con `SE_WORKSPACE` en una carpeta temporal y un script `npx tsx` que llama `make
 | Preparar (master de edición + proxy + cara + "qué se ve" + limpiar voz) | 56 s |
 | Transcribir (whisper.cpp `small`, CPU) | 17 s |
 | Cortar con el guion | <1 s (9 de 9 frases encontradas) |
-| Editar (brief, gancho, textos, gráficos, transiciones) | 20 s ← casi todo es la espera a Ollama |
+| Editar (brief, gancho, textos, gráficos, transiciones) | 20 s ← casi todo era la espera a Ollama (ya resuelto: <0,5 s) |
 | Exportar con Remotion | 159 s |
 | **Total** | **4 min 12 s** |
 
@@ -86,7 +86,7 @@ Resultado: `Listos/reel-hablado.mp4` · **1080×1920, H.264 + AAC, 30 fps, 35,8 
 |---|---|
 | Escuchar si los clips tienen voz | 17 s |
 | Preparar (montaje + proxy + cara + "qué se ve") | 26 s |
-| Editar | 20 s ← espera a Ollama |
+| Editar | 20 s ← espera a Ollama (ya resuelto: <0,5 s) |
 | Exportar con Remotion | 92 s |
 | **Total** | **2 min 36 s** |
 
@@ -139,9 +139,11 @@ Si un clip **no traía pista de audio** (grabaciones de pantalla, stock, clips g
 
 **Arreglado:** un clip sin pista de audio ahora cuenta como "sin voz" (sin gastar tiempo en transcribirlo), un solo video sin audio va directo a montaje, y limpiar la voz o nivelar la mezcla ya no fallan si el audio es silencio total. Probado con el pedido original de 3 clips mudos + música: sale como montaje en 2 min 40 s, y la fase "revisar lo que grabaste" pasó de 17 s a 0,3 s. Un test (`packages/engine/test/clips-sin-audio.test.ts`) cubre los tres casos.
 
-### ⚠ Lentitud 3 — 20 s perdidos esperando a Ollama
+### ✅ Lentitud 3 (resuelta) — 20 s perdidos esperando a Ollama
 
-En la nube no hay IA local. Cada vez que el motor la necesita intenta abrir Ollama y espera 20 s (40 intentos × 0,5 s) antes de seguir sin ella. Pasa en `doctor`, en `estado_sistema` y en la fase "Editar" de cada pedido. Convendría un ajuste para el modo nube que diga "no hay IA local, no la esperes".
+En la nube no hay IA local, pero el motor intentaba abrir Ollama y esperaba 20 s (40 intentos × 0,5 s) antes de seguir sin ella: en `doctor`, en `estado_sistema` y en la fase "Editar" de cada pedido.
+
+**Arreglado:** si Ollama no está instalado, el motor lo sabe al instante y sigue sin esperar. Además, `AXIOMA_SIN_IA_LOCAL=1` la desactiva del todo (útil en la nube aunque alguien la instale). En un computador con Ollama instalado no cambia nada: sigue abriéndolo si está cerrado. Medido aquí: fase "Editar" de 20 s → <0,5 s; `estado_sistema` de 20 s → 0,1 s; `doctor` de 26 s → 8 s; pedido hablado completo de 4 min 37 s → 3 min 42 s. Test: `packages/engine/test/ollama-ausente.test.ts`.
 
 ### Avisos sin importancia
 
@@ -187,7 +189,7 @@ Lo que hace, en orden:
 
 1. ~~**Fuentes dentro de la app**~~ ✅ hecho.
 2. **Entrada y salida de archivos** (no probado, crítico para el producto): cómo sube el cliente sus videos a la máquina y cómo se lleva el MP4 final. Es el verdadero cuello de botella del modo nube; hay que definirlo y probarlo con videos reales de celular (1–3 min, 100–500 MB).
-3. **Modo "sin IA local"**: que no espere 20 s a Ollama en cada paso.
+3. ~~**Modo "sin IA local"**~~ ✅ hecho.
 4. ~~**Clips sin pista de audio**~~ ✅ hecho.
 5. **Instalación automática por sesión**: cada sesión en la nube empieza limpia; conviene guardar `setup-nube.sh` como script de arranque del entorno para no gastar ~3 min (y créditos) cada vez.
 6. Probar con un **video real** de una persona hablando (esta prueba usó voz sintética).

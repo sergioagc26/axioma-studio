@@ -88,16 +88,33 @@ function totalRamGb() { return Number(process.env.AXIOMA_RAM_GB) || os.totalmem(
 
 let starting: Promise<boolean> | null = null;
 
-/** Si Ollama está instalado pero cerrado, lo abre y espera a que responda (hasta ~20 s). */
+/** Abre un programa en segundo plano. False si no existe (p. ej. Ollama no está instalado). */
+function launch(bin: string, args: string[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn(bin, args, { stdio: 'ignore', detached: true, windowsHide: true });
+      child.once('spawn', () => { child.unref(); resolve(true); });
+      child.once('error', () => resolve(false));
+    } catch { resolve(false); }
+  });
+}
+
+/**
+ * Si Ollama está instalado pero cerrado, lo abre y espera a que responda (hasta ~20 s). Si no está
+ * instalado (p. ej. en una máquina en la nube) o se pidió trabajar sin IA local (AXIOMA_SIN_IA_LOCAL=1),
+ * responde que no al instante: antes se esperaban 20 s en cada paso que la usaba.
+ */
 export function ensureOllama(): Promise<boolean> {
+  if (process.env.AXIOMA_SIN_IA_LOCAL === '1') return Promise.resolve(false);
   starting ??= (async () => {
     if (await getJson('/api/version')) return true;
     if (!/127\.0\.0\.1|localhost/.test(HOST)) return false;
-    try {
-      if (process.platform === 'darwin' && existsSync('/opt/homebrew/bin/brew')) spawn('/opt/homebrew/bin/brew', ['services', 'start', 'ollama'], { stdio: 'ignore', detached: true }).unref();
-      else if (process.platform === 'darwin' && existsSync('/Applications/Ollama.app')) spawn('open', ['-a', 'Ollama'], { stdio: 'ignore', detached: true }).unref();
-      else spawn('ollama', ['serve'], { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => {}).unref();
-    } catch { return false; }
+    const brewOllama = ['/opt/homebrew/bin/ollama', '/usr/local/bin/ollama'].some((f) => existsSync(f));
+    const launched =
+      process.platform === 'darwin' && existsSync('/opt/homebrew/bin/brew') && brewOllama ? await launch('/opt/homebrew/bin/brew', ['services', 'start', 'ollama'])
+      : process.platform === 'darwin' && existsSync('/Applications/Ollama.app') ? await launch('open', ['-a', 'Ollama'])
+      : await launch('ollama', ['serve']);
+    if (!launched) return false;
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 500));
       if (await getJson('/api/version', 1000)) return true;

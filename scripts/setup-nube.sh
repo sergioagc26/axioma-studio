@@ -62,8 +62,8 @@ paso "Conectando el plugin de Claude…"
 npm run se -- instalar-claude
 mkdir -p "${SE_WORKSPACE:-workspace}"
 
-# La IA local (Ollama) no existe en la nube: sin esto, cada edición espera ~20 s a que abra.
-# (Aviso solamente; ver docs/PRUEBA-NUBE.md.)
+# La IA local (Ollama) no existe en la nube: el motor lo detecta solo y no la espera.
+# Para desactivarla del todo: export AXIOMA_SIN_IA_LOCAL=1
 
 paso "Revisión final"
 npm run se -- doctor || true
