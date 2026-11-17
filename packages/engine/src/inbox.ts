@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ProjectShape } from '@axioma/schema';
 import { editEverything } from './auto.ts';
 import { ffmpeg } from './exec.ts';
+import { probe } from './media.ts';
 import { saveClientLogo } from './kit.ts';
 import { createMontage, detectShots, joinClips } from './montage.ts';
 import { setBrief, setMusic } from './ops.ts';
@@ -242,6 +243,9 @@ let wavSeq = 0;
 /** ¿Este video tiene a alguien hablando? Escucha sus primeros 45 s. Null si no se pudo saber. */
 export async function videoHasSpeech(file: string): Promise<boolean | null> {
   // Nombre único: dos videos escuchados seguidos no pueden pisarse el audio.
+  // Sin pista de audio (grabación de pantalla, stock, clip generado) no puede haber voz.
+  const info = await probe(file).catch(() => null);
+  if (info && !info.hasAudio) return false;
   const wav = path.join(APP_TMP, `voz-${process.pid}-${++wavSeq}-${Date.now()}.wav`);
   try {
     await ffmpeg(['-y', '-t', '45', '-i', file, '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', wav]);
@@ -284,7 +288,10 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
     // 1. ¿Quién habla? Con un solo video lo dice la transcripción; con varios se escucha cada uno.
     say('Revisando lo que grabaste…');
     let talking = f.videos, silent: string[] = [];
-    if (f.videos.length > 1) {
+    if (f.videos.length === 1) {
+      // Un solo video sin pista de audio va directo como montaje (la voz no se puede limpiar ni transcribir).
+      if ((await probe(f.videos[0]).catch(() => null))?.hasAudio === false) { talking = []; silent = []; }
+    } else {
       // Uno por uno (whisper usa toda la máquina). Si no se pudo escuchar uno, se trata como
       // hablado: es peor perder una parte de lo que se dijo que sumar un clip sin voz.
       const voiced: (boolean | null)[] = [];

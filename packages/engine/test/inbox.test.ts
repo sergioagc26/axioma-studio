@@ -127,3 +127,12 @@ describe('pedido desde el estudio', () => {
     expect(E.classifyFiles([file]).pedido).toBe(file);
   });
 });
+
+describe('clips sin pista de audio', () => {
+  it('un clip sin audio (pantalla, stock, generado) es «sin voz», sin pasar por whisper', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const f = path.join(ws, 'sin-audio.mp4');
+    execFileSync(process.env.SE_FFMPEG ?? 'ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=320x568:d=1', '-pix_fmt', 'yuv420p', f]);
+    expect(await E.videoHasSpeech(f)).toBe(false);
+  });
+});

@@ -93,10 +93,18 @@ export function ensureOllama(): Promise<boolean> {
   starting ??= (async () => {
     if (await getJson('/api/version')) return true;
     if (!/127\.0\.0\.1|localhost/.test(HOST)) return false;
+    // Sin IA local a propósito (p. ej. en la nube, donde Claude hace ese trabajo): ni se intenta.
+    if (/^(1|si|sí|true)$/i.test(process.env.AXIOMA_SIN_IA_LOCAL ?? '')) return false;
     try {
       if (process.platform === 'darwin' && existsSync('/opt/homebrew/bin/brew')) spawn('/opt/homebrew/bin/brew', ['services', 'start', 'ollama'], { stdio: 'ignore', detached: true }).unref();
       else if (process.platform === 'darwin' && existsSync('/Applications/Ollama.app')) spawn('open', ['-a', 'Ollama'], { stdio: 'ignore', detached: true }).unref();
-      else spawn('ollama', ['serve'], { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => {}).unref();
+      else {
+        // Si Ollama no está instalado, se sabe al instante: no se esperan 20 s por nada.
+        const proc = spawn('ollama', ['serve'], { stdio: 'ignore', detached: true, windowsHide: true });
+        const missing = await new Promise<boolean>((r) => { proc.once('error', () => r(true)); proc.once('spawn', () => r(false)); });
+        if (missing) return false;
+        proc.unref();
+      }
     } catch { return false; }
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 500));

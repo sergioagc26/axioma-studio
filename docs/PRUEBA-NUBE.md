@@ -185,7 +185,7 @@ Lo que hace, en orden:
 
 1. ~~**Fuentes dentro de la app**~~ ✅ hecho.
 2. **Entrada y salida de archivos** (no probado, crítico para el producto): cómo sube el cliente sus videos a la máquina y cómo se lleva el MP4 final. Es el verdadero cuello de botella del modo nube; hay que definirlo y probarlo con videos reales de celular (1–3 min, 100–500 MB).
-3. **Modo "sin IA local"**: que no espere 20 s a Ollama en cada paso.
-4. **Clips sin pista de audio**: tratarlos como "sin voz" en vez de "hablado".
+3. ~~**Modo "sin IA local"**~~ ✅ hecho: si Ollama no está instalado se sabe al instante (antes esperaba 20 s); con `AXIOMA_SIN_IA_LOCAL=1` ni se intenta.
+4. ~~**Clips sin pista de audio**~~ ✅ hecho: se tratan como "sin voz" (un solo clip así va directo a montaje).
 5. **Instalación automática por sesión**: cada sesión en la nube empieza limpia; conviene guardar `setup-nube.sh` como script de arranque del entorno para no gastar ~3 min (y créditos) cada vez.
 6. Probar con un **video real** de una persona hablando (esta prueba usó voz sintética).
