@@ -20,7 +20,7 @@ type Req = { ramGb: number; cores: number; discoGb: number; texto: string };
 const NIVEL: Record<string, string> = { insuficiente: 'No llega al mínimo', basico: 'Básico', medio: 'Medio', alto: 'Alto', 'muy alto': 'Muy alto' };
 const ACCEL: Record<string, string> = { metal: 'Apple Silicon (Metal)', cuda: 'NVIDIA (CUDA)', cpu: 'Solo el procesador' };
 
-const PROVEEDOR: Record<string, string> = { qwen: 'Voz IA local (natural, gratis)', elevenlabs: 'ElevenLabs (natural, de pago)', piper: 'Piper (local)', sistema: 'Voz del computador (más robótica)' };
+const PROVEEDOR: Record<string, string> = { qwen: 'Voz IA local (natural, gratis)', elevenlabs: 'ElevenLabs (natural, de pago)', fish: 'Fish Audio (muy natural, en línea)', piper: 'Piper (local)', sistema: 'Voz del computador (más robótica)' };
 
 /**
  * Configuración de la app (no de un video): estado del sistema, IA, voz por defecto, Instagram,

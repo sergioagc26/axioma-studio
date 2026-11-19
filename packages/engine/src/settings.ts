@@ -13,7 +13,7 @@ export interface AppSettings {
   /** Modelo que ve imágenes (vacío = el mejor instalado). */
   vision?: string;
   /** Voz por defecto cuando no se elige otra: proveedor y voz. */
-  voz?: { proveedor?: 'elevenlabs' | 'qwen' | 'piper' | 'sistema'; voz?: string };
+  voz?: { proveedor?: 'elevenlabs' | 'fish' | 'qwen' | 'piper' | 'sistema'; voz?: string };
   /** Exportación por defecto de los proyectos nuevos. */
   exportar?: { calidad?: 'maxima' | 'alta' | 'ligera'; lufs?: -14 | -16; carpeta?: string };
   /** Forma por defecto de los videos nuevos. */
@@ -37,7 +37,7 @@ export function settings(): AppSettings {
 }
 
 const QUALITIES = ['maxima', 'alta', 'ligera'];
-const PROVIDERS = ['elevenlabs', 'qwen', 'piper', 'sistema'];
+const PROVIDERS = ['elevenlabs', 'fish', 'qwen', 'piper', 'sistema'];
 const SHAPES = ['vertical', 'horizontal', 'cuadrado'];
 
 /** Guarda solo lo que viene (y lo válido); un campo vacío vuelve a «que decida la app». */

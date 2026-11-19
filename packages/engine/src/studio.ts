@@ -151,7 +151,7 @@ const HOST_OK = /^(localhost|127\.0\.0\.1|\[::1\]|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-
 const CACHE_DAY = { 'Cache-Control': 'max-age=86400' };
 
 /** Qué variable del .env guarda la clave de cada banco. */
-const KEY_ENV: Record<string, string> = { pexels: 'PEXELS_API_KEY', pixabay: 'PIXABAY_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY', heygen: 'HEYGEN_API_KEY', meta_app_id: 'META_APP_ID', meta_app_secret: 'META_APP_SECRET', meta_config_id: 'META_CONFIG_ID', meta_api_version: 'META_API_VERSION' };
+const KEY_ENV: Record<string, string> = { pexels: 'PEXELS_API_KEY', pixabay: 'PIXABAY_API_KEY', freesound: 'FREESOUND_API_KEY', elevenlabs: 'ELEVENLABS_API_KEY', fish: 'FISH_API_KEY', heygen: 'HEYGEN_API_KEY', meta_app_id: 'META_APP_ID', meta_app_secret: 'META_APP_SECRET', meta_config_id: 'META_CONFIG_ID', meta_api_version: 'META_API_VERSION' };
 
 /** Archivo exportado relativo al proyecto (para /media/<id>/<file>), o null si quedó fuera. */
 const relOut = (dir: string, out: string) => { const r = path.relative(dir, out); return r.startsWith('..') || path.isAbsolute(r) ? null : r.split(path.sep).join('/'); };

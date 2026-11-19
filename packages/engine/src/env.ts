@@ -16,7 +16,7 @@ export async function envValue(name: string): Promise<string | undefined> {
 }
 
 /** Claves que la app deja guardar desde su pantalla. Las META_* son los datos de la app de Meta (Instagram). */
-export const KEY_NAMES = ['PEXELS_API_KEY', 'PIXABAY_API_KEY', 'FREESOUND_API_KEY', 'ELEVENLABS_API_KEY', 'HEYGEN_API_KEY', 'META_APP_ID', 'META_APP_SECRET', 'META_USER_TOKEN', 'META_CONFIG_ID', 'META_API_VERSION'] as const;
+export const KEY_NAMES = ['PEXELS_API_KEY', 'PIXABAY_API_KEY', 'FREESOUND_API_KEY', 'ELEVENLABS_API_KEY', 'FISH_API_KEY', 'FISH_VOICE_ID', 'FISH_MODEL', 'HEYGEN_API_KEY', 'META_APP_ID', 'META_APP_SECRET', 'META_USER_TOKEN', 'META_CONFIG_ID', 'META_API_VERSION'] as const;
 /** Claves por cuenta conectada: el token de cada cuenta de Instagram (IG_TOKEN_<id>) y de cada página de Facebook (FB_TOKEN_<id>). */
 export const ACCOUNT_KEY = /^(IG|FB)_TOKEN_[A-Z0-9]{4,40}$/;
 
@@ -68,7 +68,7 @@ export async function removeEnvValue(name: string): Promise<void> {
 /** Qué claves están puestas (solo sí o no). */
 export async function keyStatus(): Promise<Record<string, boolean>> {
   return {
-    pexels: Boolean(await envValue('PEXELS_API_KEY')), pixabay: Boolean(await envValue('PIXABAY_API_KEY')), freesound: Boolean(await envValue('FREESOUND_API_KEY')), elevenlabs: Boolean(await envValue('ELEVENLABS_API_KEY')), heygen: Boolean(await envValue('HEYGEN_API_KEY')),
+    pexels: Boolean(await envValue('PEXELS_API_KEY')), pixabay: Boolean(await envValue('PIXABAY_API_KEY')), freesound: Boolean(await envValue('FREESOUND_API_KEY')), elevenlabs: Boolean(await envValue('ELEVENLABS_API_KEY')), fish: Boolean(await envValue('FISH_API_KEY')), heygen: Boolean(await envValue('HEYGEN_API_KEY')),
     meta: Boolean((await envValue('META_APP_ID')) && (await envValue('META_APP_SECRET'))),
   };
 }

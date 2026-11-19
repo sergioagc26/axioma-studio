@@ -161,7 +161,7 @@ export function createServer() {
       cliente: z.string().optional(),
       nombre: z.string().optional(),
       cta: z.string().optional().describe('Palabra que se pide comentar (sale en caja amarilla al final)'),
-      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      proveedor_voz: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional(),
       musica: z.string().optional(),
       borrador: z.boolean().optional().describe('Borrador rápido (minutos): la cara quieta y exportación liviana, para revisar antes de la versión final (que reutiliza la voz)'),
@@ -198,7 +198,7 @@ export function createServer() {
       nombre: z.string(),
       cara: z.string().describe('Foto de la cara (de crear_avatar)'),
       descripcion: z.string().optional(),
-      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      proveedor_voz: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional(),
       fondos: z.object({ estudio: z.string().optional(), noche: z.string().optional(), claro: z.string().optional(), oscuro: z.string().optional(), pc: z.string().optional() }).optional().describe('Imágenes de fondo (rutas). Se pueden crear con el generador local.'),
       miniaturas: z.array(z.string()).optional().describe('Portadas de reels para el collage del inicio'),
@@ -237,7 +237,7 @@ export function createServer() {
       guion: z.string().describe('Lo que dice el avatar'),
       salida: z.string().describe('Ruta absoluta del video (.mp4)'),
       voz_heygen: z.string().optional().describe('Id de una voz de HeyGen; sin esto, la voz la hace la app (proveedor_voz/voz)'),
-      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      proveedor_voz: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional(),
     },
     async ({ avatar, tipo, guion, salida, voz_heygen, proveedor_voz, voz }) => {
@@ -270,7 +270,7 @@ export function createServer() {
       cara: z.string().describe('Foto del avatar (de crear_avatar)'),
       guion: z.string().describe('Lo que dice el avatar'),
       salida: z.string().describe('Ruta absoluta del video (.mp4)'),
-      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      proveedor_voz: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional(),
     },
     async ({ cara, guion, salida, proveedor_voz, voz }) => {
@@ -961,7 +961,7 @@ export function createServer() {
 
   tool('doblar', 'Crea una copia del reel doblada a otro idioma (en, pt, fr, it, de): traduce cada frase con la IA local, genera la voz, la ajusta al tiempo de cada frase y traduce subtítulos y textos en pantalla. El reel original no cambia. Hacerlo cuando el corte esté terminado.', {
     proyecto, idioma: z.enum(['en', 'pt', 'fr', 'it', 'de']),
-    voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+    voz: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(),
   }, async (a) => {
     const r = await E.dubProject(await resolveProject(a.proyecto), a.idioma, { provider: a.voz });
     return `Copia doblada: ${r.id} (${r.lines} frases, voz ${r.provider}${r.voice ? ` ${r.voice}` : ''}${r.tight ? `; ${r.tight} frases quedaron justas de tiempo` : ''}).`;
@@ -1051,7 +1051,7 @@ export function createServer() {
         globo: z.string().optional().describe('Globo de cómic al terminar el dibujo: ¡OJO!, ¡ÑAM!…'),
         dibujar: z.number().min(0).max(8).optional().describe('Segundos que tarda la mano en dibujar (0 = aparece ya coloreada)'),
       })).min(2),
-      proveedor_voz: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      proveedor_voz: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional(),
       musica: z.string().optional().describe('Ruta de una música suave (opcional)'),
       brief: z.record(z.string(), z.string()).optional().describe('Respuestas del brief: objetivo, publico, tono, cta… (el proyecto queda con su brief)'),
@@ -1094,7 +1094,7 @@ export function createServer() {
     {
       proyecto,
       texto: z.string().min(2),
-      proveedor: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(),
+      proveedor: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(),
       voz: z.string().optional().describe('Nombre o id de la voz (p. ej. "Paulina" o "Mónica" en Mac)'),
       volumen_original: z.number().min(0).max(1).optional(),
     },
@@ -1159,7 +1159,7 @@ export function createServer() {
   tool(
     'guion_a_video',
     'Convierte el guion técnico guardado en el video (solo montajes de tomas): genera la voz del guion, corta al ritmo de la música y pone en cada fila la toma que el guion pide mientras la voz la dice, con su movimiento, su entrada, sus textos y sonidos. Después revisa con leer_proyecto y exporta con renderizar.',
-    { proyecto, proveedor: z.enum(['elevenlabs', 'qwen', 'piper', 'sistema']).optional(), voz: z.string().optional().describe('Con proveedor qwen: ' + S.AI_VOICES.map((v) => v.id).join(', ') + ' o una descripción de la voz en inglés') },
+    { proyecto, proveedor: z.enum(['elevenlabs', 'fish', 'qwen', 'piper', 'sistema']).optional(), voz: z.string().optional().describe('Con proveedor qwen: ' + S.AI_VOICES.map((v) => v.id).join(', ') + ' o una descripción de la voz en inglés') },
     async ({ proyecto, proveedor, voz }) => (await E.applyScript(await resolveProject(proyecto), { provider: proveedor, voice: voz })).summary.join('\n'),
   );
 

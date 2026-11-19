@@ -120,7 +120,7 @@ export async function createDrawnExplainer(opts: {
   name: string; client?: string; rows: DrawnRow[]; tag?: string;
   /** Respuestas del brief (objetivo, público, CTA…): el proyecto queda con su brief desde el inicio. */
   brief?: Record<string, string>;
-  provider?: 'elevenlabs' | 'qwen' | 'piper' | 'sistema'; voice?: string; music?: string;
+  provider?: 'elevenlabs' | 'fish' | 'qwen' | 'piper' | 'sistema'; voice?: string; music?: string;
   onProgress?: (message: string, progress: number) => void;
 }): Promise<{ dir: string }> {
   const say = (m: string, p: number) => { checkCancelled(); opts.onProgress?.(m, p); };

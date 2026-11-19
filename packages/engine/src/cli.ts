@@ -132,7 +132,7 @@ program
   .command('voz')
   .argument('<carpeta>', 'carpeta del proyecto')
   .argument('<texto>', 'texto que dirá la voz en off')
-  .option('--proveedor <p>', 'elevenlabs, piper o sistema')
+  .option('--proveedor <p>', 'elevenlabs, fish, qwen, piper o sistema')
   .option('--voz <nombre>', 'voz a usar')
   .description('Pone voz en off a un proyecto (y la subtitula)')
   .action(async (dir, texto, o) => {

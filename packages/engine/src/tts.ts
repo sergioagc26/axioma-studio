@@ -8,7 +8,7 @@ import { ffmpeg, run } from './exec.ts';
 import { REPO_ROOT } from './paths.ts';
 import { llmUnload } from './llm.ts';
 
-export type TtsProvider = 'elevenlabs' | 'qwen' | 'piper' | 'sistema';
+export type TtsProvider = 'elevenlabs' | 'fish' | 'qwen' | 'piper' | 'sistema';
 
 /**
  * Voces de la voz IA local (Qwen3-TTS): se describen con palabras y el modelo las crea. No imitan
@@ -40,6 +40,7 @@ async function has(bin: string) {
 export async function ttsProviders(): Promise<TtsProvider[]> {
   const out: TtsProvider[] = [];
   if (await envValue('ELEVENLABS_API_KEY')) out.push('elevenlabs');
+  if (await envValue('FISH_API_KEY')) out.push('fish');
   if (await qwenModel()) out.push('qwen');
   if ((await has('piper')) && (await envValue('SE_PIPER_MODEL'))) out.push('piper');
   if (process.platform === 'darwin' || process.platform === 'win32' || (await has('espeak-ng'))) out.push('sistema');
@@ -49,6 +50,7 @@ export async function ttsProviders(): Promise<TtsProvider[]> {
 /**
  * Genera la voz en off en `out` (WAV 48 kHz). Proveedores:
  * - elevenlabs: la mejor calidad; de pago; necesita ELEVENLABS_API_KEY (y opcional ELEVENLABS_VOICE_ID) en .env.
+ * - fish: Fish Audio en línea (muy natural, miles de voces en español); necesita FISH_API_KEY (opcional FISH_VOICE_ID y FISH_MODEL). Sin saldo usa el modelo gratis.
  * - qwen: voz IA local (Qwen3-TTS), natural y con acento a elegir (QWEN_VOICES o una descripción propia); gratis; tarda más o menos lo que dura el audio.
  * - piper: local y gratis; necesita `piper` instalado y SE_PIPER_MODEL con la ruta del modelo .onnx.
  * - sistema: la voz del sistema operativo (macOS `say`, Windows SAPI). Gratis y siempre disponible, suena más robótica.
@@ -90,6 +92,17 @@ export async function synthesize(text: string, out: string, opts: { provider?: T
         const r2 = await synthesize(clean, out, { ...opts, provider: next, voice: undefined });
         return { ...r2, aviso: `${why} Usé la voz del computador.` };
       }
+      throw new Error(why);
+    }
+  } else if (provider === 'fish') {
+    voice ??= (await envValue('FISH_VOICE_ID')) ?? FISH_DEFAULT_VOICE;
+    try {
+      raw = `${tmp}.mp3`;
+      await writeFile(raw, await fishTts(clean, voice, (await envValue('FISH_MODEL')) ?? 's2.1-pro'));
+    } catch (e) {
+      const why = fishError(e);
+      const next = available.find((p) => p !== 'fish' && p !== 'elevenlabs');
+      if (!opts.provider && next) return { ...(await synthesize(clean, out, { ...opts, provider: next, voice: undefined })), aviso: `${why} Usé otra voz.` };
       throw new Error(why);
     }
   } else if (provider === 'qwen') {
@@ -158,6 +171,72 @@ export async function synthesize(text: string, out: string, opts: { provider?: T
   return { provider, voice };
 }
 
+/** Voz de Fish Audio por defecto: locutor masculino, grave y serio, en español. */
+export const FISH_DEFAULT_VOICE = '3f45a7fd7a614655a61eb7027b955783';
+
+/** Pide el audio a Fish Audio (MP3). Sin saldo (402) prueba con el modelo gratis. */
+async function fishTts(text: string, voice: string, model: string): Promise<Buffer> {
+  const key = (await envValue('FISH_API_KEY'))!;
+  const call = async (m: string) => {
+    const r = await fetch('https://api.fish.audio/v1/tts', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', model: m },
+      body: JSON.stringify({ text, reference_id: voice || undefined, format: 'mp3', mp3_bitrate: 192, normalize: true, latency: 'normal' }),
+      signal: AbortSignal.timeout(180_000),
+    });
+    if (!r.ok) throw Object.assign(new Error(await r.text().catch(() => '')), { status: r.status });
+    return Buffer.from(await r.arrayBuffer());
+  };
+  try {
+    return await call(model);
+  } catch (e) {
+    if ((e as { status?: number }).status === 402 && model !== 's2.1-pro-free') return call('s2.1-pro-free');
+    throw e;
+  }
+}
+
+/** Error de Fish Audio en palabras sencillas. */
+export function fishError(e: unknown): string {
+  const status = (e as { status?: number })?.status;
+  if (status === 401 || status === 403) return 'La clave de Fish Audio no es válida.';
+  if (status === 402) return 'La cuenta de Fish Audio no tiene saldo.';
+  if (status === 404) return 'Esa voz de Fish Audio no existe.';
+  if (status === 429) return 'Fish Audio está limitando las peticiones: espera un momento.';
+  if (!status) return 'No hay conexión con Fish Audio.';
+  return `Fish Audio respondió ${status}.`;
+}
+
+/** Voces de Fish Audio para elegir: las tuyas y algunas públicas en español (sin imitaciones de famosos). */
+async function fishVoices(): Promise<VoiceOption[]> {
+  const out: VoiceOption[] = [];
+  const key = await envValue('FISH_API_KEY');
+  type M = { _id: string; title: string; tags?: string[] };
+  const get = async (q: string, auth: boolean) => {
+    const r = await fetch(`https://api.fish.audio/model?${q}`, { headers: auth && key ? { Authorization: `Bearer ${key}` } : {}, signal: AbortSignal.timeout(10_000) });
+    return r.ok ? (((await r.json()) as { items?: M[] }).items ?? []) : [];
+  };
+  try {
+    for (const m of await get('self=true&page_size=50', true)) out.push({ provider: 'fish', voice: m._id, name: `${m.title} (tuya)`, note: 'Tu voz de Fish Audio' });
+  } catch { /* sin conexión */ }
+  out.push({ provider: 'fish', voice: FISH_DEFAULT_VOICE, name: 'Locutor grave y serio (Fish)', gender: 'm' });
+  try {
+    for (const g of ['male', 'female'] as const) {
+      const items = (await get(`language=es&page_size=20&sort_by=score&tag=${g}`, false)).filter((m) => m._id !== FISH_DEFAULT_VOICE && !looksLikeImitation(m));
+      for (const m of items.slice(0, 6)) out.push({ provider: 'fish', voice: m._id, name: `${m.title.trim()} (Fish)`, gender: g === 'male' ? 'm' : 'f', note: (m.tags ?? []).filter((t) => !/^(male|female|spanish)$/i.test(t)).slice(0, 4).join(', ') });
+    }
+  } catch { /* sin conexión: solo las tuyas y la de por defecto */ }
+  return out;
+}
+
+/** Descarta voces públicas que imitan a una persona o personaje conocido. */
+export function looksLikeImitation(m: { title: string; tags?: string[] }): boolean {
+  const tags = (m.tags ?? []).map((t) => t.toLowerCase());
+  if (tags.some((t) => /character|anime|celebrity|famous|parody|meme|cartoon/.test(t))) return true;
+  // Etiquetas con mayúscula y varias palabras suelen ser nombres propios (p. ej. «Mario Castañeda»).
+  if ((m.tags ?? []).some((t) => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(\s[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)+$/.test(t) && !/latin|american|spanish|español/i.test(t))) return true;
+  return /\(.*\)/.test(m.title);
+}
+
 /** Error de ElevenLabs en palabras sencillas (sin volcar su respuesta en inglés). */
 function elevenError(e: unknown): string {
   const status = (e as { status?: number })?.status;
@@ -202,6 +281,7 @@ export async function voiceCatalog(): Promise<VoiceOption[]> {
     } catch { /* sin permiso o sin conexión: solo las prediseñadas */ }
     out.push(...ELEVEN_PREMADE);
   }
+  if (providers.includes('fish')) out.push(...(await fishVoices()));
   if (providers.includes('qwen')) for (const v of AI_VOICES) out.push({ provider: 'qwen', voice: v.id, name: `${v.name} (local, gratis)`, gender: /mujer/i.test(v.name) ? 'f' : 'm' });
   if (providers.includes('sistema')) out.push({ provider: 'sistema', name: 'Voz del computador (gratis, más robótica)' });
   return out;
