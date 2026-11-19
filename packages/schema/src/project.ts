@@ -69,7 +69,7 @@ export const CaptionStyle = z.object({
 export type CaptionStyle = z.infer<typeof CaptionStyle>;
 
 /** Formas de mostrar el texto en pantalla de una escena. */
-export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor', 'lujo', 'palabra', 'rotulo']);
+export const TextStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor', 'lujo', 'palabra', 'rotulo', 'marca']);
 /** Estilos de texto básicos; el resto son los llamativos. */
 export const BASIC_TEXT_STYLES = ['caja', 'resaltado', 'subrayado', 'banda', 'etiqueta', 'contorno'] as const;
 /** Cómo entra el texto en pantalla. */

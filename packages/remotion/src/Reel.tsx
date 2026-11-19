@@ -798,6 +798,28 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     );
   }
 
+  if (overlay.style === 'marca') {
+    // Titular como el de la web de la marca: Montserrat ExtraBold apretado, alineado a la izquierda,
+    // en dos niveles: lo de antes pequeño y la palabra clave grande en el color de la marca.
+    const ki = words.findIndex(isKey);
+    const k0 = ki < 0 ? words.length - 1 : ki;
+    const before = words.slice(0, k0).join(' ');
+    const key = words.slice(k0).join(' ');
+    const slide = interpolate(enter, [0, 1], [30, 0]);
+    const fade = interpolate(frame, [0, 9], [0, 1], { extrapolateRight: 'clamp' });
+    const keyIn = interpolate(frame, [4, 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    const bar = interpolate(frame, [8, 24], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    return (
+      <AbsoluteFill>
+        <div style={{ position: 'absolute', left: '7%', top: `${overlay.y * 100}%`, width: '86%', textAlign: 'left', fontFamily: font, lineHeight: 1, opacity: fade, transform: `translateY(calc(-50% + ${slide}px))`, textShadow: '0 2px 24px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.45)' }}>
+          {before ? <div style={{ fontSize: 52 * k, fontWeight: 600, color: '#FFF9EC', letterSpacing: '-0.01em', marginBottom: 6 * k }}>{before}</div> : null}
+          <div style={{ fontSize: Math.min(150, Math.max(80, 1000 / Math.max(5, key.length))) * k, fontWeight: 800, color, letterSpacing: '-0.035em', opacity: keyIn, transform: `translateY(${interpolate(keyIn, [0, 1], [18, 0])}px)` }}>{key}</div>
+          <div style={{ width: 110 * k * bar, height: 7 * k, borderRadius: 4 * k, backgroundColor: color, marginTop: 14 * k, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }} />
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   if (overlay.style === 'lujo') {
     // Rótulo de restaurante fino: la palabra clave grande en dorado, lo demás pequeño y espaciado,
     // con dos líneas doradas que se abren. Sin borde negro: sombra suave para leerse sobre el plato.
