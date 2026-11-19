@@ -834,10 +834,10 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     return (
       <AbsoluteFill>
         <div style={{ position: 'absolute', left: '50%', top: `${overlay.y * 100}%`, transform: `translate(-50%, -50%) rotate(-3deg) scale(${interpolate(slam, [0, 1], [0.5, 1])})`, opacity: fade, textAlign: 'center', fontFamily: font, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 * k, maxWidth: '92%' }}>
-          {before ? <div style={{ fontSize: 50 * k, fontWeight: 400, color: '#fff', letterSpacing: '0.02em', WebkitTextStroke: `${Math.round(7 * k)}px #0B0B0F`, paintOrder: 'stroke fill', textShadow: `0 ${6 * k}px 0 rgba(0,0,0,0.55)` }}>{before}</div> : null}
+          {before ? <div style={{ fontSize: 50 * k, fontWeight: /bebas|staatliches|bangers|anton/i.test(font) ? 400 : 700, color: '#fff', letterSpacing: '0.02em', WebkitTextStroke: `${Math.round(7 * k)}px #0B0B0F`, paintOrder: 'stroke fill', textShadow: `0 ${6 * k}px 0 rgba(0,0,0,0.55)` }}>{before}</div> : null}
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', inset: 0, transform: `translate(${14 * k}px, ${14 * k}px) rotate(2deg)`, backgroundColor: '#7B5CF0', clipPath: torn }} />
-            <div style={{ position: 'relative', padding: `${10 * k}px ${44 * k}px ${16 * k}px`, backgroundColor: color, color: '#0B0B0F', fontSize: size, fontWeight: 400, lineHeight: 1.02, letterSpacing: '0.01em', clipPath: torn, whiteSpace: 'nowrap' }}>{key}</div>
+            <div style={{ position: 'relative', padding: `${10 * k}px ${44 * k}px ${16 * k}px`, backgroundColor: color, color: '#0B0B0F', fontSize: size, fontWeight: /bebas|staatliches|bangers|anton/i.test(font) ? 400 : 800, lineHeight: 1.02, letterSpacing: '0.01em', clipPath: torn, whiteSpace: 'nowrap' }}>{key}</div>
           </div>
         </div>
       </AbsoluteFill>
