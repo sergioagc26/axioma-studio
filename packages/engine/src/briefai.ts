@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { outputDuration, type Project } from '@axioma/schema';
+import { CTA_FOR, outputDuration, resolveCta, type Project } from '@axioma/schema';
 import { readKit } from './kit.ts';
 import { llmJson, llmReady } from './llm.ts';
 import { localEdit } from './localedit.ts';
@@ -31,10 +31,7 @@ export const BRIEF_VALUES = {
   publico: ['Gente que aún no me conoce', 'Seguidores que ya me conocen', 'Clientes listos para comprar', 'Dueños de negocio y emprendedores', 'Jóvenes de 18 a 25', 'Adultos y familias'],
   tono: ['Directo', 'Cercano', 'Educativo', 'Inspirador', 'Divertido', 'Elegante'],
 };
-export const CTA_FOR: Record<string, string> = {
-  'Mensajes por DM': 'Escríbeme «INFO» por DM', Comentarios: 'Comenta «QUIERO» y te lo envío', Guardados: 'Guárdalo para cuando lo necesites',
-  'Ir al link': 'Entra al link de mi perfil', Seguidores: 'Sígueme para más como esto', Compartidos: 'Envíaselo a quien lo necesita',
-};
+export { CTA_FOR };
 /** Videos sin voz: objetivo y tono que mejor van con lo que se ve. */
 const SILENT: Record<string, { objetivo: string; tono: string }> = {
   ejercicio: { objetivo: 'Seguidores', tono: 'Inspirador' }, comida: { objetivo: 'Ir al link', tono: 'Divertido' }, producto: { objetivo: 'Mensajes por DM', tono: 'Directo' },
@@ -205,7 +202,7 @@ export async function applyWishes(dir: string): Promise<string[]> {
   const last = project.scenes[project.scenes.length - 1];
   if (close && last && project.scenes.length > 1) {
     const spoken = /digo en el video/i.test(project.brief.cta ?? '');
-    const cta = spoken ? '' : ((project.brief.cta ?? '').trim() || CTA_FOR[project.brief.objetivo ?? ''] || '');
+    const cta = spoken ? '' : resolveCta(project.brief, { talk: false });
     const both = `${cta} ${close.respuesta.trim()}`.trim();
     // Si los dos no caben, gana el contacto: es lo que el cliente pidió.
     const text = both.length <= 45 ? both : cutWords(close.respuesta, 60);

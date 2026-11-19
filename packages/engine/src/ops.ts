@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Word } from '@axioma/schema';
+import { voiceForBrief, type Word } from '@axioma/schema';
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -20,7 +20,7 @@ import { ensureDepth } from './depth.ts';
 import { run } from './exec.ts';
 import { transcribeWav } from './transcribe.ts';
 import { spreadWords } from './dub.ts';
-import { synthesize, type TtsProvider } from './tts.ts';
+import { synthesize, ttsProviders, type TtsProvider } from './tts.ts';
 
 /** Frases del proyecto (para que Claude arme el storyboard). */
 export async function getPhrases(dir: string): Promise<Phrase[]> {
@@ -468,9 +468,21 @@ export async function setOriginalVolume(dir: string, volume: number) {
  * hablado y deja el ambiente bajo en un montaje.
  */
 export async function setVoiceover(dir: string, text: string, opts: { provider?: TtsProvider; voice?: string; originalVolume?: number } = {}) {
+  opts = await withBriefVoice(dir, opts);
   return recordVoiceover(dir, opts.originalVolume, async (out) => ({
     ...await synthesize(text, out, opts), text,
   }));
+}
+
+/**
+ * La voz que pidió el brief («Hombre de voz grave»…) cuando no se eligió otra: va con la voz IA local,
+ * que es la que tiene esas voces. Si se eligió otro proveedor o la voz IA local no está, no cambia nada.
+ */
+export async function withBriefVoice<T extends { provider?: TtsProvider; voice?: string }>(dir: string, opts: T): Promise<T> {
+  if (opts.voice || (opts.provider && opts.provider !== 'qwen')) return opts;
+  const want = voiceForBrief((await readProject(dir)).brief);
+  if (!want || !(await ttsProviders()).includes('qwen')) return opts;
+  return { ...opts, provider: 'qwen', voice: want };
 }
 
 async function recordVoiceover(dir: string, volume: number | undefined, generate: (file: string) => Promise<{ provider: string; voice?: string; text?: string }>) {

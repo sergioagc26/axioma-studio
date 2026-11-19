@@ -13,3 +13,4 @@ export * from './textedit.ts';
 export * from './score.ts';
 export * from './srt.ts';
 export * from './guion.ts';
+export * from './briefx.ts';

@@ -1,11 +1,13 @@
-import { applyVariant, motionIdeas, outputDuration, sceneLength, shortPhrases, speechOf, type Project, type Scene } from '@axioma/schema';
+import { applyVariant, briefWarnings, forbiddenShotTags, motionIdeas, outputDuration, prohibidos, resolveCta, sceneLength, shortPhrases, speechOf, wantsLogoEnding, wantsProductEnding, type Project, type Scene } from '@axioma/schema';
 import { applyPunchZooms } from './cuts.ts';
-import { buildMontage } from './montage.ts';
+import { buildMontage, type Shot } from './montage.ts';
+import { readKit } from './kit.ts';
+import { SHOT_TAGS, tagShots, type ShotTag } from './voicesync.ts';
 import { applyBrandStyle, applyPreset, saveVersion, setAutoSfx } from './ops.ts';
 import { cutProject } from './pipeline.ts';
 import { readProject, readTranscript, writeProject } from './store.ts';
 import { applyRecommendedTransitions } from './transitions.ts';
-import { CTA_FOR } from './briefai.ts';
+import { CTA_FOR } from '@axioma/schema';
 import type { BeatDensity } from './beats.ts';
 
 const RITMO: Record<string, string> = { rapido: 'rapido', 'con ritmo': 'con-ritmo', sobrio: 'sobrio', energico: 'energia', 'pausado y elegante': 'elegante', elegante: 'elegante' };
@@ -74,6 +76,29 @@ export function ctaForGoal(objetivo?: string, ad = false): string {
   return (objetivo && CTA_FOR[objetivo]) || (ad ? 'Escríbenos y te contamos' : '');
 }
 
+/**
+ * Cierra el montaje con el producto: si la última escena no es una toma de comida o producto, la
+ * cambia por la última toma de comida del material (el plato servido suele grabarse al final), tomando
+ * su final. Si no hay tomas reconocidas como comida, no cambia nada y devuelve null.
+ */
+export function endOnProduct(scenes: Pick<Scene, 'ranges'>[], shots: Pick<Shot, 'start' | 'end' | 'tag'>[], tags: ShotTag[] = SHOT_TAGS): { tag: string; changed: boolean } | null {
+  const food = new Set(tags.filter((t) => t.food || t.id === 'producto').map((t) => t.id));
+  const last = scenes[scenes.length - 1];
+  const r = last?.ranges?.[0];
+  if (!r) return null;
+  const at = (t: number) => shots.find((s) => t >= s.start && t < s.end);
+  const mid = (x: Pick<Scene, 'ranges'>) => (x.ranges[0].start + x.ranges[0].end) / 2;
+  const cur = at(mid(last));
+  if (cur?.tag && food.has(cur.tag)) return { tag: cur.tag, changed: false };
+  const prev = scenes.length > 1 && scenes[scenes.length - 2].ranges?.length ? at(mid(scenes[scenes.length - 2])) : undefined;
+  const pick = shots.filter((s) => s.tag && food.has(s.tag) && s.end - s.start >= 0.5)
+    .sort((a, b) => Number(a === prev) - Number(b === prev) || b.start - a.start)[0];
+  if (!pick) return null;
+  const len = Math.min(r.end - r.start, pick.end - pick.start);
+  last.ranges = [{ start: +(pick.end - len).toFixed(3), end: +pick.end.toFixed(3) }];
+  return { tag: pick.tag!, changed: true };
+}
+
 /** Lo que vale una escena del medio al acortar: texto, gráfico, rol y cifras u ofertas en lo que se dice. */
 function sceneValue(s: Scene, transcript?: Parameters<typeof speechOf>[1]): number {
   const said = transcript ? speechOf(s, transcript).toLowerCase() : '';
@@ -137,15 +162,28 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   let max = maxSeconds(b.duracion);
   if (b.duracion && max == null && !wantsAll(b.duracion)) summary.push(`No entendí la duración «${b.duracion}»: la dejé como salió.`);
   if (short && (max == null || max > 60)) { max = 60; summary.push('Formato YouTube Short: máximo 60 s.'); }
+  let shotsSeen: Shot[] | null = null;
   if (project.kind === 'montaje') {
     await applyPreset(dir, presetId);
+    // Lo prohibido y el cierre con producto necesitan saber qué hay en cada toma.
+    const skipTags = forbiddenShotTags(b);
+    if (skipTags.length || wantsProductEnding(b)) {
+      shotsSeen = await tagShots(dir).catch(() => null);
+      if (!shotsSeen) summary.push('No pude reconocer qué hay en cada toma: revisa a mano que no salga lo prohibido y que el cierre muestre el producto.');
+    }
+    if (shotsSeen && skipTags.length) {
+      const out = shotsSeen.filter((s) => s.tag && skipTags.includes(s.tag)).length;
+      summary.push(out === shotsSeen.length ? 'Todas las tomas tienen personas: no pude dejarlas fuera. Revisa el video antes de publicar.'
+        : out ? `Dejé fuera ${out} ${out === 1 ? 'toma' : 'tomas'} con personas (${prohibidos(b).join(', ')}).` : 'No vi tomas con personas en el material.');
+      if (prohibidos(b).some((x) => /niñ/i.test(x))) summary.push('Ojo: la app no distingue niños de adultos. Revisa que no salga ninguno.');
+    }
     // «Lo que dure» en un montaje: todo el material (sin pasar de 90 s), no los 15–30 s de siempre.
     const duration = max ?? (wantsAll(b.duracion) ? MONTAGE_ALL : undefined);
     // «Que decida la app»: la cadencia sale del estilo elegido, un paso más calmada que si se pidió
     // (si no, con músicas suaves salía un corte cada compás, demasiado lento para un montaje).
     const chosen = densityFor(presetId);
     const density = asked ? chosen : chosen === 'pulso' ? 'medio' : chosen;
-    const m = await buildMontage(dir, { duration, density: density === 'auto' ? undefined : density });
+    const m = await buildMontage(dir, { duration, density: density === 'auto' ? undefined : density, skipTags: shotsSeen ? skipTags : undefined });
     summary.push(`Montaje de ${m.duration.toFixed(0)} s: ${m.project.scenes.length} cortes, uno cada ~${(m.duration / Math.max(1, m.project.scenes.length)).toFixed(1)} s (ritmo ${b.ritmo && asked ? b.ritmo : presetId}).`);
   } else {
     // Se vuelve a cortar con el ritmo elegido: cambia cuánta pausa se deja entre frases.
@@ -194,17 +232,30 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
     // «La que digo en el video» no añade texto: el cierre es el que ya se dijo. Sin cierre elegido,
     // va el que corresponde al objetivo (y en un anuncio siempre hay cierre).
     // En un montaje no se dice nada: «la que digo» pasa a ser el cierre del objetivo.
-    const spoken = talk && /digo en el video/i.test(b.cta ?? '');
+    // Manda la frase elegida; si no, la de dónde se compra; si no, la del objetivo (resolveCta).
     const asked = /digo en el video/i.test(b.cta ?? '') ? '' : (b.cta ?? '').trim();
-    const cta = spoken ? '' : asked || ctaForGoal(b.objetivo, ad);
+    const cta = resolveCta(b, { talk, ad });
     if (cta) {
       last.onScreenText = cta;
       last.textStyle = 'banda';
       last.textPosition = 'arriba';
-      summary.push(`Cierre con tu llamado a la acción: «${last.onScreenText}»${asked ? '' : b.objetivo && CTA_FOR[b.objetivo] ? ` (según tu objetivo: ${b.objetivo})` : ' (anuncio: cierre fuerte)'}.`);
+      const why = asked ? '' : b.canal && cta !== CTA_FOR[b.objetivo ?? ''] ? ` (el cliente compra ${b.canal.toLowerCase()})` : b.objetivo && CTA_FOR[b.objetivo] ? ` (según tu objetivo: ${b.objetivo})` : ' (anuncio: cierre fuerte)';
+      summary.push(`Cierre con tu llamado a la acción: «${last.onScreenText}»${why}.`);
     } else if (talk) {
       last.onScreenText ??= shortPhrases(speechOf(last, transcript))[0];
     }
+  }
+
+  // 5a. Cómo termina: el producto terminado (montaje) y el logo de la marca.
+  if (last && project.scenes.length > 1 && project.kind === 'montaje' && wantsProductEnding(b) && shotsSeen) {
+    const end = endOnProduct(project.scenes, shotsSeen);
+    summary.push(!end ? 'No encontré una toma del producto terminado para el cierre: elígela a mano en Tomas.'
+      : end.changed ? `El video termina con el producto (toma de ${end.tag}).` : `El video ya terminaba con el producto (toma de ${end.tag}).`);
+  }
+  if (last && project.scenes.length > 1 && wantsLogoEnding(b)) {
+    const kit = await readKit(project.client).catch(() => null);
+    if (kit?.logo && last.onScreenText) { last.textLogo = true; summary.push('El logo de la marca va en el cierre, sobre la frase final.'); }
+    else summary.push(kit?.logo ? 'El cierre no tiene frase: el logo no se pudo poner encima.' : 'Pediste el logo en el cierre, pero la marca no tiene logo guardado: súbelo en Marca.');
   }
 
   // 5b. Motion graphics hechos con lo que se dice: uno cada tres o cuatro escenas del medio.
@@ -242,5 +293,8 @@ export async function applyBrief(dir: string): Promise<{ project: Project; summa
   await setAutoSfx(dir, fast);
   if (fast) summary.push('Efectos de sonido automáticos en transiciones y textos.');
 
-  return { project: await readProject(dir), summary };
+  // 7. Lo que choca con el brief (precios, canal de pedido, voz): se avisa, no se cambia.
+  const final = await readProject(dir);
+  for (const w of briefWarnings(final)) summary.push(`Revisa: ${w}`);
+  return { project: final, summary };
 }

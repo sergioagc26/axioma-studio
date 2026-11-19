@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PERSONALITIES, SECTORS, VISION_TOPICS } from '@axioma/schema';
+import { BRIEF_VOICES, CANALES, CIERRES, CTA_FOR, PERSONALITIES, PROHIBIDOS, SECTORS, SPOKEN_CTA, VISION_TOPICS, ctaForChannel, isGenericCta, prohibidos, voiceForBrief } from '@axioma/schema';
 import type { Ctx } from '../App.tsx';
 import { api, waitJob, type Job } from '../useProject.ts';
 import { Icon } from '../Icon.tsx';
@@ -11,15 +11,6 @@ interface Ref { id: string; name: string; client: string; duration: number; avgS
 interface Opt { value: string; title: string; desc: string }
 interface Q { key: string; label: string; title: string; help: string; placeholder: string; options: Opt[] }
 
-/** Frase de cierre que va con cada objetivo: sale primero en la última pregunta. */
-const CTA_FOR: Record<string, string> = {
-  'Mensajes por DM': 'Escríbeme «INFO» por DM',
-  Comentarios: 'Comenta «QUIERO» y te lo envío',
-  Guardados: 'Guárdalo para cuando lo necesites',
-  'Ir al link': 'Entra al link de mi perfil',
-  Seguidores: 'Sígueme para más como esto',
-  Compartidos: 'Envíaselo a quien lo necesita',
-};
 /** Un icono por respuesta: se entiende de un vistazo, sin leer. */
 const ICON: Record<string, IconName> = {
   'Reel 9:16': 'instagram', 'Historia 9:16': 'story', 'TikTok 9:16': 'tiktok', 'YouTube Short 9:16': 'youtube', 'Anuncio 9:16': 'megaphone',
@@ -28,9 +19,12 @@ const ICON: Record<string, IconName> = {
   'Rápido': 'bolt', 'Con ritmo': 'rhythm', Sobrio: 'calm', 'Enérgico': 'flame', 'Pausado y elegante': 'clapper', 'Que decida la app': 'sparkle',
   Directo: 'target', Cercano: 'heart', Educativo: 'book', Inspirador: 'rocket', Divertido: 'smile', Elegante: 'diamond',
   '10–15 s': 'timer', '15–20 s': 'timer', '20–30 s': 'timer', '30–45 s': 'timer', '45–60 s': 'timer', 'Lo que dure': 'infinity',
-  'La que digo en el video': 'mic', 'Escríbeme «INFO» por DM': 'message', 'Comenta «QUIERO» y te lo envío': 'speech', 'Guárdalo para cuando lo necesites': 'bookmark', 'Entra al link de mi perfil': 'link', 'Sígueme para más como esto': 'follow', 'Envíaselo a quien lo necesita': 'share',
+  'La que digo en el video': 'mic',
+  'En la página web': 'globe', 'Por WhatsApp': 'phone', 'Por mensaje directo (DM)': 'message', 'En el local': 'pin', 'Por llamada': 'phone',
+  'Producto terminado y logo': 'diamond', 'Solo el logo': 'title', 'Persona hablando a cámara': 'camera',
+  'Sin voz, solo música': 'music', 'Escríbeme «INFO» por DM': 'message', 'Comenta «QUIERO» y te lo envío': 'speech', 'Guárdalo para cuando lo necesites': 'bookmark', 'Entra al link de mi perfil': 'link', 'Sígueme para más como esto': 'follow', 'Envíaselo a quien lo necesita': 'share',
 };
-export const SPOKEN_CTA = 'La que digo en el video';
+export { SPOKEN_CTA };
 
 // Todas las preguntas se responden tocando una opción; escribir es solo para una respuesta distinta.
 const QUESTIONS: Q[] = [
@@ -79,6 +73,16 @@ const QUESTIONS: Q[] = [
   { key: 'cta', label: 'Llamado a la acción', title: '¿Con qué frase cierras?', help: 'Aparece en pantalla en la última escena.', placeholder: 'Ej.: Escríbeme «REEL» y te cuento', options: [
     { value: SPOKEN_CTA, title: SPOKEN_CTA, desc: 'No se añade texto: se usa tu cierre.' },
     ...Object.values(CTA_FOR).map((v) => ({ value: v, title: v, desc: '' }))] },
+  // Lo que faltó en el reel de Filette: el producto, dónde se compra, cómo termina, la voz y lo prohibido.
+  { key: 'producto', label: 'Producto', title: '¿Qué producto sale y a qué precio?', help: 'Solo se usan estos precios: si el video dice otro, la app avisa antes de entregarlo.', placeholder: 'Ej.: Mazorcada $17.000 · Clásica $12.000', options: [] },
+  { key: 'canal', label: 'Dónde se compra', title: '¿Dónde compra o pide el cliente?', help: 'Decide la frase de cierre. Escribe abajo la web, el número o la dirección: la app no inventa ninguno.', placeholder: 'Ej.: en la tienda de Rappi', options: CANALES.map((v) => ({ value: v, title: v, desc: '' })) },
+  { key: 'cierre', label: 'Cierre', title: '¿Cómo termina el video?', help: 'En un montaje, con «Producto terminado» la última toma es el plato o producto listo.', placeholder: 'Ej.: el cliente probando', options: [
+    { value: CIERRES[0], title: CIERRES[0], desc: 'La última toma es el producto listo, con el logo de la marca.' },
+    { value: CIERRES[1], title: CIERRES[1], desc: 'El logo de la marca con la frase final.' },
+    { value: CIERRES[2], title: CIERRES[2], desc: 'Termina con quien habla (videos hablados).' },
+    { value: CIERRES[3], title: CIERRES[3], desc: 'Según lo que haya en el video.' }] },
+  { key: 'voz', label: 'Voz', title: '¿Qué voz lleva?', help: 'Toca ▶ para oír 5 segundos de cada voz antes de elegir. La primera muestra tarda unos minutos; después sale al instante.', placeholder: 'Ej.: mujer joven y alegre', options: BRIEF_VOICES.map((v) => ({ value: v.value, title: v.value, desc: v.desc })) },
+  { key: 'prohibido', label: 'Prohibido', title: '¿Qué no puede salir?', help: 'Puedes marcar varias. En un montaje se dejan fuera las tomas con personas; los precios se revisan en los textos y la voz.', placeholder: 'Ej.: la fachada vieja', options: PROHIBIDOS.map((v) => ({ value: v, title: v, desc: '' })) },
 ];
 
 /** Ediciones en marcha por proyecto: siguen vivas al salir y volver al brief (el servidor también las da por /api/jobs). */
@@ -93,14 +97,25 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
   const { store } = ctx;
   const project = store.project!;
   const pid = encodeURIComponent(project.id);
-  const forGoal = CTA_FOR[project.brief.objetivo ?? ''];
+  // La frase que sale primero en «¿Con qué frase cierras?»: la de dónde se compra o, si no, la del objetivo.
+  const forGoal = ctaForChannel(project.brief.canal, project.brief.contacto) || CTA_FOR[project.brief.objetivo ?? ''];
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const [building, setBuilding] = useState('');
   const buildingRef = useRef(false);
   const busy = Boolean(building);
 
-  const set = (key: string, v: string) => { store.update((p) => { if (v) p.brief[key] = v; else delete p.brief[key]; }); setSuggested((x) => x.filter((k) => k !== key)); };
+  const set = (key: string, v: string) => {
+    store.update((p) => {
+      if (v) p.brief[key] = v; else delete p.brief[key];
+      // Al decir dónde se compra, la frase de cierre genérica pasa a ser la de ese canal (no la del objetivo).
+      if ((key === 'canal' || key === 'contacto') && (!p.brief.cta || isGenericCta(p.brief.cta))) {
+        const c = ctaForChannel(p.brief.canal, p.brief.contacto);
+        if (c) p.brief.cta = c;
+      }
+    });
+    setSuggested((x) => x.filter((k) => k !== key));
+  };
 
   // La IA lee el video y propone las respuestas: el cliente solo confirma o cambia.
   const [help, setHelp] = useState<Help | null>(null);
@@ -295,6 +310,37 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
     }
     const value = project.brief[x.key] ?? '';
     const opts = optionsOf(x);
+    if (x.key === 'producto') {
+      return (
+        <label key={x.key} className="field" style={{ fontSize: 17, fontWeight: 700, gap: 8 }}>{x.title}
+          <span className="small muted" style={{ fontWeight: 400 }}>{x.help}</span>
+          <input defaultValue={value} placeholder={x.placeholder} style={{ fontWeight: 400 }}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v !== value) set(x.key, v); }} />
+        </label>
+      );
+    }
+    if (x.key === 'prohibido') {
+      // Varias a la vez: se guardan separadas por comas. «Nada en especial» limpia las demás.
+      const sel = value ? value.split(/\s*,\s*/) : [];
+      const toggle = (v: string) => {
+        const next = /^nada/i.test(v) ? (sel.includes(v) ? [] : [v]) : sel.includes(v) ? sel.filter((x2) => x2 !== v) : [...sel.filter((x2) => !/^nada/i.test(x2)), v];
+        set(x.key, next.join(', '));
+      };
+      return (
+        <section key={x.key} className="col" style={{ gap: 8 }}>
+          <h2 style={{ fontSize: 17 }}>{x.title}</h2>
+          <span className="small muted">{x.help}</span>
+          <div className="bchips">
+            {opts.map((o) => (
+              <button key={o.value} className={`bchip ${sel.includes(o.value) ? 'on' : ''}`} aria-pressed={sel.includes(o.value)} onClick={() => toggle(o.value)}>
+                {sel.includes(o.value) ? <Icon name="check" /> : null}{o.title}
+              </button>
+            ))}
+          </div>
+          {prohibidos(project.brief).some((p2) => /niñ/i.test(p2)) && <span className="small muted">La app no distingue niños de adultos: deja fuera a todas las personas y te avisa para que revises.</span>}
+        </section>
+      );
+    }
     const custom = Boolean(value) && !opts.some((o) => o.value === value);
     return (
       <section key={x.key} className="col" style={{ gap: 8 }}>
@@ -321,10 +367,19 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
             onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           />
         </div>
+        {x.key === 'canal' && value && (
+          <input className="input" defaultValue={project.brief.contacto ?? ''} aria-label="Web, número o dirección"
+            placeholder={/web/i.test(value) ? 'La web (ej.: filetteburger.com)' : /whats|llam/i.test(value) ? 'El número (opcional)' : /local/i.test(value) ? 'La dirección (ej.: Carrera 11 # 16-28)' : 'Usuario o dato de contacto (opcional)'}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v !== (project.brief.contacto ?? '')) set('contacto', v); }} />
+        )}
+        {x.key === 'canal' && value && <span className="small muted">Cierre: «{ctaForChannel(value, project.brief.contacto) || 'según tu objetivo'}»</span>}
+        {x.key === 'voz' && <VoiceSamples pid={pid} chosen={voiceForBrief(project.brief)} toast={ctx.toast} />}
       </section>
     );
   };
-  const MAIN = QUESTIONS.filter((x) => ['formato', 'objetivo', 'tono', 'duracion', 'cta'].includes(x.key));
+  const MAIN = QUESTIONS.filter((x) => ['formato', 'objetivo', 'tono', 'duracion'].includes(x.key));
+  // Producto y entrega: van antes del cierre porque deciden su frase.
+  const SELL = ['producto', 'canal', 'cta', 'cierre', 'voz', 'prohibido'].map((k) => QUESTIONS.find((x) => x.key === k)!);
   const MORE = QUESTIONS.filter((x) => ['publico', 'ritmo'].includes(x.key));
   const thumb = (r: Ref) => `url(/ref/${encodeURIComponent(r.client)}/${encodeURIComponent(r.id)}/${r.frames[Math.min(2, r.frames.length - 1)]})`;
   // Mientras edita, el formulario queda bloqueado: un cambio a mitad pisaría la edición.
@@ -377,6 +432,9 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </section>
 
           {MAIN.map(row)}
+
+          <h2 style={{ fontSize: 13, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', marginTop: 6 }}>Producto y entrega</h2>
+          {SELL.map(row)}
 
           {help?.preguntas.map((x) => (
             <label key={x.id} className="field" style={{ fontSize: 17, fontWeight: 700, gap: 8 }}>{x.pregunta}
@@ -449,6 +507,39 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
           </div>
         </details>
       </main>
+    </div>
+  );
+};
+
+/** Muestras de 5 s de las voces del brief: la primera vez tardan varios minutos (voz IA local) y quedan guardadas en el proyecto. */
+const VoiceSamples: React.FC<{ pid: string; chosen: string | null | undefined; toast: (m: string) => void }> = ({ pid, chosen, toast }) => {
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState('');
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const play = async (voice: string) => {
+    if (busy) return;
+    setBusy(voice);
+    try {
+      let r = await api<{ file?: string } & Partial<Job>>(`/api/op?id=${pid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'muestra-voz', voice }) });
+      if (!r.file && r.id) r = ((await waitJob(r as Job, (j) => setMsg(j.message))) as any).result ?? {};
+      if (!r.file) throw new Error('No se pudo generar la muestra.');
+      audio.current?.pause();
+      audio.current = new Audio(`/media/${pid}/${r.file.split('/').map(encodeURIComponent).join('/')}`);
+      await audio.current.play();
+    } catch (e: any) { toast(e.message); } finally { setBusy(''); setMsg(''); }
+  };
+  return (
+    <div className="col" style={{ gap: 6 }}>
+      <div className="row" style={{ gap: 6 }}>
+        <span className="small muted">Oír 5 s:</span>
+        {BRIEF_VOICES.filter((v) => v.voice).map((v) => (
+          <button key={v.voice} type="button" className={`btn rect small ${chosen === v.voice ? 'primary' : ''}`} style={{ height: 32 }} disabled={Boolean(busy)}
+            aria-label={`Oír ${v.value}`} onClick={() => play(v.voice!)}>
+            <Icon name={busy === v.voice ? 'clock' : 'play'} size={13} />{v.value.replace(/^(Hombre|Mujer)( de voz)? /, '').replace(/^./, (c) => c.toUpperCase())}
+          </button>
+        ))}
+      </div>
+      {msg && <span className="small muted" role="status">{msg}</span>}
     </div>
   );
 };

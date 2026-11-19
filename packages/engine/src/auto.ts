@@ -1,6 +1,6 @@
 import { checkCancelled } from './cancel.ts';
 import { Preset, sceneLength, SECTORS, TRENDS, TRENDS_DATE, VISION_TOPICS, getPreset, outputDuration, recommendPreset } from '@axioma/schema';
-import { MONTAGE_ALL, applyBrief, ctaForGoal, fitDuration, maxSeconds, wantsAll } from './brief.ts';
+import { MONTAGE_ALL, applyBrief, fitDuration, maxSeconds, wantsAll } from './brief.ts';
 import { autoMusic } from './musiclib.ts';
 import { applyWishes, buildPrompt } from './briefai.ts';
 import { setAutoSfx } from './ops.ts';
@@ -15,7 +15,7 @@ import { readVision } from './vision.ts';
 import { envValue } from './env.ts';
 import { llmHook, llmJson, llmReady } from './llm.ts';
 import { downloadBroll, searchBroll, stockSource } from './pexels.ts';
-import { keywords, speechOf } from '@axioma/schema';
+import { keywords, resolveCta, speechOf } from '@axioma/schema';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -134,7 +134,7 @@ export async function planAutoEdit(dir: string): Promise<string[]> {
   const b = project.brief;
   const asked = maxSeconds(b.duracion);
   const max = /short|youtube/i.test(b.formato ?? '') && (asked == null || asked > 60) ? 60 : asked;
-  const cta = /digo en el video/i.test(b.cta ?? '') ? '' : (b.cta ?? '').trim() || ctaForGoal(b.objetivo, /anuncio/i.test(b.formato ?? ''));
+  const cta = /digo en el video/i.test(b.cta ?? '') ? '' : resolveCta(b, { talk: false, ad: /anuncio/i.test(b.formato ?? '') });
   const musicLine = project.audio.music ? 'Dejaré la música que ya tiene.' : project.audio.musicOff ? 'No pondré música: la quitaste a mano.' : project.kind === 'montaje' ? 'Elegiré la música primero y cortaré en sus golpes.' : 'Pondré música del ánimo del video, bajita debajo de la voz.';
   if (route.useBrief) {
     // Con el brief respondido se edita con el brief: el plan dice eso, no la tendencia.
@@ -265,7 +265,7 @@ export async function autoEdit(dir: string, opts: { referenceId?: string } = {})
   }
 
   // 3. Cierre con el llamado a la acción del brief (o el de su objetivo), si lo hay.
-  const cta = project.kind === 'hablado' && /digo en el video/i.test(project.brief.cta ?? '') ? '' : (/digo en el video/i.test(project.brief.cta ?? '') ? '' : (project.brief.cta ?? '').trim()) || ctaForGoal(project.brief.objetivo, /anuncio/i.test(project.brief.formato ?? ''));
+  const cta = resolveCta(project.brief, { talk: project.kind === 'hablado', ad: /anuncio/i.test(project.brief.formato ?? '') });
   const last = project.scenes[project.scenes.length - 1];
   if (cta && last && project.scenes.length > 1) {
     last.onScreenText = cta;

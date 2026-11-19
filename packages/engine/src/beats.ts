@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Scene } from '@axioma/schema';
 import { ffmpeg } from './exec.ts';
-import { detectShots, type Shot } from './montage.ts';
+import { detectShots, withoutTags, type Shot } from './montage.ts';
 import { readProject, writeProject } from './store.ts';
 
 /**
@@ -174,12 +174,12 @@ export function biggestRise(map: BeatMap, cuts: number[]): number | null {
  * Rehace el montaje con cortes en los golpes de la música: cada plano dura exactamente
  * de un golpe al siguiente y se reparten las tomas sin repetir imagen.
  */
-export async function montageToBeat(dir: string, opts: { density?: BeatDensity; duration?: number; /** Duración mínima de cada plano (s); por defecto crece con el largo del video. */ minClip?: number } = {}) {
+export async function montageToBeat(dir: string, opts: { density?: BeatDensity; duration?: number; /** Duración mínima de cada plano (s); por defecto crece con el largo del video. */ minClip?: number; /** Etiquetas de toma que no pueden salir. */ skipTags?: string[] } = {}) {
   const project = await readProject(dir);
   if (!project.audio.music || !existsSync(path.join(dir, project.audio.music))) throw new Error('Pon primero una música: el montaje se corta en sus golpes.');
   const map = await musicBeats(dir, project.audio.music);
   if (!map) throw new Error('No encontré un pulso claro en esta música (¿es muy suave o sin percusión?). Prueba con otra canción.');
-  const shots = await detectShots(dir);
+  const shots = withoutTags(await detectShots(dir), opts.skipTags);
   if (!shots.length) throw new Error('No se detectaron tomas en el video.');
   const material = shots.reduce((a, s) => a + s.end - s.start, 0);
   const fps = project.format.fps;

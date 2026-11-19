@@ -291,7 +291,7 @@ export function createServer() {
     async ({ proyecto }) => E.formatPhrases(await E.getPhrases(await resolveProject(proyecto))),
   );
 
-  tool('guardar_brief', 'Guarda respuestas del brief (formato, objetivo, público, ritmo, tono, material, cta…).', {
+  tool('guardar_brief', 'Guarda respuestas del brief (formato, objetivo, publico, ritmo, tono, duracion, cta, producto, canal, contacto, cierre, voz, prohibido, notas). Claves nuevas: producto = productos y precios reales; canal = dónde compra el cliente (' + S.CANALES.join(', ') + '); contacto = web, número o dirección que dio el usuario; cierre = ' + S.CIERRES.join(', ') + '; voz = ' + S.BRIEF_VOICES.map((v) => v.value).join(', ') + '; prohibido = separado por comas: ' + S.PROHIBIDOS.join(', ') + '.', {
     proyecto, respuestas: z.record(z.string(), z.string()),
   }, async ({ proyecto, respuestas }) => {
     const dir = await resolveProject(proyecto);

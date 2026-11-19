@@ -940,6 +940,22 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       });
       return json(res, job);
     }
+    if (b.op === 'muestra-voz') {
+      // Muestra de 5 s de una voz del brief, para oírla antes de generar la voz en off entera.
+      // Se guarda en el proyecto: la segunda vez sale al instante.
+      const id = String(b.voice ?? '');
+      if (!AI_VOICES.some((v) => v.id === id)) return json(res, { error: `No existe la voz «${id}».` }, 400);
+      const rel = `media/muestras/${id}.wav`;
+      const out = path.join(dir, rel);
+      if (existsSync(out)) return json(res, { file: rel });
+      if (!(await ttsProviders()).includes('qwen')) return json(res, { error: 'La voz IA local no está instalada: instálala en Configuración para oír las muestras.' }, 400);
+      const job = startJob('audio', async (j) => {
+        j.message = 'Generando una muestra de 5 s. La primera vez la voz IA local puede tardar varios minutos; después sale al instante…';
+        await synthesize('Así sonaría la voz de tu video: clara, con buen ritmo y lista para tu marca.', out, { provider: 'qwen', voice: id });
+        return { file: rel };
+      });
+      return json(res, job);
+    }
     if (b.op === 'quitar-voz') return json(res, { project: await ops.removeVoiceover(dir) });
     if (b.op === 'estabilizar' || b.op === 'quitar-estabilizado') {
       // Estabilizar tomas movidas (o volver al original). Tarda: va como trabajo con su avance.

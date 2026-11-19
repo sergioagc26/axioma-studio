@@ -204,20 +204,33 @@ export interface MontagePick { toma: string; inicio?: number; duracion?: number 
  * - Con voz en off, el montaje dura lo que dura la voz.
  * - `picks` permite elegir las tomas a mano (lo usa Claude después de mirarlas).
  */
-export async function buildMontage(dir: string, opts: { duration?: number; clipLength?: number; picks?: MontagePick[]; density?: BeatDensity } = {}) {
+/**
+ * Tomas que pueden entrar al montaje: sin las de etiquetas prohibidas por el brief (gente del local,
+ * personas hablando). Si todas están prohibidas, se devuelven igual (sin ellas no hay montaje) y quien
+ * llama avisa.
+ */
+export function withoutTags<T extends { tag?: string }>(shots: T[], skip?: string[]): T[] {
+  if (!skip?.length) return shots;
+  const keep = shots.filter((s) => !s.tag || !skip.includes(s.tag));
+  return keep.length ? keep : shots;
+}
+
+export async function buildMontage(dir: string, opts: { duration?: number; clipLength?: number; picks?: MontagePick[]; density?: BeatDensity; /** Etiquetas de toma que no pueden salir (lo prohibido en el brief). */ skipTags?: string[] } = {}) {
   const project = await readProject(dir);
   // Con música y sin tomas elegidas a mano, los cortes caen en los golpes de la canción.
   if (!opts.picks?.length && !opts.clipLength && project.audio.music && existsSync(path.join(dir, project.audio.music))) {
     try {
-      const r = await montageToBeat(dir, { duration: opts.duration, density: opts.density });
+      const r = await montageToBeat(dir, { duration: opts.duration, density: opts.density, skipTags: opts.skipTags });
       return { project: r.project, clip: 60 / r.bpm, beat: 60 / r.bpm, shots: r.cuts, duration: r.duration };
     } catch (e) {
       if (!/pulso claro|material suficiente/.test(String((e as Error).message))) throw e; // sin pulso o con muy poco material: corte parejo
     }
   }
-  const shots = await detectShots(dir);
-  if (!shots.length) throw new Error('No se detectaron tomas en el video.');
-  const byId = new Map(shots.map((s) => [s.id, s]));
+  const all = await detectShots(dir);
+  if (!all.length) throw new Error('No se detectaron tomas en el video.');
+  // Las tomas elegidas a mano mandan: lo prohibido solo filtra la elección automática.
+  const shots = opts.picks?.length ? all : withoutTags(all, opts.skipTags);
+  const byId = new Map(all.map((s) => [s.id, s]));
 
   let clip = opts.clipLength ?? (project.pacing.maxPause <= 0.2 ? 0.8 : project.pacing.maxPause <= 0.4 ? 1.2 : 2);
   let beat: number | null = null;

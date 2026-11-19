@@ -107,6 +107,7 @@ export function guionMarkdown(g: Guion): string {
 
 /** Voces de la voz IA local: se describen y el modelo las crea (no imitan a nadie). La instrucción va en inglés. */
 export const AI_VOICES = [
+  { id: 'grave', name: 'Hombre de voz grave, serio', instruct: 'Original adult male voice, Colombian Spanish accent, very deep low-pitched baritone, thick and resonant chest voice, slightly gravelly, around 40 years old. Serious, confident and powerful, like a premium commercial narrator. Calm brisk pace, never high-pitched, never robotic.' },
   { id: 'colombiana', name: 'Mujer colombiana, cálida', instruct: 'Original young adult woman voice, warm and melodic, with a natural Colombian Spanish accent from Bogotá. Witty, smiling and confident; lively rhythm, clear diction.' },
   { id: 'colombiano', name: 'Hombre colombiano, cercano', instruct: 'Original adult male voice with a natural Colombian Spanish accent from Bogotá. Warm, trustworthy and close; medium-fast pace, very clear diction.' },
   { id: 'mexicana', name: 'Mujer mexicana, alegre', instruct: 'Original young adult woman voice with a natural Mexican Spanish accent. Bright, cheerful and charming, smiling; lively pace, clear diction.' },
