@@ -84,9 +84,10 @@ program
     console.log(`Studio: ${url}`);
     if (network) {
       const key = await lanKey();
-      const port = new URL(url).port;
+      const { port } = new URL(url);
       const ips = lanAddresses();
-      const link = (ip: string) => `  http://${ip}:${port}/?clave=${key}`;
+      // Sin puerto (80/443 por defecto) no se imprime «:»; las direcciones IPv6 van entre corchetes.
+      const link = (ip: string) => `  http://${ip.includes(':') && !ip.startsWith('[') ? `[${ip}]` : ip}${port ? `:${port}` : ''}/?clave=${key}`;
       const home = ips.filter((ip) => !isTailscale(ip));
       const away = ips.filter(isTailscale);
       if (!ips.length) console.log('\nNo encontré una red local activa en este computador.');
@@ -125,6 +126,11 @@ program
   .option('--no-render', 'preparar y armar sin renderizar')
   .description('Montaje de cortes rápidos para videos sin voz (gimnasio, comida, producto)')
   .action(async (videos, o) => {
+    if (o.duracion !== undefined && !(isFinite(o.duracion) && o.duracion > 0)) {
+      console.error('✗ --duracion debe ser un número de segundos mayor que 0 (por ejemplo: --duracion 30).');
+      process.exitCode = 1;
+      return;
+    }
     await editMontage(videos, { name: o.name, client: o.client, preset: o.preset, duration: o.duracion, music: o.musica, musicLicense: o.licencia, voiceover: o.voz, render: o.render });
   });
 
@@ -149,26 +155,50 @@ program
   .description('Modo automático: edita solo cada video (corte, gancho, textos, gráficos, sonidos) y lo exporta')
   .action(async (ruta, o) => {
     const target = path.resolve(ruta);
-    const isDir = (await stat(target)).isDirectory();
+    const info = await stat(target).catch(() => null);
+    if (!info) {
+      console.error(`✗ No se encontró el archivo o carpeta: ${target}`);
+      process.exitCode = 1;
+      return;
+    }
+    const isDir = info.isDirectory();
     const folder = isDir ? target : path.dirname(target);
     const salida = path.resolve(o.salida ?? path.join(folder, 'editados'));
     const logFile = path.join(folder, '.editados.json');
-    const done: Record<string, string> = await readFile(logFile, 'utf8').then((x) => JSON.parse(x)).catch(() => ({}));
-    const pending = async () => (isDir ? (await readdir(target)).filter((f) => /\.(mp4|mov|m4v)$/i.test(f) && !f.startsWith('.')).sort().map((f) => path.join(target, f)) : [target])
-      .filter((f) => isDir ? !done[path.basename(f)] : true);
+    // El registro solo guarda lo ya editado: un archivo que falló no queda descartado y se reintenta.
+    const saved: Record<string, string> = await readFile(logFile, 'utf8').then((x) => JSON.parse(x)).catch(() => ({}));
+    const done: Record<string, string> = Object.fromEntries(Object.entries(saved).filter(([, v]) => !String(v).startsWith('ERROR:')));
+    // Los que fallaron en esta sesión se reintentan cuando cambian o pasados 5 minutos (no en bucle cada 8 s).
+    const failed = new Map<string, { sig: string; at: number }>();
+    const signature = async (f: string) => { const x = await stat(f).catch(() => null); return x ? `${x.size}:${x.mtimeMs}` : ''; };
+    const pending = async () => {
+      const files = (isDir ? (await readdir(target)).filter((f) => /\.(mp4|mov|m4v)$/i.test(f) && !f.startsWith('.')).sort().map((f) => path.join(target, f)) : [target])
+        .filter((f) => isDir ? !done[path.basename(f)] : true);
+      const out: string[] = [];
+      for (const f of files) {
+        const fail = failed.get(f);
+        if (!fail || Date.now() - fail.at > 5 * 60_000 || fail.sig !== await signature(f)) out.push(f);
+      }
+      return out;
+    };
     const one = async (file: string) => {
       console.log(`\n▶ ${path.basename(file)}`);
       try {
-        // Si el archivo todavía se está copiando, se espera a que deje de crecer.
-        let size = -1;
-        for (;;) { const now = (await stat(file)).size; if (now === size) break; size = now; await new Promise((r) => setTimeout(r, 2000)); }
+        // Si el archivo todavía se está copiando se espera; si lleva más de 2 s sin cambiar, se sigue de una vez.
+        let prev = await stat(file);
+        for (;;) {
+          if (Date.now() - prev.mtimeMs > 2000) { const now = await stat(file); if (now.size === prev.size) break; prev = now; continue; }
+          await new Promise((r) => setTimeout(r, 2000));
+          prev = await stat(file);
+        }
         const r = await autoVideo(file, { client: o.client, outFolder: salida });
         done[path.basename(file)] = r.out ?? r.dir;
+        failed.delete(file);
+        if (isDir) await writeFile(logFile, JSON.stringify(done, null, 2));
       } catch (e) {
-        done[path.basename(file)] = `ERROR: ${e instanceof Error ? e.message : e}`;
-        console.log(`✗ ${done[path.basename(file)]}`);
+        failed.set(file, { sig: await signature(file), at: Date.now() });
+        console.log(`✗ ${path.basename(file)}: ${e instanceof Error ? e.message : e}`);
       }
-      if (isDir) await writeFile(logFile, JSON.stringify(done, null, 2));
     };
     for (const f of await pending()) await one(f);
     if (!o.vigilar || !isDir) { console.log(`\nTerminado. Videos en: ${salida}`); return; }
@@ -191,6 +221,7 @@ program
     const files = (await readdir(dir)).filter((f) => /\.(mp4|mov|m4v)$/i.test(f)).sort();
     if (!files.length) throw new Error(`No hay videos (.mp4, .mov) en ${dir}`);
     const results: string[] = [];
+    let failures = 0;
     for (const [i, f] of files.entries()) {
       console.log(`\n[${i + 1}/${files.length}] ${f}`);
       try {
@@ -198,9 +229,11 @@ program
         results.push(`✓ ${f} → ${r.out ?? r.dir}`);
       } catch (e) {
         results.push(`✗ ${f}: ${e instanceof Error ? e.message : e}`);
+        failures++;
       }
     }
     console.log(`\nResumen del lote:\n${results.join('\n')}`);
+    if (failures) process.exitCode = 1;
   });
 
 program
