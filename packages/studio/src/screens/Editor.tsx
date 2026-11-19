@@ -44,6 +44,7 @@ const TEXT_STYLES: [Scene['textStyle'], string, string][] = [
   ['palabra', 'Palabra sola', 'Una palabra blanca, centrada y sobria. Para resaltar lo importante sin tapar la imagen.'],
   ['lujo', 'Lujo', 'La palabra clave grande en dorado, lo demás pequeño y espaciado. Para comida, moda o marcas finas.'],
   ['marca', 'Titular de marca', 'Montserrat ExtraBold apretado a la izquierda, en dos niveles y con la palabra clave del color de la marca (como el titular de una web). Para restaurantes y marcas cercanas.'],
+  ['brocha', 'Etiqueta de brocha', 'La palabra clave sobre una etiqueta torcida de borde rasgado con pincelada morada detrás, y lo demás en blanco con trazo. Para comida callejera, hamburguesas y cartas oscuras.'],
   ['rotulo', 'Rótulo de app', 'Rótulo pequeño y nítido (negro, o del color que elijas), como en los videos de producto «App + App = 🔥».'],
 ];
 const BASIC = new Set<string>(BASIC_TEXT_STYLES);

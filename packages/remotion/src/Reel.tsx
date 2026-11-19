@@ -820,6 +820,30 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     );
   }
 
+  if (overlay.style === 'brocha') {
+    // Rótulo de carta de comida callejera: lo de antes en blanco y apretado arriba, y la palabra clave sobre
+    // una etiqueta torcida con borde rasgado, con una pincelada morada detrás. Letra de trazo grueso.
+    const ki = words.findIndex(isKey);
+    const k0 = ki < 0 ? words.length - 1 : ki;
+    const before = words.slice(0, k0).join(' ');
+    const key = words.slice(k0).join(' ');
+    const slam = spring({ frame, fps, config: { damping: 9, stiffness: 190, mass: 0.7 } });
+    const fade = interpolate(frame, [0, 6], [0, 1], { extrapolateRight: 'clamp' });
+    const torn = 'polygon(0% 12%, 2% 0%, 6% 9%, 11% 1%, 17% 8%, 23% 0%, 30% 7%, 38% 1%, 46% 9%, 53% 0%, 61% 8%, 69% 1%, 77% 9%, 84% 0%, 91% 7%, 97% 1%, 100% 10%, 99% 46%, 100% 88%, 95% 100%, 88% 92%, 80% 100%, 72% 91%, 63% 100%, 55% 93%, 47% 100%, 39% 92%, 31% 100%, 23% 91%, 14% 100%, 8% 92%, 3% 100%, 0% 88%, 1% 50%)';
+    const size = Math.min(150, Math.max(76, 980 / Math.max(5, key.length))) * k;
+    return (
+      <AbsoluteFill>
+        <div style={{ position: 'absolute', left: '50%', top: `${overlay.y * 100}%`, transform: `translate(-50%, -50%) rotate(-3deg) scale(${interpolate(slam, [0, 1], [0.5, 1])})`, opacity: fade, textAlign: 'center', fontFamily: font, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 * k, maxWidth: '92%' }}>
+          {before ? <div style={{ fontSize: 50 * k, fontWeight: 400, color: '#fff', letterSpacing: '0.02em', WebkitTextStroke: `${Math.round(7 * k)}px #0B0B0F`, paintOrder: 'stroke fill', textShadow: `0 ${6 * k}px 0 rgba(0,0,0,0.55)` }}>{before}</div> : null}
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0, transform: `translate(${14 * k}px, ${14 * k}px) rotate(2deg)`, backgroundColor: '#7B5CF0', clipPath: torn }} />
+            <div style={{ position: 'relative', padding: `${10 * k}px ${44 * k}px ${16 * k}px`, backgroundColor: color, color: '#0B0B0F', fontSize: size, fontWeight: 400, lineHeight: 1.02, letterSpacing: '0.01em', clipPath: torn, whiteSpace: 'nowrap' }}>{key}</div>
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
   if (overlay.style === 'lujo') {
     // Rótulo de restaurante fino: la palabra clave grande en dorado, lo demás pequeño y espaciado,
     // con dos líneas doradas que se abren. Sin borde negro: sombra suave para leerse sobre el plato.
