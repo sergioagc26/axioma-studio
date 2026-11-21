@@ -82,16 +82,16 @@ describe('papelera', () => {
     writeFileSync(path.join(trash, 'personal--mi-video--2026-11-13T16-14-46', 'project.json'), JSON.stringify({ id: 'mi-video', name: 'Mi video' }));
     mkdirSync(path.join(trash, 'referencia--personal--promo--2026-11-13T16-15-00-000Z'), { recursive: true });
     writeFileSync(path.join(trash, 'referencia--personal--promo--2026-11-13T16-15-00-000Z', 'report.json'), JSON.stringify({ id: 'promo', name: 'Promo' }));
-    writeFileSync(path.join(trash, 'estilo--personal--filette--2026-11-13T16-16-00-000Z.json'), JSON.stringify({ id: 'filette', name: 'Filette' }));
+    writeFileSync(path.join(trash, 'estilo--personal--ejemplo--2026-11-13T16-16-00-000Z.json'), JSON.stringify({ id: 'ejemplo', name: 'Ejemplo' }));
 
     const list = await E.listTrash();
-    expect(list.map((x) => [x.tipo, x.titulo, x.cliente])).toEqual([['estilo', 'Filette', 'personal'], ['referencia', 'Promo', 'personal'], ['proyecto', 'Mi video', 'personal']]);
+    expect(list.map((x) => [x.tipo, x.titulo, x.cliente])).toEqual([['estilo', 'Ejemplo', 'personal'], ['referencia', 'Promo', 'personal'], ['proyecto', 'Mi video', 'personal']]);
     expect(list[2].fecha).toBe('2026-11-13T16:14:46.000Z');
 
     await E.restoreTrash('personal--mi-video--2026-11-13T16-14-46');
     expect(existsSync(path.join(ws, 'clientes', 'personal', 'proyectos', 'mi-video', 'project.json'))).toBe(true);
-    await E.restoreTrash('estilo--personal--filette--2026-11-13T16-16-00-000Z.json');
-    expect(JSON.parse(readFileSync(path.join(ws, 'clientes', 'personal', 'presets', 'filette.json'), 'utf8')).name).toBe('Filette');
+    await E.restoreTrash('estilo--personal--ejemplo--2026-11-13T16-16-00-000Z.json');
+    expect(JSON.parse(readFileSync(path.join(ws, 'clientes', 'personal', 'presets', 'ejemplo.json'), 'utf8')).name).toBe('Ejemplo');
 
     await expect(E.restoreTrash('../fuera')).rejects.toThrow(/papelera/);
     expect(await E.emptyTrash('referencia--personal--promo--2026-11-13T16-15-00-000Z')).toEqual([]);

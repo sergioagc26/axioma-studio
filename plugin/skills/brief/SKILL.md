@@ -31,7 +31,7 @@ Eso decide subtítulos, títulos, letra, imagen y efectos: no elijas esos estilo
 
 ### Producto y entrega (siempre en negocios que venden algo)
 
-Estas cinco salieron de los errores del reel de Filette (producto equivocado, cierre por WhatsApp cuando era la web, final con solo papas, voz rechazada, toma con empleado y niño). No las saltes si el video vende un producto.
+Estas cinco salieron de los errores de un reel de comida callejera (producto equivocado, cierre por WhatsApp cuando era la web, final con solo papas, voz rechazada, toma con empleado y niño). No las saltes si el video vende un producto.
 
 | Clave | Pregunta | Opciones |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ Estas cinco salieron de los errores del reel de Filette (producto equivocado, ci
 
 Qué hace la app con ellas (`aplicar_brief`):
 
-- **Cierre**: manda la frase de `cta`; si no hay, la de `canal` + `contacto` (ej.: «Pide directo en filetteburger.com»); si no, la del objetivo.
+- **Cierre**: manda la frase de `cta`; si no hay, la de `canal` + `contacto` (ej.: «Pide directo en ejemplo.com»); si no, la del objetivo.
 - **`cierre` = Producto terminado**: en un montaje, la última toma pasa a ser la última toma de comida o producto del material. Con «logo», el logo de la marca va sobre la frase final (si la marca tiene logo).
 - **`voz`**: la voz en off generada sin elegir otra usa esa voz (voz IA local). En la app se puede oír una muestra de 5 s de cada una.
 - **`prohibido`**: en un montaje se dejan fuera las tomas reconocidas como personas. La app no distingue niños: avisa para revisar. «Precios» hace que avise si un texto o la voz dicen un precio.

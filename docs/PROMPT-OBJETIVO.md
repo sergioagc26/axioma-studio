@@ -27,7 +27,7 @@ Las secciones de fases de más abajo describen lo ya construido: úsalas como re
 ## Contexto que ya existe (léelo antes de empezar)
 
 - `README.md`: cómo funciona lo construido.
-- Plan aprobado: `/Users/sergiog26/.claude/plans/crea-un-plan-completo-linked-rose.md` (6 fases).
+- Plan aprobado: el plan de 6 fases (fuera del repositorio) (6 fases).
 - Mockups de las pantallas: https://claude.ai/artifact/WzpS5TPFnEqawDBu47SjRw. Son 5 pantallas, en tema oscuro y claro:
   - Brief con preguntas
   - Storyboard

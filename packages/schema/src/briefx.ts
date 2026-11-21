@@ -1,5 +1,5 @@
 /**
- * Las preguntas del brief que salieron del reel de Filette (noviembre 2026): qué producto sale y a qué
+ * Las preguntas del brief que salieron de un reel de comida callejera (noviembre 2026): qué producto sale y a qué
  * precio, dónde se compra, cómo termina el video, qué voz lleva y qué no puede salir. Aquí está lo que
  * comparten la app, el motor y las skills, para que el cierre y la voz salgan igual en todas partes.
  */
@@ -13,7 +13,7 @@ export const CTA_FOR: Record<string, string> = {
 /** Respuesta «La que digo en el video» del cierre. */
 export const SPOKEN_CTA = 'La que digo en el video';
 
-/** Dónde compra o pide el cliente: decide el cierre (el reel de Filette cerró con WhatsApp y era la web). */
+/** Dónde compra o pide el cliente: decide el cierre (un reel cerró con WhatsApp y era la web). */
 export const CANALES = ['En la página web', 'Por WhatsApp', 'Por mensaje directo (DM)', 'En el local', 'Por llamada'] as const;
 
 /** Cómo termina el video. */
@@ -69,7 +69,7 @@ export const wantsProductEnding = (brief: Brief) => /producto/i.test(brief.cierr
 /** El brief pide el logo en el cierre. */
 export const wantsLogoEnding = (brief: Brief) => /logo/i.test(brief.cierre ?? '');
 
-/** «https://www.filetteburger.com/carta» → «filetteburger.com». */
+/** «https://www.ejemplo.com/carta» → «ejemplo.com». */
 export function shortWeb(url: string): string {
   return url.trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/[/?#].*$/, '');
 }

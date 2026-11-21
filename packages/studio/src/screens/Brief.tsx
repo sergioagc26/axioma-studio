@@ -73,7 +73,7 @@ const QUESTIONS: Q[] = [
   { key: 'cta', label: 'Llamado a la acción', title: '¿Con qué frase cierras?', help: 'Aparece en pantalla en la última escena.', placeholder: 'Ej.: Escríbeme «REEL» y te cuento', options: [
     { value: SPOKEN_CTA, title: SPOKEN_CTA, desc: 'No se añade texto: se usa tu cierre.' },
     ...Object.values(CTA_FOR).map((v) => ({ value: v, title: v, desc: '' }))] },
-  // Lo que faltó en el reel de Filette: el producto, dónde se compra, cómo termina, la voz y lo prohibido.
+  // Lo que faltó en un reel de comida callejera: el producto, dónde se compra, cómo termina, la voz y lo prohibido.
   { key: 'producto', label: 'Producto', title: '¿Qué producto sale y a qué precio?', help: 'Solo se usan estos precios: si el video dice otro, la app avisa antes de entregarlo.', placeholder: 'Ej.: Mazorcada $17.000 · Clásica $12.000', options: [] },
   { key: 'canal', label: 'Dónde se compra', title: '¿Dónde compra o pide el cliente?', help: 'Decide la frase de cierre. Escribe abajo la web, el número o la dirección: la app no inventa ninguno.', placeholder: 'Ej.: en la tienda de Rappi', options: CANALES.map((v) => ({ value: v, title: v, desc: '' })) },
   { key: 'cierre', label: 'Cierre', title: '¿Cómo termina el video?', help: 'En un montaje, con «Producto terminado» la última toma es el plato o producto listo.', placeholder: 'Ej.: el cliente probando', options: [
@@ -369,7 +369,7 @@ export const Brief: React.FC<{ ctx: Ctx }> = ({ ctx }) => {
         </div>
         {x.key === 'canal' && value && (
           <input className="input" defaultValue={project.brief.contacto ?? ''} aria-label="Web, número o dirección"
-            placeholder={/web/i.test(value) ? 'La web (ej.: filetteburger.com)' : /whats|llam/i.test(value) ? 'El número (opcional)' : /local/i.test(value) ? 'La dirección (ej.: Carrera 11 # 16-28)' : 'Usuario o dato de contacto (opcional)'}
+            placeholder={/web/i.test(value) ? 'La web (ej.: ejemplo.com)' : /whats|llam/i.test(value) ? 'El número (opcional)' : /local/i.test(value) ? 'La dirección (ej.: Carrera 11 # 16-28)' : 'Usuario o dato de contacto (opcional)'}
             onBlur={(e) => { const v = e.target.value.trim(); if (v !== (project.brief.contacto ?? '')) set('contacto', v); }} />
         )}
         {x.key === 'canal' && value && <span className="small muted">Cierre: «{ctaForChannel(value, project.brief.contacto) || 'según tu objetivo'}»</span>}

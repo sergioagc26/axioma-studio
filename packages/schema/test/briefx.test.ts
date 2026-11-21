@@ -3,7 +3,7 @@ import { briefWarnings, ctaForChannel, forbiddenShotTags, pricesIn, prohibidos, 
 
 describe('cierre según dónde se compra', () => {
   it('la web con su dominio, sin inventar uno', () => {
-    expect(ctaForChannel('En la página web', 'https://www.filetteburger.com/carta')).toBe('Pide directo en filetteburger.com');
+    expect(ctaForChannel('En la página web', 'https://www.ejemplo.com/carta')).toBe('Pide directo en ejemplo.com');
     expect(ctaForChannel('En la página web')).toBe('Pide directo en nuestra página web');
     expect(ctaForChannel('En la página web', 'la de siempre')).toBe('Pide directo en nuestra página web');
   });
@@ -16,15 +16,15 @@ describe('cierre según dónde se compra', () => {
     expect(ctaForChannel('En el local', 'Carrera 11 # 16-28')).toBe('Visítanos en Carrera 11 # 16-28');
   });
   it('orden: frase elegida > canal > objetivo > anuncio', () => {
-    const base = { objetivo: 'Mensajes por DM', canal: 'En la página web', contacto: 'filetteburger.com' };
+    const base = { objetivo: 'Mensajes por DM', canal: 'En la página web', contacto: 'ejemplo.com' };
     expect(resolveCta({ ...base, cta: 'Pídela hoy' }, { talk: false })).toBe('Pídela hoy');
-    expect(resolveCta(base, { talk: false })).toBe('Pide directo en filetteburger.com');
+    expect(resolveCta(base, { talk: false })).toBe('Pide directo en ejemplo.com');
     expect(resolveCta({ objetivo: 'Mensajes por DM' }, { talk: false })).toBe('Escríbeme «INFO» por DM');
     expect(resolveCta({}, { talk: false, ad: true })).toBe('Escríbenos y te contamos');
     expect(resolveCta({}, { talk: false })).toBe('');
   });
-  it('una frase genérica sugerida no le gana al canal (lo que pasó en Filette)', () => {
-    expect(resolveCta({ cta: 'Sígueme para más como esto', canal: 'En la página web', contacto: 'filetteburger.com' }, { talk: false })).toBe('Pide directo en filetteburger.com');
+  it('una frase genérica sugerida no le gana al canal (caso real de un cliente)', () => {
+    expect(resolveCta({ cta: 'Sígueme para más como esto', canal: 'En la página web', contacto: 'ejemplo.com' }, { talk: false })).toBe('Pide directo en ejemplo.com');
     expect(resolveCta({ cta: 'Sígueme para más como esto' }, { talk: false })).toBe('Sígueme para más como esto');
   });
   it('«La que digo en el video»: sin texto si habla; en un montaje sigue con el canal', () => {
@@ -74,7 +74,7 @@ describe('avisos antes de entregar', () => {
   it('precios prohibidos', () => {
     expect(briefWarnings({ brief: { prohibido: 'Precios' }, scenes: scenes('Solo $9.900') })[0]).toMatch(/no salgan precios/);
   });
-  it('canal: WhatsApp en el video cuando el cliente pide por la web (lo que pasó en Filette)', () => {
+  it('canal: WhatsApp en el video cuando el cliente pide por la web (caso real de un cliente)', () => {
     const w = briefWarnings({ brief: { canal: 'En la página web' }, scenes: scenes('Pide por WhatsApp'), audio: { voiceover: { text: 'escríbenos al WhatsApp' } } });
     expect(w[0]).toMatch(/otro canal/);
   });
