@@ -2,6 +2,15 @@
 
 Editor de reels 9:16 con IA para videos hablando a cámara. Claude (tu suscripción) dirige la edición; el trabajo pesado corre en tu computador con herramientas gratuitas (FFmpeg, whisper.cpp, Remotion).
 
+## Descargar e instalar
+
+1. Descarga la app: **[Descargar ZIP](https://github.com/sergioagc26/axioma-studio/archive/refs/heads/main.zip)** (o `git clone https://github.com/sergioagc26/axioma-studio.git`).
+2. Descomprime la carpeta donde quieras (mejor sin espacios raros en la ruta).
+3. Doble clic en **«Instalar Axioma Studio»** (`.command` en Mac, `.bat` en Windows).
+4. Para abrirla después, usa el ícono **«Axioma Studio»** del Escritorio.
+
+**Actualizar:** dentro de la app, en Proyectos › Ajustes, botón de actualizar. Baja la última versión de este repositorio, reinstala lo que haga falta y se reinicia sola. Nunca pisa cambios hechos a mano en el código.
+
 ## Instalación (doble clic)
 
 - **Mac**: doble clic en **«Instalar Axioma Studio.command»**. Instala lo que falte (herramientas de Apple, Homebrew, Node, FFmpeg, cmake, whisper y, si quieres, la IA local), compila la app y deja un ícono **«Axioma Studio»** en el Escritorio. La primera vez tarda entre 5 y 20 minutos; Homebrew pide la contraseña del Mac. Si macOS dice que no puede abrirlo por ser de un desarrollador no identificado: clic derecho → Abrir.
