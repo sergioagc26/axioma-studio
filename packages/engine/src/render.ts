@@ -104,7 +104,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     });
     const serveUrl = await getBundle();
     // Con el computador muy ocupado, el navegador del render puede tardar en abrir: se reintenta.
-    const composition = await retryBrowser(() => selectComposition({ serveUrl, id: 'Reel', inputProps: timeline, timeoutInMilliseconds: 120_000 }));
+    const composition = await retryBrowser(() => selectComposition({ serveUrl, id: 'Reel', inputProps: timeline, timeoutInMilliseconds: Number(process.env.SE_RENDER_TIMEOUT) || 120_000 }));
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const suffix = opts.format && opts.format !== '9:16' ? `-${opts.format.replace(':', 'x')}` : '';
     // Carpeta elegida por el usuario, o la del proyecto.
@@ -124,7 +124,7 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
     await retryBrowser(() => renderMedia({
       cancelSignal,
       serveUrl,
-      timeoutInMilliseconds: 120_000,
+      timeoutInMilliseconds: Number(process.env.SE_RENDER_TIMEOUT) || 120_000,
       composition,
       inputProps: timeline,
       codec: 'h264',
