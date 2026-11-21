@@ -41,6 +41,7 @@ if (-not (Tiene 'ffmpeg') -or -not (Tiene 'ffprobe')) {
   if (-not (Corre 'winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements')) { Falla 'No se pudo instalar FFmpeg.' }
   RefrescarPath
 }
+if (-not (Tiene 'git')) { Info 'Instalando Git (para actualizar la app)...'; Corre 'winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements' | Out-Null; RefrescarPath }
 if (-not (Tiene 'node') -or -not (Tiene 'ffmpeg')) { Falla 'Node o FFmpeg no quedaron disponibles. Cierra esta ventana y abre el instalador otra vez.' }
 Ok "Node $(node -v) y FFmpeg."
 
@@ -61,6 +62,7 @@ else {
 }
 
 Paso '4/5 - Axioma Studio'
+Info 'Conexion para actualizar...'; Corre 'node scripts/conectar-repo.mjs' | Out-Null
 Info 'Dependencias...';            if (-not (Corre 'npm install')) { Falla 'Fallo «npm install».' }
 Info 'Interfaz...';                if (-not (Corre 'npm run build:studio')) { Falla 'No se pudo compilar la interfaz.' }
 Info 'Transcripcion (whisper)...'; if (-not (Corre 'npm run se -- setup')) { Falla 'No se pudo preparar whisper.' }

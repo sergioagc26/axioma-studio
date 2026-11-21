@@ -81,6 +81,7 @@ fi
 
 # 5. La app: dependencias, interfaz, whisper (transcripción) y conexión con Claude.
 paso "5/6 · Axioma Studio"
+info "Conexión para actualizar…"; corre node scripts/conectar-repo.mjs || true
 info "Dependencias…";            corre npm install || falla "Falló «npm install»."
 info "Interfaz…";                corre npm run build:studio || falla "No se pudo compilar la interfaz."
 info "Transcripción (whisper)…"; corre npm run se -- setup || falla "No se pudo preparar whisper.cpp."
