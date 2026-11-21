@@ -515,3 +515,9 @@ Paso a paso sin tecnicismos: `docs/TU-PRIMER-REEL.md`.
 El nombre visible sale de `APP_NAME` en `packages/schema/src/project.ts`. El nombre del plugin y del servidor MCP (`axioma-studio`) está en `plugin/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `packages/engine/src/claude.ts` y `packages/mcp/src/server.ts`.
 
 El objetivo completo y la definición de terminado están en `docs/PROMPT-OBJETIVO.md`.
+
+## Licencia
+
+Código bajo licencia [MIT](LICENSE).
+
+Aviso sobre Remotion: el render usa [Remotion](https://www.remotion.dev/license), que es gratis para personas y equipos pequeños, pero exige una licencia propia a empresas de más de 3 personas. Quien use esta app en una empresa debe revisar esa licencia. Las voces, músicas y modelos que se descargan después tienen sus propias licencias.
