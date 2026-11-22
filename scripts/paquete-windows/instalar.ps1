@@ -1,4 +1,4 @@
-﻿# Axioma Studio para Windows: baja la app desde tu repositorio privado de GitHub y la instala.
+﻿# Axioma Studio para Windows: baja la app desde GitHub (repositorio publico) y la instala.
 # Se puede repetir: si ya está instalada, la pone al día y repara lo que falte.
 $ErrorActionPreference = 'Stop'
 $RepoUrl = 'https://github.com/sergioagc26/axioma-studio.git'
@@ -13,7 +13,7 @@ function RefrescarPath { $env:Path = [Environment]::GetEnvironmentVariable('Path
 
 Write-Host 'Axioma Studio para Windows' -ForegroundColor White
 Info "Se instala en: $Destino"
-Info 'Tarda entre 10 y 30 minutos la primera vez. Puedes dejarlo solo salvo cuando te pida iniciar sesion en GitHub.'
+Info 'Tarda entre 10 y 30 minutos la primera vez. Puedes dejarlo solo.'
 
 Paso 'Instalador de programas (winget)'
 if (-not (Tiene 'winget')) { Falla 'Falta winget. Instala «App Installer» desde Microsoft Store y abre este instalador otra vez.' }
@@ -29,15 +29,14 @@ if (-not (Tiene 'git')) {
 if (-not (Tiene 'git')) { Falla 'Git no quedo disponible. Cierra esta ventana y abre el instalador otra vez.' }
 Ok (git --version)
 
-Paso 'Bajando Axioma Studio desde tu GitHub privado'
+Paso 'Bajando Axioma Studio desde GitHub'
 if (Test-Path (Join-Path $Destino '.git')) {
   Info 'Ya estaba: poniendola al dia...'
   git -C "$Destino" pull --ff-only
   if ($LASTEXITCODE -ne 0) { Falla 'No se pudo poner al dia. Revisa tu internet y abre el instalador otra vez.' }
 } else {
-  Info 'Se abrira una ventana para iniciar sesion en GitHub: pulsa «Sign in with your browser» y entra con TU cuenta de GitHub (la que recibio la invitacion al proyecto).'
   git clone $RepoUrl "$Destino"
-  if ($LASTEXITCODE -ne 0) { Falla 'No se pudo bajar la app. Revisa que aceptaste la invitacion al proyecto en GitHub (llega por correo), inicia sesion con esa cuenta cuando te lo pida y abre el instalador otra vez.' }
+  if ($LASTEXITCODE -ne 0) { Falla 'No se pudo bajar la app. Revisa tu internet y abre el instalador otra vez.' }
 }
 Ok 'Codigo de la app listo.'
 
