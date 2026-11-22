@@ -13,7 +13,7 @@ La persona no tiene que saber cómo funciona la app: tú llevas el proceso, preg
 
 ## Fase 0 · Prepara (sin preguntar nada)
 
-1. `estado_sistema`: si falta algo, di el arreglo en una línea y para.
+1. `estado_sistema`: si falta algo, di el arreglo en una línea y para. **Si las herramientas de Axioma no existen**, la app no está instalada o conectada: sigue la skill `instalar-axioma` y vuelve aquí cuando termine.
 2. `leer_pedidos` y `listar_proyectos`: ¿ya hay material o un proyecto empezado? Si hay uno en curso, ofrece continuarlo en vez de empezar otro.
 3. Si hay marca del cliente, `leer_kit`.
 
