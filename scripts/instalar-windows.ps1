@@ -83,6 +83,6 @@ Ok '«Axioma Studio» en el Escritorio. Doble clic para abrirla.'
 Write-Host ''; Write-Host 'Para usarla desde Claude (pestana Code o Claude Code), pega estas dos lineas en un chat, una por una:' -ForegroundColor White
 Write-Host "    /plugin marketplace add `"$Repo`""
 Write-Host '    /plugin install axioma-studio@axioma-studio'
-Write-Host '  Despues escribe: «quiero un video» y Claude te guia con preguntas hasta tenerlo.'
+Write-Host '  Despues escribe: «Axioma» y Claude te pregunta que quieres lograr y te guia paso a paso.'
 Write-Host ''; Write-Host 'Listo. Abriendo Axioma Studio...' -ForegroundColor Green
 if ($env:AXIOMA_NO_ABRIR -ne '1') { Start-Process (Join-Path $Repo 'Abrir Axioma Studio.bat') }

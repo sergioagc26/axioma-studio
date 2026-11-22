@@ -10,7 +10,7 @@ Axioma Studio son dos partes: **las skills** (esta guía, que se instala en Clau
 ## 1. Mira dónde está
 
 1. Pregunta el sistema (Mac o Windows) si no lo sabes.
-2. Si existen las herramientas de Axioma (`estado_sistema`), la app ya está conectada: llámala y sigue con `crear-video`.
+2. Si existen las herramientas de Axioma (`estado_sistema`), la app ya está conectada: llámala y sigue con la skill `axioma`.
 3. Si no existen, busca la carpeta de la app: en Mac `~/Axioma Studio` o donde se descomprimió el ZIP (`Instalar Axioma Studio.command`); en Windows `%USERPROFILE%\Axioma Studio` o la carpeta del ZIP. Si la encuentras, salta al paso 3.
 
 ## 2. Descarga e instala la app (lo hace la persona, tú la guías)
@@ -45,7 +45,7 @@ Si las líneas no aparecen o el plugin quedó viejo, desde la carpeta de la app 
 ## 4. Comprueba y empieza
 
 1. Llama `estado_sistema`. Si falta algo (whisper, FFmpeg, el plugin), explica el arreglo en una línea.
-2. Cuando todo esté en verde, pasa a la skill `crear-video`: «Listo, ya está todo. ¿Qué video quieres hacer?».
+2. Cuando todo esté en verde, pasa a la skill `axioma`: «Listo, ya está todo. ¿Qué quieres lograr hoy?».
 
 ## Actualizar
 

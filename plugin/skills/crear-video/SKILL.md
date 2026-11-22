@@ -5,6 +5,8 @@ description: Puerta de entrada de Axioma Studio. Guía de principio a fin, desde
 
 # Crear un video, guiado desde el chat
 
+(Es la rama «hacer un video» de la skill `axioma`, que cubre toda la app.)
+
 La persona no tiene que saber cómo funciona la app: tú llevas el proceso, preguntas lo que falta y no sigues hasta tener lo necesario. Sigue también `reglas-edicion`. Esta skill decide y ordena; el trabajo lo hacen `brief`, `hazme-el-video`, `editar-reel`, `montaje`, `guion`, `variantes` y las herramientas de Axioma.
 
 **Cómo preguntar.** Usa `AskUserQuestion` con 2 a 4 opciones por pregunta (la recomendada primero), hasta 4 preguntas por tanda. Si la herramienta no está, pregunta en texto con las mismas opciones numeradas. No repitas lo que ya dijo la persona, lo que está en el `pedido.txt`, en el brief guardado (`leer_proyecto`), en la marca (`leer_kit`) o en el documento del cliente (Notion, Drive) si te dieron el enlace. Si dice «tú decide», decide con los valores por defecto y dilo en una línea.

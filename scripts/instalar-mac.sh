@@ -106,7 +106,7 @@ echo
 echo "${neg}Para usarla desde Claude${fin} (pestaña Code o Claude Code), pega estas dos líneas en un chat, una por una:"
 echo "    /plugin marketplace add \"$REPO\""
 echo "    /plugin install axioma-studio@axioma-studio"
-echo "  Después escribe: «quiero un video» y Claude te guía con preguntas hasta tenerlo."
+echo "  Después escribe: «Axioma» y Claude te pregunta qué quieres lograr y te guía paso a paso."
 echo
 echo "${verde}${neg}Listo.${fin} Abriendo Axioma Studio…"
 [ "${AXIOMA_NO_ABRIR:-}" = "1" ] || open "$APP"

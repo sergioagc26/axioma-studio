@@ -69,7 +69,7 @@ program
     console.log('\nPara usarlo desde Claude (pestaña Code o Claude Code), desde cualquier carpeta, pega estas dos líneas en un chat, una por una:');
     console.log(`  /plugin marketplace add "${REPO_ROOT}"`);
     console.log('  /plugin install axioma-studio@axioma-studio');
-    console.log('Después escribe «quiero un video» y Claude te guía con preguntas hasta tenerlo.');
+    console.log('Después escribe «Axioma» y Claude te pregunta qué quieres lograr y te guía paso a paso.');
     console.log('(También funciona abriendo Claude Code dentro de esta carpeta: acepta el plugin "axioma-studio".)');
   });
 
