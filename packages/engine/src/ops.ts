@@ -76,7 +76,7 @@ export async function buildStoryboard(dir: string, drafts: SceneDraft[]) {
   return writeProject(dir, project);
 }
 
-export type ScenePatch = Partial<Pick<Scene, 'role' | 'title' | 'onScreenText' | 'textColor' | 'visual' | 'punchZoom' | 'brollFile' | 'motionTemplate' | 'textStyle' | 'textKeyword' | 'textPosition' | 'look' | 'camera' | 'trimStart' | 'trimEnd' | 'brollLayout'>> & {
+export type ScenePatch = Partial<Pick<Scene, 'role' | 'title' | 'onScreenText' | 'textColor' | 'visual' | 'punchZoom' | 'brollFile' | 'motionTemplate' | 'textStyle' | 'textKeyword' | 'textPosition' | 'look' | 'camera' | 'trimStart' | 'trimEnd' | 'brollLayout' | 'sinAudio'>> & {
   phrases?: string[];
 };
 

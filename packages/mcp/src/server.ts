@@ -393,6 +393,7 @@ export function createServer() {
     color_texto: z.string().optional(),
     visual: visual.optional(),
     zoom: z.boolean().optional(),
+    sin_audio: z.boolean().optional().describe('true = silencia el sonido original de esta escena (tomas de producto con ruido de fondo). Nunca lo uses en una escena donde se ve a alguien hablando: se vería mal.'),
     frases: z.array(z.string()).optional(),
     estilo_texto: textStyle.optional().describe('caja = recuadro de color · resaltado = clave en color y más grande · marcador = trazo de marcador detrás de la clave · gigante = la clave enorme y el resto pequeño · subrayado · neon = brillo · banda = franja de titular'),
     palabra_clave: z.string().optional().describe('Palabra del texto que se remarca. Sin valor se elige sola la más importante.'),
@@ -404,7 +405,7 @@ export function createServer() {
     const dir = await resolveProject(a.proyecto);
     const p = await E.editScene(dir, a.escena, {
       brollLayout: a.distribucion_broll,
-      role: a.rol, title: a.titulo, onScreenText: a.texto_en_pantalla, textColor: a.color_texto, visual: a.visual, punchZoom: a.zoom, phrases: a.frases,
+      role: a.rol, title: a.titulo, onScreenText: a.texto_en_pantalla, textColor: a.color_texto, visual: a.visual, punchZoom: a.zoom, sinAudio: a.sin_audio, phrases: a.frases,
       textStyle: a.estilo_texto, textKeyword: a.palabra_clave, textPosition: a.posicion_texto, look: a.imagen, camera: a.camara,
     });
     return E.summarize(p, dir);

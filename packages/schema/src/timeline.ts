@@ -54,6 +54,8 @@ export type TimelineClip = {
   /** Frames de la escena que ya pasaron antes de este tramo (para b-roll continuo). */
   sceneOffsetFrames: number;
   punchZoom: boolean;
+  /** Sin sonido original en este tramo. */
+  sinAudio?: boolean;
   /** Cámara lenta: velocidad (< 1) y, si ya existe, el video con fotogramas intermedios. */
   speed?: number;
   /** B-roll combinado con tu video (pantalla dividida o recuadro). */
@@ -365,6 +367,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             seamOut: pi < pieces.length - 1 || undefined,
             sceneOffsetFrames: from - toFrame(sceneStart),
             punchZoom: scene.punchZoom && i === 0 && pi === 0,
+            sinAudio: scene.sinAudio || undefined,
             visual: brollSrc ? 'broll' : motion ? (visual as Scene['visual']) : 'original',
             brollSrc,
             motion,

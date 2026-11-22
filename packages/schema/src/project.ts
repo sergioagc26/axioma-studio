@@ -232,6 +232,8 @@ export const Scene = z.object({
   transition: z.object({ id: z.string(), duration: z.number().min(0.1).max(1.5).optional() }).optional(),
   /** Zoom de golpe al inicio de la escena. */
   punchZoom: z.boolean().default(false),
+  /** Silencia el sonido original de esta escena (tomas de producto con ruido de fondo). La voz de quien habla en pantalla nunca se silencia. */
+  sinAudio: z.boolean().default(false),
   variants: z.array(SceneVariant).default([]),
   chosenVariant: z.string().optional(),
 });
