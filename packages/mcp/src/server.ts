@@ -1216,6 +1216,18 @@ export function createServer() {
     return `Resolución de entrega: ${p.export.uhd ? '4K (2160 px de ancho)' : 'Full HD (1080 px de ancho)'}${resolucion ? ' · guardada' : ''}.`;
   });
 
+  tool('plataforma_destino', 'Dice en qué red se va a publicar el video para respetar sus zonas seguras: subtítulos, rótulos, palabras y logo nunca van donde la propia app de la red los tapa (cuenta, descripción, música, botones, barra de respuesta). Redes: instagram_reels (por defecto), instagram_stories, tiktok, youtube_shorts, facebook_reels, whatsapp_estado, ninguna. Se aplica solo al renderizar; sin plataforma, muestra la actual y los márgenes.', {
+    proyecto, plataforma: z.enum(S.PLATFORM_IDS).optional(),
+  }, async ({ proyecto, plataforma }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.readProject(dir);
+    if (plataforma) { p.platform = plataforma; await E.writeProject(dir, p); }
+    const info = S.PLATFORMS[p.platform ?? 'instagram_reels'];
+    const pc = (v: number) => `${Math.round(v * 100)}%`;
+    const moved = S.auditZones(p);
+    return [`Red: ${info.label}${plataforma ? ' · guardada' : ''}.`, `Zona libre: no poner nada en el ${pc(info.top)} de arriba, el ${pc(info.bottom)} de abajo, ni en ${pc(info.left)} a la izquierda y ${pc(info.right)} a la derecha.`, info.note, moved.length ? `Al renderizar se mueven: ${moved.join('; ')}.` : 'Nada está fuera de la zona libre.'].join('\n');
+  });
+
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
     proyecto, formato: z.enum(['9:16', '4:5', '3:4', '1:1', '16:9', '21:9']).optional().describe('Sin valor: la forma propia del proyecto'),
     calidad: z.enum(['maxima', 'alta', 'ligera']).optional().describe('Por defecto, la del proyecto (alta)'),

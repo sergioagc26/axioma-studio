@@ -24,7 +24,7 @@ La persona no tiene que saber cómo funciona la app: tú llevas el proceso, preg
 **Tanda 1 · Qué y para quién**
 - Tipo de video: promo de productos · alguien hablando a cámara · montaje sin voz (gym, comida, viajes) · reel con avatar o voz IA.
 - Cliente o marca (una existente o «personal»).
-- Dónde se publica: Instagram/TikTok (vertical), YouTube (horizontal), anuncio.
+- Dónde se publica: Instagram Reels, Historias, TikTok, YouTube Shorts, Facebook Reels, estado de WhatsApp, YouTube (horizontal) o anuncio. Con la respuesta llama a `plataforma_destino`: cada red tapa zonas distintas (cuenta, descripción, música, botones, barra de respuesta) y subtítulos, rótulos, palabras y logo se mantienen dentro de la zona libre. Si dice dos redes, usa la más estricta (TikTok).
 - Duración: 15 s · 30 s · 60 s · lo que dure.
 
 **Tanda 2 · Material y sonido**
@@ -85,6 +85,7 @@ Dos herramientas que hacen la diferencia:
 
 Revisa tú primero, no le pases un borrador sin mirar:
 
+- Zonas seguras: `plataforma_destino` sin plataforma dice qué se mueve; en los cuadros revisados nada de texto debe quedar bajo la descripción de la red, junto a los botones de la derecha ni pegado arriba.
 - Duración, resolución y volumen: sin pasarse de la duración pedida, resolución igual a la elegida (Full HD = 1080 px de ancho, comprobable con `resolucion_entrega`) y ~-14 LUFS.
 - Cuadros cada ~4 s: nadie hablando sin voz, rótulos que no tapan ni se parten, producto visible cuando se nombra, nada que la persona pidió excluir.
 - Subtítulos acordes con lo que se oye.

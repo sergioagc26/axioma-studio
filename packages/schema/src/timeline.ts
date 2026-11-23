@@ -1,6 +1,7 @@
 import type { Camera, CaptionStyle, Look, Project, Scene, TextAnim, TextStyle, Transcript } from './project.ts';
 import { keywordOf } from './suggest.ts';
 import { findTransition, type TransitionSpec } from './transitions.ts';
+import { clampX, clampY, safeZone, type SafeZone } from './zones.ts';
 
 /** Duración mínima que queda de un clip después de recortarlo. */
 export const MIN_CLIP = 0.3;
@@ -153,6 +154,8 @@ export type Timeline = {
   words: TimelineWord[];
   overlays: TimelineOverlay[];
   captions: CaptionStyle;
+  /** Zona libre de la red donde se publica (márgenes 0–1): nada importante va fuera de ella. */
+  safe: SafeZone;
   brand: Brand;
   /** Acabados de todo el reel. */
   finish: { progressBar: boolean; grain: boolean; vignette: boolean; keywordZoom: boolean; halation: boolean; letterbox: boolean; watermark?: { corner: 'arriba-izq' | 'arriba-der' | 'abajo-izq' | 'abajo-der'; size: number; opacity: number }; lowerThird?: { name: string; role?: string; at: number; duration: number } };
@@ -292,6 +295,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
   // Horizontal (16:9) desde un reel vertical: el reel va entero y centrado en un lienzo más ancho
   // (no se recorta). La línea de tiempo se arma en el tamaño del reel.
   const out = urls.format ?? project.format;
+  // Las zonas seguras de las redes son del video vertical; en horizontal solo quedan márgenes mínimos.
+  const zone = out.height > out.width ? safeZone(project.platform) : safeZone('ninguna');
   // Si el material se grabó en horizontal, el formato horizontal o de cine llena todo el cuadro.
   const wideSource = project.source.width > project.source.height * 1.2;
   const landscape = out.width > out.height * 1.2 && project.format.height > project.format.width && !wideSource;
@@ -347,7 +352,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             videoScale: scene.videoScale,
             fit: scene.videoFit === 'completo' || scene.videoFit === 'monitor' || scene.videoFit === 'flotante' ? scene.videoFit : undefined,
             floatBg: scene.floatBg,
-            words: scene.words?.length ? scene.words.map((w, wi, all) => ({ text: w.text, from: Math.round(w.at * fps), to: Math.round((w.until ?? all[wi + 1]?.at ?? 999) * fps), color: w.color, x: w.x, y: w.y, size: w.size, behind: w.behind, style: w.style, rotate: w.rotate, files: w.files?.map((f) => (urls.asset ? urls.asset(f) : f)), then: w.then !== undefined ? Math.round(w.then * fps) : undefined })) : undefined,
+            words: scene.words?.length ? scene.words.map((w, wi, all) => ({ text: w.text, from: Math.round(w.at * fps), to: Math.round((w.until ?? all[wi + 1]?.at ?? 999) * fps), color: w.color, x: clampX(zone, w.x, 0.12), y: clampY(zone, w.y, 0.06), size: w.size, behind: w.behind, style: w.style, rotate: w.rotate, files: w.files?.map((f) => (urls.asset ? urls.asset(f) : f)), then: w.then !== undefined ? Math.round(w.then * fps) : undefined })) : undefined,
             frameY: scene.frameY,
             drawing: scene.drawing && urls.asset ? { lines: urls.asset(scene.drawing.lines), title: scene.drawing.title, burst: scene.drawing.burst, tag: scene.drawing.tag, draw: scene.drawing.draw, hand: scene.drawing.hand ? { ...scene.drawing.hand, src: urls.asset(scene.drawing.hand.file) } : undefined, sameTitle: Boolean(scene.drawing.title) && project.scenes[project.scenes.indexOf(scene) - 1]?.drawing?.title === scene.drawing.title } : undefined,
             desk: scene.videoFit === 'monitor' && scene.deskPhoto && urls.asset ? { src: urls.asset(scene.deskPhoto.file), screen: scene.deskPhoto.screen } : undefined,
@@ -396,8 +401,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         color: activeColor(scene),
         style: scene.textStyle,
         keyword: scene.textKeyword || keywordOf(text),
-        x: scene.textX ?? 0.5,
-        y: scene.textY ?? (scene.textPosition === 'centro' ? 0.45 : 0.2),
+        x: clampX(zone, scene.textX ?? 0.5, 0.2),
+        y: clampY(zone, scene.textY ?? (scene.textPosition === 'centro' ? 0.45 : 0.2), 0.07),
         size: scene.textSize,
         font: scene.textFont,
         anim: scene.textAnim,
@@ -502,7 +507,8 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
     clips,
     words,
     overlays: mergeOverlays(overlays),
-    captions: project.captions,
+    captions: { ...project.captions, y: clampY(zone, project.captions.y, 0.07) },
+    safe: zone,
     sfx,
     finish: project.finish,
     emphasis: project.finish.keywordZoom ? emphasisFrames(words, fps, project.intensity ?? 'media') : [],

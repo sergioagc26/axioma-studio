@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PLATFORM_IDS } from './zones.ts';
 
 export const APP_NAME = 'Axioma Studio';
 export const SCHEMA_VERSION = 1;
@@ -406,6 +407,8 @@ export const Project = z.object({
     height: z.number().int().default(1920),
     fps: z.number().default(30),
   }),
+  /** Red donde se publica: manda qué zonas del cuadro quedan libres de subtítulos, rótulos y logos (ver zones.ts). */
+  platform: z.enum(PLATFORM_IDS).default('instagram_reels'),
   source: SourceMedia,
   brief: z.record(z.string(), z.string()).default({}),
   /** Cuándo se armó la edición a partir del brief. */

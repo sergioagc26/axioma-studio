@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import {
   AbsoluteFill, Audio, Img, OffthreadVideo, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig,
 } from 'remotion';
-import { ease, isKeyword, keywordOf, layerStyle } from '@axioma/schema';
+import { ease, isKeyword, keywordOf, layerStyle, sidePad } from '@axioma/schema';
 import { DeskShot } from './Desk.tsx';
 import { Drawn } from './Drawn.tsx';
 import { FloatScreen, Words } from './Kinetic.tsx';
@@ -203,7 +203,7 @@ const LowerThird: React.FC<{ t: Timeline; font: string }> = ({ t, font }) => {
   const k = t.width / 1080;
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
-      <div style={{ position: 'absolute', left: '6%', top: '53%', transform: `translateX(${x}%)`, display: 'flex', alignItems: 'stretch', gap: 16 * k, opacity: 1 - outP }}>
+      <div style={{ position: 'absolute', left: `${t.safe.left * 100}%`, top: '53%', transform: `translateX(${x}%)`, display: 'flex', alignItems: 'stretch', gap: 16 * k, opacity: 1 - outP }}>
         <div style={{ width: 12 * k, borderRadius: 6 * k, background: t.brand.primary }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 * k, padding: `${14 * k}px ${22 * k}px`, borderRadius: 14 * k, background: 'rgba(10,10,12,0.78)' }}>
           <span style={{ font: `800 ${52 * k}px ${font}, Montserrat, sans-serif`, color: '#fff', lineHeight: 1.05 }}>{lt.name}</span>
@@ -222,7 +222,7 @@ const Watermark: React.FC<{ t: Timeline }> = ({ t }) => {
   const w = t.finish.watermark!;
   const top = w.corner.startsWith('arriba');
   const left = w.corner.endsWith('izq');
-  const pos: React.CSSProperties = { position: 'absolute', [top ? 'top' : 'bottom']: top ? '4.5%' : '17%', [left ? 'left' : 'right']: '5%', opacity: w.opacity };
+  const pos: React.CSSProperties = { position: 'absolute', [top ? 'top' : 'bottom']: `${((top ? t.safe.top : t.safe.bottom) + 0.015) * 100}%`, [left ? 'left' : 'right']: `${(left ? t.safe.left : t.safe.right) * 100}%`, opacity: w.opacity };
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
       {t.brand.logoSrc
@@ -568,7 +568,7 @@ const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?
   const tapes = [hl, '#FFFFFF', t.brand.secondary];
 
   const box: React.CSSProperties = {
-    position: 'absolute', top: `${s.y * 100}%`, left: '7%', right: '7%',
+    position: 'absolute', top: `${s.y * 100}%`, left: `${sidePad(t.safe) * 100}%`, right: `${sidePad(t.safe) * 100}%`,
     transform: `translateY(${la === 'subir' ? `calc(-50% + ${interpolate(pop, [0, 1], [40, 0])}px)` : '-50%'}) translateX(${la === 'deslizar' ? interpolate(pop, [0, 1], [-80, 0]) : 0}px) scale(${la === 'pop' ? interpolate(pop, [0, 1], [0.86, 1]) : 1})${d === 'bloque' ? ' rotate(-2deg)' : ''}${G?.tilt ? ` rotate(${G.tilt}deg)` : ''}${G?.skew ? ` skewX(${G.skew}deg)` : ''}`,
     opacity: la === 'ninguna' ? 1 : Math.min(1, pop * 2),
     textAlign: 'center', fontFamily: font, fontWeight: d === 'elegante' ? 600 : G?.weight ?? s.fontWeight, fontStyle: d === 'elegante' || G?.italic ? 'italic' : undefined,
@@ -754,7 +754,7 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     : { opacity: enter, transform: `translate(-50%, calc(-50% + ${interpolate(enter, [0, 1], [34, 0])}px))` };
 
   const wrap: React.CSSProperties = {
-    position: 'absolute', left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: '86%', textAlign: 'center',
+    position: 'absolute', left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: `${(1 - 2 * sidePad(t.safe)) * 100}%`, textAlign: 'center',
     fontFamily: font, fontWeight: 800, lineHeight: 1.1, textTransform: upper ? 'uppercase' : 'none', letterSpacing: `${overlay.spacing}em`, ...anim,
     transform: `${anim.transform ?? 'translate(-50%, -50%)'}${overlay.rotate ? ` rotate(${overlay.rotate}deg)` : ''}`,
   };
@@ -763,7 +763,7 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
   if (overlay.style === 'banda') {
     return (
       <AbsoluteFill>
-        <div style={{ position: 'absolute', top: `${overlay.y * 100}%`, left: 0, right: 0, padding: `${22 * k}px 60px`, backgroundColor: color, color: onColor(color), fontFamily: font, fontWeight: 800, fontSize: 56 * k, lineHeight: 1.1, textAlign: 'center', textTransform: upper ? 'uppercase' : 'none', transform: `translateY(-50%) scaleX(${interpolate(enter, [0, 1], [0, 1])})` }}>
+        <div style={{ position: 'absolute', top: `${overlay.y * 100}%`, left: 0, right: 0, padding: `${22 * k}px ${sidePad(t.safe) * t.width}px`, backgroundColor: color, color: onColor(color), fontFamily: font, fontWeight: 800, fontSize: 56 * k, lineHeight: 1.1, textAlign: 'center', textTransform: upper ? 'uppercase' : 'none', transform: `translateY(-50%) scaleX(${interpolate(enter, [0, 1], [0, 1])})` }}>
           <span style={{ opacity: interpolate(enter, [0.6, 1], [0, 1], { extrapolateLeft: 'clamp' }) }}>{overlay.text}</span>
         </div>
       </AbsoluteFill>
@@ -811,7 +811,7 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     const bar = interpolate(frame, [8, 24], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
     return (
       <AbsoluteFill>
-        <div style={{ position: 'absolute', left: '7%', top: `${overlay.y * 100}%`, width: '86%', textAlign: 'left', fontFamily: font, lineHeight: 1, opacity: fade, transform: `translateY(calc(-50% + ${slide}px))`, textShadow: '0 2px 24px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.45)' }}>
+        <div style={{ position: 'absolute', left: `${sidePad(t.safe) * 100}%`, top: `${overlay.y * 100}%`, width: `${(1 - 2 * sidePad(t.safe)) * 100}%`, textAlign: 'left', fontFamily: font, lineHeight: 1, opacity: fade, transform: `translateY(calc(-50% + ${slide}px))`, textShadow: '0 2px 24px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.45)' }}>
           {before ? <div style={{ fontSize: 52 * k, fontWeight: 600, color: '#FFF9EC', letterSpacing: '-0.01em', marginBottom: 6 * k }}>{before}</div> : null}
           <div style={{ fontSize: Math.min(150, Math.max(80, 1000 / Math.max(5, key.length))) * k, fontWeight: 800, color, letterSpacing: '-0.035em', opacity: keyIn, transform: `translateY(${interpolate(keyIn, [0, 1], [18, 0])}px)` }}>{key}</div>
           <div style={{ width: 110 * k * bar, height: 7 * k, borderRadius: 4 * k, backgroundColor: color, marginTop: 14 * k, boxShadow: '0 2px 10px rgba(0,0,0,0.35)' }} />
@@ -833,7 +833,7 @@ const Overlay: React.FC<{ overlay: TimelineOverlay; font: string; t: Timeline }>
     const size = Math.min(150, Math.max(76, 980 / Math.max(5, key.length))) * k;
     return (
       <AbsoluteFill>
-        <div style={{ position: 'absolute', left: '50%', top: `${overlay.y * 100}%`, transform: `translate(-50%, -50%) rotate(-3deg) scale(${interpolate(slam, [0, 1], [0.5, 1])})`, opacity: fade, textAlign: 'center', fontFamily: font, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 * k, maxWidth: '92%' }}>
+        <div style={{ position: 'absolute', left: '50%', top: `${overlay.y * 100}%`, transform: `translate(-50%, -50%) rotate(-3deg) scale(${interpolate(slam, [0, 1], [0.5, 1])})`, opacity: fade, textAlign: 'center', fontFamily: font, textTransform: 'uppercase', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 * k, maxWidth: `${(1 - 2 * sidePad(t.safe)) * 100}%` }}>
           {before ? <div style={{ fontSize: 50 * k, fontWeight: /bebas|staatliches|bangers|anton/i.test(font) ? 400 : 700, color: '#fff', letterSpacing: '0.02em', WebkitTextStroke: `${Math.round(7 * k)}px #0B0B0F`, paintOrder: 'stroke fill', textShadow: `0 ${6 * k}px 0 rgba(0,0,0,0.55)` }}>{before}</div> : null}
           <div style={{ position: 'relative' }}>
             <div style={{ position: 'absolute', inset: 0, transform: `translate(${14 * k}px, ${14 * k}px) rotate(2deg)`, backgroundColor: '#7B5CF0', clipPath: torn }} />

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import type { Timeline } from '@axioma/schema';
-import { CaptionStyle } from '@axioma/schema';
+import { CaptionStyle, safeZone } from '@axioma/schema';
 import { Reel } from './Reel.tsx';
 import { Slide, type SlideProps } from './Slide.tsx';
 import { AxiClip, AxiEstados, AxiIntro, type AxiClipProps } from './AxiScenes.tsx';
@@ -28,6 +28,7 @@ const empty: Timeline = {
   ],
   overlays: [],
   captions: CaptionStyle.parse({}),
+  safe: safeZone('instagram_reels'),
 };
 
 const slide: SlideProps = { width: 1080, height: 1350, kind: 'portada', title: 'Tres errores que casi me quiebran', body: 'Lo que aprendí al empezar de cero', brand: { primary: '#FE2C55', secondary: '#25F4EE', name: 'Mi marca' }, font: 'Anton', carousel: true, index: 0, total: 5 };
