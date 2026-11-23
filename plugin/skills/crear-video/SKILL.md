@@ -85,6 +85,7 @@ Dos herramientas que hacen la diferencia:
 
 Revisa tú primero, no le pases un borrador sin mirar:
 
+- **Regla más importante: ningún texto sobre el producto ni sobre la cara.** Después de armar, llama a `ubicar_textos` (busca la franja libre de cada toma dentro de la zona segura) y MIRA un cuadro por escena: si un subtítulo o rótulo cae sobre el producto, corrígelo con `editar_escena` (`subtitulos_y`, `texto_y`), acorta el texto, quita el rótulo de esa escena o cambia de toma. Un texto que tapa el producto es un error, aunque esté dentro de la zona de la red.
 - Zonas seguras: `plataforma_destino` sin plataforma dice qué se mueve; en los cuadros revisados nada de texto debe quedar bajo la descripción de la red, junto a los botones de la derecha ni pegado arriba.
 - Duración, resolución y volumen: sin pasarse de la duración pedida, resolución igual a la elegida (Full HD = 1080 px de ancho, comprobable con `resolucion_entrega`) y ~-14 LUFS.
 - Cuadros cada ~4 s: nadie hablando sin voz, rótulos que no tapan ni se parten, producto visible cuando se nombra, nada que la persona pidió excluir.

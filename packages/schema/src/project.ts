@@ -235,6 +235,8 @@ export const Scene = z.object({
   punchZoom: z.boolean().default(false),
   /** Silencia el sonido original de esta escena (tomas de producto con ruido de fondo). La voz de quien habla en pantalla nunca se silencia. */
   sinAudio: z.boolean().default(false),
+  /** Altura propia de los subtítulos en esta escena (0–1), para ponerlos en la franja libre de la toma y no sobre el producto. Siempre dentro de la zona segura de la red. */
+  captionY: z.number().min(0).max(1).optional(),
   variants: z.array(SceneVariant).default([]),
   chosenVariant: z.string().optional(),
 });

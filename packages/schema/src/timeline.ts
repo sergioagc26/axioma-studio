@@ -57,6 +57,8 @@ export type TimelineClip = {
   punchZoom: boolean;
   /** Sin sonido original en este tramo. */
   sinAudio?: boolean;
+  /** Altura de los subtítulos mientras suena este tramo (ya dentro de la zona segura). */
+  captionY?: number;
   /** Cámara lenta: velocidad (< 1) y, si ya existe, el video con fotogramas intermedios. */
   speed?: number;
   /** B-roll combinado con tu video (pantalla dividida o recuadro). */
@@ -373,6 +375,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             sceneOffsetFrames: from - toFrame(sceneStart),
             punchZoom: scene.punchZoom && i === 0 && pi === 0,
             sinAudio: scene.sinAudio || undefined,
+            captionY: scene.captionY !== undefined ? clampY(zone, scene.captionY, 0.07) : undefined,
             visual: brollSrc ? 'broll' : motion ? (visual as Scene['visual']) : 'original',
             brollSrc,
             motion,

@@ -400,12 +400,14 @@ export function createServer() {
     posicion_texto: z.enum(['arriba', 'centro']).optional(),
     imagen: look.optional().describe('bn = blanco y negro · calido · frio · contraste'),
     camara: camera.optional().describe('Movimiento durante la escena. En fotos con profundidad (b-roll de imagen), orbita gira alrededor del sujeto y foco pasa el foco del fondo a lo cercano.'),
+    subtitulos_y: z.number().min(0).max(1).optional().describe('Altura de los subtítulos en esta escena (0 arriba, 1 abajo); se limita a la zona segura de la red. Úsalo para ponerlos en la franja libre y no sobre el producto.'),
+    texto_y: z.number().min(0).max(1).optional().describe('Altura del rótulo de esta escena (0 arriba, 1 abajo), dentro de la zona segura.'),
     distribucion_broll: z.enum(['completo', 'arriba', 'abajo', 'recuadro']).optional().describe('Con b-roll: completo · arriba (pantalla dividida, b-roll arriba y la persona abajo) · abajo · recuadro (la persona en una ventanita sobre el b-roll)'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
     const p = await E.editScene(dir, a.escena, {
       brollLayout: a.distribucion_broll,
-      role: a.rol, title: a.titulo, onScreenText: a.texto_en_pantalla, textColor: a.color_texto, visual: a.visual, punchZoom: a.zoom, sinAudio: a.sin_audio, phrases: a.frases,
+      role: a.rol, title: a.titulo, onScreenText: a.texto_en_pantalla, textColor: a.color_texto, visual: a.visual, punchZoom: a.zoom, sinAudio: a.sin_audio, captionY: a.subtitulos_y, textY: a.texto_y, phrases: a.frases,
       textStyle: a.estilo_texto, textKeyword: a.palabra_clave, textPosition: a.posicion_texto, look: a.imagen, camera: a.camara,
     });
     return E.summarize(p, dir);
@@ -1226,6 +1228,14 @@ export function createServer() {
     const pc = (v: number) => `${Math.round(v * 100)}%`;
     const moved = S.auditZones(p);
     return [`Red: ${info.label}${plataforma ? ' · guardada' : ''}.`, `Zona libre: no poner nada en el ${pc(info.top)} de arriba, el ${pc(info.bottom)} de abajo, ni en ${pc(info.left)} a la izquierda y ${pc(info.right)} a la derecha.`, info.note, moved.length ? `Al renderizar se mueven: ${moved.join('; ')}.` : 'Nada está fuera de la zona libre.'].join('\n');
+  });
+
+  tool('ubicar_textos', 'Busca en cada escena la franja LIBRE del cuadro (sin producto, cara ni cosas cargadas) dentro de la zona segura de la red y pone ahí los subtítulos y el rótulo, para que nunca tapen el producto. Mira fotogramas reales de cada toma. Devuelve, por escena, dónde puso cada texto y qué tan libre quedó; en escenas sin franja libre avisa para decidir (acortar el texto, quitar el rótulo o cambiar de toma). Revisa siempre los cuadros después.', {
+    proyecto,
+  }, async ({ proyecto }) => {
+    const dir = await resolveProject(proyecto);
+    const r = await E.placeTexts(dir);
+    return r.join('\n');
   });
 
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {

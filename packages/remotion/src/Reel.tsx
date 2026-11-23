@@ -522,7 +522,8 @@ const EmojiPop: React.FC<{ emoji: string; fresh: boolean; size: number }> = ({ e
 const Caption: React.FC<{ chunk: CaptionChunk; font: string; t: Timeline; emoji?: { emoji: string; fresh: boolean } }> = ({ chunk, font: baseFont, t, emoji }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const s = t.captions;
+  const cy = t.clips.find((c) => chunk.startFrame >= c.fromFrame && chunk.startFrame < c.fromFrame + c.durationInFrames)?.captionY;
+  const s = cy === undefined ? t.captions : { ...t.captions, y: cy };
   const serif = useFont('Playfair Display');
   const d = s.design;
   // Diseños descritos como datos (todos menos los cinco con dibujo propio).
