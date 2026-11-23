@@ -32,6 +32,7 @@ La persona no tiene que saber cómo funciona la app: tú llevas el proceso, preg
 - Voz: la de quienes salen en los videos · voz en off IA (voces con `voces_disponibles`: femenina, masculina grave, etc.) · sin voz.
 - Música (género): rock · urbano · electrónica · lofi · épica · sin música. Búscala con `musica_biblioteca`; si no hay del género, dilo y propón la más cercana.
 - Efectos de sonido: pocos (whoosh en cambios fuertes) · muchos · ninguno.
+- Calidad de entrega: **Full HD 1080p** (recomendado: redes, liviano y rápido) · 4K (más lento y pesado). Fíjala con `resolucion_entrega` antes de armar y confírmala al final: el video no debe salir en otra resolución sin que la persona lo haya elegido.
 
 **Tanda 3 · Contenido y límites**
 - Qué debe mostrar o decir sí o sí: productos exactos, el mensaje, la frase final.
@@ -84,7 +85,7 @@ Dos herramientas que hacen la diferencia:
 
 Revisa tú primero, no le pases un borrador sin mirar:
 
-- Duración y volumen (`calidad_video`): sin pasarse de la duración pedida; ~-14 LUFS.
+- Duración, resolución y volumen: sin pasarse de la duración pedida, resolución igual a la elegida (Full HD = 1080 px de ancho, comprobable con `resolucion_entrega`) y ~-14 LUFS.
 - Cuadros cada ~4 s: nadie hablando sin voz, rótulos que no tapan ni se parten, producto visible cuando se nombra, nada que la persona pidió excluir.
 - Subtítulos acordes con lo que se oye.
 - Que ninguna frase se corte a media palabra.

@@ -1204,6 +1204,18 @@ export function createServer() {
     return E.summarize(await E.restoreVersion(dir, version), dir);
   });
 
+  tool('resolucion_entrega', 'Elige la resolución del video final: «full_hd» (1080 px de ancho, 1080×1920 en vertical: lo normal para redes, rápido y liviano) o «4k» (2160 px: más lento y pesado). Se aplica al siguiente renderizar o entregar_video. Sin resolución, solo dice cuál tiene el proyecto.', {
+    proyecto, resolucion: z.enum(['full_hd', '4k']).optional(),
+  }, async ({ proyecto, resolucion }) => {
+    const dir = await resolveProject(proyecto);
+    const p = await E.readProject(dir);
+    if (resolucion) {
+      p.export.uhd = resolucion === '4k';
+      await E.writeProject(dir, p);
+    }
+    return `Resolución de entrega: ${p.export.uhd ? '4K (2160 px de ancho)' : 'Full HD (1080 px de ancho)'}${resolucion ? ' · guardada' : ''}.`;
+  });
+
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
     proyecto, formato: z.enum(['9:16', '4:5', '3:4', '1:1', '16:9', '21:9']).optional().describe('Sin valor: la forma propia del proyecto'),
     calidad: z.enum(['maxima', 'alta', 'ligera']).optional().describe('Por defecto, la del proyecto (alta)'),
