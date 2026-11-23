@@ -38,6 +38,7 @@ export const SFX: Record<string, { name: string; description: string; filter: st
   teclado: { name: 'Teclado', description: 'Tecleo rápido para textos que se escriben.', filter: "aevalsrc='0.8*(random(0)*2-1)*exp(-300*mod(t\\,0.09))':d=0.54,highpass=f=1200" },
   gong: { name: 'Gong', description: 'Campana grave y larga para un anuncio.', filter: "aevalsrc='0.5*(sin(2*PI*196*t)+0.6*sin(2*PI*392.5*t)+0.3*sin(2*PI*590*t))*exp(-3*t)':d=1.4" },
   'subida-ruido': { name: 'Subida de aire', description: 'Ruido que crece antes de un cambio fuerte.', filter: "anoisesrc=d=1.4:c=white:a=0.5,highpass=f=800,afade=t=in:d=1.3:curve=exp" },
+  bonk: { name: 'Golpe de caricatura', description: 'Martillazo cómico (tipo comedia clásica): golpe seco con un chillido corto, para gags de golpes o sartenazos.', filter: "aevalsrc='0.6*sin(2*PI*(160-90*t)*t)*exp(-14*t)+0.35*(random(0)*2-1)*exp(-90*t)+0.25*sin(2*PI*(1800-2600*t)*t)*exp(-9*t)*gte(t\\,0.02)':d=0.5,lowpass=f=6000" },
   rebobinar: { name: 'Rebobinar', description: 'Tono tembloroso que sube, para volver atrás.', filter: "aevalsrc='0.35*sin(2*PI*(400+1400*t)*t)*sin(2*PI*28*t)':d=0.5" },
 };
 

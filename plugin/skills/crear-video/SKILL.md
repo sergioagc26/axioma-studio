@@ -78,7 +78,7 @@ Dos herramientas que hacen la diferencia:
 ## Fase 5 · Sonido
 
 1. Música del género pedido (`musica_biblioteca` → `poner_musica`). Si no hay del género, busca una con licencia libre y dilo. Volumen: que no tape las voces.
-2. Efectos con medida (`listar_efectos`, `poner_efecto`): un whoosh en cada movimiento fuerte (algo que se lanza, un giro) y en el corte hacia una toma de producto; un golpe corto al inicio. Nunca encima de una frase clave. No uses `efectos_automaticos` si ya los pusiste a mano.
+2. Efectos con medida (`listar_efectos`, `poner_efecto`): un whoosh en cada movimiento fuerte (algo que se lanza, un giro) y en el corte hacia una toma de producto; un golpe corto al inicio.  Para un gag de golpe o sartenazo usa `bonk` (golpe cómico de caricatura, sintetizado, sin copiar ninguna grabación). Nunca encima de una frase clave. No uses `efectos_automaticos` si ya los pusiste a mano.
 3. Subtítulos legibles abajo (`ajustar_subtitulos`), con las palabras corregidas: marca, nombres de producto y números bien escritos.
 
 ## Fase 6 · Revisa antes de mostrar
@@ -109,3 +109,9 @@ Corrige lo que veas y vuelve a renderizar. Si algo no pudiste comprobar (por eje
 - No cambies lo que dijo una persona; puedes ordenar y recortar entre frases, no poner palabras en su boca.
 - Cuando una pieza externa falle (voz, servicio, descarga), usa otra vía de Axioma antes de parar, y dilo.
 - Errores en lenguaje simple, nunca el texto técnico crudo.
+
+
+## Voces cortadas y datos hablados (reglas aprendidas con La Bodega)
+
+- **Nunca cortes una voz en seco.** Al unir pedazos de voz de distintos clips: corta en un silencio entre palabras, deja 80–150 ms de fundido cruzado entre un pedazo y el siguiente (o deja que la voz del siguiente empiece unos 0,2 s antes de que cambie la imagen, corte en J) y pon una transición o un barrido en el cambio de imagen. Escucha cada unión; si una palabra queda a medias, alarga el pedazo.
+- **Dirección y datos del local:** si la persona que dice la dirección sale en cámara, usa su voz pero cubre la imagen con tomas del local o de la entrada del centro comercial (`editar_escena` con b-roll del cliente); nunca repitas la toma de la persona diciendo la dirección. Escribe en pantalla solo lo que se dijo o lo que está en el documento del cliente. Si hay un video de la fachada o la entrada, úsalo ahí.
