@@ -234,7 +234,8 @@ export async function applyPresetObject(dir: string, preset: Preset) {
       for (const a of advice) {
         const s = project.scenes.find((x) => x.id === a.sceneId);
         // Si la referencia usa destellos, las transiciones con efecto pasan a ser destellos.
-        if (s) s.transition = a.transition ? { id: st.flashes ? 'destello' : a.transition } : undefined;
+        // Las transiciones que ya son de luz (estilo neón) se quedan como están.
+        if (s) s.transition = a.transition ? { id: st.flashes && !/^(luz-|zoom-luz$|tarjeta$)/.test(a.transition) ? 'destello' : a.transition } : undefined;
       }
     }
     if (st.sfxAuto !== undefined) {

@@ -493,8 +493,8 @@ const LOOKS: Record<string, string | undefined> = {
   suave: 'contrast(0.88) brightness(1.08) saturate(0.9)',
   dramatico: 'contrast(1.4) brightness(0.85) saturate(0.9)',
   sepia: 'sepia(0.9) contrast(1.05)',
-  neon: 'saturate(1.9) contrast(1.15) brightness(1.04) hue-rotate(-14deg)',
-  'neon-frio': 'saturate(1.7) contrast(1.12) brightness(1.03) hue-rotate(28deg)',
+  neon: 'saturate(1.45) contrast(1.12) brightness(1.03)',
+  'neon-frio': 'saturate(1.3) contrast(1.14) brightness(0.98)',
 };
 
 /** ¿Se lee mejor texto negro o blanco sobre este color? */

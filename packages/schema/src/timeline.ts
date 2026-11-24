@@ -11,6 +11,14 @@ export const MIN_CLIP = 0.3;
  * del inicio o del final; uno negativo alarga el clip con el material vecino
  * (sin pasar de 0 ni de `maxEnd`, la duración del video fuente).
  */
+/** Los stickers (emoji, ícono) y las palabras van en capas distintas: un emoji solo reemplaza a otro emoji, y una palabra a otra palabra. */
+const STICKERS = ['emoji', 'icono'];
+function nextSameKind(all: { at: number; style: string }[], wi: number): number | undefined {
+  const kind = STICKERS.includes(all[wi].style);
+  const later = all.filter((x, i) => i !== wi && x.at > all[wi].at && STICKERS.includes(x.style) === kind).map((x) => x.at);
+  return later.length ? Math.min(...later) : undefined;
+}
+
 export function effectiveRanges(scene: Pick<Scene, 'ranges' | 'trimStart' | 'trimEnd'>, maxEnd = Number.POSITIVE_INFINITY): { start: number; end: number }[] {
   const ranges = scene.ranges.map((r) => ({ start: r.start, end: Math.max(r.start, r.end) }));
   if (!ranges.length) return ranges;
@@ -354,7 +362,7 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
             videoScale: scene.videoScale,
             fit: scene.videoFit === 'completo' || scene.videoFit === 'monitor' || scene.videoFit === 'flotante' ? scene.videoFit : undefined,
             floatBg: scene.floatBg,
-            words: scene.words?.length ? scene.words.map((w, wi, all) => ({ text: w.text, from: Math.round(w.at * fps), to: Math.round((w.until ?? all[wi + 1]?.at ?? 999) * fps), color: w.color, x: clampX(zone, w.x, 0.12), y: clampY(zone, w.y, 0.06), size: w.size, behind: w.behind, style: w.style, rotate: w.rotate, files: w.files?.map((f) => (urls.asset ? urls.asset(f) : f)), then: w.then !== undefined ? Math.round(w.then * fps) : undefined })) : undefined,
+            words: scene.words?.length ? scene.words.map((w, wi, all) => ({ text: w.text, from: Math.round(w.at * fps), to: Math.round((w.until ?? nextSameKind(all, wi) ?? 999) * fps), color: w.color, x: clampX(zone, w.x, 0.12), y: clampY(zone, w.y, 0.06), size: w.size, behind: w.behind, style: w.style, rotate: w.rotate, files: w.files?.map((f) => (urls.asset ? urls.asset(f) : f)), then: w.then !== undefined ? Math.round(w.then * fps) : undefined })) : undefined,
             frameY: scene.frameY,
             drawing: scene.drawing && urls.asset ? { lines: urls.asset(scene.drawing.lines), title: scene.drawing.title, burst: scene.drawing.burst, tag: scene.drawing.tag, draw: scene.drawing.draw, hand: scene.drawing.hand ? { ...scene.drawing.hand, src: urls.asset(scene.drawing.hand.file) } : undefined, sameTitle: Boolean(scene.drawing.title) && project.scenes[project.scenes.indexOf(scene) - 1]?.drawing?.title === scene.drawing.title } : undefined,
             desk: scene.videoFit === 'monitor' && scene.deskPhoto && urls.asset ? { src: urls.asset(scene.deskPhoto.file), screen: scene.deskPhoto.screen } : undefined,
@@ -383,8 +391,10 @@ export function buildTimeline(project: Project, transcript: Transcript | null, u
         }
       });
       // En cámara lenta no suena la voz: tampoco hay subtítulos.
-      // Con palabras gigantes, esas palabras hacen de subtítulo: la escena no lleva los normales.
-      if (sourceWords && !slow && !scene.words?.length) {
+      // Con palabras gigantes al ritmo de la voz, esas palabras hacen de subtítulo: la escena no lleva los normales.
+      // Un emoji, un título de neón, un sello o una etiqueta de cristal no reemplazan a los subtítulos.
+      const giantCaptions = (scene.words ?? []).some((w) => ['gigante', 'resaltado', 'seleccion', 'tachado'].includes(w.style));
+      if (sourceWords && !slow && !giantCaptions) {
         for (const w of sourceWords.words) {
           const mid = (w.start + w.end) / 2;
           if (mid < r.start || mid >= r.end) continue;
