@@ -283,7 +283,7 @@ function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
   // (cerca, lejos, cerca…) con un muelle corto, como los cortes de un editor; sin palabras, un
   // golpe de zoom al entrar a la escena.
   const sceneF = clip.sceneOffsetFrames + frame;
-  const beats = clip.punchZoom && clip.words?.length ? clip.words.filter((w) => !['miniaturas', 'chat', 'tira', 'ruta', 'tarjeta', 'icono', 'nota', 'mic', 'emoji', 'cristal', 'app', 'foto', 'fondo', 'objeto', 'logo'].includes(w.style)).map((w) => w.from).filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y) : [];
+  const beats = clip.punchZoom && clip.words?.length ? clip.words.filter((w) => !['miniaturas', 'chat', 'tira', 'ruta', 'tarjeta', 'icono', 'nota', 'mic', 'emoji', 'cristal', 'app', 'foto', 'fondo', 'objeto', 'logo', 'apoyo', 'seccion', 'eco'].includes(w.style)).map((w) => w.from).filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y) : [];
   let zoom = 1;
   if (beats.length) {
     let n = 0;

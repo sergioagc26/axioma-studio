@@ -13,7 +13,7 @@ export const MIN_CLIP = 0.3;
  */
 /** Los stickers (emoji, ícono) y las palabras van en capas distintas: un emoji solo reemplaza a otro emoji, y una palabra a otra palabra. */
 const STICKERS = ['emoji', 'icono', 'app', 'foto', 'objeto', 'logo'];
-const layerOf = (style: string) => (style === 'fondo' ? 'fondo' : STICKERS.includes(style) ? 'sticker' : 'palabra');
+const layerOf = (style: string) => (['fondo', 'apoyo', 'seccion'].includes(style) ? 'fondo' : STICKERS.includes(style) ? 'sticker' : 'palabra');
 function nextSameKind(all: { at: number; style: string }[], wi: number): number | undefined {
   const kind = layerOf(all[wi].style);
   const later = all.filter((x, i) => i !== wi && x.at > all[wi].at && layerOf(x.style) === kind).map((x) => x.at);

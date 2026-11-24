@@ -11,7 +11,7 @@ export interface KineticWord {
   text: string; from: number; to: number;
   color: 'blanco' | 'rojo' | 'amarillo' | 'negro';
   x: number; y: number; size: number; behind: boolean;
-  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'acomodar' | 'logo' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
+  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'acomodar' | 'logo' | 'apoyo' | 'seccion' | 'eco' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
   rotate?: number; files?: string[]; then?: number;
 }
 
@@ -289,6 +289,72 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
         <div style={{ ...base, transform: `translate(-50%, -50%) translateX(${interpolate(e, [0, 1], [320 * u, 0])}px) perspective(${1400 * u}px) rotateY(${interpolate(e, [0, 1], [-38, -10])}deg) rotate(${w.rotate ?? -4}deg)`, opacity: Math.min(1, e * 1.5) * out, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 * u }}>
           {src ? <Img src={src} style={{ width: cw, height: ch, objectFit: 'cover', borderRadius: 34 * u, border: `${4 * u}px solid rgba(255,255,255,0.85)`, boxShadow: `0 ${30 * u}px ${60 * u}px rgba(0,0,0,0.55)` }} /> : null}
           {w.text && w.text !== '-' ? <div style={{ fontFamily: font, fontWeight: 800, fontSize: 46 * u * k, color: '#fff', padding: `${10 * u}px ${26 * u}px`, borderRadius: 999, background: 'rgba(15,15,18,0.78)' }}>{w.text}</div> : null}
+        </div>
+      );
+    }
+    case 'apoyo':
+    case 'seccion': {
+      // Video de apoyo en tarjeta (como la referencia): la escena de atrás se desenfoca, la tarjeta redondeada entra
+      // girando en 3D y se mece; la imagen se mueve dentro (acercamiento y recorrido de arriba abajo en capturas altas).
+      // Con varios archivos, cada tarjeta sale volando hacia un lado y entra la siguiente.
+      // «apoyo»: text = etiquetas separadas por «|»; color negro = blanco y negro. «seccion»: fondo gris con encabezado
+      // (text = «LÍNEA GRANDE/línea verde»).
+      const files = w.files ?? [];
+      if (!files.length) return null;
+      const section = w.style === 'seccion';
+      const total = Math.max(1, w.to - w.from);
+      const per = total / files.length;
+      const idx = Math.min(files.length - 1, Math.floor(local / per));
+      const lf = local - idx * per;
+      const labels = section ? [] : w.text.split('|');
+      const [h1, h2] = section ? w.text.split('/') : ['', ''];
+      const bw = w.color === 'negro';
+      const appear = spring({ frame: local, fps, config: { damping: 16, stiffness: 140 }, durationInFrames: 16 });
+      const cardW = 640 * u * k, cardH = (section ? 1000 : 1060) * u * k;
+      const card = (i: number, t: number, leaving: number) => {
+        const e = spring({ frame: t, fps, config: { damping: 13, stiffness: 130 }, durationInFrames: 18 });
+        const ry = interpolate(e, [0, 1], [i === 0 ? 55 : -60, -7]) + Math.sin((t + i * 13) / 22) * 6 + leaving * 50;
+        const rz = interpolate(e, [0, 1], [i === 0 ? 6 : -8, -2]) + leaving * -14;
+        const tx = leaving * -900 * u + interpolate(e, [0, 1], [i === 0 ? 0 : 700 * u, 0]);
+        const src = files[i];
+        const tall = /pantallas|captura/.test(src);
+        const prog = Math.min(1, t / Math.max(1, per));
+        return (
+          <div key={i} style={{ position: 'absolute', left: '50%', top: section ? '57%' : '50%', width: cardW, height: cardH, marginLeft: -cardW / 2, marginTop: -cardH / 2, transform: `translateX(${tx}px) perspective(${1600 * u}px) rotateY(${ry}deg) rotate(${rz}deg) scale(${interpolate(e, [0, 1], [0.78, 1])})`, opacity: Math.min(1, e * 1.6) * (1 - leaving), borderRadius: 40 * u, overflow: 'hidden', boxShadow: `0 ${40 * u}px ${70 * u}px rgba(0,0,0,0.55), 0 0 0 ${2 * u}px rgba(255,255,255,0.35)`, background: '#111' }}>
+            <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: tall ? `50% ${interpolate(prog, [0, 1], [0, 100])}%` : '50% 50%', transform: `scale(${interpolate(prog, [0, 1], [1.16, 1.02])})`, filter: bw ? 'grayscale(1) contrast(1.15) brightness(0.92)' : undefined }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.35))' }} />
+            {labels[i] ? <div style={{ position: 'absolute', left: 0, right: 0, top: '46%', textAlign: 'center', fontFamily: extra?.round ?? font, fontWeight: 600, fontSize: 54 * u, color: '#fff', textShadow: `0 ${3 * u}px ${14 * u}px rgba(0,0,0,0.8)`, opacity: interpolate(t, [6, 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }), letterSpacing: `${interpolate(t, [6, 16], [0.25, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}em` }}>{labels[i]}</div> : null}
+            <div style={{ position: 'absolute', top: '-30%', bottom: '-30%', width: '30%', left: `${interpolate(t, [4, 22], [-50, 150], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}%`, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent)', transform: 'skewX(-16deg)' }} />
+          </div>
+        );
+      };
+      const leavingPrev = idx > 0 ? interpolate(lf, [0, 9], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }) : 1;
+      return (
+        <AbsoluteFill style={{ opacity: out }}>
+          {section
+            ? <AbsoluteFill style={{ background: 'radial-gradient(circle at 50% 35%, #ECECEC 0%, #D2D2D2 70%, #C4C4C4 100%)', opacity: Math.min(1, appear * 1.4) }} />
+            : <AbsoluteFill style={{ backdropFilter: `blur(${interpolate(appear, [0, 1], [0, 26]) * u}px)`, background: `rgba(0,0,0,${interpolate(appear, [0, 1], [0, 0.28])})` }} />}
+          {section ? (
+            <div style={{ position: 'absolute', left: 0, right: 0, top: '9%', textAlign: 'center', fontFamily: extra?.wide ?? font, textTransform: 'uppercase', lineHeight: 0.92 }}>
+              <div style={{ fontSize: 150 * u, color: '#fff', letterSpacing: `${interpolate(local, [0, 14], [0.3, 0.02], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}em`, textShadow: `0 ${4 * u}px 0 #9a9a9a, 0 ${9 * u}px 0 #5d5d5d, 0 ${18 * u}px ${26 * u}px rgba(0,0,0,0.45)` }}>{h1}</div>
+              <div style={{ fontSize: 62 * u, color: '#2BD35F', marginTop: 6 * u, opacity: interpolate(local, [8, 16], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }), textShadow: `0 ${3 * u}px ${8 * u}px rgba(0,0,0,0.35)` }}>{h2}</div>
+            </div>
+          ) : null}
+          {idx > 0 && leavingPrev < 1 ? card(idx - 1, per + lf, leavingPrev) : null}
+          {card(idx, lf, 0)}
+        </AbsoluteFill>
+      );
+    }
+    case 'eco': {
+      // Palabra en eco (como «COMENTA»): la misma palabra en contorno repetida hacia abajo, cada copia entra un poco después.
+      const n = 6;
+      return (
+        <div style={{ position: 'absolute', left: 0, right: 0, top: `${(w.y - 0.05) * 100}%`, textAlign: 'center', fontFamily: extra?.wide ?? font, textTransform: 'uppercase', lineHeight: 0.86, opacity: out }}>
+          {Array.from({ length: n }, (_, i) => {
+            const e = interpolate(local - i * 2.5, [0, 8], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+            const full = i === 0;
+            return <div key={i} style={{ fontSize: 190 * u * k, color: full ? '#fff' : 'transparent', WebkitTextStroke: full ? undefined : `${2.5 * u}px rgba(255,255,255,${0.85 - i * 0.12})`, opacity: e, transform: `translateY(${interpolate(e, [0, 1], [-30 * u, 0])}px)`, textShadow: full ? `0 ${10 * u}px ${30 * u}px rgba(0,0,0,0.5)` : undefined }}>{w.text}</div>;
+          })}
         </div>
       );
     }
