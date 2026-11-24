@@ -157,6 +157,8 @@ La clave queda guardada en ese navegador por 30 días; sin ella nadie más de la
 
 **Fuera de casa:** instala [Tailscale](https://tailscale.com/download) (gratis) en el Mac mini y en el portátil o celular, con la misma cuenta. La app lo detecta sola y muestra el enlace para usarla desde cualquier lugar. Todos los enlaces están en Proyectos → **📱 Otros equipos**.
 
+¿Alguien que no quiere instalar nada? Mira [docs/USAR-SIN-INSTALAR.md](docs/USAR-SIN-INSTALAR.md).
+
 ## IA local (gratis, sin internet)
 
 La app abre Ollama sola si está cerrado, elige el mejor modelo descargado que quepa en la memoria, lo deja cargado 30 minutos y reintenta si un pedido falla. Con `qwen3-vl:8b` descargado, además **ve imágenes**: al analizar una referencia elige la tipografía de los subtítulos mirando los fotogramas.
