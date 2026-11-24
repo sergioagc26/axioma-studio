@@ -428,6 +428,15 @@ export async function setBackdropFile(dir: string, sceneId: string, file: string
   return writeProject(dir, project);
 }
 
+/** Palabras gigantes, emojis, neón y demás elementos que aparecen con la voz en una escena (tiempos desde el inicio de la escena). */
+export async function setWords(dir: string, sceneId: string, words: unknown[], opts: { add?: boolean } = {}) {
+  const project = await readProject(dir);
+  const scene = findScene(project, sceneId);
+  const parsed = Scene.shape.words.unwrap().parse(words);
+  scene.words = opts.add ? [...(scene.words ?? []), ...parsed] : parsed;
+  return writeProject(dir, project);
+}
+
 export async function setMotion(dir: string, sceneId: string, template: string, data: Record<string, unknown>) {
   const project = await readProject(dir);
   const scene = findScene(project, sceneId);

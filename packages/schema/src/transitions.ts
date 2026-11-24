@@ -48,6 +48,13 @@ export const BUILTIN_TRANSITIONS: TransitionSpec[] = [
   t({ id: 'desenfoque', name: 'Desenfoque', description: 'La anterior se desenfoca y la nueva se enfoca. Elegante.', duration: 0.45, entra: { desenfoque: [30, 0], opacidad: [0, 1] }, sale: { desenfoque: [0, 30] }, tags: ['sobrio'] }),
   t({ id: 'golpe', name: 'Golpe', description: 'La nueva entra con un pequeño rebote. Para remarcar una frase.', duration: 0.3, easing: 'rebote', entra: { escala: [0.82, 1] }, tags: ['rapido'] }),
   t({ id: 'rotar', name: 'Giro con zoom', description: 'La nueva entra girando un poco mientras se acerca. Llamativa: úsala poco.', duration: 0.35, entra: { giro: [-12, 0], escala: [1.35, 1], opacidad: [0, 1] }, tags: ['rapido'] }),
+  t({ id: 'luz-calida', name: 'Luz cálida', description: 'Un destello naranja como un rayo de sol tapa el cambio. Cálida y cinematográfica.', duration: 0.45, entra: { escala: [1.12, 1], opacidad: [0, 1] }, destello: { color: '#FFB347', pico: 1 }, tags: ['dinamico', 'creador'] }),
+  t({ id: 'luz-amarilla', name: 'Luz amarilla', description: 'Estallido de luz amarilla en el cambio de idea. Da energía.', duration: 0.35, entra: { escala: [1.18, 1], opacidad: [0, 1] }, destello: { color: '#FFE033', pico: 1 }, tags: ['dinamico', 'creador'] }),
+  t({ id: 'luz-magenta', name: 'Luz magenta', description: 'Inundación de luz magenta de neón entre escenas. Tecnología y energía.', duration: 0.35, entra: { escala: [1.1, 1], opacidad: [0, 1] }, destello: { color: '#FF2BD6', pico: 0.95 }, tags: ['dinamico', 'tecnologia'] }),
+  t({ id: 'luz-cian', name: 'Luz cian', description: 'Inundación de luz cian. Limpia, de tecnología.', duration: 0.35, entra: { escala: [1.1, 1], opacidad: [0, 1] }, destello: { color: '#22E5FF', pico: 0.95 }, tags: ['dinamico', 'tecnologia'] }),
+  t({ id: 'luz-blanca', name: 'Luz blanca larga', description: 'Blanco total que se disuelve con desenfoque, para entrar a un gráfico sobre fondo claro.', duration: 0.5, entra: { desenfoque: [14, 0], opacidad: [0, 1] }, sale: { desenfoque: [0, 14] }, destello: { color: '#FFFFFF', pico: 1 }, tags: ['dinamico', 'sobrio'] }),
+  t({ id: 'zoom-luz', name: 'Zoom con luz', description: 'Acercamiento fuerte con un destello cálido. Para el golpe de la frase clave.', duration: 0.3, easing: 'rebote', entra: { escala: [1.55, 1], opacidad: [0, 1] }, sale: { escala: [1, 0.8] }, destello: { color: '#FFD27A', pico: 0.9 }, tags: ['rapido', 'dinamico'] }),
+  t({ id: 'tarjeta', name: 'Tarjeta que se achica', description: 'La escena nueva entra pequeña y crece, como una tarjeta que se abre. Para pasar de la persona a un gráfico.', duration: 0.4, easing: 'rebote', entra: { escala: [0.7, 1], opacidad: [0, 1] }, sale: { escala: [1, 1.12], desenfoque: [0, 10] }, tags: ['dinamico', 'creador'] }),
 ];
 
 export function findTransition(id: string | undefined, custom: TransitionSpec[] = []): TransitionSpec | undefined {
@@ -105,6 +112,13 @@ export function recommendTransitions(project: Project): TransitionAdvice[] {
     if (style === 'sobrio') {
       if (v === 'motion' || v === 'texto') return void out.push({ sceneId: s.id, transition: 'desenfoque', reason: 'Estilo sobrio: desenfoque para entrar al gráfico.' });
       return void out.push({ sceneId: s.id, transition: 'fundido', reason: 'Estilo sobrio: fundido suave entre ideas.' });
+    }
+    if (project.presetId === 'creador-neon') {
+      // Estilo de creador con neón (sacado de reels de referencia): cada cambio entra con una luz de color distinto.
+      if (last || s.role === 'cta') return void out.push({ sceneId: s.id, transition: 'luz-blanca', reason: 'Cierre: luz blanca larga hacia el llamado a la acción.' });
+      if (v !== 'original' && visual(prev) === 'original') return void out.push({ sceneId: s.id, transition: 'tarjeta', reason: 'Entra un gráfico: la escena se abre como tarjeta.' });
+      const pick = ['luz-calida', 'zoom-luz', 'luz-magenta', 'luz-cian', 'luz-amarilla'][accent++ % 5];
+      return void out.push({ sceneId: s.id, transition: pick, reason: 'Estilo neón: destello de luz de color en cada cambio de escena.' });
     }
     if (last || s.role === 'cta') return void out.push({ sceneId: s.id, transition: 'destello', reason: 'Cierre: un destello marca el llamado a la acción.' });
     if (v !== 'original' && visual(prev) === 'original') {

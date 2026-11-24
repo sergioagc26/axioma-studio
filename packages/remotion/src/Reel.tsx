@@ -283,7 +283,7 @@ function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
   // (cerca, lejos, cerca…) con un muelle corto, como los cortes de un editor; sin palabras, un
   // golpe de zoom al entrar a la escena.
   const sceneF = clip.sceneOffsetFrames + frame;
-  const beats = clip.punchZoom && clip.words?.length ? clip.words.filter((w) => !['miniaturas', 'chat', 'tira', 'ruta', 'tarjeta', 'icono', 'nota', 'mic'].includes(w.style)).map((w) => w.from).filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y) : [];
+  const beats = clip.punchZoom && clip.words?.length ? clip.words.filter((w) => !['miniaturas', 'chat', 'tira', 'ruta', 'tarjeta', 'icono', 'nota', 'mic', 'emoji', 'cristal'].includes(w.style)).map((w) => w.from).filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y) : [];
   let zoom = 1;
   if (beats.length) {
     let n = 0;
@@ -493,6 +493,8 @@ const LOOKS: Record<string, string | undefined> = {
   suave: 'contrast(0.88) brightness(1.08) saturate(0.9)',
   dramatico: 'contrast(1.4) brightness(0.85) saturate(0.9)',
   sepia: 'sepia(0.9) contrast(1.05)',
+  neon: 'saturate(1.9) contrast(1.15) brightness(1.04) hue-rotate(-14deg)',
+  'neon-frio': 'saturate(1.7) contrast(1.12) brightness(1.03) hue-rotate(28deg)',
 };
 
 /** ¿Se lee mejor texto negro o blanco sobre este color? */

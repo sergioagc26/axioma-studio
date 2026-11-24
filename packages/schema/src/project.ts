@@ -78,7 +78,7 @@ export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido'
 export type TextAnim = z.infer<typeof TextAnim>;
 export type TextStyle = z.infer<typeof TextStyle>;
 /** Aspecto de color de la imagen. */
-export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia']);
+export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia', 'neon', 'neon-frio']);
 export type Look = z.infer<typeof Look>;
 /** Movimiento de cámara simulado durante la escena. */
 export const Camera = z.enum(['ninguno', 'acercar', 'alejar', 'izquierda', 'derecha', 'arriba', 'abajo', 'pulso', 'temblor', 'orbita', 'foco', 'respirar']);
@@ -201,7 +201,7 @@ export const Scene = z.object({
     size: z.number().min(0.3).max(3).default(1),
     behind: z.boolean().default(false),
     /** gigante: palabra grande · pildora: etiqueta · pantalla: texto que se escribe (*palabra* en rojo) · resaltado: caja amarilla · seleccion: caja roja con tiradores · tachado: palabra con raya roja · nota: papelito pegado · tarjeta: dato con barras (92%) · icono: tarjeta de app (axioma o chispa) · archivo: caja de selección con ícono y texto que se escribe · tira: línea de tiempo pequeña · ruta: curva de animación con puntos · miniaturas: collage de imágenes que entran volando (files) · chat: ventana de chat (text = mensaje; files[0] = adjunto que llega en «then») · mic: onda de voz con micrófono (text = lo que se pide). */
-    style: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic']).default('gigante'),
+    style: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal']).default('gigante'),
     rotate: z.number().min(-45).max(45).optional(),
     files: z.array(z.string()).optional(),
     /** Segundos (desde el inicio de la escena) del segundo paso del elemento (el adjunto del chat, el cambio de texto). */

@@ -6,6 +6,14 @@ const p = (x: { id: string; name: string; description: string; pacing?: Partial<
 /** Presets base. Cada cliente puede tener los suyos en su kit. */
 export const BUILTIN_PRESETS: Preset[] = [
   p({
+    id: 'creador-neon',
+    name: 'Creador neón',
+    description: 'Como los reels de creador de referencia: planos de unos 2 s, luces de neón que cambian de color, destellos de luz entre escenas, una palabra a la vez en el centro, emojis y sellos que saltan con la voz.',
+    pacing: { maxPause: 0.18, pad: 0.05, punchZoomEvery: 2 },
+    captions: { mode: 'word', wordsPerLine: 1, fontFamily: 'Poppins', fontWeight: 700, fontSize: 74, y: 0.6, uppercase: false, stroke: false, effect: 'pop', emphasis: true, highlightColor: '#39FF88', lineAnim: 'pop' },
+    style: { texts: 'muchos', hook: 'gigante', zoomText: true, cameras: ['pulso', 'acercar', 'ninguno'], motionEvery: 3, finish: {}, textStyle: 'neon', textFont: 'Poppins', textAnim: 'pop', look: 'neon', transitions: true, flashes: true, sfxAuto: true },
+  }),
+  p({
     id: 'rapido',
     name: 'Rápido',
     description: 'Gancho gigante con zoom, texto en casi cada escena, gráficos con tus cifras, cámara con pulso, efectos de sonido y barra de progreso.',

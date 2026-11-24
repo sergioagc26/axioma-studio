@@ -115,3 +115,12 @@ Corrige lo que veas y vuelve a renderizar. Si algo no pudiste comprobar (por eje
 
 - **Nunca cortes una voz en seco.** Al unir pedazos de voz de distintos clips: corta en un silencio entre palabras, deja 80–150 ms de fundido cruzado entre un pedazo y el siguiente (o deja que la voz del siguiente empiece unos 0,2 s antes de que cambie la imagen, corte en J) y pon una transición o un barrido en el cambio de imagen. Escucha cada unión; si una palabra queda a medias, alarga el pedazo.
 - **Dirección y datos del local:** si la persona que dice la dirección sale en cámara, usa su voz pero cubre la imagen con tomas del local o de la entrada del centro comercial (`editar_escena` con b-roll del cliente); nunca repitas la toma de la persona diciendo la dirección. Escribe en pantalla solo lo que se dijo o lo que está en el documento del cliente. Si hay un video de la fachada o la entrada, úsalo ahí.
+
+## Estilo «Creador neón» (sacado de reels de referencia)
+
+Cuando pidan un video «dinámico», «como los de creador» o con «transiciones, efectos e íconos», usa el estilo `creador-neon` (`aplicar_preset`):
+- **Ritmo:** planos de unos 2 s; cambia de lugar o de luz en cada idea (otro look del avatar, otra toma).
+- **Transiciones de luz:** `luz-calida`, `luz-amarilla`, `luz-magenta`, `luz-cian`, `zoom-luz`, `luz-blanca` (cierre) y `tarjeta` (al entrar a un gráfico). El estilo las elige solo con la recomendación de transiciones.
+- **Subtítulos:** una palabra a la vez, Poppins, al centro bajo de la cara, la clave en verde neón.
+- **Elementos con la voz** (`poner_palabras`): `emoji` (sticker que salta justo cuando se dice la palabra), `neon` (título luminoso para el gancho), `circulo` (sello rojo con la palabra ancha para el golpe: «HORAS», «PIERDES»), `cristal` (etiquetas de vidrio para contrastes: «ANTES» / «AHORA»). Uno o dos por escena, nunca sobre la cara ni el producto.
+- **Imagen:** look `neon` o `neon-frio` en las escenas con luces de color.

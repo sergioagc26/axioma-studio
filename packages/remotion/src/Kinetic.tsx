@@ -11,7 +11,7 @@ export interface KineticWord {
   text: string; from: number; to: number;
   color: 'blanco' | 'rojo' | 'amarillo' | 'negro';
   x: number; y: number; size: number; behind: boolean;
-  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic';
+  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal';
   rotate?: number; files?: string[]; then?: number;
 }
 
@@ -115,6 +115,37 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
         <div style={{ ...base, transform: `translate(-50%, -50%) rotate(${w.rotate ?? 0}deg) scale(${interpolate(s, [0, 1], [0.4, 1])})`, width: 110 * u * k, height: 110 * u * k, borderRadius: 26 * u * k, background: w.text === 'axioma' ? '#0F5C63' : '#FFFFFF', display: 'grid', placeItems: 'center', boxShadow: `0 ${10 * u}px ${24 * u}px rgba(0,0,0,0.35)` }}>
           {w.text === 'axioma' ? <AxiomaMark size={80 * u * k} /> : <Spark size={70 * u * k} />}
         </div>
+      );
+    case 'emoji': {
+      // Sticker: un emoji grande que salta con rebote, flota y proyecta sombra (los íconos 3D de los reels de referencia).
+      const pop = spring({ frame: local, fps, config: { damping: 8, stiffness: 210 }, durationInFrames: 14 });
+      const float = Math.sin(local / 9) * 7 * u;
+      return <div style={{ ...base, transform: `translate(-50%, calc(-50% + ${float}px)) rotate(${w.rotate ?? -8}deg) scale(${interpolate(pop, [0, 1], [0.15, 1])})`, fontSize: 190 * u * k, lineHeight: 1, filter: `drop-shadow(0 ${16 * u}px ${18 * u}px rgba(0,0,0,0.5)) drop-shadow(0 0 ${28 * u}px rgba(255,255,255,0.4))` }}>{w.text}</div>;
+    }
+    case 'neon': {
+      // Título de neón: letras de contorno luminoso que parpadean al encender.
+      const glow = { blanco: '#7DF9FF', rojo: '#FF3B6B', amarillo: '#FFE600', negro: '#FFFFFF' }[w.color];
+      const flick = local < 12 ? (local % 5 < 2 ? 0.45 : 1) : 1;
+      return <div style={{ ...base, opacity: Math.min(1, s * 1.6) * out * flick, fontFamily: font, fontWeight: 900, fontSize: 120 * u * k, letterSpacing: '0.02em', color: '#fff', textTransform: 'uppercase', textShadow: `0 0 ${6 * u}px #fff, 0 0 ${18 * u}px ${glow}, 0 0 ${40 * u}px ${glow}, 0 0 ${80 * u}px ${glow}` }}>{w.text}</div>;
+    }
+    case 'circulo': {
+      // Sello: círculo de color con la palabra ancha y en mayúsculas cruzándolo (como «PIERDEN»).
+      const d = 540 * u * k;
+      const bg = { rojo: '#D3202A', amarillo: '#F6E60B', negro: '#111114', blanco: '#FFFFFF' }[w.color];
+      const ink = w.color === 'amarillo' || w.color === 'blanco' ? '#111114' : '#FFFFFF';
+      const grow = interpolate(spring({ frame: local, fps, config: { damping: 12, stiffness: 170 }, durationInFrames: 14 }), [0, 1], [0, 1]);
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%) rotate(${w.rotate ?? 0}deg)` }}>
+          <div style={{ width: d, height: d, borderRadius: '50%', background: bg, display: 'grid', placeItems: 'center', transform: `scale(${grow})`, boxShadow: `0 ${20 * u}px ${50 * u}px rgba(0,0,0,0.4)` }}>
+            <span style={{ fontFamily: font, fontWeight: 900, fontSize: 118 * u * k, letterSpacing: '-0.02em', color: ink, textTransform: 'uppercase', transform: 'scaleX(1.35)', display: 'inline-block' }}>{w.text}</span>
+          </div>
+        </div>
+      );
+    }
+    case 'cristal':
+      // Tarjeta de cristal: fondo translúcido y borde brillante (como «INGRESOS» y «GASTOS»).
+      return (
+        <div style={{ ...base, padding: `${22 * u * k}px ${44 * u * k}px`, borderRadius: 22 * u, border: `${3 * u}px solid rgba(255,255,255,0.75)`, background: 'linear-gradient(135deg, rgba(255,255,255,0.34), rgba(255,255,255,0.08))', backdropFilter: `blur(${14 * u}px)`, boxShadow: `0 ${14 * u}px ${34 * u}px rgba(0,0,0,0.35), inset 0 0 ${24 * u}px rgba(255,255,255,0.25)`, fontFamily: font, fontWeight: 900, fontSize: 84 * u * k, letterSpacing: '0.03em', color: '#fff', textTransform: 'uppercase' }}>{w.text}</div>
       );
     case 'archivo': {
       // Caja de selección (con tiradores blancos) con un ícono y el texto que se va escribiendo.

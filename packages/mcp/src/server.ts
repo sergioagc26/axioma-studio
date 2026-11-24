@@ -27,7 +27,7 @@ const proyecto = z.string().optional().describe('Id o carpeta del proyecto. Si s
 const role = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
 const visual = z.enum(['original', 'broll', 'motion', 'texto']);
 const textStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor']);
-const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste']);
+const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia', 'neon', 'neon-frio']);
 const camera = z.enum(['ninguno', 'acercar', 'alejar', 'izquierda', 'derecha', 'arriba', 'abajo', 'pulso', 'temblor', 'orbita', 'foco']);
 
 export function createServer() {
@@ -398,7 +398,7 @@ export function createServer() {
     estilo_texto: textStyle.optional().describe('caja = recuadro de color · resaltado = clave en color y más grande · marcador = trazo de marcador detrás de la clave · gigante = la clave enorme y el resto pequeño · subrayado · neon = brillo · banda = franja de titular'),
     palabra_clave: z.string().optional().describe('Palabra del texto que se remarca. Sin valor se elige sola la más importante.'),
     posicion_texto: z.enum(['arriba', 'centro']).optional(),
-    imagen: look.optional().describe('bn = blanco y negro · calido · frio · contraste'),
+    imagen: look.optional().describe('bn = blanco y negro · calido · frio · contraste · vivo · cine · vintage · suave · dramatico · sepia · neon (colores de neón saturados) · neon-frio (neón azul y turquesa)'),
     camara: camera.optional().describe('Movimiento durante la escena. En fotos con profundidad (b-roll de imagen), orbita gira alrededor del sujeto y foco pasa el foco del fondo a lo cercano.'),
     subtitulos_y: z.number().min(0).max(1).optional().describe('Altura de los subtítulos en esta escena (0 arriba, 1 abajo); se limita a la zona segura de la red. Úsalo para ponerlos en la franja libre y no sobre el producto.'),
     texto_y: z.number().min(0).max(1).optional().describe('Altura del rótulo de esta escena (0 arriba, 1 abajo), dentro de la zona segura.'),
@@ -410,6 +410,21 @@ export function createServer() {
       role: a.rol, title: a.titulo, onScreenText: a.texto_en_pantalla, textColor: a.color_texto, visual: a.visual, punchZoom: a.zoom, sinAudio: a.sin_audio, captionY: a.subtitulos_y, textY: a.texto_y, phrases: a.frases,
       textStyle: a.estilo_texto, textKeyword: a.palabra_clave, textPosition: a.posicion_texto, look: a.imagen, camera: a.camara,
     });
+    return E.summarize(p, dir);
+  });
+
+  tool('poner_palabras', 'Pone en una escena las palabras gigantes y los elementos que aparecen con la voz: palabras enormes, emojis tipo sticker, títulos de neón, sellos circulares, tarjetas de cristal, íconos y más. Los tiempos son segundos desde el inicio de la escena. Estilos: gigante · pildora · pantalla · resaltado · seleccion · tachado · nota · tarjeta · icono · emoji (texto = el emoji) · neon (título luminoso) · circulo (sello con palabra ancha, p. ej. PIERDEN) · cristal (etiqueta de vidrio). Pon un emoji o ícono justo cuando se dice la palabra a la que ayuda, nunca encima del producto ni de la cara.', {
+    proyecto, escena: z.string(),
+    palabras: z.array(z.object({
+      texto: z.string(), en: z.number().min(0).describe('Segundo (desde el inicio de la escena) en que aparece'), hasta: z.number().min(0).optional(),
+      estilo: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal']).default('gigante'),
+      color: z.enum(['blanco', 'rojo', 'amarillo', 'negro']).default('blanco'),
+      x: z.number().min(0).max(1).default(0.5), y: z.number().min(0).max(1).default(0.17), tamano: z.number().min(0.3).max(3).default(1), giro: z.number().min(-45).max(45).optional(), detras: z.boolean().default(false),
+    })),
+    agregar: z.boolean().optional().describe('true = suma a las que ya hay; sin valor reemplaza'),
+  }, async (a) => {
+    const dir = await resolveProject(a.proyecto);
+    const p = await E.setWords(dir, a.escena, a.palabras.map((w) => ({ text: w.texto, at: w.en, until: w.hasta, style: w.estilo, color: w.color, x: w.x, y: w.y, size: w.tamano, rotate: w.giro, behind: w.detras })), { add: a.agregar });
     return E.summarize(p, dir);
   });
 
