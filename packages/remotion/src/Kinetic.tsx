@@ -171,12 +171,12 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
       // Título ancho (como «¿POR QUÉ NO USAR NOTION?»): las letras entran separadas y desenfocadas y se juntan, con relieve.
       const lines = titleLines(w.text);
       const dark = w.color === 'negro';
-      const spacing = interpolate(local, [0, 14], [0.55, 0.04], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+      const spacing = interpolate(local, [0, 14], [0.5, 0.025], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
       let k0 = 0;
       return (
-        <div style={{ ...base, transform: `translate(-50%, -50%)${rot}`, opacity: out, textAlign: 'center', fontFamily: extra?.wide ?? font, fontWeight: 800, textTransform: 'uppercase', color: dark ? '#111114' : '#FFFFFF', lineHeight: 1.02, textShadow: dark ? `0 ${3 * u}px 0 #c8c8c8, 0 ${10 * u}px ${18 * u}px rgba(0,0,0,0.18)` : `0 ${3 * u}px 0 #cfcfcf, 0 ${6 * u}px 0 #9d9d9d, 0 ${9 * u}px 0 #6e6e6e, 0 ${14 * u}px ${26 * u}px rgba(0,0,0,0.8), 0 0 ${44 * u}px rgba(0,0,0,0.55)` }}>
+        <div style={{ ...base, transform: `translate(-50%, -50%)${rot}`, opacity: out, textAlign: 'center', fontFamily: extra?.wide ?? font, fontWeight: 400, textTransform: 'uppercase', color: dark ? '#111114' : '#FFFFFF', lineHeight: 1.0, textShadow: dark ? `0 ${3 * u}px 0 #c8c8c8, 0 ${10 * u}px ${18 * u}px rgba(0,0,0,0.18)` : `0 ${3 * u}px 0 #cfcfcf, 0 ${6 * u}px 0 #9d9d9d, 0 ${9 * u}px 0 #6e6e6e, 0 ${14 * u}px ${26 * u}px rgba(0,0,0,0.8), 0 0 ${44 * u}px rgba(0,0,0,0.55)` }}>
           {lines.map((ln, li) => (
-            <div key={li} style={{ fontSize: Math.min((ln.big ? 118 : 70) * k, 900 / Math.max(1, ln.t.length * 0.86)) * u, letterSpacing: `${spacing}em`, whiteSpace: 'nowrap' }}>
+            <div key={li} style={{ fontSize: Math.min((ln.big ? 200 : 104) * k, 960 / Math.max(1, ln.t.length * 0.5)) * u, letterSpacing: `${spacing}em`, whiteSpace: 'nowrap' }}>
               {[...ln.t].map((ch, ci) => {
                 const at = (k0++) * 0.9;
                 const o = interpolate(local, [at, at + 4], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
@@ -193,12 +193,12 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
       const lines = titleLines(w.text);
       const dark = w.color === 'negro';
       return (
-        <div style={{ ...base, transform: `translate(-50%, -50%)${rot}`, opacity: out, display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: extra?.cond ?? font, fontWeight: 800, textTransform: 'uppercase', lineHeight: 0.98 }}>
+        <div style={{ ...base, transform: `translate(-50%, -50%)${rot}`, opacity: out, display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: extra?.cond ?? font, fontWeight: 900, textTransform: 'uppercase', lineHeight: 1.0 }}>
           {lines.map((ln, li) => {
             const e = spring({ frame: local - li * 5, fps, config: { damping: 18, stiffness: 190 }, durationInFrames: 12 });
             const bar = interpolate(local - li * 5, [6, 14], [0, 100], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
             return (
-              <div key={li} style={{ position: 'relative', fontSize: Math.min((ln.big ? 132 : 96) * k, 940 / Math.max(1, ln.t.length * 0.5)) * u, letterSpacing: `${interpolate(e, [0, 1], [0.35, 0])}em`, opacity: e, transform: `translateX(${interpolate(e, [0, 1], [60 * u, 0])}px)`, color: ln.mark ? '#FFFFFF' : dark ? '#111114' : '#FFFFFF', textShadow: dark && !ln.mark ? 'none' : `0 ${2 * u}px ${3 * u}px rgba(0,0,0,0.85), 0 ${6 * u}px ${22 * u}px rgba(0,0,0,0.75), 0 0 ${40 * u}px rgba(0,0,0,0.5)`, padding: `0 ${10 * u}px` }}>
+              <div key={li} style={{ position: 'relative', fontSize: Math.min((ln.big ? 138 : 92) * k, 960 / Math.max(1, ln.t.length * 0.66)) * u, letterSpacing: `${interpolate(e, [0, 1], [0.35, 0])}em`, opacity: e, transform: `translateX(${interpolate(e, [0, 1], [60 * u, 0])}px)`, color: ln.mark ? '#FFFFFF' : dark ? '#111114' : '#FFFFFF', textShadow: dark && !ln.mark ? 'none' : `0 ${2 * u}px ${3 * u}px rgba(0,0,0,0.85), 0 ${6 * u}px ${22 * u}px rgba(0,0,0,0.75), 0 0 ${40 * u}px rgba(0,0,0,0.5)`, padding: `0 ${10 * u}px` }}>
                 {ln.mark ? <span style={{ position: 'absolute', left: 0, top: '12%', height: '80%', width: `${bar}%`, background: '#2BD35F', zIndex: -1 }} /> : null}
                 {ln.t}
               </div>

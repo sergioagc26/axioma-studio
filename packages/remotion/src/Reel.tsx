@@ -348,7 +348,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const { fps } = useVideoConfig();
   const mfont = useFont(clip.motion?.style?.font ?? '');
   const dfont = { sans: useFont('Sora'), serif: useFont('Playfair Display'), comic: useFont('Bangers'), mono: useFont('Space Mono'), kinetic: useFont('Inter') };
-  const kfonts = { wide: useFont('Unbounded'), cond: useFont('Roboto Condensed'), round: useFont('Poppins') };
+  const kfonts = { wide: useFont('Anton'), cond: useFont('League Spartan'), round: useFont('Poppins') };
   const { cover, pos, filter } = clipView(clip, t, frame, fps);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
