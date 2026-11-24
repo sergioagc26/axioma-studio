@@ -78,7 +78,7 @@ export const TextAnim = z.enum(['subir', 'pop', 'deslizar', 'fundido', 'barrido'
 export type TextAnim = z.infer<typeof TextAnim>;
 export type TextStyle = z.infer<typeof TextStyle>;
 /** Aspecto de color de la imagen. */
-export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia', 'neon', 'neon-frio']);
+export const Look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia', 'neon', 'neon-frio', 'natural']);
 export type Look = z.infer<typeof Look>;
 /** Movimiento de cámara simulado durante la escena. */
 export const Camera = z.enum(['ninguno', 'acercar', 'alejar', 'izquierda', 'derecha', 'arriba', 'abajo', 'pulso', 'temblor', 'orbita', 'foco', 'respirar']);

@@ -496,6 +496,8 @@ const LOOKS: Record<string, string | undefined> = {
   sepia: 'sepia(0.9) contrast(1.05)',
   neon: 'saturate(1.45) contrast(1.12) brightness(1.03)',
   'neon-frio': 'saturate(1.3) contrast(1.14) brightness(0.98)',
+  // Para avatares y caras: casi sin tocar el color, para que la piel no se vea brillosa ni roja.
+  natural: 'contrast(1.04) saturate(1.06) brightness(1.01)',
 };
 
 /** ¿Se lee mejor texto negro o blanco sobre este color? */

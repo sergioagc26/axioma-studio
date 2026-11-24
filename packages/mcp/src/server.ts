@@ -27,7 +27,7 @@ const proyecto = z.string().optional().describe('Id o carpeta del proyecto. Si s
 const role = z.enum(['gancho', 'problema', 'beneficio', 'demostracion', 'prueba', 'cta', 'otro']);
 const visual = z.enum(['original', 'broll', 'motion', 'texto']);
 const textStyle = z.enum(['caja', 'resaltado', 'marcador', 'gigante', 'subrayado', 'neon', 'banda', 'contorno', 'degradado', 'sombra', 'etiqueta', 'cinta', 'sello', 'glitch', 'trazo', 'apilado', 'tresd', 'fuego', 'cromado', 'burbuja', 'retro', 'resplandor']);
-const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia', 'neon', 'neon-frio']);
+const look = z.enum(['normal', 'bn', 'calido', 'frio', 'contraste', 'vivo', 'cine', 'vintage', 'suave', 'dramatico', 'sepia', 'neon', 'neon-frio', 'natural']);
 const camera = z.enum(['ninguno', 'acercar', 'alejar', 'izquierda', 'derecha', 'arriba', 'abajo', 'pulso', 'temblor', 'orbita', 'foco']);
 
 export function createServer() {

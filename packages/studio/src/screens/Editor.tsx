@@ -57,7 +57,7 @@ const TEXT_ANIMS: [Scene['textAnim'], string][] = [
 ];
 const LOOK_NAMES: [Scene['look'], string][] = [
   ['normal', 'Normal'], ['vivo', 'Colores vivos'], ['calido', 'Cálido'], ['frio', 'Frío'], ['cine', 'Cine'], ['contraste', 'Alto contraste'],
-  ['dramatico', 'Dramático'], ['suave', 'Suave'], ['vintage', 'Vintage'], ['sepia', 'Sepia'], ['bn', 'Blanco y negro'], ['neon', 'Neón'], ['neon-frio', 'Neón frío'],
+  ['dramatico', 'Dramático'], ['suave', 'Suave'], ['vintage', 'Vintage'], ['sepia', 'Sepia'], ['bn', 'Blanco y negro'], ['neon', 'Neón'], ['neon-frio', 'Neón frío'], ['natural', 'Natural'],
 ];
 const CAMERA_NAMES: [Scene['camera'], string][] = [
   ['ninguno', 'Quieta'], ['acercar', 'Se acerca'], ['alejar', 'Se aleja'], ['izquierda', 'Paneo a la izquierda'], ['derecha', 'Paneo a la derecha'],
