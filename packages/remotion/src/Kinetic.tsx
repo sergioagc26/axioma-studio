@@ -11,7 +11,7 @@ export interface KineticWord {
   text: string; from: number; to: number;
   color: 'blanco' | 'rojo' | 'amarillo' | 'negro';
   x: number; y: number; size: number; behind: boolean;
-  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'acomodar' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
+  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'acomodar' | 'logo' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
   rotate?: number; files?: string[]; then?: number;
 }
 
@@ -289,6 +289,30 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
         <div style={{ ...base, transform: `translate(-50%, -50%) translateX(${interpolate(e, [0, 1], [320 * u, 0])}px) perspective(${1400 * u}px) rotateY(${interpolate(e, [0, 1], [-38, -10])}deg) rotate(${w.rotate ?? -4}deg)`, opacity: Math.min(1, e * 1.5) * out, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 * u }}>
           {src ? <Img src={src} style={{ width: cw, height: ch, objectFit: 'cover', borderRadius: 34 * u, border: `${4 * u}px solid rgba(255,255,255,0.85)`, boxShadow: `0 ${30 * u}px ${60 * u}px rgba(0,0,0,0.55)` }} /> : null}
           {w.text && w.text !== '-' ? <div style={{ fontFamily: font, fontWeight: 800, fontSize: 46 * u * k, color: '#fff', padding: `${10 * u}px ${26 * u}px`, borderRadius: 999, background: 'rgba(15,15,18,0.78)' }}>{w.text}</div> : null}
+        </div>
+      );
+    }
+    case 'logo': {
+      // Logo de marca integrado: placa de vidrio 3D que entra girando en perspectiva, con el resplandor del color
+      // de la marca, un brillo que la cruza una vez, reflejo abajo y flotación suave. text = color del resplandor (#hex).
+      const src = w.files?.[0];
+      if (!src) return null;
+      const glow = /^#[0-9a-f]{6}$/i.test(w.text) ? w.text : '#D97757';
+      const e = spring({ frame: local, fps, config: { damping: 12, stiffness: 120 }, durationInFrames: 22 });
+      const float = Math.sin(local / 13) * 9 * u;
+      const ry = interpolate(e, [0, 1], [-85, 0]) + Math.sin(local / 19) * 7;
+      const rx = Math.sin(local / 23) * 4;
+      const sweep = interpolate(local, [10, 30], [-60, 160], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+      const pulse = 0.55 + Math.sin(local / 9) * 0.12;
+      const side = 300 * u * k;
+      return (
+        <div style={{ ...base, transform: `translate(-50%, calc(-50% + ${float}px)) perspective(${1400 * u}px) rotateY(${ry}deg) rotateX(${rx}deg) rotate(${w.rotate ?? 0}deg) scale(${interpolate(e, [0, 1], [0.4, 1])})`, opacity: Math.min(1, e * 1.5) * out }}>
+          <div style={{ position: 'absolute', inset: -side * 0.35, borderRadius: '50%', background: `radial-gradient(circle, ${glow}${Math.round(pulse * 255).toString(16).padStart(2, '0')} 0%, transparent 62%)`, filter: `blur(${18 * u}px)` }} />
+          <div style={{ position: 'relative', width: side, height: side, borderRadius: side * 0.26, overflow: 'hidden', background: 'linear-gradient(150deg, #FFFDF8 0%, #EFE9DD 100%)', border: `${2 * u}px solid rgba(255,255,255,0.9)`, boxShadow: `0 ${30 * u}px ${46 * u}px rgba(0,0,0,0.5), 0 ${8 * u}px ${14 * u}px rgba(0,0,0,0.25), inset 0 ${-10 * u}px ${24 * u}px rgba(0,0,0,0.08), inset 0 ${6 * u}px ${10 * u}px rgba(255,255,255,0.9)`, display: 'grid', placeItems: 'center' }}>
+            <Img src={src} style={{ width: side * 0.62, height: side * 0.62, objectFit: 'contain', filter: `drop-shadow(0 ${4 * u}px ${6 * u}px rgba(0,0,0,0.18))` }} />
+            <div style={{ position: 'absolute', top: '-20%', bottom: '-20%', width: '38%', left: `${sweep}%`, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.85), transparent)', transform: 'skewX(-18deg)' }} />
+          </div>
+          <div style={{ position: 'absolute', left: '8%', right: '8%', top: side * 1.04, height: side * 0.12, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', filter: `blur(${14 * u}px)`, transform: `scale(${1 - float / (60 * u)})` }} />
         </div>
       );
     }
