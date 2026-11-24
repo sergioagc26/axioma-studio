@@ -124,3 +124,9 @@ Cuando pidan un video «dinámico», «como los de creador» o con «transicione
 - **Subtítulos:** una palabra a la vez, Poppins, al centro bajo de la cara, la clave en verde neón.
 - **Elementos con la voz** (`poner_palabras`): `emoji` (sticker que salta justo cuando se dice la palabra), `neon` (título luminoso para el gancho), `circulo` (sello rojo con la palabra ancha para el golpe: «HORAS», «PIERDES»), `cristal` (etiquetas de vidrio para contrastes: «ANTES» / «AHORA»). Uno o dos por escena, nunca sobre la cara ni el producto.
 - **Imagen:** look `neon` o `neon-frio` en las escenas con luces de color.
+
+### Textos y objetos profesionales (segunda tanda de referencias)
+- **Títulos** (`poner_palabras`): `ancho` (letras anchas que entran separadas y se juntan, con relieve; `/` separa líneas y `!` agranda una), `apilado` (título condensado en varias líneas; `*línea*` va sobre barra verde), `tresd` (palabra 3D de color) y `neon`. Ponlos con `detras: true` para que queden **detrás de la persona** (necesita el recorte: `recortar_persona`) y se vean como en los reels profesionales.
+- **Objetos:** `objeto` (PNG con transparencia que entra girando en 3D, flota y proyecta sombra), `app` (ícono tipo app con un emoji), `foto` (tarjeta flotante) y `emoji`. Nunca pegues una imagen cuadrada: genera el objeto sobre pantalla verde (`generate_image_local`), quítale el fondo con chromakey y úsalo como `objeto`.
+- **Lienzos de solo texto:** `fondo` (blanco o negro) y encima un `apilado`: se usa en las escenas de «el problema» y «así de simple», como en las referencias.
+- Cada elemento sale justo en la palabra que se dice: calcula el segundo con la transcripción, no a ojo.

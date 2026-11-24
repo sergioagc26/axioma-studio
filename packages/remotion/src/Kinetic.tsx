@@ -11,7 +11,7 @@ export interface KineticWord {
   text: string; from: number; to: number;
   color: 'blanco' | 'rojo' | 'amarillo' | 'negro';
   x: number; y: number; size: number; behind: boolean;
-  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal';
+  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
   rotate?: number; files?: string[]; then?: number;
 }
 
@@ -38,7 +38,27 @@ const AxiomaMark: React.FC<{ size: number }> = ({ size }) => (
 const typedText = (text: string, local: number, speed = 1.3) => text.slice(0, Math.max(0, Math.ceil(local * speed)));
 
 /** Un elemento con su entrada (crece desde un poco más chico y se enfoca) y su salida. */
-export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: number; font: string; mono: string; serif: string }> = ({ w, f, fps, width, font, mono, serif }) => {
+/** Tipografías extra del estilo de creador: ancha (títulos), condensada (títulos apilados) y redonda (3D). */
+export interface KineticFonts { wide: string; cond: string; round: string }
+
+/** Color más oscuro (para el relieve de las letras 3D). */
+const shade = (hex: string, k: number) => {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
+  return `rgb(${c(n >> 16)}, ${c((n >> 8) & 255)}, ${c(n & 255)})`;
+};
+
+/** Líneas de un título: «/» separa líneas, «!» al inicio la agranda y *línea* la remarca con barra de color. */
+const titleLines = (text: string) => text.split('/').map((raw) => {
+  let t = raw.trim();
+  const big = t.startsWith('!');
+  if (big) t = t.slice(1).trim();
+  const mark = /^\*.*\*$/.test(t);
+  if (mark) t = t.slice(1, -1);
+  return { t, big, mark };
+});
+
+export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: number; font: string; mono: string; serif: string; extra?: KineticFonts }> = ({ w, f, fps, width, font, mono, serif, extra }) => {
   if (f < w.from || f >= w.to) return null;
   const local = f - w.from;
   const u = width / 1080;
@@ -147,6 +167,98 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
       return (
         <div style={{ ...base, padding: `${22 * u * k}px ${44 * u * k}px`, borderRadius: 22 * u, border: `${3 * u}px solid rgba(255,255,255,0.75)`, background: 'linear-gradient(135deg, rgba(255,255,255,0.34), rgba(255,255,255,0.08))', backdropFilter: `blur(${14 * u}px)`, boxShadow: `0 ${14 * u}px ${34 * u}px rgba(0,0,0,0.35), inset 0 0 ${24 * u}px rgba(255,255,255,0.25)`, fontFamily: font, fontWeight: 900, fontSize: 84 * u * k, letterSpacing: '0.03em', color: '#fff', textTransform: 'uppercase' }}>{w.text}</div>
       );
+    case 'ancho': {
+      // Título ancho (como «¿POR QUÉ NO USAR NOTION?»): las letras entran separadas y desenfocadas y se juntan, con relieve.
+      const lines = titleLines(w.text);
+      const dark = w.color === 'negro';
+      const spacing = interpolate(local, [0, 14], [0.55, 0.04], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+      let k0 = 0;
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%)${rot}`, opacity: out, textAlign: 'center', fontFamily: extra?.wide ?? font, fontWeight: 800, textTransform: 'uppercase', color: dark ? '#111114' : '#FFFFFF', lineHeight: 1.02, textShadow: dark ? `0 ${3 * u}px 0 #c8c8c8, 0 ${10 * u}px ${18 * u}px rgba(0,0,0,0.18)` : `0 ${3 * u}px 0 #cfcfcf, 0 ${6 * u}px 0 #9d9d9d, 0 ${9 * u}px 0 #6e6e6e, 0 ${14 * u}px ${26 * u}px rgba(0,0,0,0.55)` }}>
+          {lines.map((ln, li) => (
+            <div key={li} style={{ fontSize: Math.min((ln.big ? 118 : 70) * k, 900 / Math.max(1, ln.t.length * 0.86)) * u, letterSpacing: `${spacing}em`, whiteSpace: 'nowrap' }}>
+              {[...ln.t].map((ch, ci) => {
+                const at = (k0++) * 0.9;
+                const o = interpolate(local, [at, at + 4], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+                return <span key={ci} style={{ opacity: o, filter: `blur(${(1 - o) * 10 * u}px)` }}>{ch}</span>;
+              })}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case 'apilado': {
+      // Título apilado condensado (como «¿SABES PORQUÉ / NUNCA DEJARÉ / DE USAR NOTION?»): cada línea entra
+      // deslizándose con las letras abiertas; la línea entre asteriscos va sobre una barra verde.
+      const lines = titleLines(w.text);
+      const dark = w.color === 'negro';
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%)${rot}`, opacity: out, display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: extra?.cond ?? font, fontWeight: 800, textTransform: 'uppercase', lineHeight: 0.98 }}>
+          {lines.map((ln, li) => {
+            const e = spring({ frame: local - li * 5, fps, config: { damping: 18, stiffness: 190 }, durationInFrames: 12 });
+            const bar = interpolate(local - li * 5, [6, 14], [0, 100], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+            return (
+              <div key={li} style={{ position: 'relative', fontSize: Math.min((ln.big ? 132 : 96) * k, 940 / Math.max(1, ln.t.length * 0.5)) * u, letterSpacing: `${interpolate(e, [0, 1], [0.35, 0])}em`, opacity: e, transform: `translateX(${interpolate(e, [0, 1], [60 * u, 0])}px)`, color: ln.mark ? '#FFFFFF' : dark ? '#111114' : '#FFFFFF', textShadow: dark && !ln.mark ? 'none' : `0 ${4 * u}px ${14 * u}px rgba(0,0,0,0.45)`, padding: `0 ${10 * u}px` }}>
+                {ln.mark ? <span style={{ position: 'absolute', left: 0, top: '12%', height: '80%', width: `${bar}%`, background: '#2BD35F', zIndex: -1 }} /> : null}
+                {ln.t}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    case 'tresd': {
+      // Palabra 3D de color (como «caos» en rojo): letras redondas con relieve del mismo color, más oscuro.
+      const c = { rojo: '#E8261F', amarillo: '#F6D60B', blanco: '#FFFFFF', negro: '#26262B' }[w.color];
+      const depth = Array.from({ length: 7 }, (_, i) => `0 ${(i + 1) * 1.6 * u}px 0 ${shade(c === '#FFFFFF' ? '#D9D9D9' : c, 0.78 - i * 0.05)}`).join(', ');
+      const pop = spring({ frame: local, fps, config: { damping: 9, stiffness: 200 }, durationInFrames: 12 });
+      return <div style={{ ...base, transform: `translate(-50%, -50%) rotate(${w.rotate ?? -4}deg) scale(${interpolate(pop, [0, 1], [0.3, 1])})`, fontFamily: extra?.round ?? font, fontWeight: 800, fontSize: 150 * u * k, letterSpacing: '-0.02em', color: c, textShadow: `${depth}, 0 ${16 * u}px ${26 * u}px rgba(0,0,0,0.5)` }}>{w.text}</div>;
+    }
+    case 'app': {
+      // Ícono tipo app 3D: cuadro redondeado con degradado, brillo y el símbolo (un emoji) en blanco.
+      const g = { rojo: ['#FF9A3D', '#F04E23'], amarillo: ['#FFE259', '#FFA751'], blanco: ['#9F7BFF', '#5B3BE8'], negro: ['#3A3A40', '#111114'] }[w.color];
+      const pop = spring({ frame: local, fps, config: { damping: 9, stiffness: 210 }, durationInFrames: 13 });
+      const float = Math.sin(local / 10) * 6 * u;
+      const side = 190 * u * k;
+      return (
+        <div style={{ ...base, transform: `translate(-50%, calc(-50% + ${float}px)) rotate(${w.rotate ?? 6}deg) scale(${interpolate(pop, [0, 1], [0.2, 1])})`, width: side, height: side, borderRadius: side * 0.24, background: `linear-gradient(145deg, ${g[0]}, ${g[1]})`, display: 'grid', placeItems: 'center', boxShadow: `0 ${18 * u}px ${36 * u}px rgba(0,0,0,0.45), 0 0 ${46 * u}px ${g[0]}88, inset 0 ${6 * u}px ${10 * u}px rgba(255,255,255,0.45)` }}>
+          <span style={{ fontSize: side * 0.56, lineHeight: 1, filter: `drop-shadow(0 ${4 * u}px ${6 * u}px rgba(0,0,0,0.35))` }}>{w.text}</span>
+        </div>
+      );
+    }
+    case 'fondo': {
+      // Lienzo de pantalla completa para escenas de solo texto: blanco con sombra abajo (como las referencias) u oscuro.
+      const o = interpolate(local, [0, 4], [0, 1], { extrapolateRight: 'clamp' }) * out;
+      const bg = w.color === 'negro' ? 'radial-gradient(circle at 50% 40%, #2A2A33 0%, #0B0B0D 75%)' : 'linear-gradient(180deg, #FFFFFF 0%, #F6F6F6 72%, #2A2A2A 100%)';
+      return <div style={{ position: 'absolute', inset: 0, background: bg, opacity: o }} />;
+    }
+    case 'foto': {
+      // Imagen de apoyo flotando como tarjeta inclinada en 3D, con su etiqueta (el texto) debajo.
+      const src = w.files?.[0];
+      const e = spring({ frame: local, fps, config: { damping: 16, stiffness: 120 }, durationInFrames: 18 });
+      const cw = 560 * u * k, ch = 700 * u * k;
+      return (
+        <div style={{ ...base, transform: `translate(-50%, -50%) translateX(${interpolate(e, [0, 1], [320 * u, 0])}px) perspective(${1400 * u}px) rotateY(${interpolate(e, [0, 1], [-38, -10])}deg) rotate(${w.rotate ?? -4}deg)`, opacity: Math.min(1, e * 1.5) * out, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18 * u }}>
+          {src ? <Img src={src} style={{ width: cw, height: ch, objectFit: 'cover', borderRadius: 34 * u, border: `${4 * u}px solid rgba(255,255,255,0.85)`, boxShadow: `0 ${30 * u}px ${60 * u}px rgba(0,0,0,0.55)` }} /> : null}
+          {w.text && w.text !== '-' ? <div style={{ fontFamily: font, fontWeight: 800, fontSize: 46 * u * k, color: '#fff', padding: `${10 * u}px ${26 * u}px`, borderRadius: 999, background: 'rgba(15,15,18,0.78)' }}>{w.text}</div> : null}
+        </div>
+      );
+    }
+    case 'objeto': {
+      // Objeto 3D recortado (PNG transparente): entra girando en perspectiva con rebote, flota y proyecta sombra
+      // sobre la escena, sin marco. Así se ve hecho para el video y no pegado encima.
+      const src = w.files?.[0];
+      if (!src) return null;
+      const e = spring({ frame: local, fps, config: { damping: 11, stiffness: 150 }, durationInFrames: 18 });
+      const float = Math.sin(local / 11) * 10 * u;
+      const tilt = Math.sin(local / 17) * 4;
+      const side = 520 * u * k;
+      return (
+        <div style={{ ...base, transform: `translate(-50%, calc(-50% + ${float}px)) perspective(${1200 * u}px) rotateY(${interpolate(e, [0, 1], [70, tilt])}deg) rotate(${(w.rotate ?? 0) + interpolate(e, [0, 1], [-18, 0])}deg) scale(${interpolate(e, [0, 1], [0.35, 1])})`, opacity: Math.min(1, e * 1.4) * out }}>
+          <Img src={src} style={{ width: side, height: side, objectFit: 'contain', filter: `drop-shadow(0 ${28 * u}px ${30 * u}px rgba(0,0,0,0.55)) drop-shadow(0 0 ${36 * u}px rgba(255,255,255,0.18))` }} />
+        </div>
+      );
+    }
     case 'archivo': {
       // Caja de selección (con tiradores blancos) con un ícono y el texto que se va escribiendo.
       const hs = 10 * u;
@@ -239,9 +351,9 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
 };
 
 /** Los elementos de un tramo; los de «detrás» quedan bajo la persona recortada (si hay recorte). */
-export const Words: React.FC<{ words: KineticWord[]; f: number; fps: number; width: number; font: string; mono: string; serif: string; layer: 'detras' | 'delante' }> = ({ words, f, fps, width, font, mono, serif, layer }) => (
+export const Words: React.FC<{ words: KineticWord[]; f: number; fps: number; width: number; font: string; mono: string; serif: string; layer: 'detras' | 'delante'; extra?: KineticFonts }> = ({ words, f, fps, width, font, mono, serif, extra, layer }) => (
   <AbsoluteFill style={{ pointerEvents: 'none' }}>
-    {words.filter((w) => (layer === 'detras') === w.behind).map((w, i) => <Word key={i} w={w} f={f} fps={fps} width={width} font={font} mono={mono} serif={serif} />)}
+    {words.filter((w) => (layer === 'detras') === w.behind).map((w, i) => <Word key={i} w={w} f={f} fps={fps} width={width} font={font} mono={mono} serif={serif} extra={extra} />)}
   </AbsoluteFill>
 );
 

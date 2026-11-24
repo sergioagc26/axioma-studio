@@ -413,18 +413,19 @@ export function createServer() {
     return E.summarize(p, dir);
   });
 
-  tool('poner_palabras', 'Pone en una escena las palabras gigantes y los elementos que aparecen con la voz: palabras enormes, emojis tipo sticker, títulos de neón, sellos circulares, tarjetas de cristal, íconos y más. Los tiempos son segundos desde el inicio de la escena. Estilos: gigante · pildora · pantalla · resaltado · seleccion · tachado · nota · tarjeta · icono · emoji (texto = el emoji) · neon (título luminoso) · circulo (sello con palabra ancha, p. ej. PIERDEN) · cristal (etiqueta de vidrio). Pon un emoji o ícono justo cuando se dice la palabra a la que ayuda, nunca encima del producto ni de la cara.', {
+  tool('poner_palabras', 'Pone en una escena las palabras gigantes y los elementos que aparecen con la voz: palabras enormes, emojis tipo sticker, títulos de neón, sellos circulares, tarjetas de cristal, íconos y más. Los tiempos son segundos desde el inicio de la escena. Estilos: gigante · pildora · pantalla · resaltado · seleccion · tachado · nota · tarjeta · icono · emoji (texto = el emoji) · neon (título luminoso) · circulo (sello con palabra ancha, p. ej. PIERDEN) · cristal (etiqueta de vidrio) · ancho (título de letras anchas que se juntan, con relieve) · apilado (título condensado en varias líneas: «/» separa líneas, «!» agranda una línea y *línea* la pone sobre barra verde) · tresd (palabra 3D de color) · app (ícono tipo app con un emoji dentro) · fondo (lienzo blanco o negro de pantalla completa para una escena de solo texto: ponlo primero) · foto (imagen de apoyo flotando como tarjeta, con etiqueta) · objeto (objeto 3D recortado, PNG transparente, que entra girando y flota con sombra; usa archivo). Pon un emoji o ícono justo cuando se dice la palabra a la que ayuda, nunca encima del producto ni de la cara.', {
     proyecto, escena: z.string(),
     palabras: z.array(z.object({
       texto: z.string(), en: z.number().min(0).describe('Segundo (desde el inicio de la escena) en que aparece'), hasta: z.number().min(0).optional(),
-      estilo: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal']).default('gigante'),
+      estilo: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal', 'ancho', 'apilado', 'tresd', 'app', 'fondo', 'foto', 'objeto']).default('gigante'),
+      archivo: z.string().optional().describe('Con estilo foto u objeto: imagen del proyecto (ruta dentro de la carpeta del proyecto)'),
       color: z.enum(['blanco', 'rojo', 'amarillo', 'negro']).default('blanco'),
       x: z.number().min(0).max(1).default(0.5), y: z.number().min(0).max(1).default(0.17), tamano: z.number().min(0.3).max(3).default(1), giro: z.number().min(-45).max(45).optional(), detras: z.boolean().default(false),
     })),
     agregar: z.boolean().optional().describe('true = suma a las que ya hay; sin valor reemplaza'),
   }, async (a) => {
     const dir = await resolveProject(a.proyecto);
-    const p = await E.setWords(dir, a.escena, a.palabras.map((w) => ({ text: w.texto, at: w.en, until: w.hasta, style: w.estilo, color: w.color, x: w.x, y: w.y, size: w.tamano, rotate: w.giro, behind: w.detras })), { add: a.agregar });
+    const p = await E.setWords(dir, a.escena, a.palabras.map((w) => ({ text: w.texto, at: w.en, until: w.hasta, style: w.estilo, color: w.color, x: w.x, y: w.y, size: w.tamano, rotate: w.giro, behind: w.detras, files: w.archivo ? [w.archivo] : undefined })), { add: a.agregar });
     return E.summarize(p, dir);
   });
 

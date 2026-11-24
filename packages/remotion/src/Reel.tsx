@@ -283,7 +283,7 @@ function clipView(clip: TimelineClip, t: Timeline, frame: number, fps: number) {
   // (cerca, lejos, cerca…) con un muelle corto, como los cortes de un editor; sin palabras, un
   // golpe de zoom al entrar a la escena.
   const sceneF = clip.sceneOffsetFrames + frame;
-  const beats = clip.punchZoom && clip.words?.length ? clip.words.filter((w) => !['miniaturas', 'chat', 'tira', 'ruta', 'tarjeta', 'icono', 'nota', 'mic', 'emoji', 'cristal'].includes(w.style)).map((w) => w.from).filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y) : [];
+  const beats = clip.punchZoom && clip.words?.length ? clip.words.filter((w) => !['miniaturas', 'chat', 'tira', 'ruta', 'tarjeta', 'icono', 'nota', 'mic', 'emoji', 'cristal', 'app', 'foto', 'fondo', 'objeto'].includes(w.style)).map((w) => w.from).filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y) : [];
   let zoom = 1;
   if (beats.length) {
     let n = 0;
@@ -348,6 +348,7 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
   const { fps } = useVideoConfig();
   const mfont = useFont(clip.motion?.style?.font ?? '');
   const dfont = { sans: useFont('Sora'), serif: useFont('Playfair Display'), comic: useFont('Bangers'), mono: useFont('Space Mono'), kinetic: useFont('Inter') };
+  const kfonts = { wide: useFont('Unbounded'), cond: useFont('Roboto Condensed'), round: useFont('Poppins') };
   const { cover, pos, filter } = clipView(clip, t, frame, fps);
   // El audio siempre es la voz del video original, aunque la imagen sea otra.
   // Microfundido en cada corte: evita el «clic» y el aspecto de corte automático.
@@ -427,11 +428,11 @@ const Clip: React.FC<{ clip: TimelineClip; t: Timeline; font: string }> = ({ cli
           const person = !clip.brollSrc && !clip.motion && clip.visual === 'original' && t.cutoutSrc;
           return (
             <>
-              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} serif={dfont.serif} layer="detras" />
+              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} serif={dfont.serif} extra={kfonts} layer="detras" />
               {person && clip.words.some((w) => w.behind && wf >= w.from && wf < w.to) ? (
                 <AbsoluteFill><OffthreadVideo src={t.cutoutSrc!} transparent trimBefore={clip.sourceStartFrame} muted style={{ ...cover, objectPosition: `${pos.x * 100}% ${pos.y * 100}%` }} /></AbsoluteFill>
               ) : null}
-              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} serif={dfont.serif} layer="delante" />
+              <Words words={clip.words} f={wf} fps={fps} width={t.width} font={dfont.kinetic} mono={dfont.mono} serif={dfont.serif} extra={kfonts} layer="delante" />
             </>
           );
         })() : null}
