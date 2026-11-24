@@ -201,7 +201,7 @@ export const Scene = z.object({
     size: z.number().min(0.3).max(3).default(1),
     behind: z.boolean().default(false),
     /** gigante: palabra grande · pildora: etiqueta · pantalla: texto que se escribe (*palabra* en rojo) · resaltado: caja amarilla · seleccion: caja roja con tiradores · tachado: palabra con raya roja · nota: papelito pegado · tarjeta: dato con barras (92%) · icono: tarjeta de app (axioma o chispa) · archivo: caja de selección con ícono y texto que se escribe · tira: línea de tiempo pequeña · ruta: curva de animación con puntos · miniaturas: collage de imágenes que entran volando (files) · chat: ventana de chat (text = mensaje; files[0] = adjunto que llega en «then») · mic: onda de voz con micrófono (text = lo que se pide). */
-    style: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal', 'ancho', 'apilado', 'tresd', 'app', 'fondo', 'foto', 'objeto']).default('gigante'),
+    style: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal', 'ancho','acomodar', 'apilado', 'tresd', 'app', 'fondo', 'foto', 'objeto']).default('gigante'),
     rotate: z.number().min(-45).max(45).optional(),
     files: z.array(z.string()).optional(),
     /** Segundos (desde el inicio de la escena) del segundo paso del elemento (el adjunto del chat, el cambio de texto). */

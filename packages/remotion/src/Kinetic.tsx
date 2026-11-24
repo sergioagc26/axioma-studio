@@ -11,7 +11,7 @@ export interface KineticWord {
   text: string; from: number; to: number;
   color: 'blanco' | 'rojo' | 'amarillo' | 'negro';
   x: number; y: number; size: number; behind: boolean;
-  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
+  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'acomodar' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
   rotate?: number; files?: string[]; then?: number;
 }
 
@@ -184,6 +184,54 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
               })}
             </div>
           ))}
+        </div>
+      );
+    }
+    case 'acomodar': {
+      // Título que se acomoda solo alrededor de la cabeza: cada línea se parte en dos mitades que entran
+      // volando desde los lados y se posan a ambos lados de la cara (la cara queda libre en el centro).
+      // «/» separa las filas; *palabra* o *fila entera* lleva barra verde; x = centro de la cabeza.
+      // Opcional: «texto|0.17» fija la mitad del hueco libre (fracción del ancho) cuando la cara es grande.
+      const [titleText, gapText] = w.text.split('|');
+      const rows = titleText.split('/').map((raw) => {
+        let t = raw.trim();
+        const all = /^\*.*\*$/.test(t) && !t.slice(1, -1).includes('*');
+        if (all) t = t.slice(1, -1);
+        const tk = t.split(/\s+/).map((x) => ({ t: x.replace(/\*/g, ''), mark: all || /^\*.*\*$/.test(x) }));
+        const cut = tk.length === 1 ? 1 : Math.ceil(tk.length / 2);
+        return { left: tk.slice(0, cut), right: tk.slice(cut) };
+      });
+      const gap = Number(gapText) > 0 ? Number(gapText) : 0.145, margin = 0.03;
+      const colW = (0.5 - gap - margin) * 1080;
+      const dark = w.color === 'negro';
+      const side = (ws: { t: string; mark: boolean }[], dir: -1 | 1, ri: number, size: number) => {
+        const e = spring({ frame: local - ri * 6 - (dir === 1 ? 3 : 0), fps, config: { damping: 11, stiffness: 150 }, durationInFrames: 18 });
+        const bob = Math.sin((local + ri * 7 + (dir === 1 ? 4 : 0)) / 9) * 3 * u;
+        return (
+          <div style={{ display: 'flex', justifyContent: dir === -1 ? 'flex-end' : 'flex-start', gap: size * 0.28, opacity: Math.min(1, e * 1.8), transform: `translate(${interpolate(e, [0, 1], [dir * 420 * u, 0])}px, ${bob}px) rotate(${interpolate(e, [0, 1], [dir * 9, 0])}deg)`, filter: `blur(${(1 - Math.min(1, e)) * 9 * u}px)` }}>
+            {ws.map((x, i) => (
+              <span key={i} style={{ position: 'relative', padding: x.mark ? `0 ${size * 0.1}px` : undefined, color: dark && !x.mark ? '#111114' : '#fff' }}>
+                {x.mark ? <span style={{ position: 'absolute', inset: '8% 0', background: '#2BD35F', zIndex: -1 }} /> : null}
+                {x.t}
+              </span>
+            ))}
+          </div>
+        );
+      };
+      return (
+        <div style={{ position: 'absolute', left: `${(w.x - 0.5) * 100}%`, width: '100%', top: `${(w.y - 0.055) * 100}%`, transform: `${rot.trim()}`, opacity: out, fontFamily: extra?.wide ?? font, fontWeight: 400, textTransform: 'uppercase', lineHeight: 1.04, textShadow: dark ? `0 ${3 * u}px 0 #c8c8c8, 0 ${10 * u}px ${18 * u}px rgba(0,0,0,0.18)` : `0 ${3 * u}px 0 #cfcfcf, 0 ${6 * u}px 0 #9d9d9d, 0 ${9 * u}px 0 #6e6e6e, 0 ${14 * u}px ${26 * u}px rgba(0,0,0,0.8), 0 0 ${44 * u}px rgba(0,0,0,0.55)` }}>
+          {rows.map((r, ri) => {
+            const longest = Math.max(1, ...[...r.left, ...r.right].map((x) => x.t.length));
+            const longL = r.left.reduce((a, x) => a + x.t.length + 0.6, -0.6), longR = r.right.reduce((a, x) => a + x.t.length + 0.6, -0.6);
+            const size = Math.min(170 * k, colW / (Math.max(longL, longR, longest * 0.9) * 0.47)) * u;
+            return (
+              <div key={ri} style={{ display: 'grid', gridTemplateColumns: `1fr ${gap * 2 * 100}% 1fr`, padding: `0 ${margin * 100}%`, fontSize: size, whiteSpace: 'nowrap' }}>
+                {side(r.left, -1, ri, size)}
+                <span />
+                {side(r.right, 1, ri, size)}
+              </div>
+            );
+          })}
         </div>
       );
     }
