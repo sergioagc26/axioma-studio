@@ -11,6 +11,8 @@ La persona no tiene que saber cómo funciona la app: tú llevas el proceso, preg
 
 **Cómo preguntar.** Usa `AskUserQuestion` con 2 a 4 opciones por pregunta (la recomendada primero), hasta 4 preguntas por tanda. Si la herramienta no está, pregunta en texto con las mismas opciones numeradas. No repitas lo que ya dijo la persona, lo que está en el `pedido.txt`, en el brief guardado (`leer_proyecto`), en la marca (`leer_kit`) o en el documento del cliente (Notion, Drive) si te dieron el enlace. Si dice «tú decide», decide con los valores por defecto y dilo en una línea.
 
+**Sin nada grabado.** Si pide un video animado (motion graphics) a partir de su web o marca, sigue la skill `promo-motion`: tiene su propio pedido, animación, sonido y entrega.
+
 **Si la persona trabaja a distancia** (no ve la pantalla), termina cada mensaje repitiendo la pregunta pendiente con sus opciones.
 
 ## Fase 0 · Prepara (sin preguntar nada)
