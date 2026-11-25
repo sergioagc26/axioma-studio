@@ -19,6 +19,8 @@ Crea dentro una carpeta con el nombre del video (por ejemplo `promo-noviembre`) 
 | `logo.png` | Tu logo. |
 | `musica.mp3` | Tu canción (tuya o con licencia). |
 
+**La marca (solo la primera vez).** El `pedido.txt` tiene al final una parte «LA MARCA»: a qué te dedicas, cómo habla tu marca, tus colores (con nombre, como «azul oscuro y dorado», o con código, como `#0B2A5B`), tu tipografía y el enlace de un video que te guste cómo se ve. Se guarda para todos tus videos siguientes. Si la dejas vacía, Claude te la pregunta.
+
 **3. Abre Claude en la carpeta del programa y escribe:**
 
 > hazme el video de promo-noviembre
@@ -53,6 +55,7 @@ Cada vez que cambies algo, el video nuevo vuelve a aparecer en `Listos` y el ant
 ## Bueno saber
 
 - Nada se publica sin que tú lo digas.
-- La primera vez, Claude te pregunta por tu marca (a qué te dedicas, tus colores). Lo recuerda para siempre.
+- La primera vez, Claude te pregunta por tu marca (a qué te dedicas, cómo hablas, tus colores, tu letra y tu logo) y si hay un video que te guste cómo se ve. Lo recuerda para siempre.
+- Si ya le diste todo escrito, no te vuelve a preguntar: te muestra lo que entendió y solo pregunta lo que falte.
 - Si quieres ver o mover algo con tus manos, dile «ábrelo en el studio». Es opcional.
 - ¿Algo no funciona? Escribe «revisa que todo esté instalado».

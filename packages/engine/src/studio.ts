@@ -459,7 +459,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         return {
           name: o.name, loose: o.path === o.files.videos[0],
           files: { videos: o.files.videos.map((f) => b(f)!), referencias: o.files.referencias.map((f) => b(f)!), guion: b(o.files.guion), pedido: b(o.files.pedido), logo: b(o.files.logo), musica: b(o.files.musica), otros: o.files.otros.map((f) => b(f)!) },
-          answers: parsed ? { ...parsed.brief, ...(parsed.client ? { cliente: parsed.client } : {}) } : {},
+          answers: parsed ? { ...parsed.brief, ...parsed.brandText, ...(parsed.client ? { cliente: parsed.client } : {}) } : {},
           state: o.state.video && !existsSync(o.state.video) ? { ...o.state, video: undefined } : o.state,
           job: job?.status === 'running' ? job : undefined,
         };

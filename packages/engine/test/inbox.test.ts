@@ -49,6 +49,44 @@ describe('parseOrder', () => {
     expect(E.parseOrder('Duración: 30 s\nno muestres la cara del niño').brief).toEqual({ duracion: '30 s', notas: 'no muestres la cara del niño' });
   });
 
+  it('lee la marca del pedido: colores, letra, sector, tono y referencia', () => {
+    const r = E.parseOrder(E.ORDER_TEMPLATE
+      .replace('Marca o cliente:', 'Marca o cliente: Gym Fuerza')
+      .replace('A qué se dedica la marca:', 'A qué se dedica la marca: somos un gimnasio de crossfit')
+      .replace('Cómo habla la marca:', 'Cómo habla la marca: motivadora y directa')
+      .replace('Colores de la marca:', 'Colores de la marca: azul oscuro y dorado, letras #fff')
+      .replace('Tipografía:', 'Tipografía: Bebas Neue para títulos y montserrat')
+      .replace('Referencia (enlace de un video que te guste):', 'Referencia (enlace de un video que te guste): https://www.instagram.com/reel/ABC123/.'));
+    expect(r.client).toBe('Gym Fuerza');
+    expect(r.brief).toEqual({});
+    expect(r.brand).toEqual({
+      colors: ['#0B2A5B', '#D4A537', '#FFFFFF'], fonts: ['Bebas Neue', 'Montserrat'],
+      sector: 'gimnasio', personality: 'energica', references: ['https://www.instagram.com/reel/ABC123/'],
+    });
+    // Al volver a abrir el pedido en el studio, la marca se ve tal como se escribió.
+    expect(r.brandText.colores).toBe('azul oscuro y dorado, letras #fff');
+    expect(E.parseOrder(E.ORDER_TEMPLATE.replace('Colores de la marca:', `Colores de la marca: ${r.brandText.colores}`)).brand.colors).toEqual(r.brand.colors);
+  });
+
+  it('lo que no se entiende de la marca no se inventa: queda como nota', () => {
+    const r = E.parseOrder('Colores de la marca: los del logo\nTipografía: una bonita');
+    expect(r.brand.colors).toEqual([]);
+    expect(r.brand.fonts).toEqual([]);
+    expect(r.brief.notas).toBe('Marca: colores: los del logo; tipografia: una bonita');
+  });
+
+  it('la marca también se entiende desde las respuestas del chat', () => {
+    expect(E.brandFrom({ colores: 'negro y amarillo', tipografia: 'Anton', sector: 'barbería', personalidad: 'rebelde' })).toEqual({
+      brand: { colors: ['#111111', '#FFD200'], fonts: ['Anton'], sector: 'moda', personality: 'rebelde', references: [] },
+    });
+  });
+
+  it('«azul oscuro» es un color, no «azul» y otro más; WhatsApp no es tecnología', () => {
+    expect(E.parseColors('Azul oscuro, rojo')).toEqual(['#0B2A5B', '#E53935']);
+    expect(E.parseSector('vendemos por whatsapp en la tienda')).toBe('negocios');
+    expect(E.parsePersonality('elegante y exclusiva')).toBe('elegante');
+  });
+
   it('YouTube va horizontal; Shorts y redes, vertical', () => {
     expect(E.shapeFor('YouTube')).toBe('horizontal');
     expect(E.shapeFor('YouTube Shorts')).toBe('vertical');

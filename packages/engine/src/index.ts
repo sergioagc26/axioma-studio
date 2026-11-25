@@ -60,6 +60,7 @@ export * from './script.ts';
 export * from './voicesync.ts';
 export * from './front.ts';
 export * from './refsource.ts';
+export * from './brandorder.ts';
 export * from './cancel.ts';
 export * from './stabilize.ts';
 export * from './machine.ts';

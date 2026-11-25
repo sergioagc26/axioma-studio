@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -86,7 +87,7 @@ export function createServer() {
 
   tool(
     'hacer_video',
-    'UN PEDIDO → VIDEO TERMINADO, sin preguntar: toma un pedido de «Para editar», reconoce lo que hay (alguien hablando a cámara, varias partes habladas que se unen, o video sin voz que va como montaje), usa el pedido.txt, el guion (corta con él), la referencia (su estilo), el logo y la música si vienen, edita todo (corte, gancho, subtítulos, textos, música, efectos) y deja el MP4 en «Listos». Tarda de 3 a 15 minutos. "respuestas" agrega o corrige lo del pedido (claves del brief: objetivo, formato, duracion, ritmo, tono, publico, cta, notas).',
+    'UN PEDIDO → VIDEO TERMINADO, sin preguntar: toma un pedido de «Para editar», reconoce lo que hay (alguien hablando a cámara, varias partes habladas que se unen, o video sin voz que va como montaje), usa el pedido.txt, el guion (corta con él), la referencia (su estilo), el logo y la música si vienen, edita todo (corte, gancho, subtítulos, textos, música, efectos) y deja el MP4 en «Listos». Tarda de 3 a 15 minutos. "respuestas" agrega o corrige lo del pedido (claves del brief: objetivo, formato, duracion, ritmo, tono, publico, cta, notas). La marca también entra aquí y queda guardada en el kit del cliente para sus próximos videos: colores (nombres o #hex, el primero es el principal), tipografia, sector (a qué se dedica), personalidad (cómo habla) y referencia (enlace de un reel que le guste: se baja y se edita con su estilo).',
     {
       pedido: z.string().optional().describe('Nombre de la carpeta (o del video suelto). Vacío: el único pendiente.'),
       cliente: z.string().optional().describe('Marca o cliente; si no, el que diga el pedido o "personal"'),
@@ -552,11 +553,22 @@ export function createServer() {
   tool(
     'analizar_referencia',
     'Analiza el ESTILO de un video de referencia (ritmo de cortes, tempo, paleta) y extrae 8 fotogramas. Después mira 3–4 fotogramas con tu herramienta de lectura de imágenes para describir subtítulos (posición, mayúsculas, palabras por línea, color de resaltado) y elegir la fuente más parecida de la lista disponible. Luego guarda el estilo con guardar_preset. Nunca copies el contenido (textos, clips, música) de la referencia.',
-    { video: z.string().describe('Ruta absoluta del video de referencia'), proyecto, nombre: z.string().optional() },
+    { video: z.string().describe('Ruta absoluta del video de referencia, o el enlace de la publicación (Instagram, TikTok, YouTube, Facebook)'), proyecto, nombre: z.string().optional() },
     async ({ video, proyecto, nombre }) => {
       const p = await E.readProject(await resolveProject(proyecto));
-      const { dir, report } = await E.analyzeReference(video, { client: p.client, name: nombre });
-      return `${E.formatReport(report, dir)}\n\nFuentes disponibles: ${FONT_FAMILIES.join(', ')}.`;
+      if (!/^https?:\/\//i.test(video.trim())) {
+        const { dir, report } = await E.analyzeReference(video, { client: p.client, name: nombre });
+        return `${E.formatReport(report, dir)}\n\nFuentes disponibles: ${FONT_FAMILIES.join(', ')}.`;
+      }
+      // Un enlace: se baja solo para analizarlo aquí y se borra (el video de otra cuenta no se guarda).
+      const tmp = path.join(os.tmpdir(), `axioma-ref-${Date.now()}`);
+      try {
+        const { file, source } = await E.downloadReference(video.trim(), tmp);
+        const { dir, report } = await E.analyzeReference(file, { client: p.client, name: nombre ?? source.author, source });
+        return `${E.formatReport(report, dir)}\n\nFuentes disponibles: ${FONT_FAMILIES.join(', ')}.`;
+      } finally {
+        await rm(tmp, { recursive: true, force: true });
+      }
     },
   );
 

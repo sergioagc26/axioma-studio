@@ -17,9 +17,23 @@ La persona no tiene que saber cómo funciona la app: tú llevas el proceso, preg
 
 1. `estado_sistema`: si falta algo, di el arreglo en una línea y para. **Si las herramientas de Axioma no existen**, la app no está instalada o conectada: sigue la skill `instalar-axioma` y vuelve aquí cuando termine.
 2. `leer_pedidos` y `listar_proyectos`: ¿ya hay material o un proyecto empezado? Si hay uno en curso, ofrece continuarlo en vez de empezar otro.
-3. Si hay marca del cliente, `leer_kit`.
+3. Si hay marca del cliente, `leer_kit` y `listar_referencias`: así sabes si ya tiene colores, letra, sector, logo y un estilo guardado.
 
-## Fase 1 · Entrevista (máximo 3 tandas)
+## Fase 1 · Entrevista (máximo 4 tandas)
+
+### Si la persona ya dio la información completa
+
+Pasa seguido: pegan un brief largo, traen un `pedido.txt` lleno, mandan un documento del cliente o escriben todo en un solo mensaje. **No hagas la entrevista.** En su lugar:
+
+1. Saca de lo que dio cada dato de la lista de abajo (tandas 1 a 4) y apúntalo con sus palabras.
+2. Muéstrale una tabla corta de una sola vez: dato · lo que entendiste · ✓ o «falta». Incluye siempre la fila de **marca** (sector, tono, colores, letra, logo) y la de **referencia**.
+3. Pregunta **solo lo que falta**, en una tanda (máximo 4 preguntas, con opciones). Si no falta nada crítico, pregunta solo «¿Está bien así?» (Sí, armar · Corregir algo).
+4. Guarda todo antes de armar: la marca con `guardar_kit` (y `logo_marca` si trajo logo), la referencia con `analizar_referencia` (acepta el enlace del reel) y el brief con `guardar_brief`, o pásalo en `respuestas` de `hacer_video` (claves de marca: `colores`, `tipografia`, `sector`, `personalidad`, `referencia`).
+5. Sigue en la fase 2.
+
+Lo crítico, que nunca se supone: datos que salen en pantalla (precio, contacto, horario), personas que no pueden salir y los productos. Lo demás tiene valor por defecto.
+
+### Si no dio la información completa: las tandas
 
 **Tanda 1 · Qué y para quién**
 - Tipo de video: promo de productos · alguien hablando a cámara · montaje sin voz (gym, comida, viajes) · reel con avatar o voz IA.
@@ -34,13 +48,26 @@ La persona no tiene que saber cómo funciona la app: tú llevas el proceso, preg
 - Efectos de sonido: pocos (whoosh en cambios fuertes) · muchos · ninguno.
 - Calidad de entrega: **Full HD 1080p** (recomendado: redes, liviano y rápido) · 4K (más lento y pesado). Fíjala con `resolucion_entrega` antes de armar y confírmala al final: el video no debe salir en otra resolución sin que la persona lo haya elegido.
 
-**Tanda 3 · Contenido y límites**
+**Tanda 3 · Marca y estilo** (solo si `leer_kit` no lo tiene; se pregunta una vez por cliente y queda guardado para sus próximos videos)
+- A qué se dedica y cómo habla la marca: gimnasio, comida, restaurante, moda y belleza, tecnología, educación, salud, negocios… · enérgica, cercana, elegante, divertida, seria o rebelde. Deciden el estilo completo de subtítulos, títulos e imagen.
+- Colores: los del logo (míralo y saca los dos principales) · los escribo yo (nombres o códigos #) · que la app los proponga según el sector · no tiene. Si propones, di cuáles en una línea antes de guardar.
+- Tipografía: la de la marca (nómbrala; elige la más parecida de la lista de la app) · que la app elija según el estilo.
+- Logo: ya está en el pedido (`logo.png`) · lo mando ahora · no tiene. Mejor PNG con fondo transparente.
+- Guarda con `guardar_kit` (`color_primario`, `color_secundario`, `fuente_titulos`, `fuente_texto`, `sector`, `personalidad`) y `logo_marca`.
+
+**Referencias** (en la misma tanda): «¿Hay un video que te guste cómo se ve?» con opciones: enlace de un reel o TikTok · un archivo (`referencia.mp4` en el pedido) · el perfil de una cuenta que te guste (sirve el estudio de referencias de la app) · ninguna, que se vea como la marca.
+- Con enlace o archivo: `analizar_referencia` (acepta el enlace), mira 3 o 4 de sus cuadros, luego `guardar_referencia` y `elegir_referencia`. Se copia el estilo (ritmo, subtítulos, textos, transiciones, color), **nunca** el contenido, la música ni los clips.
+- Si la referencia y la marca chocan (otra paleta), manda la marca en colores y letra; de la referencia se toma ritmo, forma de los textos y transiciones. Dilo en una línea.
+- Si le gusta el color de una foto o un video, `igualar_color_referencia` después de armar.
+- Si ya hay referencias guardadas del cliente (`listar_referencias`), ofrécelas como opciones en vez de pedir una nueva.
+
+**Tanda 4 · Contenido y límites**
 - Qué debe mostrar o decir sí o sí: productos exactos, el mensaje, la frase final.
 - Datos que se pueden poner: precio, WhatsApp, dirección, horario. **Solo si el cliente los dio.** Si no, el video no los lleva.
 - Qué NO puede salir: productos que no se venden, personas que no autorizaron, música o marcas ajenas, promesas.
 - Qué haga quien lo vea al final (ir al local, escribir por DM, pedir en la web) y a quién le aprueba el video antes de publicar.
 
-Con esto, resume el pedido en 5 a 8 líneas y sigue. Si algo crítico sigue sin respuesta (datos, personas, producto), pregúntalo antes de armar.
+Con esto, resume el pedido en 5 a 8 líneas (incluye marca y referencia) y sigue. Si algo crítico sigue sin respuesta (datos, personas, producto), pregúntalo antes de armar.
 
 ## Fase 2 · Material (mira antes de armar)
 

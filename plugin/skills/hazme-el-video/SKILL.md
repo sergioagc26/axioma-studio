@@ -38,6 +38,10 @@ Solo si faltan, pregunta en un solo mensaje, con opciones:
 
 Todo lo demás tiene un valor por defecto: ritmo, tono, duración, subtítulos, música y estilo. La marca guardada y el video lo deciden. Si la persona tiene prisa o dice «tú decide», no preguntes nada.
 
+**La marca, una vez por cliente.** Si `leer_kit` no tiene colores ni sector y el pedido tampoco los trae, agrega una tercera pregunta: «¿Cuáles son los colores de tu marca y a qué se dedica?» (o «que la app los proponga»). Si mandó un enlace de un video que le gusta, eso es la referencia.
+
+Si la persona ya escribió todo (brief largo o `pedido.txt` lleno), no preguntes: confírmale en 3 a 5 líneas lo que entendiste, incluida la marca y la referencia, y haz el video.
+
 ## 3. Haz el video
 
 Avisa en una línea: «Lo estoy editando: tarda de 3 a 15 minutos según lo largo del material».
@@ -45,7 +49,7 @@ Avisa en una línea: «Lo estoy editando: tarda de 3 a 15 minutos según lo larg
 Luego llama `hacer_video`:
 
 - `pedido`: el nombre del pedido.
-- `respuestas`: lo que te respondió en el paso 2. Claves: `objetivo`, `formato`, `duracion`, `ritmo`, `tono`, `publico`, `cta` y `notas`.
+- `respuestas`: lo que te respondió en el paso 2. Claves: `objetivo`, `formato`, `duracion`, `ritmo`, `tono`, `publico`, `cta` y `notas`. La marca también va aquí y se guarda para sus próximos videos: `colores` (nombres o #, el primero manda), `tipografia`, `sector`, `personalidad` y `referencia` (enlace de un video que le guste).
 - `cliente`: solo si la persona nombró su marca y el pedido no la dice.
 
 La herramienta decide sola según el material:
@@ -56,7 +60,8 @@ La herramienta decide sola según el material:
 | Varias partes habladas | Las une en orden y las edita como un solo video. |
 | `guion.txt` | Corta con el guion: elige la mejor toma de cada frase, sigue su orden y avisa las frases que faltan. |
 | Video sin voz (gym, comida, producto) | Arma un montaje de cortes al ritmo de la música, con gancho en pantalla. |
-| `referencia.mp4` | Edita con ese estilo. |
+| `referencia.mp4`, o un enlace en «Referencia» del pedido | Edita con ese estilo (el enlace se baja solo para analizarlo). |
+| Colores, letra, sector o tono en el pedido | Los guarda en la marca del cliente y edita con ellos. |
 | `logo.png` / `musica.mp3` | Los usa. |
 
 **Videos hablados largos (VSL, más de 90 s).** Si el pedido no dice duración, no los acortes a reel: pasa `respuestas.duracion = "Lo que dure"`. Si pide clips para redes, después usa `dividir_en_partes`.

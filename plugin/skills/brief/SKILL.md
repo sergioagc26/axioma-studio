@@ -13,9 +13,22 @@ Llama `leer_kit`. Si el cliente no tiene sector, pregunta primero por la marca (
 
 - A qué se dedica (`sector`): gimnasio, comida rápida, restaurante, moda, tecnología, educación, salud, negocios, inmobiliaria, entretenimiento, servicios u otro.
 - Cómo habla (`personalidad`): enérgica, divertida, elegante, cercana, seria o rebelde.
-- Sus dos colores, si los tiene.
+- Sus colores: los del logo · los escribe (nombres o códigos #) · que la app los proponga según el sector · no tiene. Guarda el primero como `color_primario` y el segundo como `color_secundario`.
+- Su tipografía, si tiene una (`fuente_titulos`, `fuente_texto`; elige la más parecida de la lista de la app). Si no, la decide el estilo.
+- Su logo (`logo_marca`), mejor en PNG con fondo transparente.
 
 Eso decide subtítulos, títulos, letra, imagen y efectos: no elijas esos estilos a mano si la marca ya los define.
+
+## Antes: la referencia
+
+Pregunta una vez por video: «¿Hay un video que te guste cómo se ve?». Opciones: un enlace (reel, TikTok, YouTube) · un archivo · usar una referencia ya guardada (`listar_referencias`) · ninguna.
+
+- Con enlace o archivo: `analizar_referencia` (acepta el enlace), `guardar_referencia` y `elegir_referencia`. Se copia el estilo, nunca el contenido.
+- Si la referencia trae otros colores, mandan los de la marca; de la referencia se toman ritmo, textos y transiciones.
+
+## Si ya te dieron todo
+
+Si la persona pegó un brief completo o trajo un `pedido.txt` lleno, no hagas las preguntas una por una: llena la tabla con lo que dio, muéstrala con ✓ o «falta», pregunta solo lo que falta (máximo 4) y guarda (`guardar_kit`, `guardar_brief`).
 
 ## Preguntas (en este orden, saltando lo que ya sepas)
 

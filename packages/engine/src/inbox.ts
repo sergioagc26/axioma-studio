@@ -5,7 +5,7 @@ import type { ProjectShape } from '@axioma/schema';
 import { editEverything } from './auto.ts';
 import { ffmpeg } from './exec.ts';
 import { probe } from './media.ts';
-import { saveClientLogo } from './kit.ts';
+import { saveClientLogo, saveKit } from './kit.ts';
 import { createMontage, detectShots, joinClips } from './montage.ts';
 import { setBrief, setMusic } from './ops.ts';
 import { APP_TMP, WORKSPACE, slugify } from './paths.ts';
@@ -16,6 +16,8 @@ import { cutProjectToScript } from './scriptcut.ts';
 import { createProject, readProject, writeProject } from './store.ts';
 import { isTalking, transcribeWav } from './transcribe.ts';
 import { llmJson } from './llm.ts';
+import { parseColors, parseFonts, parsePersonality, parseReferenceLinks, parseSector, type OrderBrand } from './brandorder.ts';
+import { downloadReference } from './refsource.ts';
 import { maxSeconds } from './brief.ts';
 
 /**
@@ -128,6 +130,13 @@ Marca o cliente:
 Ritmo o estilo:
 Frase final (llamado a la acción):
 Sí o sí debe salir / no debe salir:
+
+LA MARCA (una sola vez por cliente; si ya la diste, déjalo vacío)
+A qué se dedica la marca:
+Cómo habla la marca:
+Colores de la marca:
+Tipografía:
+Referencia (enlace de un video que te guste):
 `;
 
 const README = `CÓMO PEDIR UN VIDEO
@@ -193,6 +202,11 @@ export async function findOrder(name?: string): Promise<Order> {
 
 /** Claves del brief según la pregunta de la plantilla (o cualquier «Pregunta: respuesta»). */
 const FIELDS: [RegExp, string][] = [
+  [/colou?r/, 'colores'],
+  [/tipograf|letra|fuente/, 'tipografia'],
+  [/referencia|me gusta|parecido|como este/, 'referencia'],
+  [/a que se dedica|sector|rubro|tipo de negocio/, 'sector'],
+  [/como habla la marca|personalidad|voz de (la )?marca/, 'personalidad'],
   [/marca|cliente|empresa|negocio/, 'cliente'],
   [/que es|de que (va|trata)|tema|sobre que/, 'notas'],
   [/que haga|objetivo|para que|meta/, 'objetivo'],
@@ -209,14 +223,16 @@ const FIELDS: [RegExp, string][] = [
  * Lee un pedido escrito como quiera: líneas «Pregunta: respuesta» de la plantilla (las vacías se
  * ignoran) y el texto suelto como nota. Devuelve las respuestas del brief y el cliente si lo dice.
  */
-export function parseOrder(text: string): { brief: Record<string, string>; client?: string } {
+export function parseOrder(text: string): { brief: Record<string, string>; client?: string; brand: OrderBrand; /** La marca tal como se escribió (para volver a mostrarla en el formulario). */ brandText: Record<string, string> } {
   const brief: Record<string, string> = {};
+  const brand: OrderBrand = { colors: [], fonts: [], references: [] };
+  const said: Record<string, string> = {};
   const loose: string[] = [];
   let client: string | undefined;
   const add = (k: string, v: string) => { brief[k] = brief[k] ? `${brief[k]}. ${v}` : v; };
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
-    if (!line || /^pedido\b.*(llena|vac[ií]o)/i.test(line) || /^#/.test(line)) continue;
+    if (!line || /^pedido\b.*(llena|vac[ií]o)/i.test(line) || /^la marca\b.*\(/i.test(line) || /^#/.test(line)) continue;
     const m = line.match(/^([^:]{2,60}):\s*(.*)$/);
     if (m) {
       const q = m[1].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[¿?]/g, '');
@@ -224,6 +240,7 @@ export function parseOrder(text: string): { brief: Record<string, string>; clien
       if (!v) continue;
       const key = FIELDS.find(([re]) => re.test(q))?.[1];
       if (key === 'cliente') client = v;
+      else if (key && BRAND_KEYS.has(key)) said[key] = said[key] ? `${said[key]} ${v}` : v;
       else if (key) add(key, v);
       else loose.push(`${m[1].trim()}: ${v}`);
     } else loose.push(line);
@@ -241,7 +258,29 @@ export function parseOrder(text: string): { brief: Record<string, string>; clien
       if (f) brief.formato = /short/i.test(f[0]) ? 'YouTube Short' : /tiktok/i.test(f[0]) ? 'TikTok' : /historia/i.test(f[0]) ? 'Historia' : /youtube/i.test(f[0]) ? 'YouTube' : 'Reel';
     }
   }
-  return { brief, client };
+  const { brand: b, lost } = brandFrom(said);
+  Object.assign(brand, b);
+  if (lost) add('notas', lost);
+  return { brief, client, brand, brandText: said };
+}
+
+const BRAND_KEYS = new Set(['colores', 'tipografia', 'referencia', 'sector', 'personalidad']);
+
+/**
+ * La marca a partir de lo que se escribió en cada clave (`colores`, `tipografia`, `sector`,
+ * `personalidad`, `referencia`). Lo que no se entiende vuelve en `lost` para dejarlo como nota.
+ */
+export function brandFrom(said: Record<string, string | undefined>): { brand: OrderBrand; lost?: string } {
+  const brand: OrderBrand = {
+    colors: said.colores ? parseColors(said.colores) : [],
+    fonts: said.tipografia ? parseFonts(said.tipografia) : [],
+    sector: said.sector ? parseSector(said.sector) : undefined,
+    personality: said.personalidad ? parsePersonality(said.personalidad) : undefined,
+    references: said.referencia ? parseReferenceLinks(said.referencia) : [],
+  };
+  const missed: Record<string, boolean> = { colores: !brand.colors.length, tipografia: !brand.fonts.length, sector: !brand.sector, personalidad: !brand.personality };
+  const lost = Object.keys(missed).filter((k) => said[k] && missed[k]).map((k) => `${k}: ${said[k]}`);
+  return { brand, lost: lost.length ? `Marca: ${lost.join('; ')}` : undefined };
 }
 
 /** Forma del video según dónde se publica: YouTube (no Shorts) va horizontal. */
@@ -343,11 +382,33 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
   if (!f.videos.length) throw new Error(`En «${order.name}» solo hay videos de referencia: falta lo que grabaste.`);
   await saveState(order.name, { estado: 'editando', at: new Date().toISOString() });
   try {
-    const parsed = f.pedido ? parseOrder(await readFile(f.pedido, 'utf8')) : { brief: {} as Record<string, string>, client: undefined };
-    const brief = { ...parsed.brief, ...(opts.brief ?? {}) };
+    const parsed = f.pedido ? parseOrder(await readFile(f.pedido, 'utf8')) : { brief: {} as Record<string, string>, client: undefined, brand: { colors: [], fonts: [], references: [] } as OrderBrand, brandText: {} as Record<string, string> };
+    // Las respuestas del chat pueden traer la marca (colores, letra, sector, tono, referencia): lo
+    // que se dijo ahí manda sobre el pedido.txt, y esas claves no van al brief.
+    const answers = { ...(opts.brief ?? {}) };
+    const saidBrand: Record<string, string> = {};
+    for (const k of BRAND_KEYS) if (answers[k]?.trim()) { saidBrand[k] = answers[k]; delete answers[k]; }
+    const fromChat = brandFrom(saidBrand);
+    const brief = { ...parsed.brief, ...answers };
+    if (fromChat.lost) brief.notas = brief.notas ? `${brief.notas}. ${fromChat.lost}` : fromChat.lost;
+    const c = fromChat.brand, o = parsed.brand;
+    parsed.brand = {
+      colors: c.colors.length ? c.colors : o.colors, fonts: c.fonts.length ? c.fonts : o.fonts,
+      sector: c.sector ?? o.sector, personality: c.personality ?? o.personality,
+      references: c.references.length ? c.references : o.references,
+    };
     const client = opts.client || parsed.client || undefined;
     const shape = shapeFor(brief.formato);
     const summary: string[] = [];
+
+    // 0. La marca que vino en el pedido se guarda antes de crear el proyecto: así colores, letra y
+    // estilo del sector entran desde el primer corte (y quedan para los próximos videos del cliente).
+    const b = parsed.brand;
+    let brandNote = '';
+    if (b.colors.length || b.fonts.length || b.sector || b.personality) {
+      await saveKit(client, { primary: b.colors[0], secondary: b.colors[1], text: b.colors[2], heading: b.fonts[0], body: b.fonts[1], sector: b.sector, personality: b.personality });
+      brandNote = `Marca guardada: ${[b.colors.length && `colores ${b.colors.slice(0, 3).join(' ')}`, b.fonts.length && `letra ${b.fonts.slice(0, 2).join(' y ')}`, b.sector && `sector ${b.sector}`, b.personality && `tono ${b.personality}`].filter(Boolean).join(", ")}.`;
+    }
 
     // 1. ¿Quién habla? Con un solo video lo dice la transcripción; con varios se escucha cada uno.
     say('Revisando lo que grabaste…');
@@ -414,6 +475,7 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
     }
 
     // 3. Lo que pidió, su marca y su música.
+    if (brandNote) summary.unshift(brandNote);
     if (Object.keys(brief).length) await setBrief(dir, brief);
     if (f.logo) {
       await saveClientLogo((await readProject(dir)).client, f.logo).then(() => summary.push(`Logo: ${path.basename(f.logo!)}.`)).catch((e) => summary.push(`No pude usar el logo: ${e instanceof Error ? e.message : e}`));
@@ -423,7 +485,23 @@ export async function makeOrder(name: string | undefined, opts: { client?: strin
       summary.push(`Música: ${path.basename(f.musica)} (la que trajiste).`);
     }
     let referenceId: string | undefined;
-    if (f.referencias.length) {
+    if (!f.referencias.length && b.references.length) {
+      say('Bajando tu video de referencia…');
+      const tmp = path.join(APP_TMP, `ref-${slugify(order.name)}-${Date.now()}`);
+      try {
+        const { file, source } = await downloadReference(b.references[0], tmp);
+        const { report } = await analyzeReference(file, { client: (await readProject(dir)).client, name: `${order.name} (referencia)`, source });
+        referenceId = report.id;
+        const p = await readProject(dir);
+        p.brief.referencia = report.id;
+        await writeProject(dir, p);
+        summary.push(`Edité con el estilo de tu referencia (${source.author ?? b.references[0]}).`);
+      } catch (e) {
+        summary.push(`No pude bajar la referencia ${b.references[0]}: ${e instanceof Error ? e.message : e}. Déjala como referencia.mp4 en la carpeta del pedido.`);
+      } finally {
+        await rm(tmp, { recursive: true, force: true });
+      }
+    } else if (f.referencias.length) {
       say('Mirando el estilo de tu referencia…');
       try {
         const { report } = await analyzeReference(f.referencias[0], { client: (await readProject(dir)).client, name: `${order.name} (referencia)` });
@@ -540,6 +618,11 @@ export const ORDER_QUESTIONS: { key: string; label: string; hint: string }[] = [
   { key: 'ritmo', label: 'Ritmo o estilo', hint: 'rápido y con energía' },
   { key: 'cta', label: 'Frase final (llamado a la acción)', hint: 'Escríbeme CLASE por DM' },
   { key: 'extra', label: 'Sí o sí debe salir / no debe salir', hint: 'que se vea el precio' },
+  { key: 'sector', label: 'A qué se dedica la marca', hint: 'gimnasio, restaurante, tienda de ropa…' },
+  { key: 'personalidad', label: 'Cómo habla la marca', hint: 'enérgica, cercana, elegante, divertida, seria' },
+  { key: 'colores', label: 'Colores de la marca', hint: 'azul oscuro y dorado, o #0B2A5B #D4A537' },
+  { key: 'tipografia', label: 'Tipografía', hint: 'Montserrat (o déjalo vacío)' },
+  { key: 'referencia', label: 'Referencia (enlace de un video que te guste)', hint: 'https://www.instagram.com/reel/…' },
 ];
 
 /** Escribe el pedido.txt de un pedido con las respuestas del formulario (mismo formato de la plantilla). */
