@@ -59,7 +59,7 @@ Luego abre Claude Code (o el Code tab de la app de Claude) en esta carpeta, acep
 
 Claude hace el brief, crea el proyecto, arma el storyboard con las frases del video y renderiza.
 
-- **Skills** (`plugin/skills/`): `axioma` (la puerta de entrada a toda la app: pregunta qué quieres lograr y te guía desde el chat), `crear-video` (hacer un video de principio a fin), `instalar-axioma` (instala y conecta la app desde el chat), `hazme-el-video`, `editar-reel`, `montaje`, `guion`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`.
+- **Skills** (`plugin/skills/`): `axioma` (la puerta de entrada a toda la app: pregunta qué quieres lograr y te guía desde el chat), `crear-video` (hacer un video de principio a fin), `instalar-axioma` (instala y conecta la app desde el chat), `hazme-el-video`, `editar-reel`, `montaje`, `guion`, `brief`, `variantes`, `crear-preset`, `reglas-edicion`, `promo-motion` (promo animada desde una web o marca, sin grabar: escribe «hazme una promo animada de <enlace>»).
 - **Servidor MCP** (`packages/mcp`): 78 herramientas. Las principales son `crear_proyecto`, `leer_transcripcion`, `armar_storyboard`, `editar_escena`, `generar_variantes`, `elegir_variante`, `aplicar_preset`, `guardar_preset` y `renderizar`.
 - Claude nunca recibe el video. Trabaja con frases numeradas (`f01`, `f02`…) que ya vienen marcadas como muletilla o toma descartada.
 - `plugin/.mcp.json` se genera con rutas absolutas de este computador (la app de escritorio no hereda el PATH de la terminal), por eso no está en git.

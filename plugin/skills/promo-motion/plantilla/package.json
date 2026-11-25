@@ -1,0 +1,27 @@
+{
+  "name": "promo-motion-plantilla",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=20.19"},
+  "scripts": {
+    "dev": "remotion studio",
+    "audio": "tsx scripts/audio.mjs",
+    "render": "tsx scripts/audio.mjs && remotion render Promo Renders/promo.mp4 --crf=20",
+    "lint": "tsc"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.540",
+    "@remotion/cli": "4.0.540",
+    "@remotion/media": "4.0.540",
+    "@remotion/renderer": "4.0.540",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.540"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

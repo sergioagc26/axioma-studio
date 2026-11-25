@@ -418,7 +418,7 @@ export function createServer() {
     proyecto, escena: z.string(),
     palabras: z.array(z.object({
       texto: z.string(), en: z.number().min(0).describe('Segundo (desde el inicio de la escena) en que aparece'), hasta: z.number().min(0).optional(),
-      estilo: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal', 'ancho', 'acomodar', 'logo', 'apoyo', 'seccion', 'eco', 'apilado', 'tresd', 'app', 'fondo', 'foto', 'objeto']).default('gigante'),
+      estilo: z.enum(['gigante', 'pildora', 'pantalla', 'resaltado', 'seleccion', 'tachado', 'nota', 'tarjeta', 'icono', 'archivo', 'tira', 'ruta', 'miniaturas', 'chat', 'mic', 'emoji', 'neon', 'circulo', 'cristal', 'ancho', 'acomodar', 'logo', 'apoyo', 'seccion', 'eco', 'apilado', 'tresd', 'app', 'fondo', 'foto', 'objeto', 'panel']).default('gigante'),
       archivo: z.string().optional().describe('Con estilo foto u objeto: imagen del proyecto (ruta dentro de la carpeta del proyecto)'),
       color: z.enum(['blanco', 'rojo', 'amarillo', 'negro']).default('blanco'),
       x: z.number().min(0).max(1).default(0.5), y: z.number().min(0).max(1).default(0.17), tamano: z.number().min(0.3).max(3).default(1), giro: z.number().min(-45).max(45).optional(), detras: z.boolean().default(false),

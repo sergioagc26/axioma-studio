@@ -28,7 +28,7 @@ Si hay más de 4, ofrece primero las cuatro más probables y deja «Otra cosa» 
 ## 2. Cada área
 
 ### Hacer un video o reel
-Sigue `crear-video` completa: entrevista, material, escaleta aprobada, armado, sonido, revisión, entrega y cambios. Tipos que cubre: alguien hablando a cámara (`hazme-el-video`, `editar-reel`), montaje sin voz (`montaje`, `crear_montaje`), con guion (`guion`, `escribir_guion`, `cortar_con_guion`, `guion_a_video`), reel de creador con avatar (`crear_reel_creador`) y video explicativo dibujado (`crear_pizarra`). Si trae un video de referencia: `analizar_referencia` y editar con ese estilo.
+Sigue `crear-video` completa: entrevista, material, escaleta aprobada, armado, sonido, revisión, entrega y cambios. Tipos que cubre: alguien hablando a cámara (`hazme-el-video`, `editar-reel`), montaje sin voz (`montaje`, `crear_montaje`), con guion (`guion`, `escribir_guion`, `cortar_con_guion`, `guion_a_video`), reel de creador con avatar (`crear_reel_creador`) y video explicativo dibujado (`crear_pizarra`). Sin material grabado, si quiere un video animado desde su web o marca (motion graphics): `promo-motion`. Si trae un video de referencia: `analizar_referencia` y editar con ese estilo.
 
 ### Cambiar o mejorar un video que ya existe
 1. `listar_proyectos` y que elija; `leer_proyecto`.
