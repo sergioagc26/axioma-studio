@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, OffthreadVideo, spring } from 'remotion';
+import { Panel } from './Panel.tsx';
 
 /**
  * Piezas de los reels «de creador»: palabras gigantes al ritmo de la voz (también detrás de la
@@ -11,7 +12,7 @@ export interface KineticWord {
   text: string; from: number; to: number;
   color: 'blanco' | 'rojo' | 'amarillo' | 'negro';
   x: number; y: number; size: number; behind: boolean;
-  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'acomodar' | 'logo' | 'apoyo' | 'seccion' | 'eco' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto';
+  style: 'gigante' | 'pildora' | 'pantalla' | 'resaltado' | 'seleccion' | 'tachado' | 'nota' | 'tarjeta' | 'icono' | 'archivo' | 'tira' | 'ruta' | 'miniaturas' | 'chat' | 'mic' | 'emoji' | 'neon' | 'circulo' | 'cristal' | 'ancho' | 'acomodar' | 'logo' | 'apoyo' | 'seccion' | 'eco' | 'apilado' | 'tresd' | 'app' | 'fondo' | 'foto' | 'objeto' | 'panel';
   rotate?: number; files?: string[]; then?: number;
 }
 
@@ -71,6 +72,9 @@ export const Word: React.FC<{ w: KineticWord; f: number; fps: number; width: num
   const color = COLORS[w.color];
 
   switch (w.style) {
+    case 'panel':
+      // Gráfico de interfaz animado (ver Panel.tsx); con color «negro» trae su propio fondo.
+      return <Panel text={w.text} local={local} dur={w.to - w.from} fps={fps} u={u} k={k} x={w.x} y={w.y} out={out} font={font} wide={extra?.wide ?? font} backdrop={w.color === 'negro'} />;
     case 'pildora':
       return <div style={{ ...base, fontFamily: font, fontWeight: 600, fontSize: 40 * u * k, color: '#F2F2F2', padding: `${14 * u}px ${30 * u}px`, borderRadius: 999, border: `${2 * u}px solid rgba(255,255,255,0.28)`, background: 'rgba(30,30,32,0.72)' }}>{w.text}</div>;
     case 'pantalla': {
