@@ -24,7 +24,7 @@ export interface Scene {
 
 export const SCENES: Scene[] = [
   { seconds: 10, title: 'Panel de La Bodega · Por revisar y fotos', narration: 'Hola, Laura. Te muestro, paso a paso, cómo pasar un producto a «Por revisar» y cómo subirle una foto. Es fácil y toma pocos minutos.', record: 'Sin grabación: tarjeta de título.' },
-  { seconds: 20, step: 1, title: 'Entra al panel', narration: 'Abre el navegador y entra a somoslabodega.com/admin. Escribe tu correo y tu contraseña, y toca «Ingresar». Tu contraseña es solo tuya: no la compartas.', record: 'Página «Panel de La Bodega» con «Correo electrónico», «Contraseña» e «Ingresar». Sin mostrar el correo completo ni la contraseña.', touch: ['Correo electrónico', 'Contraseña', 'Ingresar'], note: 'somoslabodega.com/admin' },
+  { seconds: 20, step: 1, title: 'Entra al panel', narration: 'Abre el navegador y entra a somoslabodega.com/admin. Escribe tu correo y tu contraseña, y toca «Ingresar». Tu contraseña es solo tuya: no la compartas.', record: 'Página «Panel de La Bodega» con «Correo electrónico», «Contraseña» e «Ingresar». Sin mostrar el correo completo ni la contraseña.', touch: ['Correo electrónico', 'Contraseña', 'Ingresar'], note: 'somoslabodega.com/admin', highlights: [{ x: 30, y: 26, w: 40, h: 8.5, from: 5, to: 8 }, { x: 30, y: 38, w: 40, h: 8.5, from: 8, to: 11 }, { x: 30, y: 46.6, w: 40, h: 8.5, from: 11 }] },
   { seconds: 20, step: 2, title: 'Busca el producto', narration: 'En el menú toca «Productos». En la casilla «Buscar» escribe el nombre o el modelo, y toca el producto para abrirlo.', record: 'Menú del panel (Resumen, Productos, Inventario…), luego casilla «Buscar» con un producto real.', touch: ['Productos', 'Buscar'] },
   { seconds: 25, step: 3, title: 'Pásalo a «Por revisar»', narration: 'Arriba de la ficha ves el estado, por ejemplo «Borrador». Toca «Pasar a «Por revisar»». Aparece un aviso y el estado ahora dice «Por revisar». Si sale un error, tómale una captura y envíala.', record: 'Etiqueta de estado y botón «Pasar a «Por revisar»»; después el aviso y el estado «Por revisar».', touch: ['Pasar a «Por revisar»'] },
   { seconds: 15, step: 4, title: 'Ve a Fotografías', narration: 'Baja por la ficha hasta la sección «Fotografías». Ahí se suben las fotos. Cada producto admite máximo 10.', record: 'Scroll hasta la sección «Fotografías».', touch: ['Fotografías'], note: 'Máximo 10 fotos por producto' },
@@ -48,6 +48,8 @@ export interface TutorialLauraProps {
   durations?: number[];
   /** Voz en off por escena (1–8): { 1: 'laura/voz-1.wav' }. */
   voices?: Record<number, string>;
+  /** Proporción (ancho/alto) de cada toma real, para ubicar los resaltados. */
+  aspects?: Record<number, number>;
   /** Archivos dentro de public/ por número de escena (1–8), p. ej. { 2: 'laura/escena-2.mp4' }. */
   screens?: Record<number, string>;
   /** Voz en off ya generada (opcional), p. ej. 'laura/voz.mp3'. */
@@ -59,12 +61,13 @@ export interface TutorialLauraProps {
   highlights?: Record<number, Highlight[]>;
 }
 
-const Slot: React.FC<{ src?: string; scene: Scene; hl: Highlight[]; vertical: boolean }> = ({ src, scene, hl, vertical }) => {
+const Slot: React.FC<{ src?: string; scene: Scene; hl: Highlight[]; vertical: boolean; aspect?: number }> = ({ src, scene, hl, vertical, aspect = 16 / 9 }) => {
   const frame = useCurrentFrame();
   const t = frame / TUTORIAL_FPS;
   const isVideo = !!src && /\.(mp4|mov|webm)$/i.test(src);
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 28, overflow: 'hidden', background: '#102A5C', border: `4px solid ${C.white}22` }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 28, overflow: 'hidden', background: '#102A5C', border: `4px solid ${C.white}22`, containerType: 'size', display: 'grid', placeItems: 'center' }}>
+      <div style={src ? { position: 'relative', width: `min(100cqw, ${100 * aspect}cqh)`, aspectRatio: String(aspect) } : { position: 'absolute', inset: 0 }}>
       {src ? (isVideo ? <Video src={staticFile(src)} muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <Img src={staticFile(src)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />) : (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, textAlign: 'center', gap: 16, color: C.white }}>
           <div style={{ fontSize: vertical ? 34 : 30, color: C.yellow, fontWeight: 800 }}>AQUÍ VA LA GRABACIÓN REAL</div>
@@ -75,6 +78,7 @@ const Slot: React.FC<{ src?: string; scene: Scene; hl: Highlight[]; vertical: bo
         const pulse = 1 + 0.04 * Math.sin(frame / 5);
         return <div key={i} style={{ position: 'absolute', left: `${h.x}%`, top: `${h.y}%`, width: `${h.w}%`, height: `${h.h}%`, border: `6px solid ${C.yellow}`, borderRadius: 999, boxShadow: `0 0 0 6px ${C.yellow}55`, transform: `scale(${pulse})` }} />;
       })}
+      </div>
     </div>
   );
 };
@@ -94,7 +98,7 @@ const SceneView: React.FC<{ scene: Scene; index: number; props: TutorialLauraPro
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52 * big, lineHeight: 1.5, whiteSpace: 'pre-line', color: C.yellow, fontWeight: 800, textAlign: 'left' }}>{scene.note ?? ''}</div>
       ) : (
         <div style={{ flex: 1, minHeight: 0 }}>
-          <Slot src={props.screens?.[index + 1]} scene={scene} hl={props.highlights?.[index + 1] ?? scene.highlights ?? []} vertical={vertical} />
+          <Slot src={props.screens?.[index + 1]} scene={scene} hl={props.highlights?.[index + 1] ?? scene.highlights ?? []} vertical={vertical} aspect={props.aspects?.[index + 1]} />
         </div>
       )}
       {scene.touch && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>{scene.touch.map((b, i) => <span key={i} style={{ border: `3px solid ${C.yellow}`, color: C.yellow, borderRadius: 14, padding: '6px 18px', fontSize: 34 * big, fontWeight: 800 }}>{i + 1}. {b}</span>)}</div>}

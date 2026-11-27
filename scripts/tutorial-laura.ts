@@ -34,16 +34,20 @@ if (!process.argv.includes('--sin-voz')) {
   }
 }
 const screens: Record<number, string> = {};
+const aspects: Record<number, number> = {};
 const dir = path.join(pub, 'laura');
 for (let i = 2; i <= 7; i++) {
   const f = readdirSync(dir).find((n) => new RegExp(`^escena-${i}\\.(mp4|mov|webm|png|jpg)$`).test(n));
-  if (f) screens[i] = `laura/${f}`;
+  if (!f) continue;
+  screens[i] = `laura/${f}`;
+  const [w, h] = (await ffprobe(['-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', path.join(dir, f)])).stdout.trim().split(',').map(Number);
+  if (w && h) aspects[i] = w / h;
 }
 console.log(`Tomas reales encontradas: ${Object.keys(screens).join(', ') || 'ninguna (saldrán los recuadros «AQUÍ VA LA GRABACIÓN REAL»)'}`);
 
 for (const [id, name] of [['TutorialLaura', 'vertical'], ['TutorialLauraHorizontal', 'horizontal']] as const) {
   const props = path.join(outDir, `props-${name}.json`);
-  await writeFile(props, JSON.stringify({ vertical: name === 'vertical', voices, durations, screens }));
+  await writeFile(props, JSON.stringify({ vertical: name === 'vertical', voices, durations, screens, aspects }));
   const out = path.join(outDir, `tutorial-laura-${name}.mp4`);
   const r = spawnSync('npx', ['remotion', 'render', 'packages/remotion/src/index.ts', id, out, `--props=${props}`, `--public-dir=${pub}`], { cwd: root, stdio: 'inherit' });
   if (r.status !== 0) process.exit(r.status ?? 1);
