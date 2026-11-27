@@ -106,10 +106,10 @@ const S1: React.FC = () => {
   return (
     <AbsoluteFill>
       <StepHeader n={1} title="Entra" />
-      <Body top={600}>
+      <Body top={540}>
         <div style={{ background: C.white, color: C.ink, fontFamily: geist, fontWeight: 700, fontSize: 58, padding: '26px 40px', borderRadius: 99, opacity: f >= B ? 1 : 0, boxShadow: '0 12px 0 rgba(0,0,0,.25)' }}>🔒 {typed}<span style={{ opacity: f % 10 < 5 ? 1 : 0, color: C.accent }}>|</span></div>
         {/* Captura REAL de la página de ingreso (sin credenciales) */}
-        <div style={{ width: 720, height: 420, borderRadius: 28, overflow: 'hidden', border: `8px solid ${C.white}`, transform: `translateX(${(1 - card) * 1100}px) rotate(${3 - card * 5}deg)`, boxShadow: '0 30px 60px rgba(0,0,0,.45)', alignSelf: 'center' }}>
+        <div style={{ flex: 'none', width: 720, height: 420, borderRadius: 28, overflow: 'hidden', border: `8px solid ${C.white}`, transform: `translateX(${(1 - card) * 1100}px) rotate(${3 - card * 5}deg)`, boxShadow: '0 30px 60px rgba(0,0,0,.45)', alignSelf: 'center' }}>
           <Img src={staticFile('login.png')} style={{ width: 1150, marginLeft: -215, marginTop: -55 }} />
         </div>
         <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'center' }}>
