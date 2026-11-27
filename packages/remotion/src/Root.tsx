@@ -4,7 +4,7 @@ import type { Timeline } from '@axioma/schema';
 import { CaptionStyle, safeZone } from '@axioma/schema';
 import { Reel } from './Reel.tsx';
 import { Slide, type SlideProps } from './Slide.tsx';
-import { TutorialLaura, TUTORIAL_FPS, TUTORIAL_FRAMES } from './TutorialLaura.tsx';
+import { TutorialLaura, TUTORIAL_FPS, tutorialFrames } from './TutorialLaura.tsx';
 import { AxiClip, AxiEstados, AxiIntro, type AxiClipProps } from './AxiScenes.tsx';
 
 const empty: Timeline = {
@@ -66,7 +66,7 @@ export const Root: React.FC = () => (
   <Composition id="AxiIntro" component={AxiIntro} width={1920} height={1080} fps={30} durationInFrames={75} />
   <Composition id="AxiEstados" component={AxiEstados} width={1920} height={1080} fps={30} durationInFrames={240} />
   {/* Tutorial para Laura (La Bodega): las tomas del panel son grabaciones reales en public/laura/. */}
-  <Composition id="TutorialLaura" component={TutorialLaura} defaultProps={{ vertical: true }} width={1080} height={1920} fps={TUTORIAL_FPS} durationInFrames={TUTORIAL_FRAMES} />
-  <Composition id="TutorialLauraHorizontal" component={TutorialLaura} defaultProps={{ vertical: false }} width={1920} height={1080} fps={TUTORIAL_FPS} durationInFrames={TUTORIAL_FRAMES} />
+  <Composition id="TutorialLaura" component={TutorialLaura} defaultProps={{ vertical: true }} width={1080} height={1920} fps={TUTORIAL_FPS} durationInFrames={tutorialFrames()} calculateMetadata={({ props }) => ({ durationInFrames: tutorialFrames(props.durations as number[] | undefined) })} />
+  <Composition id="TutorialLauraHorizontal" component={TutorialLaura} defaultProps={{ vertical: false }} width={1920} height={1080} fps={TUTORIAL_FPS} durationInFrames={tutorialFrames()} calculateMetadata={({ props }) => ({ durationInFrames: tutorialFrames(props.durations as number[] | undefined) })} />
 </>
 );

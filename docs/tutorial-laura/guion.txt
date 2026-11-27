@@ -1,0 +1,8 @@
+Hola, Laura. Te muestro, paso a paso, cómo pasar un producto a «Por revisar» y cómo subirle una foto. Es fácil y toma pocos minutos.
+Abre el navegador y entra a somoslabodega.com/admin. Escribe tu correo y tu contraseña, y toca «Ingresar». Tu contraseña es solo tuya: no la compartas.
+En el menú toca «Productos». En la casilla «Buscar» escribe el nombre o el modelo, y toca el producto para abrirlo.
+Arriba de la ficha ves el estado, por ejemplo «Borrador». Toca «Pasar a «Por revisar»». Aparece un aviso y el estado ahora dice «Por revisar». Si sale un error, tómale una captura y envíala.
+Baja por la ficha hasta la sección «Fotografías». Ahí se suben las fotos. Cada producto admite máximo 10.
+Toca «Archivo» y elige la foto: JPG, PNG o WebP, hasta 5 megas. En «Texto alternativo» descríbela, por ejemplo «Licuadora vista de frente». En «Origen» elige de dónde salió. Si la tomaste tú en la tienda, «Fotografía del negocio». Si es del fabricante o distribuidor, llena nombre, enlace y permiso. Por último toca «Subir fotografía».
+Si salió bien, la foto aparece en la lista. Todavía no se ve en la tienda: primero tiene que aprobarse. Si sale «No se pudo guardar la foto», léelo, tómale una captura y envíala.
+Ya sabes pasar un producto a «Por revisar» y subirle una foto. Si algo no sale, toma una captura y envíala. ¡Gracias!

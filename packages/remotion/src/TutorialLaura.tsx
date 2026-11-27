@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, Sequence, Video, Img, staticFile, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Axi } from './Axi.tsx';
+import { Audio, AbsoluteFill, Sequence, Video, Img, staticFile, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
 /**
  * Video tutorial para Laura (La Bodega): 8 escenas, ~2:40.
@@ -37,7 +38,16 @@ export const TUTORIAL_FRAMES = SCENES.reduce((a, s) => a + s.seconds * TUTORIAL_
 
 const C = { night: '#0B1B3B', white: '#FFFFFF', yellow: '#FFC83D' };
 
+/** Duración real de cada escena: lo que dura su voz (+1,2 s de pausa) si es mayor que la prevista. */
+export const sceneSeconds = (durations?: number[]) => SCENES.map((s, i) => Math.max(s.seconds, durations?.[i] ? durations[i] + 1.2 : 0));
+export const tutorialFrames = (durations?: number[]) => Math.round(sceneSeconds(durations).reduce((a, b) => a + b, 0) * TUTORIAL_FPS);
+
 export interface TutorialLauraProps {
+  [k: string]: unknown;
+  /** Duración (s) de la voz de cada escena; la escena se alarga si la voz es más larga. */
+  durations?: number[];
+  /** Voz en off por escena (1–8): { 1: 'laura/voz-1.wav' }. */
+  voices?: Record<number, string>;
   /** Archivos dentro de public/ por número de escena (1–8), p. ej. { 2: 'laura/escena-2.mp4' }. */
   screens?: Record<number, string>;
   /** Voz en off ya generada (opcional), p. ej. 'laura/voz.mp3'. */
@@ -90,6 +100,8 @@ const SceneView: React.FC<{ scene: Scene; index: number; props: TutorialLauraPro
       {scene.touch && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>{scene.touch.map((b, i) => <span key={i} style={{ border: `3px solid ${C.yellow}`, color: C.yellow, borderRadius: 14, padding: '6px 18px', fontSize: 34 * big, fontWeight: 800 }}>{i + 1}. {b}</span>)}</div>}
       {!bookend && scene.note && <div style={{ background: `${C.yellow}`, color: C.night, borderRadius: 16, padding: '12px 24px', fontSize: 36 * big, fontWeight: 800 }}>{scene.note}</div>}
       <div style={{ fontSize: 38 * big, lineHeight: 1.35, background: '#00000055', borderRadius: 20, padding: '16px 24px' }}>{scene.narration}</div>
+      {!props.presenter && <div style={{ position: 'absolute', right: 36, top: 24 }}><Axi state="hablando" t={frame / TUTORIAL_FPS} size={vertical ? 190 : 170} color={C.yellow} /></div>}
+      {props.voices?.[index + 1] && <Audio src={staticFile(props.voices[index + 1])} />}
       {props.presenter && /\.(mp4|mov|webm)$/i.test(props.presenter)
         ? <Video src={staticFile(props.presenter)} muted style={{ position: 'absolute', right: 40, top: 40, width: 220, height: 220, borderRadius: 999, objectFit: 'cover', border: `5px solid ${C.yellow}` }} />
         : props.presenter ? <Img src={staticFile(props.presenter)} style={{ position: 'absolute', right: 40, top: 40, width: 220, height: 220, borderRadius: 999, objectFit: 'cover', border: `5px solid ${C.yellow}` }} /> : null}
@@ -99,11 +111,13 @@ const SceneView: React.FC<{ scene: Scene; index: number; props: TutorialLauraPro
 
 export const TutorialLaura: React.FC<TutorialLauraProps & { vertical?: boolean }> = ({ vertical = true, ...props }) => {
   const { fps } = useVideoConfig();
+  const secs = sceneSeconds(props.durations);
   let from = 0;
   return (
     <AbsoluteFill style={{ background: C.night }}>
+      {props.music && <Audio src={staticFile(props.music)} volume={0.06} loop />}
       {SCENES.map((s, i) => {
-        const d = s.seconds * fps;
+        const d = Math.round(secs[i] * fps);
         const el = <Sequence key={i} from={from} durationInFrames={d}><SceneView scene={s} index={i} props={props} vertical={vertical} /></Sequence>;
         from += d;
         return el;

@@ -1,0 +1,7 @@
+Video tutorial para Laura (La Bodega, tienda de electrodomésticos, tecnología y hogar).
+Objetivo: que Laura sepa pasar un producto a «Por revisar», subirle una foto y qué hacer si sale un error.
+Dónde se publica: se envía por WhatsApp (vertical 9:16) y se ve en el computador (horizontal 16:9).
+Duración: de 2 a 3 minutos. Español de Colombia, tono amable, claro y tranquilo.
+Tomas: grabaciones REALES de la pantalla de somoslabodega.com/admin, una por paso (ver guion.txt, una línea por escena).
+No mostrar contraseñas ni correos completos. Usar un producto real del panel.
+Subtítulos grandes. Marca: azul noche y blanco, detalles en amarillo. Música suave y muy baja.
