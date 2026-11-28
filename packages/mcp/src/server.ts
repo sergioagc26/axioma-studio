@@ -253,6 +253,57 @@ export function createServer() {
     },
   );
 
+  tool('heygen_looks', 'Los looks de tus avatares propios de HeyGen (tu gemelo digital): id, nombre, orientación y voz por defecto. Úsalos en heygen_escenas para cambiar de escenario en cada escena. No gasta créditos.', {}, async () => {
+    const looks = await E.heygenLooks();
+    if (!looks.length) return 'No tienes avatares propios en HeyGen (crea tu gemelo digital en app.heygen.com).';
+    return looks.map((l) => `${l.group} › ${l.name} · id ${l.id}${l.orientation ? ` · ${l.orientation}` : ''}${l.voiceId ? ` · voz ${l.voiceId}` : ''}`).join('\n');
+  });
+
+  tool('heygen_voces', 'Voces de HeyGen; primero tus voces clonadas. No gasta créditos.', {}, async () => {
+    const v = await E.heygenVoices();
+    return v.slice(0, 60).map((x) => `${x.type === 'public' ? 'pública' : 'tuya'} · ${x.name} · ${x.language ?? ''} · id ${x.id}`).join('\n') || 'Sin voces.';
+  });
+
+  tool(
+    'heygen_escenas',
+    'Varias escenas de tu avatar de HeyGen, cada una con su look y tu voz clonada (API v3). Baja escena01.mp4, escena02.mp4… a la carpeta; si se corta, vuelve a llamarla con la misma carpeta y retoma sin pagar de nuevo. GASTA créditos de API de HeyGen (aparte del plan de la web): confirma el costo con la persona antes. Si no hay saldo de API, haz las escenas en la web de HeyGen y bájalas con heygen_bajar.',
+    {
+      escenas: z.array(z.string()).min(1).describe('Texto que dice el avatar en cada escena'),
+      looks: z.array(z.string()).min(1).describe('Ids de looks (de heygen_looks); si son menos que las escenas, se repiten en orden'),
+      voz: z.string().describe('Id de la voz (tu voz clonada, de heygen_voces o la voz por defecto del look)'),
+      carpeta: z.string().describe('Carpeta absoluta donde quedan las escenas'),
+      titulo: z.string().optional(),
+      idioma: z.string().optional().describe('Acento de la voz, p. ej. es-MX, es-CO, es-ES (por defecto es-MX)'),
+      motor: z.string().optional().describe('Motor de avatar de HeyGen (p. ej. avatar_v); sin valor, el de HeyGen por defecto'),
+    },
+    async ({ escenas, looks, voz, carpeta, titulo, idioma, motor }) => {
+      const outs = await E.heygenScenes({ scripts: escenas, looks, voiceId: voz, outDir: carpeta, title: titulo, locale: idioma, engine: motor, onProgress: log });
+      return `Escenas de HeyGen listas:\n${outs.join('\n')}\nÚnelas con crear_proyecto (o crear_montaje) y edítalas como siempre.`;
+    },
+  );
+
+  tool('heygen_mis_videos', 'Los últimos videos de tu cuenta de HeyGen, también los que hiciste en la web: id, título, estado y duración. No gasta créditos.', { cuantos: z.number().int().min(1).max(100).optional() }, async ({ cuantos }) => {
+    const v = await E.heygenMyVideos(cuantos ?? 20);
+    return v.map((x) => `${x.title || '(sin título)'} · ${x.status}${x.duration ? ` · ${Number(x.duration).toFixed(1)} s` : ''} · id ${x.id}`).join('\n') || 'No hay videos en tu HeyGen.';
+  });
+
+  tool(
+    'heygen_bajar',
+    'Baja un video de tu cuenta de HeyGen por id o por parte del título (sirve para los hechos en la web, cuando la descarga del navegador falla). Si aún se está haciendo, espera. No gasta créditos.',
+    { id: z.string().optional(), titulo: z.string().optional().describe('Parte del título, p. ej. «R02 prueba A»'), salida: z.string().describe('Ruta absoluta del .mp4'), minutos: z.number().optional().describe('Cuánto esperar como máximo (por defecto 30)') },
+    async ({ id, titulo, salida, minutos }) => {
+      const r = await E.heygenDownload({ id, title: titulo, out: salida, minutes: minutos, onProgress: log });
+      return `Bajado «${r.title}»${r.duration ? ` (${Number(r.duration).toFixed(1)} s)` : ''}: ${r.out}`;
+    },
+  );
+
+  tool(
+    'heygen_voz',
+    'Solo la voz: tu voz clonada de HeyGen lee un texto y queda en un audio (para voz en off sin avatar). Gasta saldo de API de HeyGen (muy poco, centavos por reel): confírmalo antes.',
+    { texto: z.string(), voz: z.string().describe('Id de la voz (heygen_voces)'), salida: z.string().describe('Ruta absoluta del audio (.mp3)'), idioma: z.string().optional() },
+    async ({ texto, voz, salida, idioma }) => `Voz lista: ${await E.heygenSpeech({ text: texto, voiceId: voz, out: salida, locale: idioma })}`,
+  );
+
   tool(
     'crear_avatar',
     'Crea la cara de un AVATAR DE IA: una persona ficticia, fotorrealista, en plano medio vertical mirando a cámara (lo que mejor se anima). Tarda unos 5 minutos. Nunca describas ni imites a una persona real. Después usa avatar_hablando.',
@@ -1269,12 +1320,15 @@ export function createServer() {
   tool('renderizar', 'Renderiza el reel a MP4. Formatos: 9:16 (1080×1920, por defecto), 4:5 (1080×1350) y 1:1 (1080×1080). Tarda aproximadamente lo que dura el video.', {
     proyecto, formato: z.enum(['9:16', '4:5', '3:4', '1:1', '16:9', '21:9']).optional().describe('Sin valor: la forma propia del proyecto'),
     calidad: z.enum(['maxima', 'alta', 'ligera']).optional().describe('Por defecto, la del proyecto (alta)'),
-  }, async ({ proyecto, formato, calidad }) => {
+    limpio: z.boolean().optional().describe('Video limpio: sin subtítulos ni textos en pantalla (para terminarlo en otro editor, p. ej. CapCut). Se guarda aparte con «-limpio» en el nombre.'),
+  }, async ({ proyecto, formato, calidad, limpio }) => {
     const dir = await resolveProject(proyecto);
     let last = -1;
     const { out } = await E.renderProject(dir, {
       format: formato,
       quality: calidad,
+      clean: limpio,
+      suffix: limpio ? '-limpio' : undefined,
       onProgress: (p) => {
         const pct = Math.floor(p * 4) * 25;
         if (pct !== last) log(`render ${(last = pct)}%`);

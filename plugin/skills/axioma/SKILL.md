@@ -45,6 +45,8 @@ Entrevista corta: nombre, colores, tipografía, logo, tono, qué nunca decir. Lu
 ### Avatares, personas IA y voces
 - Solo con consentimiento: una persona ficticia, uno mismo o alguien que lo autorizó. Nunca la cara o voz de una persona real que no lo haya permitido.
 - Crear y guardar: `crear_avatar`, `guardar_avatar`, `avatares_guardados`; hacerlo hablar: `avatar_hablando`, o `heygen_avatares` / `heygen_hablando` si tiene HeyGen. Voces: `voces_disponibles`, `poner_voz_en_off`.
+- HeyGen con tu gemelo digital (API v3): `heygen_looks` (escenarios y ropa de tu avatar) y `heygen_voces` (tu voz clonada) no gastan; `heygen_escenas` hace una escena por texto, cada una con su look, y retoma sin pagar de nuevo si se corta; `heygen_voz` da solo el audio con tu voz. Ambas gastan saldo de API, que es aparte del plan de la web: confirma el costo antes. Si la API no tiene saldo, la persona hace las escenas en la web de HeyGen y `heygen_bajar` las baja por título (también `heygen_mis_videos`), sin gastar créditos.
+- `renderizar` con `limpio: true` exporta el video sin subtítulos ni textos (para terminarlo en CapCut u otro editor).
 - Todo video con persona o avatar generado por IA se publica indicando que es hecho con IA.
 
 ### Imágenes y piezas para redes

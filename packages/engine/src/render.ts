@@ -76,8 +76,21 @@ export async function timelineExtras(dir: string, project: Project, asset: (rel:
   return { voiceover, faces: await readFaces(dir), speakers, captionWords: translated, transitions: await allTransitions(project.client), cutout: existsSync(path.join(dir, P.cutout)) ? asset(P.cutout.split(path.sep).join('/')) : undefined, cutoutCoverage: await cutoutCoverage(dir), front: await frontFor(dir, project, asset), depth: project.scenes.flatMap((s) => [s.brollFile, s.backdropFile]).filter((f): f is string => Boolean(f)).map(depthPath).filter((f) => existsSync(path.join(dir, f))) };
 }
 
-export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void; /** Versión modificada del proyecto (sin guardarla), p. ej. otra variante de gancho. */ project?: Project; /** Se agrega al nombre del archivo. */ suffix?: string } = {}) {
-  const project = opts.project ?? (await readProject(dir));
+/** El proyecto sin ningún texto en pantalla (rótulos, palabras al ritmo de la voz). No se guarda. */
+export function withoutText(project: Project): Project {
+  const p: Project = structuredClone(project);
+  for (const sc of p.scenes) {
+    sc.onScreenText = undefined;
+    sc.autoText = undefined;
+    sc.textKeyword = undefined;
+    if (sc.words) sc.words = [];
+  }
+  return p;
+}
+
+export async function renderProject(dir: string, opts: { out?: string; format?: FormatId; quality?: 'maxima' | 'alta' | 'ligera'; onProgress?: (p: number) => void; /** Versión modificada del proyecto (sin guardarla), p. ej. otra variante de gancho. */ project?: Project; /** Se agrega al nombre del archivo. */ suffix?: string; /** Video limpio, sin subtítulos ni textos en pantalla (para que otro editor lo termine). */ clean?: boolean } = {}) {
+  let project = opts.project ?? (await readProject(dir));
+  if (opts.clean) project = withoutText(project);
   if (!project.scenes.length) throw new Error('El proyecto no tiene escenas. Corre primero los cortes.');
   const transcript = await readTranscript(dir);
   // La IA local suelta su memoria: exportar la necesita.
@@ -100,7 +113,10 @@ export async function renderProject(dir: string, opts: { out?: string; format?: 
       asset: (rel) => server.url(rel),
       brand: await brandFor(project, server.url, dir),
       format: opts.format ? FORMATS[opts.format] : undefined,
-      ...(await timelineExtras(dir, project, server.url)),
+      ...(await timelineExtras(dir, project, server.url).then((x) => opts.clean
+        // Limpio: sin subtítulos, ni de lo que se dice en el video ni de la voz en off (sin palabras no se dibuja ninguno).
+        ? { ...x, captionWords: [], voiceover: x.voiceover ? { ...x.voiceover, words: [] } : undefined }
+        : x)),
     });
     const serveUrl = await getBundle();
     // Con el computador muy ocupado, el navegador del render puede tardar en abrir: se reintenta.

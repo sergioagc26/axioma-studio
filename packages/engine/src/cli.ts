@@ -260,8 +260,9 @@ program
   .argument('<carpeta>', 'carpeta del proyecto')
   .option('-o, --out <archivo>', 'archivo de salida')
   .option('-f, --formato <formato>', '9:16, 4:5, 1:1 o 16:9', '9:16')
+  .option('--limpio', 'sin subtítulos ni textos en pantalla (para terminarlo en otro editor)')
   .action(async (dir, o) => {
-    const { out } = await renderProject(path.resolve(dir), { out: o.out, format: o.formato, onProgress: (p) => process.stdout.write(`\r  render ${Math.round(p * 100)}%`) });
+    const { out } = await renderProject(path.resolve(dir), { out: o.out, format: o.formato, clean: Boolean(o.limpio), suffix: o.limpio ? '-limpio' : undefined, onProgress: (p) => process.stdout.write(`\r  render ${Math.round(p * 100)}%`) });
     console.log(`\nListo: ${out}`);
   });
 
